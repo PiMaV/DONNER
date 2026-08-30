@@ -30,24 +30,35 @@ flowchart TB
   tNow[tNow simulation head]
   tFocus[tFocus playhead]
   tNow --> tFocus
-  tFocus --> plane[Focus plane Y = 0]
+  tFocus --> plane[Focus plane product Z = 0]
   plane --> below[Past: solid + decay]
   plane --> above[Newer: transparent ghost]
 ```
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
 Bird-eye looks straight down with an orthographic camera. Isolation keeps
-one worldline; on-volume drag on the cyan time axis scrubs `tFocus` while
-paused.
+one worldline. Scrub **Z** (time) with the right-hand stack slider
+(Now at the top, deepest past at the bottom), or Shift+wheel.
 
 ## Mapping
 
-| Concept | Conway | Event camera (later) | World axis |
-|---------|--------|----------------------|------------|
-| Spatial | cell `x, y` | sensor `x, y` | X, Z |
-| Time | generation | timestamp | Y (focus plane at 0; past below, newer above) |
-| Value | alive = 1 | polarity | `v` |
-| Dynamics | still / osc / transit / warmup | later (not this classifier) | `k` (color); time stays on Y |
+Product axes are **X, Y = playfield**, **Z = time**. Three.js is Y-up, so
+the engine stores product `(X, Y, Z)` as world `(X, Z, Y)`. UI copy always
+uses product names. See README *Axes*.
+
+```mermaid
+flowchart LR
+  x[X playfield] --> plane[Focus plane Z = 0]
+  y[Y playfield] --> plane
+  z[Z time] --> stack[Past below / ghost above]
+```
+
+| Concept | Conway | Event camera (later) | Product axis | Engine (Three.js) |
+|---------|--------|----------------------|--------------|-------------------|
+| Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
+| Time | generation | timestamp | Z (plane at 0; past below, newer above) | world Y |
+| Value | alive = 1 | polarity | — | `v` |
+| Dynamics | still / osc / transit / warmup | later (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
 not the destination. Live demos target event-camera streams
@@ -59,13 +70,13 @@ events (`x, y, t, v, k, s`).
 
 Time is not a fake spatial dimension: it is the third axis of a space-time
 volume. **Start with a blinker**, not a glider: the pattern sits still in
-XZ and oscillates along Y. A glider is the later case — a trajectory
-through the volume (motion in XZ plus time).
+XY and oscillates along Z. A glider is the later case — a trajectory
+through the volume (motion in XY plus time).
 
 Present sits at generation `tNow`. The **focus plane** is `tFocus`
-(`tNow` minus a scrub offset) and is always world `Y = 0`. Older slices
-sit below; newer slices sit **above as a transparent ghost** so the
-focused generation stays readable. Decay weights the past under the
+(`tNow` minus a scrub offset) and is always product **Z = 0** (engine Y = 0).
+Older slices sit below; newer slices sit **above as a transparent ghost**
+so the focused generation stays readable. Decay weights the past under the
 plane; **history** is the window instantiated from the simulation head.
 
 This split matches the later event-camera design:
@@ -76,9 +87,9 @@ This split matches the later event-camera design:
 - **Color** — worldline class (still / oscillator / transit / warmup), not age
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
-Y: cyan cubes appear and vanish; the off phase is empty, not a second
+Z: cyan cubes appear and vanish; the off phase is empty, not a second
 color. A still life is a gold pillar. A glider is a BLITZ-red **transit
-tube** — the curve through XZ+Y. Occupancy of one pixel is not enough:
+tube** — the curve through XY+Z. Occupancy of one pixel is not enough:
 a spaceship overlapping a cell for a few gens looks still/osc on that
 worldline. Still/osc require the 5×5 neighborhood centroid to stay put
 (net shift over two generations). Translating activity is always
@@ -90,8 +101,8 @@ Toad / Beacon → Glider → R-pentomino / soup.
 
 ```mermaid
 flowchart LR
-  blinker[Blinker occupancy along Y] --> osc2[Toad / Beacon]
-  osc2 --> glider[Glider trail in XZ]
+  blinker[Blinker occupancy along Z] --> osc2[Toad / Beacon]
+  osc2 --> glider[Glider trail in XY]
   glider --> soup[R-pentomino / random]
 ```
 
@@ -100,19 +111,33 @@ flowchart LR
   orbit[Orbit perspective]
   bird[Bird-eye orthographic]
   iso[Isolation worldline]
-  scrub[Drag time axis Y]
+  scrub[Z stack slider]
   orbit --> volume[Volume]
   bird --> volume
   iso --> volume
-  scrub --> plane[Focus plane Y = 0]
+  scrub --> plane[Focus plane Z = 0]
 ```
 
-## On-volume focus
+## Z stack slider
 
-While **paused** (and not in bird-eye), drag the **cyan** corner posts or the
-Y shaft of the corner XYZ gizmo. Screen-up raises the volume through the
-plane (deeper past). Orbit is locked for that gesture. X/Z on the gizmo
-are spatial, not a second time encoding.
+Time is a **HUD slider** on the right, like a 3D slicer through the
+generation stack — not a grabber on the 3D axes. **Now** is the top
+(`focusBack = 0`); the bottom is the deepest stored past. The thumb is
+`tFocus`. The readout is the focus generation plus how far the visible
+window extends below (past) and above (ghost toward Now). The Focus
+control in the sheet stays in sync. Wheel over the stack (or Shift+wheel
+on the canvas) still scrubs. X/Y numbers stay on the playfield frame;
+there is no 3D Z shaft.
+
+```mermaid
+flowchart TB
+  now[Now at top]
+  thumb[Thumb tFocus]
+  past[Deepest past at bottom]
+  now --> thumb
+  thumb --> past
+  thumb --> plane[Focus plane Z = 0]
+```
 
 ## Bird-eye view
 
@@ -144,9 +169,11 @@ stable. Do not block Conway/stability work on this.
 | `src/dynamics.js` | Worldline class still / oscillator / transit |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
-| `src/observe.js` | Isolation pick, time-axis drag mapping |
+| `src/axes.js` | Product X/Y/Z vs engine; tick labels |
+| `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
+| `src/observe.js` | Isolation pick (world XZ → cell) |
 | `src/view.js` | Perspective ↔ bird-eye camera |
-| `src/renderer.js` | Solid + ghost instanced cubes; focus frame; XYZ gizmo |
+| `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
 | `src/main.js` | Scene, loop, edit/paint, camera |
 | `src/ui.js` | HUD controls |
 

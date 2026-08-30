@@ -1,5 +1,6 @@
 import { PATTERN_NAMES } from "./conway.js";
 import { DEFAULTS, GRID_PRESETS } from "./config.js";
+import { visibleTimeRange } from "./axes.js";
 
 const STAB_HINT = {
   none: "None: equal cubes. Occupancy only — start here if size is confusing.",
@@ -10,10 +11,10 @@ const STAB_HINT = {
 const PATTERN_HINT = {
   Blinker:
     "Blinker (read this first): gold core stays on. Cyan tips flash every other generation — empty = dead, not a missing color.",
-  Toad: "Toad: period-2 oscillator, two rows. Watch cyan occupancy flip along Y, not XY motion.",
+  Toad: "Toad: period-2 oscillator, two rows. Watch cyan occupancy flip along Z (time), not XY motion.",
   Beacon: "Beacon: period-2. Two blocks trade a corner; gold cores, cyan flicker.",
   Glider:
-    "Glider: coral space-time tube (transit). It does not oscillate in place — cyan/gold would mean the ship sat still. Follow the curve in XZ+Y.",
+    "Glider: coral space-time tube (transit). It does not oscillate in place — cyan/gold would mean the ship sat still. Follow the curve in XY+Z.",
   "R-pentomino": "R-pentomino: long chaotic transit, then stills/oscillators appear in place.",
   "Gosper gun": "Gosper gun needs grid ≥ 48. Gliders peel off as coral trails.",
   Random: "Random soup: transit (coral) until islands lock into gold/cyan.",
@@ -55,6 +56,10 @@ export function bindUI(on) {
   const focus = $("focus");
   const focusVal = $("focus-val");
   const focusNow = $("btn-focus-now");
+  const stack = $("stack-slider");
+  const stackTop = $("stack-top");
+  const stackBot = $("stack-bot");
+  const stackReadout = $("stack-readout");
   const grid = $("grid");
   const wrap = $("wrap");
   const stabMode = $("stab-mode");
@@ -136,7 +141,25 @@ export function bindUI(on) {
     syncLabels();
     on.history();
   });
+  const applyStack = () => {
+    focus.value = stack.value;
+    on.focus();
+  };
   focus.addEventListener("input", () => on.focus());
+  stack.addEventListener("input", applyStack);
+  stack.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const max = Number(stack.max) || 0;
+      const dir = Math.sign(e.deltaY) || 1;
+      const next = Math.min(max, Math.max(0, Number(stack.value) + dir));
+      if (String(next) === stack.value) return;
+      stack.value = String(next);
+      applyStack();
+    },
+    { passive: false },
+  );
   focusNow.addEventListener("click", () => on.focusNow());
   fold.addEventListener("click", () => {
     const open = panel.classList.toggle("is-open");
@@ -178,10 +201,19 @@ export function bindUI(on) {
       isoBtn.classList.toggle("is-on", on);
       isoBtn.setAttribute("aria-pressed", on ? "true" : "false");
     },
-    setFocus(back, maxBack) {
-      focus.max = String(Math.max(0, maxBack));
+    setFocus(back, maxBack, tFocus = 0, tNow = tFocus, history = 1) {
+      const max = Math.max(0, maxBack);
+      focus.max = String(max);
       focus.value = String(back);
       focusVal.textContent = back === 0 ? "Now" : `−${back}`;
+      stack.max = String(max);
+      stack.value = String(back);
+      stackTop.textContent = "Now";
+      stackBot.textContent = max === 0 ? "—" : `−${max}`;
+      const { relMin, relMax } = visibleTimeRange(tNow, tFocus, history);
+      const below = relMin === 0 ? "0" : `−${Math.abs(relMin)}`;
+      const above = relMax === 0 ? "Now" : `+${relMax}`;
+      stackReadout.textContent = `${tFocus}\n${below} / ${above}`;
     },
     setHint(text) {
       hint.textContent = text;

@@ -2,7 +2,7 @@
  * Worldline dynamics class for a live cell at generation t.
  *
  * Time stays on the Y axis; color encodes still / oscillator / transit.
- * Oscillation is occupancy along Y (cubes appear / vanish), not extra hues.
+ * Oscillation is occupancy along Z / time (cubes appear / vanish), not extra hues.
  *
  * Occupancy alone is not enough: a glider crawls over the same cell for
  * several gens, which looks like still/osc on that pixel. Still and osc
@@ -120,4 +120,11 @@ export function stabilityScale(stab, cap = MAX_STAB_GENS) {
   if (stab <= 0) return SCALE_TRANSIT;
   const u = Math.min(stab, cap) / cap;
   return SCALE_STAB_MIN + (SCALE_STAB_MAX - SCALE_STAB_MIN) * u;
+}
+
+/** Cube fill on the focus slice; 0 if there is no event. */
+export function cubeFill(event, stabMode) {
+  if (!event) return 0;
+  if (stabMode === "none" || (event.k | 0) === KIND_WARMUP) return SCALE_UNIFORM;
+  return stabilityScale(event.s);
 }

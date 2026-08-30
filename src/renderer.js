@@ -5,8 +5,8 @@
  * Later modes (points, sprites, shaders) should implement the same
  * `setEvents(soa, view)` surface.
  *
- * Y = 0 is the focus plane (`tFocus`). Slices with t > tFocus sit above
- * it as a transparent ghost so the focused generation stays readable.
+ * Product Z = 0 is the focus plane (`tFocus`). Engine Y-up stores that as
+ * world Y = 0. Slices with t > tFocus sit above as a transparent ghost.
  */
 
 import * as THREE from "three";
@@ -201,8 +201,8 @@ export function createNowGrid(width, height, cellSize) {
 }
 
 /**
- * Playfield frame on the focus plane: outer rectangle plus tall corner posts
- * (time-axis grips). Invisible hit cylinders make the posts easy to grab.
+ * Playfield frame on the focus plane: outer rectangle only. X/Y numbers
+ * live on the right-hand coordinate frame; Z time is the HUD stack slider.
  */
 export class FocusFrame {
   constructor(scene) {
@@ -213,18 +213,7 @@ export class FocusFrame {
       transparent: true,
       opacity: 0.92,
     });
-    this._postMat = new THREE.MeshBasicMaterial({
-      color: COLOR.cyan,
-      transparent: true,
-      opacity: 0.55,
-    });
-    this._hitMat = new THREE.MeshBasicMaterial({
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
     this._parts = [];
-    this._timeHits = [];
     scene.add(this.group);
   }
 
@@ -234,47 +223,22 @@ export class FocusFrame {
       p.geometry.dispose();
     }
     this._parts.length = 0;
-    this._timeHits.length = 0;
 
     const hw = (width * cellSize) / 2;
     const hd = (height * cellSize) / 2;
     const t = Math.max(0.07, cellSize * 0.08);
-    const postH = cellSize * 5.4;
 
-    const add = (x, y, z, sx, sy, sz, mat = this._mat) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    const add = (x, y, z, sx, sy, sz) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), this._mat);
       mesh.position.set(x, y, z);
       this.group.add(mesh);
       this._parts.push(mesh);
-      return mesh;
     };
 
     add(0, t * 0.5, -hd, width * cellSize + t, t, t);
     add(0, t * 0.5, hd, width * cellSize + t, t, t);
     add(-hw, t * 0.5, 0, t, t, height * cellSize);
     add(hw, t * 0.5, 0, t, t, height * cellSize);
-
-    for (const [x, z] of [
-      [-hw, -hd],
-      [hw, -hd],
-      [-hw, hd],
-      [hw, hd],
-    ]) {
-      add(x, 0, z, t, postH, t, this._postMat);
-      const hit = new THREE.Mesh(
-        new THREE.CylinderGeometry(cellSize * 0.32, cellSize * 0.32, postH * 1.08, 8),
-        this._hitMat,
-      );
-      hit.position.set(x, 0, z);
-      hit.userData.timeScrub = true;
-      this.group.add(hit);
-      this._parts.push(hit);
-      this._timeHits.push(hit);
-    }
-  }
-
-  timeHandles() {
-    return this._timeHits;
   }
 
   setEditing(on) {
@@ -282,132 +246,10 @@ export class FocusFrame {
     this._mat.color.setHex(on ? COLOR.gold : COLOR.frame);
   }
 
-  setScrubReady(on) {
-    this._postMat.opacity = on ? 0.85 : 0.4;
-    this._postMat.color.setHex(on ? COLOR.cyan : COLOR.frame);
-  }
-
   dispose() {
     this.scene.remove(this.group);
     for (const p of this._parts) p.geometry.dispose();
     this._mat.dispose();
-    this._postMat.dispose();
-    this._hitMat.dispose();
-  }
-}
-
-/**
- * Corner XYZ gizmo: X/Z spatial, Y = time (drag while paused to scrub focus).
- */
-export class AxesGizmo {
-  constructor(scene) {
-    this.scene = scene;
-    this.group = new THREE.Group();
-    this._parts = [];
-    this._timeHits = [];
-    this._mats = [];
-    scene.add(this.group);
-  }
-
-  setSize(width, height, cellSize) {
-    for (const p of this._parts) {
-      this.group.remove(p);
-      p.geometry.dispose();
-    }
-    this._parts.length = 0;
-    this._timeHits.length = 0;
-    for (const m of this._mats) m.dispose();
-    this._mats.length = 0;
-
-    const hw = (width * cellSize) / 2;
-    const hd = (height * cellSize) / 2;
-    const inset = cellSize * 1.7;
-    this.group.position.set(-hw - inset, 0, -hd - inset);
-
-    const xLen = cellSize * 3.2;
-    const zLen = cellSize * 3.2;
-    const yLen = cellSize * 6.2;
-    const r = Math.max(0.045, cellSize * 0.055);
-
-    this._addShaft(COLOR.gold, xLen, r, 0, -Math.PI / 2);
-    this._addShaft(COLOR.grid, zLen, r, Math.PI / 2, 0);
-    this._addShaft(COLOR.cyan, yLen, r * 1.25, 0, 0);
-
-    const cone = cellSize * 0.22;
-    this._addCone(COLOR.gold, cone, xLen * 0.5, 0, 0, 0, -Math.PI / 2);
-    this._addCone(COLOR.grid, cone, 0, 0, zLen * 0.5, Math.PI / 2, 0);
-    this._addCone(COLOR.cyan, cone * 1.15, 0, yLen * 0.5, 0, 0, 0);
-    this._addCone(COLOR.cyan, cone * 1.15, 0, -yLen * 0.5, 0, Math.PI, 0);
-
-    const hit = new THREE.Mesh(
-      new THREE.CylinderGeometry(cellSize * 0.34, cellSize * 0.34, yLen * 1.12, 8),
-      new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      }),
-    );
-    hit.userData.timeScrub = true;
-    this.group.add(hit);
-    this._parts.push(hit);
-    this._timeHits.push(hit);
-    this._mats.push(hit.material);
-  }
-
-  _addShaft(hex, length, radius, rotX, rotZ) {
-    const mat = new THREE.MeshBasicMaterial({
-      color: hex,
-      transparent: true,
-      opacity: 0.9,
-    });
-    this._mats.push(mat);
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius, length, 8),
-      mat,
-    );
-    mesh.rotation.x = rotX;
-    mesh.rotation.z = rotZ;
-    if (rotZ === -Math.PI / 2) mesh.position.x = length * 0.5;
-    else if (rotX === Math.PI / 2) mesh.position.z = length * 0.5;
-    this.group.add(mesh);
-    this._parts.push(mesh);
-  }
-
-  _addCone(hex, size, x, y, z, rotX, rotZ) {
-    const mat = new THREE.MeshBasicMaterial({
-      color: hex,
-      transparent: true,
-      opacity: 0.92,
-    });
-    this._mats.push(mat);
-    const mesh = new THREE.Mesh(new THREE.ConeGeometry(size, size * 1.8, 8), mat);
-    mesh.position.set(x, y, z);
-    mesh.rotation.x = rotX;
-    mesh.rotation.z = rotZ;
-    this.group.add(mesh);
-    this._parts.push(mesh);
-  }
-
-  timeHandles() {
-    return this._timeHits;
-  }
-
-  setScrubReady(on) {
-    for (const m of this._mats) {
-      if (m.color && m.color.getHex() === COLOR.cyan) {
-        m.opacity = on ? 1 : 0.55;
-      }
-    }
-  }
-
-  originWorld(target) {
-    return this.group.getWorldPosition(target);
-  }
-
-  dispose() {
-    this.scene.remove(this.group);
-    for (const p of this._parts) p.geometry.dispose();
-    for (const m of this._mats) m.dispose();
   }
 }
 
@@ -454,17 +296,107 @@ export class IsolateBeacon {
   }
 }
 
-export function createHoverMarker(cellSize) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(cellSize * 0.92, cellSize * 0.12, cellSize * 0.92),
-    new THREE.MeshBasicMaterial({
-      color: COLOR.gold,
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false,
-    }),
+function hoverBarMat(hex) {
+  return new THREE.MeshBasicMaterial({
+    color: hex,
+    transparent: true,
+    opacity: 1,
+    depthTest: false,
+    depthWrite: false,
+  });
+}
+
+function addHoverEdge(group, mat, geos, ax, ay, az, bx, by, bz, t) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const dz = bz - az;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  const geo = new THREE.BoxGeometry(t, len, t);
+  geos.push(geo);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5);
+  mesh.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(dx, dy, dz).normalize(),
   );
-  mesh.visible = false;
-  mesh.renderOrder = 2;
-  return mesh;
+  mesh.renderOrder = 8;
+  mesh.frustumCulled = false;
+  group.add(mesh);
+}
+
+/**
+ * Plane hover: gold square on the cell, pale cage around the cube
+ * on the focus slice when that cell is live.
+ */
+export class HoverOutlines {
+  constructor(scene, cellSize) {
+    this.scene = scene;
+    this._geos = [];
+    this._cellMat = hoverBarMat(COLOR.gold);
+    this._cubeMat = hoverBarMat(0xf4f7fb);
+    this.cell = new THREE.Group();
+    this.cube = new THREE.Group();
+    this.cell.frustumCulled = false;
+    this.cube.frustumCulled = false;
+    this.cell.visible = false;
+    this.cube.visible = false;
+
+    const t = Math.max(0.04, cellSize * 0.055);
+    const ch = cellSize * 0.5;
+    addHoverEdge(this.cell, this._cellMat, this._geos, -ch, 0, -ch, ch, 0, -ch, t);
+    addHoverEdge(this.cell, this._cellMat, this._geos, ch, 0, -ch, ch, 0, ch, t);
+    addHoverEdge(this.cell, this._cellMat, this._geos, ch, 0, ch, -ch, 0, ch, t);
+    addHoverEdge(this.cell, this._cellMat, this._geos, -ch, 0, ch, -ch, 0, -ch, t);
+
+    const h = cellSize * 0.5;
+    const c = [-h, h];
+    for (const y of c) {
+      addHoverEdge(this.cube, this._cubeMat, this._geos, -h, y, -h, h, y, -h, t);
+      addHoverEdge(this.cube, this._cubeMat, this._geos, h, y, -h, h, y, h, t);
+      addHoverEdge(this.cube, this._cubeMat, this._geos, h, y, h, -h, y, h, t);
+      addHoverEdge(this.cube, this._cubeMat, this._geos, -h, y, h, -h, y, -h, t);
+    }
+    for (const x of c) {
+      for (const z of c) {
+        addHoverEdge(this.cube, this._cubeMat, this._geos, x, -h, z, x, h, z, t);
+      }
+    }
+
+    scene.add(this.cell);
+    scene.add(this.cube);
+  }
+
+  set(cell, width, height, cellSize, cubeScale) {
+    if (!cell) {
+      this.hide();
+      return;
+    }
+    const ox = (width - 1) * 0.5;
+    const oz = (height - 1) * 0.5;
+    const wx = (cell.x - ox) * cellSize;
+    const wz = (cell.y - oz) * cellSize;
+    this.cell.position.set(wx, 0.05, wz);
+    this.cell.visible = true;
+    if (cubeScale > 0) {
+      this.cube.position.set(wx, 0, wz);
+      this.cube.scale.setScalar(cubeScale);
+      this.cube.visible = true;
+    } else {
+      this.cube.visible = false;
+    }
+  }
+
+  hide() {
+    this.cell.visible = false;
+    this.cube.visible = false;
+  }
+
+  dispose() {
+    this.scene.remove(this.cell);
+    this.scene.remove(this.cube);
+    for (const g of this._geos) g.dispose();
+    this._geos.length = 0;
+    this._cellMat.dispose();
+    this._cubeMat.dispose();
+  }
 }

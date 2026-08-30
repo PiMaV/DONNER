@@ -62,7 +62,8 @@ body {
 .hud-stats,
 .controls,
 .fold,
-.legal {
+.legal,
+.stack {
   position: fixed;
   z-index: 2;
   pointer-events: auto;
@@ -124,6 +125,97 @@ body {
   font-size: 0.72rem;
   line-height: 1.45;
   white-space: pre;
+}
+
+.stack {
+  top: calc(12px + var(--safe-t) + 11.5rem);
+  right: calc(12px + var(--safe-r));
+  bottom: calc(52px + var(--safe-b));
+  width: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+}
+
+.stack-name {
+  font-family: Orbitron, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--dampf);
+}
+
+.stack-cap,
+.stack-readout {
+  color: var(--muted);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.62rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.stack-readout {
+  color: var(--dampf);
+  white-space: pre-line;
+}
+
+.stack-range {
+  flex: 1;
+  width: 28px;
+  min-height: 120px;
+  margin: 0;
+  writing-mode: vertical-lr;
+  direction: ltr;
+  -moz-orient: vertical;
+  appearance: none;
+  background: transparent;
+  accent-color: var(--dampf);
+  cursor: ns-resize;
+}
+
+.stack-range::-webkit-slider-runnable-track {
+  width: 8px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 255, 242, 0.35) 0 2px,
+    rgba(255, 255, 255, 0.06) 2px 10px
+  );
+}
+
+.stack-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 2px;
+  background: var(--dampf);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 8px rgba(0, 255, 242, 0.45);
+}
+
+.stack-range::-moz-range-track {
+  width: 8px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 255, 242, 0.35) 0 2px,
+    rgba(255, 255, 255, 0.06) 2px 10px
+  );
+}
+
+.stack-range::-moz-range-thumb {
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--dampf);
+  border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .fold {
@@ -221,11 +313,6 @@ body {
   border-color: rgba(255, 197, 61, 0.55);
   color: var(--donner);
   background: rgba(255, 197, 61, 0.08);
-}
-
-#view.is-scrub,
-#view.is-scrub:active {
-  cursor: ns-resize;
 }
 
 .focus-row {
@@ -378,6 +465,13 @@ body {
     font-size: 0.64rem;
     min-width: 8.2rem;
     padding: 8px 10px;
+  }
+
+  .stack {
+    top: auto;
+    bottom: calc(52px + var(--safe-b));
+    height: min(32vh, 220px);
+    width: 44px;
   }
 
   .brand h1 {

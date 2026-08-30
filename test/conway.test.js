@@ -7,9 +7,21 @@ import {
   stepClassic,
 } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
-import { KIND_OSC, KIND_STILL, KIND_TRANSIT, KIND_WARMUP, classifyWorldline, stabilityAge, stabilityScale, MAX_STAB_GENS } from "../src/dynamics.js";
+import {
+  KIND_OSC,
+  KIND_STILL,
+  KIND_TRANSIT,
+  KIND_WARMUP,
+  MAX_STAB_GENS,
+  SCALE_TRANSIT,
+  SCALE_UNIFORM,
+  classifyWorldline,
+  cubeFill,
+  stabilityAge,
+  stabilityScale,
+} from "../src/dynamics.js";
 import { clampFocusBack, focusGeneration } from "../src/focus.js";
-import { EventSoA, GenerationRing } from "../src/spacetime.js";
+import { EventSoA, eventAt, GenerationRing } from "../src/spacetime.js";
 
 describe("Conway B3/S23 (BLITZ parity)", () => {
   it("blinker oscillates with period 2 on a torus", () => {
@@ -166,5 +178,37 @@ describe("stability age", () => {
     }
     assert.ok(atCore.length >= 2);
     assert.ok(atCore.every((s) => s === atCore[0]));
+  });
+});
+
+describe("focus-slice hover lookup", () => {
+  it("finds the event at a cell and generation", () => {
+    const soa = new EventSoA(4);
+    soa.count = 2;
+    soa.x[0] = 3;
+    soa.y[0] = 4;
+    soa.t[0] = 10;
+    soa.k[0] = KIND_STILL;
+    soa.s[0] = 8;
+    soa.x[1] = 3;
+    soa.y[1] = 4;
+    soa.t[1] = 9;
+    soa.k[1] = KIND_TRANSIT;
+    soa.s[1] = 0;
+    const e = eventAt(soa, 3, 4, 10);
+    assert.equal(e.k, KIND_STILL);
+    assert.equal(e.s, 8);
+    assert.equal(eventAt(soa, 3, 4, 8), null);
+  });
+
+  it("maps occupancy to cube fill", () => {
+    assert.equal(cubeFill(null, "time"), 0);
+    assert.equal(cubeFill({ k: KIND_WARMUP, s: 0 }, "time"), SCALE_UNIFORM);
+    assert.equal(cubeFill({ k: KIND_STILL, s: 8 }, "none"), SCALE_UNIFORM);
+    assert.equal(cubeFill({ k: KIND_TRANSIT, s: 0 }, "time"), SCALE_TRANSIT);
+    assert.ok(
+      cubeFill({ k: KIND_STILL, s: 16 }, "time") >
+        cubeFill({ k: KIND_STILL, s: 2 }, "time"),
+    );
   });
 });

@@ -38,6 +38,16 @@
 
   <pre id="hud-stats" class="hud-stats" aria-live="polite"></pre>
 
+  <aside class="stack" aria-label="Z time stack">
+    <span class="stack-name">Z</span>
+    <span id="stack-top" class="stack-cap">Now</span>
+    <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
+      orient="vertical" aria-orientation="vertical"
+      aria-label="Scrub focus through the time stack" />
+    <span id="stack-bot" class="stack-cap">−0</span>
+    <span id="stack-readout" class="stack-readout">0</span>
+  </aside>
+
   <button type="button" id="btn-fold" class="fold" aria-expanded="false" aria-controls="controls">Controls ▸</button>
 
   <form id="controls" class="controls" autocomplete="off" onsubmit="return false">

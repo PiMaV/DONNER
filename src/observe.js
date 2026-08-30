@@ -1,5 +1,5 @@
 /**
- * Isolation pick and on-volume time scrub — view helpers, no Three.js.
+ * Isolation pick helpers — view math, no Three.js.
  */
 
 import { ISOLATE_FIELD } from "./config.js";

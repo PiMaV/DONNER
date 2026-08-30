@@ -3,20 +3,21 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { COLOR, DEFAULTS, VERSION } from "./config.js";
 import { ConwayWorld, seedPattern } from "./conway.js";
+import { cubeFill } from "./dynamics.js";
 import { clampFocusBack, focusGeneration } from "./focus.js";
 import { FrameClock, formatHud } from "./hud.js";
-import { cellFromWorldXZ, cellsEqual, dragFocusBack, screenPxPerWorldY } from "./observe.js";
+import { cellFromWorldXZ, cellsEqual } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import {
-  AxesGizmo,
   CubeRenderer,
   FocusFrame,
+  HoverOutlines,
   IsolateBeacon,
   createFocusSurface,
-  createHoverMarker,
   createNowGrid,
 } from "./renderer.js";
-import { EventSoA, GenerationRing } from "./spacetime.js";
+import { CoordinateFrame, PlaneHairlines } from "./coords.js";
+import { EventSoA, eventAt, GenerationRing } from "./spacetime.js";
 import { bindUI } from "./ui.js";
 import {
   applyBirdAspect,
@@ -81,10 +82,10 @@ const cubes = new CubeRenderer(scene, {
   cellSize: DEFAULTS.cellSize,
 });
 const playfield = new FocusFrame(scene);
-const axes = new AxesGizmo(scene);
+const axes = new CoordinateFrame(scene);
+const hairlines = new PlaneHairlines(scene);
 const beacon = new IsolateBeacon(scene, DEFAULTS.cellSize);
-const hover = createHoverMarker(DEFAULTS.cellSize);
-scene.add(hover);
+const hover = new HoverOutlines(scene, DEFAULTS.cellSize);
 
 let world;
 let ring;
@@ -107,15 +108,11 @@ let measuredGps = 0;
 let gpsWindow = 0;
 let gpsSteps = 0;
 let pointerDown = null;
-let scrubbing = false;
-let scrubStart = null;
+let hoverCell = null;
 
 const clock = new FrameClock();
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const _ndc0 = new THREE.Vector3();
-const _ndc1 = new THREE.Vector3();
-const _origin = new THREE.Vector3();
 
 const ui = bindUI({
   togglePlay,
@@ -168,7 +165,7 @@ function maxFocusBack() {
 
 function applyFocus(back) {
   focusBack = clampFocusBack(back, world.generation, historyLen);
-  ui.setFocus(focusBack, maxFocusBack());
+  ui.setFocus(focusBack, maxFocusBack(), tFocus(), world.generation, historyLen);
   updateHint();
 }
 
@@ -189,12 +186,6 @@ function syncBeacon() {
     historyLen,
     DEFAULTS.timeScale,
   );
-}
-
-function updateScrubReady() {
-  const ready = !playing && !birdEye;
-  playfield.setScrubReady(ready);
-  axes.setScrubReady(ready);
 }
 
 function bootWorld(resizeGrid) {
@@ -229,6 +220,9 @@ function bootWorld(resizeGrid) {
   if (isolateCell && (isolateCell.x >= cfg.width || isolateCell.y >= cfg.height)) {
     isolateCell = null;
   }
+  if (hoverCell && (hoverCell.x >= cfg.width || hoverCell.y >= cfg.height)) {
+    hoverCell = null;
+  }
 
   acc = 0;
   applyFocus(0);
@@ -254,9 +248,8 @@ function togglePlay() {
   playing = !playing;
   if (playing) {
     editing = false;
-    hover.visible = false;
+    clearHover();
     ui.setEditing(false);
-    endScrub();
   }
   ui.setPlaying(playing);
   updateHint();
@@ -268,8 +261,6 @@ function toggleEdit() {
     playing = false;
     applyFocus(0);
     ui.setPlaying(false);
-  } else {
-    hover.visible = false;
   }
   ui.setEditing(editing);
   updateHint();
@@ -279,7 +270,6 @@ function toggleBird() {
   birdEye = !birdEye;
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   if (birdEye) {
-    endScrub();
     enterBirdEye({
       persp: camera,
       bird: birdCam,
@@ -329,13 +319,12 @@ function updateHint() {
   } else if (birdEye) {
     ui.setHint("Bird-eye — pan / pinch, Shift+wheel scrubs time · B to leave");
   } else if (playing) {
-    ui.setHint("Orbit · Shift+wheel scrubs time · pause to drag the cyan time axis");
+    ui.setHint("Orbit · Z stack on the right (scroll or drag) · Shift+wheel also works");
   } else {
-    ui.setHint("Paused — drag cyan posts / Y-gizmo to scrub · Focus slider · Edit to paint");
+    ui.setHint("Paused — Z stack on the right · Focus in the sheet · Edit to paint");
   }
   applyGridLook();
   playfield.setEditing(editing);
-  updateScrubReady();
 }
 
 function stepOnce() {
@@ -394,57 +383,6 @@ function hitCell(event, cubesToo = false) {
   );
 }
 
-function timeHandleList() {
-  return playfield.timeHandles().concat(axes.timeHandles());
-}
-
-function hitTimeAxis(event) {
-  if (playing || birdEye) return false;
-  const rect = canvas.getBoundingClientRect();
-  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(ndc, activeCamera());
-  return raycaster.intersectObjects(timeHandleList(), false).length > 0;
-}
-
-function pxPerGeneration() {
-  axes.originWorld(_origin);
-  _ndc0.copy(_origin);
-  _ndc1.copy(_origin);
-  _ndc1.y += DEFAULTS.timeScale;
-  _ndc0.project(activeCamera());
-  _ndc1.project(activeCamera());
-  return screenPxPerWorldY(_ndc0.y, _ndc1.y, canvas.clientHeight);
-}
-
-function beginScrub(e) {
-  scrubbing = true;
-  canvas.classList.add("is-scrub");
-  controls.enabled = false;
-  if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
-  scrubStart = {
-    y: e.clientY,
-    back: focusBack,
-    px: pxPerGeneration(),
-  };
-}
-
-function moveScrub(e) {
-  if (!scrubbing || !scrubStart) return;
-  applyFocus(dragFocusBack(scrubStart.back, e.clientY - scrubStart.y, scrubStart.px));
-}
-
-function endScrub(e) {
-  if (!scrubbing) return;
-  scrubbing = false;
-  canvas.classList.remove("is-scrub");
-  controls.enabled = true;
-  if (e && canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
-    canvas.releasePointerCapture(e.pointerId);
-  }
-  scrubStart = null;
-}
-
 function paintAt(event) {
   if (!editing || focusBack !== 0) return;
   const cell = hitCell(event);
@@ -463,24 +401,28 @@ function pickIsolate(event) {
   updateHint();
 }
 
+function clearHover() {
+  hoverCell = null;
+  hairlines.hide();
+  axes.setHover(null);
+  hover.hide();
+}
+
+function syncHover() {
+  if (!hoverCell || !world) {
+    hover.hide();
+    return;
+  }
+  const fill = cubeFill(eventAt(soa, hoverCell.x, hoverCell.y, tFocus()), stabMode);
+  hover.set(hoverCell, world.width, world.height, DEFAULTS.cellSize, fill);
+}
+
 function updateHover(event) {
-  if (!editing || focusBack !== 0) {
-    hover.visible = false;
-    return;
-  }
   const cell = hitCell(event);
-  if (!cell) {
-    hover.visible = false;
-    return;
-  }
-  const ox = (world.width - 1) * 0.5;
-  const oz = (world.height - 1) * 0.5;
-  hover.position.set(
-    (cell.x - ox) * DEFAULTS.cellSize,
-    0.08,
-    (cell.y - oz) * DEFAULTS.cellSize,
-  );
-  hover.visible = true;
+  hoverCell = cell;
+  hairlines.setCell(cell, world.width, world.height, DEFAULTS.cellSize);
+  axes.setHover(cell);
+  syncHover();
 }
 
 function resize() {
@@ -493,42 +435,26 @@ function resize() {
   applyBirdAspect(birdCam, aspect);
 }
 
-canvas.addEventListener(
-  "pointerdown",
-  (e) => {
-    if (e.button !== 0) return;
-    pointerDown = { x: e.clientX, y: e.clientY };
-    if (hitTimeAxis(e)) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      beginScrub(e);
-    }
-  },
-  { capture: true },
-);
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  pointerDown = { x: e.clientX, y: e.clientY };
+});
 canvas.addEventListener("pointermove", (e) => {
-  if (scrubbing) {
-    moveScrub(e);
-    return;
-  }
-  if (editing) updateHover(e);
-  if (!playing && !birdEye && hitTimeAxis(e)) canvas.classList.add("is-scrub");
-  else if (!scrubbing) canvas.classList.remove("is-scrub");
+  updateHover(e);
 });
 window.addEventListener("pointerup", (e) => {
-  const wasScrub = scrubbing;
-  endScrub(e);
   if (!pointerDown) return;
   const dx = e.clientX - pointerDown.x;
   const dy = e.clientY - pointerDown.y;
   pointerDown = null;
-  if (wasScrub) return;
   if (dx * dx + dy * dy > 36) return;
   if (e.target !== canvas) return;
   if (isolating && !editing) pickIsolate(e);
   else paintAt(e);
 });
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("pointerleave", () => {
+  clearHover();
+});
 
 canvas.addEventListener(
   "wheel",
@@ -591,6 +517,7 @@ function frame(now) {
   }
 
   syncVolume();
+  syncHover();
   controls.update();
   renderer.render(scene, activeCamera());
 

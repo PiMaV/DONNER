@@ -10,7 +10,7 @@ flowchart LR
   orbit[Orbit / pinch / pan] --> scene[Volume]
   play[Play Pause Step] --> sim[Conway]
   sim --> scene
-  scrub[Focus slider / Shift+wheel] --> plane[Focus plane]
+  scrub[Z stack / Focus / Shift+wheel] --> plane[Focus plane]
   plane --> scene
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
@@ -26,7 +26,7 @@ flowchart LR
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan |
 | Shift+wheel | Scrub focus into the past / back to now |
-| Drag cyan posts / Y-gizmo (paused) | Scrub focus (orbit locked for that gesture) |
+| **Z** stack (right HUD) | Scrub the generation stack (Now at top, past at bottom). Wheel over it also steps. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now) |
 | `B` | Bird-eye (orthographic top view) |
@@ -59,9 +59,12 @@ flowchart LR
 | Wrap | Torus vs hard edges |
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-The gold **frame** is the playfield edge (rectangle + tall cyan corner posts).
-While paused, drag those posts or the cyan **Y** of the corner XYZ gizmo to
-scrub focus. Slices newer than the focus sit **above** it, translucent.
+The gold **frame** is the playfield edge. Numbered **X/Y** sit on the
+**right**. Time is the **Z stack slider** beside the HUD (Now at the top),
+not a 3D gizmo. Hovering the plane draws two thin lines to X and Y,
+a gold square on the cell, and a pale cage around the cube on that
+slice when the cell is live. Slices newer than the focus sit **above**
+the plane, translucent.
 
 **Bird** looks straight down with an orthographic camera (no parallax).
 **Iso** dims every cell except one worldline; tap a cell on the plane or a
@@ -83,13 +86,16 @@ volume stays dominant.
 | BIRD | Present in bird-eye |
 | ISO | Isolated cell, or `…` while picking |
 
+Below the stats, the **Z stack** slider scrubs time (Now at the top, past
+at the bottom). The readout is focus generation plus past / ghost span.
+
 This HUD is also a cheap GPU / browser benchmark. If INST hits the cap,
 lower History or Grid before judging FPS.
 
 ## Visual mapping
 
-**Geometry** is time (Y). **Color** is dynamics along each `(x, y)` worldline,
-not a second clock. An oscillator does **not** cycle hue along Y; it
+**Geometry** is time (**Z**). **Color** is dynamics along each `(x, y)` worldline,
+not a second clock. An oscillator does **not** cycle hue along Z; it
 cycles **occupancy** (cubes present / absent). Mixing extra hues would
 fight the class colors.
 

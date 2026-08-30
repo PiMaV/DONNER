@@ -38,6 +38,28 @@ or a sensor.
 DONNER extends that idea: **matrix → time series → space-time volume →
 explorative 3D (later XR)**.
 
+## Axes (X, Y, Z)
+
+DONNER labels axes the scientific way. **X and Y are the playfield** (cell
+or sensor). **Z is time** — the vertical stack. The focus plane is **Z = 0**:
+past below, newer slices (ghost) above.
+
+| Axis | Meaning | On screen |
+|------|---------|-----------|
+| **X** | playfield column | on the focus plane |
+| **Y** | playfield row | on the focus plane |
+| **Z** | time | vertical stack; **right-hand slider** (Now at the top) |
+
+Three.js is Y-up internally. Product `(X, Y, Z)` is stored as world
+`(X, Z, Y)`. UI, HUD, and docs always mean **product** X/Y/Z. Do not call
+time “Y” in user-facing copy.
+
+The numbered coordinate frame sits on the **right** of the volume (away from
+the control sheet). Hovering the plane draws two thin lines from the cell
+to the X and Y axes. Time is **not** a 3D gizmo on that frame: scrub with
+the **Z stack slider** on the right of the HUD, like a 3D slicer through
+the generation stack (Now at the top, past at the bottom).
+
 ## Run
 
 Static files, no build step, no backend. ES modules need a local HTTP server
@@ -58,10 +80,11 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
 - Default teaching seed: Blinker (glider is the XY-motion case)
-- Instanced cubes, history along the time axis (world Y)
+- Instanced cubes, history along the time axis (product **Z**)
 - Decay, speed, history length, play / pause / step / reset
 - Focus scrub (plane through the stack; newer slices ghosted above)
-- Gold playfield frame; drag cyan time posts / Y-gizmo while paused
+- Gold playfield frame; **Z stack slider** on the right (Now at top)
+- Numbered X/Y on the right; hover hairlines to the axes, cell and cube outlines
 - Bird-eye: orthographic top view of the focus plane
 - Isolation: one worldline lit, the rest of the volume dimmed
 - Edit mode: tap cells inside the frame (Now only)

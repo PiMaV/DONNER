@@ -27,6 +27,17 @@ export class EventSoA {
   }
 }
 
+/** First event at `(x, y, t)`, or null. */
+export function eventAt(soa, x, y, t) {
+  const n = soa.count;
+  for (let i = 0; i < n; i++) {
+    if (soa.x[i] === x && soa.y[i] === y && soa.t[i] === t) {
+      return { k: soa.k[i] | 0, s: soa.s[i] };
+    }
+  }
+  return null;
+}
+
 class Slice {
   constructor(maxCells) {
     this.t = 0;
