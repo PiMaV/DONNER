@@ -1,6 +1,6 @@
 import { PATTERN_NAMES } from "./conway.js";
 import { DEFAULTS, GRID_PRESETS } from "./config.js";
-import { stackThumbFrac, visibleTimeRange } from "./axes.js";
+import { stackThumbFrac, stackTickMarks } from "./axes.js";
 
 const STAB_HINT = {
   none: "None: equal cubes. Occupancy only — start here if size is confusing.",
@@ -56,8 +56,9 @@ export function bindUI(on) {
   const stack = $("stack-slider");
   const stackNow = $("btn-stack-now");
   const stackBot = $("stack-bot");
-  const stackReadout = $("stack-readout");
+  const stackTicks = $("stack-ticks");
   const stackThumbTime = $("stack-thumb-time");
+  let tickMax = -1;
   const grid = $("grid");
   const wrap = $("wrap");
   const stabMode = $("stab-mode");
@@ -193,17 +194,24 @@ export function bindUI(on) {
       isoBtn.classList.toggle("is-on", on);
       isoBtn.setAttribute("aria-pressed", on ? "true" : "false");
     },
-    setFocus(back, maxBack, tFocus = 0, tNow = tFocus, history = 1) {
+    setFocus(back, maxBack, tFocus = 0) {
       const max = Math.max(0, maxBack);
       stack.max = String(max);
       stack.value = String(back);
       stackNow.classList.toggle("is-on", back === 0);
       stackNow.setAttribute("aria-pressed", back === 0 ? "true" : "false");
       stackBot.textContent = max === 0 ? "—" : `−${max}`;
-      const { relMin, relMax } = visibleTimeRange(tNow, tFocus, history);
-      const below = relMin === 0 ? "0" : `−${Math.abs(relMin)}`;
-      const above = relMax === 0 ? "Now" : `+${relMax}`;
-      stackReadout.textContent = `${tFocus}\n${below} / ${above}`;
+      if (max !== tickMax) {
+        tickMax = max;
+        const frag = document.createDocumentFragment();
+        for (const mark of stackTickMarks(max)) {
+          const el = document.createElement("span");
+          el.className = mark.major ? "stack-tick is-major" : "stack-tick";
+          el.style.top = `${(mark.frac * 100).toFixed(3)}%`;
+          frag.appendChild(el);
+        }
+        stackTicks.replaceChildren(frag);
+      }
       stackThumbTime.textContent = String(tFocus);
       stackThumbTime.style.top = `${(stackThumbFrac(back, max) * 100).toFixed(2)}%`;
     },

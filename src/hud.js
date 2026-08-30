@@ -2,6 +2,10 @@
 
 export const SPARK_LEN = 96;
 export const SPARK_MS_CAP = 50;
+/** Simulation catch-up cap. HUD uses raw frame time, not this. */
+export const SIM_DT_MAX = 0.1;
+/** Ignore a pause (tab hidden, breakpoint) so AVG/FPS do not stick at 10. */
+export const FRAME_GAP_SKIP = 1;
 
 export class FrameClock {
   constructor() {
@@ -37,23 +41,23 @@ export class FrameClock {
       this._last = nowMs;
       return 1 / 60;
     }
-    let dt = (nowMs - this._last) / 1000;
+    const rawDt = (nowMs - this._last) / 1000;
     this._last = nowMs;
-    if (dt > 0.1) dt = 0.1;
-    const ms = dt * 1000;
+    if (rawDt > FRAME_GAP_SKIP) return 1 / 60;
+    const ms = rawDt * 1000;
     this.emaMs = this.emaMs * 0.9 + ms * 0.1;
     this.samples[this.head] = ms;
     this.head = (this.head + 1) % SPARK_LEN;
     if (this.count < SPARK_LEN) this.count += 1;
     this._frames += 1;
-    this._acc += dt;
+    this._acc += rawDt;
     if (this._acc >= 0.4) {
       this.displayFps = this._frames / this._acc;
       this.displayMs = this.emaMs;
       this._frames = 0;
       this._acc = 0;
     }
-    return dt;
+    return Math.min(rawDt, SIM_DT_MAX);
   }
 }
 
@@ -106,7 +110,12 @@ export function drawSparkline(canvas, clock) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.clearRect(0, 0, w, h);
-  const yAt = (ms) => h - 1 - (Math.min(SPARK_MS_CAP, Math.max(0, ms)) / SPARK_MS_CAP) * (h - 2);
+  let cap = SPARK_MS_CAP;
+  for (let i = 0; i < clock.count; i++) {
+    const idx = (clock.head - clock.count + i + SPARK_LEN) % SPARK_LEN;
+    if (clock.samples[idx] > cap) cap = clock.samples[idx];
+  }
+  const yAt = (ms) => h - 1 - (Math.min(cap, Math.max(0, ms)) / cap) * (h - 2);
 
   ctx.strokeStyle = "rgba(0, 255, 242, 0.22)";
   ctx.lineWidth = Math.max(1, dpr);

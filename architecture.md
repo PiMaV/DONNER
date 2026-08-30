@@ -190,15 +190,14 @@ flowchart LR
 
 ## Z stack slider
 
-Time is a **HUD slider** on the right, like a 3D slicer through the
-generation stack — not a grabber on the 3D axes. **Now** is a button at
-the top (`focusBack = 0`); the bottom is the deepest stored past. The
-thumb is `tFocus`; the generation sits **beside the handle**. The readout
-below is the focus generation plus how far the visible window extends
-below (past) and above (ghost toward Now). Wheel over the stack (or
-Shift+wheel on the canvas) still scrubs. There is no Focus slider in the
-control sheet. X/Y numbers stay on the playfield frame; there is no 3D Z
-shaft.
+Time is a **HUD slider** on the right of the telemetry cards, like a 3D
+slicer through the generation stack — not a grabber on the 3D axes.
+**Now** is a button at the top (`focusBack = 0`); the bottom is the
+deepest stored past. The thumb is `tFocus`; the generation sits **beside
+the handle**. A tick mark per stored step rasters the rail. Wheel over
+the stack (or Shift+wheel on the canvas) still scrubs. There is no Focus
+slider in the control sheet. X/Y numbers stay on the playfield frame;
+there is no 3D Z shaft.
 
 ```mermaid
 flowchart TB
@@ -227,15 +226,19 @@ top-down) rather than replacing it.
 
 ## Display HUD vs source HUD
 
-The right rail is two telemetry blocks plus the Z stack:
+The right rail is two telemetry cards plus a thin Z stack to their right:
 
 - **Display** — sparkline of recent frame times, FPS, rolling **AVG**, FR,
-  INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD, ISO. Cliff-finder:
+  INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD, ISO. Frame times are
+  raw; the 100 ms clamp is simulation catch-up only, so FPS is not stuck
+  at 10 on a slow GPU. Long tab-hidden gaps are skipped. Cliff-finder:
   scale Window / Grid until FPS holds.
 - **Source (Conway)** — GEN, LIVE, RATE (generations/s, not frame rate),
   EDIT. Swap this block when an event source lands.
 
-1%/0.1% lows are not drawn yet.
+The Z stack is a tick rail (one mark per stored step), not a HUD card:
+**Now**, the bar, the generation beside the handle, deepest past at the
+bottom. 1%/0.1% lows are not drawn yet.
 
 ## Modules
 
@@ -249,6 +252,7 @@ The right rail is two telemetry blocks plus the Z stack:
 | `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
 | `src/observe.js` | Isolation pick (world XZ → cell) |
 | `src/view.js` | Perspective ↔ bird-eye camera |
+| `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway today) |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
 | `src/main.js` | Scene, loop, edit/paint, camera |
 | `src/hud.js` | Display vs source HUD copy; frame-time sparkline |
@@ -267,11 +271,12 @@ The cube renderer is the first implementation, not the only one. A later
 points / shader path should keep:
 
 ```text
-setEvents(soa, { tFocus, decay, timeScale, width, height, cellSize, isolate, sliceOnly })
+setEvents(soa, { tFocus, decay, timeScale, width, height, cellSize, isolate, sliceOnly, stabMode })
 ```
 
-Color `k` and fill `s` are encoding fields. The renderer should index an
-adapter LUT, not Conway class names. Today the LUT is still hardcoded.
+Color `k` and fill `s` are encoding fields. The renderer indexes
+`src/encoding.js` (`CONWAY_KIND_HEX`, `encodingFill`) and does not
+import Conway dynamics. An event source will swap the LUT.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).

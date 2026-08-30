@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { COLOR, DEFAULTS, VERSION } from "./config.js";
 import { ConwayWorld, seedPattern } from "./conway.js";
-import { cubeFill } from "./dynamics.js";
+import { encodingCubeFill } from "./encoding.js";
 import { clampFocusBack, focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ, cellsEqual } from "./observe.js";
@@ -415,7 +415,7 @@ function syncHover() {
     hover.hide();
     return;
   }
-  const fill = cubeFill(eventAt(soa, hoverCell.x, hoverCell.y, tFocus()), stabMode);
+  const fill = encodingCubeFill(eventAt(soa, hoverCell.x, hoverCell.y, tFocus()), stabMode);
   hover.set(hoverCell, world.width, world.height, DEFAULTS.cellSize, fill);
 }
 

@@ -113,6 +113,15 @@ body {
   top: calc(12px + var(--safe-t));
   right: calc(12px + var(--safe-r));
   bottom: calc(52px + var(--safe-b));
+  width: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hud-cards {
   width: 10.5rem;
   display: flex;
   flex-direction: column;
@@ -121,20 +130,15 @@ body {
 }
 
 .hud-engine,
-.hud-source,
-.stack {
+.hud-source {
   pointer-events: auto;
   margin: 0;
+  padding: 8px 10px 10px;
+  flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
   backdrop-filter: blur(12px);
-}
-
-.hud-engine,
-.hud-source {
-  padding: 8px 10px 10px;
-  flex: 0 0 auto;
 }
 
 .hud-spark {
@@ -162,48 +166,46 @@ body {
 }
 
 .stack {
+  pointer-events: auto;
   flex: 1 1 auto;
   min-height: 140px;
-  width: auto;
+  width: 4.1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 6px 12px;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 0 4px;
+  border: 0;
+  background: none;
 }
 
 .stack-name {
   font-family: Orbitron, sans-serif;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   letter-spacing: 0.12em;
   color: var(--dampf);
 }
 
-.stack-cap,
-.stack-readout {
+.stack-cap {
   color: var(--muted);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   text-align: center;
-  line-height: 1.2;
-}
-
-.stack-readout {
-  color: var(--dampf);
-  white-space: pre-line;
+  line-height: 1;
 }
 
 .btn-stack-now {
   appearance: none;
   margin: 0;
-  padding: 3px 8px;
-  min-height: 24px;
+  padding: 2px 6px;
+  min-height: 20px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 6px;
+  background: var(--panel);
   color: var(--muted);
   font-family: Orbitron, sans-serif;
-  font-size: 0.58rem;
+  font-size: 0.54rem;
   letter-spacing: 0.08em;
   cursor: pointer;
 }
@@ -228,25 +230,48 @@ body {
   min-height: 80px;
 }
 
+.stack-ticks {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  pointer-events: none;
+}
+
+.stack-tick {
+  position: absolute;
+  right: 0;
+  width: 4px;
+  height: 1px;
+  background: rgba(0, 255, 242, 0.4);
+  transform: translateY(-50%);
+}
+
+.stack-tick.is-major {
+  width: 8px;
+  background: rgba(0, 255, 242, 0.8);
+}
+
 .stack-thumb-time {
   position: absolute;
-  left: 4px;
+  left: 26px;
   transform: translateY(-50%);
   color: var(--dampf);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
   font-size: 0.62rem;
   line-height: 1;
   pointer-events: none;
-  text-shadow: 0 0 8px rgba(11, 15, 20, 0.9);
+  text-shadow: 0 0 8px rgba(11, 15, 20, 0.95);
 }
 
 .stack-range {
   position: absolute;
-  right: 8px;
+  left: 10px;
   top: 0;
   bottom: 0;
   height: 100%;
-  width: 28px;
+  width: 14px;
   margin: 0;
   writing-mode: vertical-lr;
   direction: ltr;
@@ -258,21 +283,17 @@ body {
 }
 
 .stack-range::-webkit-slider-runnable-track {
-  width: 8px;
+  width: 3px;
   border-radius: 999px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 255, 242, 0.35) 0 2px,
-    rgba(255, 255, 255, 0.06) 2px 10px
-  );
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .stack-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 10px;
-  margin-left: -5px;
+  width: 12px;
+  height: 8px;
+  margin-left: -4.5px;
   border-radius: 2px;
   background: var(--dampf);
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -280,18 +301,14 @@ body {
 }
 
 .stack-range::-moz-range-track {
-  width: 8px;
+  width: 3px;
   border-radius: 999px;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 255, 242, 0.35) 0 2px,
-    rgba(255, 255, 255, 0.06) 2px 10px
-  );
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .stack-range::-moz-range-thumb {
-  width: 18px;
-  height: 10px;
+  width: 12px;
+  height: 8px;
   border-radius: 2px;
   background: var(--dampf);
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -553,7 +570,7 @@ body {
     transform: none;
   }
 
-  .hud-rail {
+  .hud-cards {
     width: 8.6rem;
   }
 

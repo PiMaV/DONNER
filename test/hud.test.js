@@ -15,6 +15,32 @@ describe("FrameClock", () => {
     assert.ok(clock.avgFps > 40);
   });
 
+  it("records raw frame times and only caps simulation dt", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    const simDt = clock.tick(80);
+    assert.ok(clock.avgMs > 70 && clock.avgMs < 90);
+    assert.equal(simDt, 0.08);
+  });
+
+  it("caps catch-up dt without flattening a slow HUD sample", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    const simDt = clock.tick(250);
+    assert.ok(clock.avgMs > 200);
+    assert.equal(simDt, 0.1);
+  });
+
+  it("skips a long pause so FPS does not stick at 10", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    clock.tick(16);
+    const n = clock.count;
+    clock.tick(16 + 2500);
+    assert.equal(clock.count, n);
+    assert.ok(clock.avgMs < 30);
+  });
+
   it("caps the spark ring", () => {
     const clock = new FrameClock();
     clock.tick(0);

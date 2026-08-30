@@ -77,7 +77,7 @@ flowchart TB
 | Decay | Fade of slices **below** the focus plane |
 | Grid light | Brightness of the cell grid and focus-plane fill |
 | Window | Instantiated time span from the simulation head (8–96). Not a Life log. |
-| **Z stack** (right HUD) | Playhead. **Now** snaps to the head. Time sits beside the handle. |
+| **Z stack** (right HUD) | Playhead. Thin tick rail. **Now** snaps to the head. Time sits beside the handle. |
 
 ## Source (Conway addon)
 
@@ -121,7 +121,7 @@ volume stays dominant.
 
 ## HUD (right rail)
 
-Two blocks, then the Z stack. Display is cyan; source is muted.
+Two cards, then a thin Z stack to their right. Display is cyan; source is muted.
 
 | Line | Block |
 |------|-------|
@@ -136,13 +136,13 @@ Two blocks, then the Z stack. Display is cyan; source is muted.
 | RATE | Source — measured generation rate while playing |
 | EDIT | Source — present in edit mode |
 
-**Z stack:** **Now** button at the top snaps the playhead. The thumb shows
-the current time (`tFocus`) beside the handle. Wheel over the stack (or
-Shift+wheel on the canvas) still scrubs. Now at the top, past at the
-bottom.
+**Z stack:** thin rail beside the cards — **Now**, a tick per stored step,
+generation beside the handle, deepest past at the bottom. Wheel over the
+stack (or Shift+wheel on the canvas) still scrubs.
 
 If INST hits the cap, lower Window or Grid before judging FPS. RATE is
-not frame rate.
+not frame rate. FPS and the sparkline are wall-clock frame times; they
+are not clamped to 10.
 
 ## Visual mapping
 

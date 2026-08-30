@@ -37,26 +37,28 @@
   </header>
 
   <div class="hud-rail">
-    <section class="hud-engine" aria-label="Display telemetry">
-      <h2 class="sheet-label">View</h2>
-      <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
-      <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
-    </section>
-    <section class="hud-source" aria-label="Source telemetry">
-      <h2 class="sheet-label">Source</h2>
-      <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
-    </section>
+    <div class="hud-cards">
+      <section class="hud-engine" aria-label="Display telemetry">
+        <h2 class="sheet-label">View</h2>
+        <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
+        <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
+      </section>
+      <section class="hud-source" aria-label="Source telemetry">
+        <h2 class="sheet-label">Source</h2>
+        <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
+      </section>
+    </div>
     <aside class="stack" aria-label="Z time stack">
       <span class="stack-name">Z</span>
       <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
       <div class="stack-track">
-        <span id="stack-thumb-time" class="stack-thumb-time">0</span>
+        <div id="stack-ticks" class="stack-ticks" aria-hidden="true"></div>
         <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
           orient="vertical" aria-orientation="vertical"
           aria-label="Scrub focus through the time stack" />
+        <span id="stack-thumb-time" class="stack-thumb-time">0</span>
       </div>
       <span id="stack-bot" class="stack-cap">−0</span>
-      <span id="stack-readout" class="stack-readout">0</span>
     </aside>
   </div>
 

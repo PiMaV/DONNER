@@ -11,7 +11,7 @@
 
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
-import { KIND_WARMUP, SCALE_UNIFORM, stabilityScale } from "./dynamics.js";
+import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
 import { isolationWeight } from "./observe.js";
 
 function seedInstanceColors(mesh, maxCount, color) {
@@ -20,11 +20,12 @@ function seedInstanceColors(mesh, maxCount, color) {
 }
 
 export class CubeRenderer {
-  constructor(scene, { maxCount, cellSize = 1 }) {
+  constructor(scene, { maxCount, cellSize = 1, kindHex = CONWAY_KIND_HEX, warmupK = CONWAY_WARMUP_K }) {
     this.scene = scene;
     this.maxCount = maxCount;
     this.cellSize = cellSize;
     this.count = 0;
+    this._warmupK = warmupK;
 
     const geoSolid = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
     const geoGhost = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
@@ -61,12 +62,7 @@ export class CubeRenderer {
 
     this._dummy = new THREE.Object3D();
     this._color = new THREE.Color();
-    this._kindColor = [
-      new THREE.Color(COLOR.gold),
-      new THREE.Color(COLOR.cyan),
-      new THREE.Color(COLOR.blitz),
-      new THREE.Color(COLOR.warmup),
-    ];
+    this._kindColor = kindHex.map((hex) => new THREE.Color(hex));
   }
 
   /**
@@ -110,10 +106,7 @@ export class CubeRenderer {
       );
       const k = soa.k[i] | 0;
       const kind = kinds[k] || kinds[0];
-      const fill =
-        view.stabMode === "none" || k === KIND_WARMUP
-          ? SCALE_UNIFORM
-          : stabilityScale(soa.s[i]);
+      const fill = encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
       const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
       if (sliceOnly && Math.abs(dt) >= 0.5) continue;
 

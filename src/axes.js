@@ -66,6 +66,22 @@ export function stackThumbFrac(back, maxBack) {
   return Math.min(1, Math.max(0, (back | 0) / max));
 }
 
+/**
+ * Tick marks along the Z stack. One mark per stored step; majors at
+ * ends and a coarse stride so a 96-deep window stays readable.
+ */
+export function stackTickMarks(maxBack) {
+  const max = Math.max(0, maxBack | 0);
+  if (max === 0) return [{ frac: 0, major: true }];
+  const stride = max > 48 ? 8 : max > 24 ? 4 : 1;
+  const out = [];
+  for (let i = 0; i <= max; i++) {
+    const major = i === max || i % stride === 0;
+    out.push({ frac: i / max, major });
+  }
+  return out;
+}
+
 function uniqueSorted(arr) {
   return [...new Set(arr)].sort((a, b) => a - b);
 }

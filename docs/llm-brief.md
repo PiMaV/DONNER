@@ -12,7 +12,8 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   identity. Three layers: **display** (DONNER: camera, Window, Z-stack
   playhead, FPS), **source addon** (Conway today), **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/transit + Stability).
-  `src/dynamics.js` is Conway-only; do not assume that legend for
+  `src/dynamics.js` is Conway classification; `src/encoding.js` is the
+  LUT the renderer actually indexes. Do not assume the Life legend for
   polarity streams.
 - Keep `Data source → encoding adapter → EventSoA → renderer`. Conway
   lives in `src/conway.js`. The cube renderer must stay source-agnostic.
@@ -34,8 +35,11 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   draws hairlines to the numbered X/Y axes and outlines the cell plus the
   focus-slice cube if live. Do not attach a 3D time grabber to the X/Y
   frame. Display HUD (FPS, AVG, sparkline, INST, FOC) stays separate from
-  the Conway source HUD (GEN, LIVE, RATE). The control sheet is **View** /
-  **Source** / **Encoding**. GEN/LIVE/RATE belong to Source, not Encoding.
+  the Conway source HUD (GEN, LIVE, RATE). FPS/sparkline use raw frame
+  time; the 100 ms clamp is simulation catch-up only. The Z stack is a
+  thin tick rail (bar + generation beside the handle), not a HUD card.
+  The control sheet is **View** / **Source** / **Encoding**. GEN/LIVE/RATE
+  belong to Source, not Encoding.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
   pattern geometry). Do not invent a second rule set.
 - Repo files in English. Chat with the human in German.

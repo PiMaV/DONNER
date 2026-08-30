@@ -57,8 +57,9 @@ time “Y” in user-facing copy.
 The numbered coordinate frame sits on the **right** of the volume (away from
 the control sheet). Hovering the plane draws two thin lines from the cell
 to the X and Y axes. Time is **not** a 3D gizmo on that frame: scrub with
-the **Z stack slider** on the right of the HUD, like a 3D slicer through
-the generation stack (Now at the top, past at the bottom).
+the **Z stack slider** to the right of the HUD, like a 3D slicer through
+the generation stack (Now at the top, past at the bottom; one tick per
+stored step).
 
 ## Run
 
@@ -82,13 +83,13 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 - Default teaching seed: Blinker (glider is the XY-motion case)
 - Instanced cubes, Window along the time axis (product **Z**)
 - Decay, speed, Window length, play / pause / step / reset
-- Playhead via the **Z stack** on the right (**Now** button; time beside the handle)
+- Playhead via the **Z stack** beside the HUD (**Now**; generation beside the handle; tick per stored step)
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - Bird-eye: orthographic top view of the focus plane
 - Isolation: one worldline lit, the rest of the volume dimmed
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate)
+- Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Control sheet grouped as View / Source / Encoding
 

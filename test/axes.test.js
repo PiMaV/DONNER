@@ -7,6 +7,7 @@ import {
   relativeTimeTicks,
   spatialTicks,
   stackThumbFrac,
+  stackTickMarks,
   visibleTimeRange,
   worldToProduct,
 } from "../src/axes.js";
@@ -47,5 +48,14 @@ describe("axis ticks", () => {
     assert.equal(stackThumbFrac(12, 12), 1);
     assert.equal(stackThumbFrac(6, 12), 0.5);
     assert.equal(stackThumbFrac(3, 0), 0);
+  });
+
+  it("places a tick on every stored step", () => {
+    const marks = stackTickMarks(12);
+    assert.equal(marks.length, 13);
+    assert.equal(marks[0].frac, 0);
+    assert.equal(marks[12].frac, 1);
+    assert.ok(marks.filter((m) => m.major).length > 2);
+    assert.equal(stackTickMarks(0).length, 1);
   });
 });
