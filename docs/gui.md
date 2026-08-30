@@ -16,11 +16,12 @@ flowchart LR
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
   bird[Bird-eye] --> scene
-  iso[Isolation] --> scene
+  iso[Double-click cube] --> scene
 ```
 
-Play is a **display** control: it advances the volume. While Conway is
-the source, the same button also steps the generator.
+Play is a **display** transport: it advances the volume. It sits outside
+the control sheet (desktop: under the Z rail; phone: bottom center).
+While Conway is the source, the same button also steps the generator.
 
 The left sheet is three blocks — **View** (always), **Source** (addon;
 today Conway, including GEN/LIVE/RATE on the right HUD), **Encoding**
@@ -30,8 +31,7 @@ live in Encoding.
 ```mermaid
 flowchart TB
   subgraph view [View display]
-    play[Play]
-    bird[Bird Iso]
+    bird[Bird]
     win[Window Decay GridLight]
   end
   subgraph source [Source slot]
@@ -42,10 +42,37 @@ flowchart TB
     lut[Legend k]
     fill[Stability s]
   end
+  play[Play transport]
   view --> volume[Volume]
+  play --> volume
   source --> volume
   encoding --> volume
 ```
+
+```mermaid
+flowchart TB
+  subgraph desktop [Desktop]
+    sheetD[Sheet left: Bird Decay Window Source Encoding]
+    volD[Volume]
+    hudD[View plus Source HUD]
+    zD[Z vertical Now at top]
+    playD[Play under Z rail]
+    sheetD --> volD
+    hudD --> zD
+    zD --> playD
+  end
+  subgraph phone [Phone]
+    volP[Volume]
+    zP[Z horizontal Now at right]
+    barP[Controls plus Play center]
+    chipP[FPS chip]
+    volP --> zP
+    zP --> barP
+  end
+```
+
+Isolation is not a sheet mode. Double-click a cube (double-tap on phone)
+keeps that `(x, y)` worldline.
 
 ## Camera
 
@@ -55,11 +82,11 @@ flowchart TB
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan |
 | Shift+wheel | Scrub focus into the past / back to now |
-| **Z** stack (right HUD) | Scrub the generation stack (Now at top, past at bottom). Wheel over it also steps. |
+| **Z** stack | Scrub the generation stack. Desktop: right rail, Now at top, past at bottom. Phone: bottom timeline, Now at the right, past at the left. Wheel over it also steps. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now) |
 | `B` | Bird-eye (orthographic top view) |
-| `I` | Isolation (tap a cell or cube) |
+| Double-click cube | Isolate that `(x, y)` worldline (toggle). Phone: double-tap. |
 | Escape | Leave isolation, or leave bird-eye |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -71,13 +98,12 @@ flowchart TB
 
 | Control | Meaning |
 |---------|---------|
-| Play / Pause | Advance the volume. With Conway as source, this also steps the generator. |
+| Play / Pause | Advance the volume. Outside the sheet. With Conway as source, this also steps the generator. |
 | Bird | Orthographic top-down onto the **focus slice** only; pan / pinch |
-| Iso | Dim the volume; keep one `(x, y)` worldline. Tap a cell or cube. |
 | Decay | Fade of slices **below** the focus plane |
 | Grid light | Brightness of the cell grid and focus-plane fill |
 | Window | Instantiated time span from the simulation head (8–96). Not a Life log. |
-| **Z stack** (right HUD) | Playhead. Thin tick rail. **Now** snaps to the head. Time sits beside the handle. |
+| **Z stack** | Playhead. Thin tick rail. **Now** snaps to the head. Time sits beside the handle. Desktop: vertical, Now at top. Phone: horizontal, Now at the right. |
 
 ## Source (Conway addon)
 
@@ -112,16 +138,21 @@ slice when the cell is live. Slices newer than the focus sit **above**
 the plane, translucent.
 
 **Bird** looks straight down with an orthographic camera (no parallax).
-**Iso** dims every cell except one worldline; tap a cell on the plane or a
-cube. Edit is unchanged: pause, plane at Now (Z stack at the top, or Home),
-tap inside the frame.
+**Isolation** dims every cell except one worldline: double-click (phone:
+double-tap) a **visible cube**, not an empty cell. The same cube again or
+Escape clears. Edit is unchanged: pause, plane at Now (Z stack at Now, or
+Home), tap inside the frame.
 
-On narrow viewports the control sheet is behind **Controls ▸** so the
-volume stays dominant.
+On narrow viewports the control sheet is behind **Controls ▸**, Play sits
+bottom-center, the Z stack is a bottom timeline, and telemetry collapses
+to an **FPS chip** (tap to open the View card). Source GEN / LIVE / RATE
+stay in the Source sheet.
 
 ## HUD (right rail)
 
-Two cards, then a thin Z stack to their right. Display is cyan; source is muted.
+Desktop: two cards, then a thin Z stack to their right, Play under the
+stack. Display is cyan; source is muted. Phone: FPS chip top-right; tap
+to expand the View card. Source stats live in the Source sheet.
 
 | Line | Block |
 |------|-------|
@@ -136,9 +167,10 @@ Two cards, then a thin Z stack to their right. Display is cyan; source is muted.
 | RATE | Source — measured generation rate while playing |
 | EDIT | Source — present in edit mode |
 
-**Z stack:** thin rail beside the cards — **Now**, a tick per stored step,
-generation beside the handle, deepest past at the bottom. Wheel over the
-stack (or Shift+wheel on the canvas) still scrubs.
+**Z stack:** thin rail — **Now**, a tick per stored step, generation
+beside the handle. Desktop: Now at the top, deepest past at the bottom.
+Phone: Now at the right, past at the left. Wheel over the stack (or
+Shift+wheel on the canvas) still scrubs.
 
 If INST hits the cap, lower Window or Grid before judging FPS. RATE is
 not frame rate. FPS and the sparkline are wall-clock frame times; they

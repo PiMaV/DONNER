@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pattern read-hint under Pattern in the Source block (how to read Blinker vs Glider).
 - Related-work link list (`docs/related.md`): Conway is the event generator, not the product; Wolfram 2025 highlighted as the internal Life reference; neighbouring CA links found while looking around — not a novelty or influence claim.
 - Bird-eye view: orthographic camera looking down onto the **focus slice** (button **Bird**, key `B`).
-- Isolation: dim the volume to one `(x, y)` worldline (button **Iso**, key `I`; tap a cell or cube).
+- Isolation: dim the volume to one `(x, y)` worldline (double-click / double-tap a cube; Escape or the same cube again clears).
 - **Z stack slider** beside the HUD cards: Now at the top, past at the bottom; thin tick rail with one mark per stored step; generation beside the handle. The Z stack is the only playhead (no Focus slider in the sheet).
 - Numbered product X/Y on the right of the playfield; hover hairlines from the cell to both axes.
 - Hovering the focus plane outlines the cell and, when live, the cube on that slice.
@@ -36,8 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Control **History** is labeled **Window** (time span in the buffer, not a Life log).
 - Display vs source vs encoding is documented: DONNER is the viewer, Conway the addon, color/fill an encoding slot the addon fills.
 - Control sheet grouped into **View**, **Source**, and **Encoding**. GEN / LIVE / RATE stay on the Source HUD, not in Encoding.
+- Play is a transport control outside the sheet (desktop under the Z rail; phone bottom center).
+- On a phone the Z stack is a bottom timeline (Now at the right) and display telemetry collapses to an FPS chip (tap to expand the View card). Source stats stay in the Source sheet.
 
 ### Removed
 
 - Focus slider from the control sheet. Playhead is the Z stack (**Now** button there, plus Home / `[` / `]` / Shift+wheel).
 - Extra past/ghost span readout under the Z stack. The rail is the bar, ticks, and the generation beside the handle.
+- Iso button and key `I`. Isolation is double-click on a cube, not an arming mode.

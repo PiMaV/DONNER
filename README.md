@@ -48,7 +48,7 @@ past below, newer slices (ghost) above.
 |------|---------|-----------|
 | **X** | playfield column | on the focus plane |
 | **Y** | playfield row | on the focus plane |
-| **Z** | time | vertical stack; **right-hand slider** (Now at the top) |
+| **Z** | time | vertical stack; **Z slider** (desktop: right, Now at top; phone: bottom, Now at the right) |
 
 Three.js is Y-up internally. Product `(X, Y, Z)` is stored as world
 `(X, Z, Y)`. UI, HUD, and docs always mean **product** X/Y/Z. Do not call
@@ -57,9 +57,9 @@ time “Y” in user-facing copy.
 The numbered coordinate frame sits on the **right** of the volume (away from
 the control sheet). Hovering the plane draws two thin lines from the cell
 to the X and Y axes. Time is **not** a 3D gizmo on that frame: scrub with
-the **Z stack slider** to the right of the HUD, like a 3D slicer through
-the generation stack (Now at the top, past at the bottom; one tick per
-stored step).
+the **Z stack slider**, like a 3D slicer through the generation stack
+(desktop: Now at the top, past at the bottom; phone: Now at the right).
+One tick per stored step.
 
 ## Run
 
@@ -68,7 +68,8 @@ Static files, no build step, no backend. ES modules need a local HTTP server
 
 ```bash
 cd DONNER
-python3 -m http.server 8765 --bind 127.0.0.1
+npm start
+# same as: python3 -m http.server 8765 --bind 127.0.0.1
 ```
 
 Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
@@ -77,16 +78,52 @@ Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
 npm test    # unit tests (Node 18+)
 ```
 
+### Phone on the LAN
+
+`npm start` binds loopback only. For a phone on the same Wi-Fi, bind all
+interfaces:
+
+```bash
+cd DONNER
+npm run start:lan
+# same as: python3 -m http.server 8765 --bind 0.0.0.0
+```
+
+```mermaid
+flowchart LR
+  desktop["Desktop python3 -m http.server"]
+  bind["bind 0.0.0.0 port 8765"]
+  phone["Phone browser on Wi-Fi"]
+  desktop --> bind
+  bind --> phone
+```
+
+Find the desktop LAN address, then open **http** (not https) on the phone.
+Do not use `localhost` on the phone — that is the phone itself.
+
+```bash
+hostname -I
+# or: ip -4 addr show
+```
+
+Example: `http://192.168.178.30:8765/`
+
+Phone and desktop must be on the same WLAN. If the page does not load,
+check the firewall for port 8765, or that the address still matches
+`hostname -I` (it can change). Fonts load from `mess.engineering`; without
+internet the app still runs, with system fonts.
+
 ## Stage 1 (this tree)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
 - Default teaching seed: Blinker (glider is the XY-motion case)
 - Instanced cubes, Window along the time axis (product **Z**)
 - Decay, speed, Window length, play / pause / step / reset
-- Playhead via the **Z stack** beside the HUD (**Now**; generation beside the handle; tick per stored step)
+- Playhead via the **Z stack** (desktop: beside the HUD, Now at top; phone: bottom timeline, Now at the right)
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - Bird-eye: orthographic top view of the focus plane
-- Isolation: one worldline lit, the rest of the volume dimmed
+- Isolation: double-click a cube to keep one worldline
+- Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
 - Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time

@@ -37,7 +37,7 @@ flowchart LR
   subgraph engine [DONNER display]
     windowNode[Time window]
     playhead[Playhead tFocus]
-    viewCam[Bird Iso Orbit]
+    viewCam[Bird Orbit]
     hud[FPS INST]
   end
   conway --> adapter
@@ -48,16 +48,17 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Bird, Iso, Z stack (playhead), Window (buffer span), Decay, Grid light, FPS/INST | Sheet **View** + right display HUD |
+| **Display** | Orbit, Bird, Z stack (playhead), Play transport, Window, Decay, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheet |
 | **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit; HUD GEN / LIVE / RATE | Sheet **Source** + right source HUD. Swap later for file/stream + that source's stats |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Sheet block **Encoding** (legend + Stability). LUT in `src/encoding.js` |
 
-**Play** is one display button (advance the volume). While Conway is the
-source, that same button also steps the generator. Do not split Run vs
-Play until a recorded stream exists. **Window** is the instantiated time
-span (not a Life log). The **Z stack** is the only playhead; there is no
-Focus slider in the control sheet. Keyboard Home / `[` / `]` / Shift+wheel
-still scrub.
+**Play** is one display button (advance the volume), always visible
+outside the sheet. While Conway is the source, that same button also
+steps the generator. Do not split Run vs Play until a recorded stream
+exists. **Window** is the instantiated time span (not a Life log). The
+**Z stack** is the only playhead; there is no Focus slider in the control
+sheet. Keyboard Home / `[` / `]` / Shift+wheel still scrub. Isolation is
+double-click on a cube, not a sheet button.
 
 The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX`,
 `encodingFill`). An event source will swap that LUT. Do not move GEN into
@@ -68,8 +69,7 @@ The left **control sheet** is the same three blocks as the model:
 ```mermaid
 flowchart TB
   subgraph view [View display]
-    play[Play]
-    bird[Bird Iso]
+    bird[Bird]
     win[Window Decay GridLight]
   end
   subgraph source [Source slot]
@@ -81,6 +81,8 @@ flowchart TB
     fill[Stability s]
   end
   view --> volume[Volume]
+  playT[Play transport]
+  playT --> volume
   source --> volume
   encoding --> volume
 ```
@@ -105,8 +107,9 @@ flowchart TB
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
 Bird-eye looks straight down with an orthographic camera. Isolation keeps
-one worldline. Scrub **Z** (time) with the right-hand stack slider
-(Now at the top, deepest past at the bottom), or Shift+wheel.
+one worldline (double-click a cube). Scrub **Z** (time) with the stack
+slider (desktop: right, Now at the top; phone: bottom, Now at the right),
+or Shift+wheel.
 
 ## Mapping
 
@@ -190,14 +193,17 @@ flowchart LR
 
 ## Z stack slider
 
-Time is a **HUD slider** on the right of the telemetry cards, like a 3D
-slicer through the generation stack — not a grabber on the 3D axes.
-**Now** is a button at the top (`focusBack = 0`); the bottom is the
-deepest stored past. The thumb is `tFocus`; the generation sits **beside
-the handle**. A tick mark per stored step rasters the rail. Wheel over
-the stack (or Shift+wheel on the canvas) still scrubs. There is no Focus
-slider in the control sheet. X/Y numbers stay on the playfield frame;
-there is no 3D Z shaft.
+Time is a **HUD slider**, like a 3D slicer through the generation stack —
+not a grabber on the 3D axes. **Now** is `focusBack = 0`; the far end is
+the deepest stored past. The thumb is `tFocus`; the generation sits
+**beside the handle**. A tick mark per stored step rasters the rail.
+Wheel over the stack (or Shift+wheel on the canvas) still scrubs. There
+is no Focus slider in the control sheet. X/Y numbers stay on the
+playfield frame; there is no 3D Z shaft.
+
+Desktop: vertical rail on the right, **Now at the top**, past at the
+bottom. Phone: horizontal timeline at the bottom, **Now at the right**,
+past at the left (the same stack, rotated).
 
 ```mermaid
 flowchart TB
@@ -218,15 +224,40 @@ still scrubs. Escape or Bird again returns to the saved orbit pose.
 
 ## Isolation / observation
 
-**Iso** (keyboard `I`): tap a cell on the plane, or a cube in the volume.
-The rest of the field drops to a faint transparent wash; that `(x, y)`
-worldline stays fully lit. A thin gold column marks the pillar. Tap the
-same cell or Iso / Escape to clear. Complements bird-eye (whole plane,
-top-down) rather than replacing it.
+Double-click a **visible cube** (solid or ghost; phone: double-tap). The
+rest of the field drops to a faint transparent wash; that `(x, y)`
+worldline stays fully lit. A thin gold column marks the pillar. The same
+cube again, or Escape, clears. Empty cells on the plane do not isolate.
+There is no Iso button and no arming mode. Complements bird-eye (whole
+plane, top-down) rather than replacing it.
 
 ## Display HUD vs source HUD
 
-The right rail is two telemetry cards plus a thin Z stack to their right:
+Desktop: two telemetry cards plus a thin Z stack to their right, Play
+under the stack. Phone: FPS chip (tap expands the View card); Z timeline
+and Play at the bottom; source stats in the Source sheet.
+
+```mermaid
+flowchart TB
+  subgraph desktop [Desktop]
+    sheetD[Sheet left: Bird Decay Window Source Encoding]
+    volD[Volume]
+    hudD[View plus Source HUD]
+    zD[Z vertical Now at top]
+    playD[Play under Z rail]
+    sheetD --> volD
+    hudD --> zD
+    zD --> playD
+  end
+  subgraph phone [Phone]
+    volP[Volume]
+    zP[Z horizontal Now at right]
+    barP[Controls plus Play center]
+    chipP[FPS chip]
+    volP --> zP
+    zP --> barP
+  end
+```
 
 - **Display** — sparkline of recent frame times, FPS, rolling **AVG**, FR,
   INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD, ISO. Frame times are
@@ -237,8 +268,8 @@ The right rail is two telemetry cards plus a thin Z stack to their right:
   EDIT. Swap this block when an event source lands.
 
 The Z stack is a tick rail (one mark per stored step), not a HUD card:
-**Now**, the bar, the generation beside the handle, deepest past at the
-bottom. 1%/0.1% lows are not drawn yet.
+**Now**, the bar, the generation beside the handle. 1%/0.1% lows are not
+drawn yet.
 
 ## Modules
 
@@ -254,9 +285,9 @@ bottom. 1%/0.1% lows are not drawn yet.
 | `src/view.js` | Perspective ↔ bird-eye camera |
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway today) |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
-| `src/main.js` | Scene, loop, edit/paint, camera |
+| `src/main.js` | Scene, loop, edit/paint, camera, cube double-click isolate |
 | `src/hud.js` | Display vs source HUD copy; frame-time sparkline |
-| `src/ui.js` | Control sheet and Z-stack bindings |
+| `src/ui.js` | Control sheet, transport Play, Z-stack bindings |
 
 BLITZ **Ember** decay is a 2D grayscale trail and is **not** used here.
 DONNER decay is visual weight along the time axis.

@@ -42,7 +42,7 @@ export function bindUI(on) {
   const randBtn = $("btn-random");
   const editBtn = $("btn-edit");
   const birdBtn = $("btn-bird");
-  const isoBtn = $("btn-iso");
+  const fpsChip = $("hud-fps");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
@@ -107,7 +107,6 @@ export function bindUI(on) {
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
   birdBtn.addEventListener("click", () => on.toggleBird());
-  isoBtn.addEventListener("click", () => on.toggleIsolate());
   randBtn.addEventListener("click", () => {
     seed.value = String((Math.random() * 0x7fffffff) | 0);
     on.reset();
@@ -154,10 +153,23 @@ export function bindUI(on) {
     { passive: false },
   );
   stackNow.addEventListener("click", () => on.focusNow());
+  const narrow = window.matchMedia("(max-width: 720px)");
+  const syncStackOrient = () => {
+    const horizontal = narrow.matches;
+    stack.setAttribute("aria-orientation", horizontal ? "horizontal" : "vertical");
+    if (horizontal) stack.removeAttribute("orient");
+    else stack.setAttribute("orient", "vertical");
+  };
+  syncStackOrient();
+  narrow.addEventListener("change", syncStackOrient);
   fold.addEventListener("click", () => {
     const open = panel.classList.toggle("is-open");
     fold.setAttribute("aria-expanded", open ? "true" : "false");
     fold.textContent = open ? "Controls ▾" : "Controls ▸";
+  });
+  fpsChip.addEventListener("click", () => {
+    const open = document.body.classList.toggle("hud-view-open");
+    fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
   return {
@@ -190,9 +202,8 @@ export function bindUI(on) {
       birdBtn.classList.toggle("is-on", on);
       birdBtn.setAttribute("aria-pressed", on ? "true" : "false");
     },
-    setIsolating(on) {
-      isoBtn.classList.toggle("is-on", on);
-      isoBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    setFps(fps) {
+      fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
     },
     setFocus(back, maxBack, tFocus = 0) {
       const max = Math.max(0, maxBack);
@@ -207,13 +218,16 @@ export function bindUI(on) {
         for (const mark of stackTickMarks(max)) {
           const el = document.createElement("span");
           el.className = mark.major ? "stack-tick is-major" : "stack-tick";
-          el.style.top = `${(mark.frac * 100).toFixed(3)}%`;
+          el.style.setProperty("--frac", mark.frac.toFixed(4));
           frag.appendChild(el);
         }
         stackTicks.replaceChildren(frag);
       }
       stackThumbTime.textContent = String(tFocus);
-      stackThumbTime.style.top = `${(stackThumbFrac(back, max) * 100).toFixed(2)}%`;
+      stackThumbTime.style.setProperty(
+        "--frac",
+        stackThumbFrac(back, max).toFixed(4),
+      );
     },
     setHint(text) {
       hint.textContent = text;

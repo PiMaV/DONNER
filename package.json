@@ -6,6 +6,7 @@
   "description": "DONNER — space-time explorer for structured scientific data (WETTER).",
   "scripts": {
     "start": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "start:lan": "python3 -m http.server 8765 --bind 0.0.0.0",
     "test": "node --test test/*.test.js"
   }
 }

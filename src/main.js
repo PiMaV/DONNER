@@ -96,7 +96,6 @@ let nowGrid;
 let playing = true;
 let editing = false;
 let birdEye = false;
-let isolating = false;
 let isolateCell = null;
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
@@ -111,6 +110,9 @@ let gpsWindow = 0;
 let gpsSteps = 0;
 let pointerDown = null;
 let hoverCell = null;
+let lastCubeTapAt = 0;
+let lastCubeTap = null;
+let skipNextDblclick = false;
 
 const clock = new FrameClock();
 const raycaster = new THREE.Raycaster();
@@ -120,7 +122,6 @@ const ui = bindUI({
   togglePlay,
   toggleEdit,
   toggleBird,
-  toggleIsolate,
   step: () => {
     playing = false;
     ui.setPlaying(false);
@@ -181,7 +182,7 @@ function setLineOpacity(obj, opacity) {
 
 function syncBeacon() {
   beacon.setCell(
-    isolating ? isolateCell : null,
+    isolateCell,
     world.width,
     world.height,
     DEFAULTS.cellSize,
@@ -240,7 +241,6 @@ function bootWorld(resizeGrid) {
   ui.setPlaying(playing);
   ui.setEditing(editing);
   ui.setBird(birdEye);
-  ui.setIsolating(isolating);
   syncBeacon();
   updateHint();
   syncVolume();
@@ -290,14 +290,6 @@ function toggleBird() {
   updateHint();
 }
 
-function toggleIsolate() {
-  isolating = !isolating;
-  if (!isolating) isolateCell = null;
-  ui.setIsolating(isolating);
-  syncBeacon();
-  updateHint();
-}
-
 function applyGridLook() {
   const b = Math.min(1, Math.max(0, gridBrightness));
   if (nowGrid) setLineOpacity(nowGrid, 0.04 + b * 0.82);
@@ -312,18 +304,16 @@ function updateHint() {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
     ui.setHint("Focus is in the past — Now on the Z stack (or Home), then tap to paint");
-  } else if (isolating && !isolateCell) {
-    ui.setHint("Iso — tap a cell or cube to keep that worldline");
-  } else if (isolating && isolateCell) {
+  } else if (isolateCell) {
     ui.setHint(
-      `Iso ${isolateCell.x},${isolateCell.y} — orbit sideways for the pillar · tap again to clear`,
+      `Iso ${isolateCell.x},${isolateCell.y} — orbit sideways for the pillar · double-click the cube to clear`,
     );
   } else if (birdEye) {
     ui.setHint("Bird-eye — pan / pinch, Shift+wheel scrubs time · B to leave");
   } else if (playing) {
-    ui.setHint("Orbit · Z stack on the right (scroll or drag) · Shift+wheel also works");
+    ui.setHint("Orbit · Z stack · double-click a cube to isolate");
   } else {
-    ui.setHint("Paused — Z stack on the right · Edit to paint");
+    ui.setHint("Paused — Z stack · Edit to paint · double-click a cube to isolate");
   }
   applyGridLook();
   playfield.setEditing(editing);
@@ -362,7 +352,7 @@ function syncVolume() {
     history: historyLen,
     stabMode,
     cellSize: DEFAULTS.cellSize,
-    isolate: isolating ? isolateCell : null,
+    isolate: isolateCell,
     sliceOnly: birdEye,
   });
 }
@@ -394,9 +384,25 @@ function paintAt(event) {
   }
 }
 
-function pickIsolate(event) {
-  if (!isolating || editing) return;
-  const cell = hitCell(event, true);
+function hitCubeCell(event) {
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, activeCamera());
+  const hits = raycaster.intersectObjects([cubes.solid, cubes.ghost], false);
+  if (!hits.length) return null;
+  return cellFromWorldXZ(
+    hits[0].point.x,
+    hits[0].point.z,
+    world.width,
+    world.height,
+    DEFAULTS.cellSize,
+  );
+}
+
+function pickIsolateFromCube(event) {
+  if (editing) return;
+  const cell = hitCubeCell(event);
   if (!cell) return;
   isolateCell = cellsEqual(isolateCell, cell) ? null : cell;
   syncBeacon();
@@ -451,8 +457,31 @@ window.addEventListener("pointerup", (e) => {
   pointerDown = null;
   if (dx * dx + dy * dy > 36) return;
   if (e.target !== canvas) return;
-  if (isolating && !editing) pickIsolate(e);
-  else paintAt(e);
+  paintAt(e);
+  if (editing || e.pointerType !== "touch") return;
+  const cell = hitCubeCell(e);
+  if (!cell) return;
+  const now = performance.now();
+  if (lastCubeTap && cellsEqual(lastCubeTap, cell) && now - lastCubeTapAt < 420) {
+    skipNextDblclick = true;
+    isolateCell = cellsEqual(isolateCell, cell) ? null : cell;
+    lastCubeTap = null;
+    lastCubeTapAt = 0;
+    syncBeacon();
+    updateHint();
+  } else {
+    lastCubeTap = cell;
+    lastCubeTapAt = now;
+  }
+});
+canvas.addEventListener("dblclick", (e) => {
+  if (e.target !== canvas) return;
+  e.preventDefault();
+  if (skipNextDblclick) {
+    skipNextDblclick = false;
+    return;
+  }
+  pickIsolateFromCube(e);
 });
 canvas.addEventListener("pointerleave", () => {
   clearHover();
@@ -480,11 +509,12 @@ window.addEventListener("keydown", (e) => {
     toggleEdit();
   } else if (e.code === "KeyB") {
     toggleBird();
-  } else if (e.code === "KeyI") {
-    toggleIsolate();
   } else if (e.code === "Escape") {
-    if (isolating) toggleIsolate();
-    else if (birdEye) toggleBird();
+    if (isolateCell) {
+      isolateCell = null;
+      syncBeacon();
+      updateHint();
+    } else if (birdEye) toggleBird();
   } else if (e.code === "Period" || e.code === "KeyN") {
     playing = false;
     ui.setPlaying(false);
@@ -535,9 +565,10 @@ function frame(now) {
     focus: foc,
     playing,
     bird: birdEye,
-    isolating,
-    isolate: isolating ? isolateCell : null,
+    isolating: Boolean(isolateCell),
+    isolate: isolateCell,
   });
+  ui.setFps(fps);
   hudSrcEl.textContent = formatSourceHud({
     generation: world.generation,
     live: ring.liveAt(foc),

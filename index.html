@@ -36,9 +36,11 @@
     </div>
   </header>
 
+  <button type="button" id="hud-fps" class="fps-chip" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
+
   <div class="hud-rail">
     <div class="hud-cards">
-      <section class="hud-engine" aria-label="Display telemetry">
+      <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
         <h2 class="sheet-label">View</h2>
         <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
         <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
@@ -48,18 +50,23 @@
         <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
       </section>
     </div>
-    <aside class="stack" aria-label="Z time stack">
-      <span class="stack-name">Z</span>
-      <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
-      <div class="stack-track">
-        <div id="stack-ticks" class="stack-ticks" aria-hidden="true"></div>
-        <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
-          orient="vertical" aria-orientation="vertical"
-          aria-label="Scrub focus through the time stack" />
-        <span id="stack-thumb-time" class="stack-thumb-time">0</span>
+    <div class="hud-time">
+      <aside class="stack" aria-label="Z time stack">
+        <span class="stack-name">Z</span>
+        <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
+        <div class="stack-track">
+          <div id="stack-ticks" class="stack-ticks" aria-hidden="true"></div>
+          <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
+            orient="vertical" aria-orientation="vertical"
+            aria-label="Scrub focus through the time stack" />
+          <span id="stack-thumb-time" class="stack-thumb-time">0</span>
+        </div>
+        <span id="stack-bot" class="stack-cap">−0</span>
+      </aside>
+      <div id="transport" class="transport">
+        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
       </div>
-      <span id="stack-bot" class="stack-cap">−0</span>
-    </aside>
+    </div>
   </div>
 
   <button type="button" id="btn-fold" class="fold" aria-expanded="false" aria-controls="controls">Controls ▸</button>
@@ -69,10 +76,8 @@
 
     <section class="sheet-block" data-slot="view" aria-labelledby="sheet-view">
       <h2 id="sheet-view" class="sheet-label">View</h2>
-      <div class="btn-row">
-        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
+      <div class="btn-row btn-row-one">
         <button type="button" id="btn-bird" class="btn btn-bird" aria-pressed="false" title="Orthographic top view of the focus plane">Bird</button>
-        <button type="button" id="btn-iso" class="btn btn-iso" aria-pressed="false" title="Dim the volume; keep one worldline">Iso</button>
       </div>
       <label class="field">
         <span>Decay <em id="decay-val"></em></span>

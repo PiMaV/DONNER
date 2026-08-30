@@ -27,19 +27,23 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   hues. Default seed: Blinker; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head.
 - Bird-eye (`B`) is orthographic top-down onto Z = 0 and draws **only the
-  focus slice** (a 2D grid). Isolation (`I`) dims the field to one `(x, y)`
-  worldline. Scrub Z with the right-hand **stack slider** (Now at top) or
+  focus slice** (a 2D grid). Isolation: double-click a cube (double-tap on
+  phone) dims the field to that `(x, y)` worldline; Escape or the same
+  cube again clears. No Iso button. Scrub Z with the **stack slider**
+  (desktop: right, Now at top; phone: bottom, Now at right) or
   Shift+wheel; there is no Focus slider in the control sheet. **Window**
-  (not History) is the buffer span. Play is one display button; while
-  Conway is the source it also steps the generator. Hovering the plane
-  draws hairlines to the numbered X/Y axes and outlines the cell plus the
-  focus-slice cube if live. Do not attach a 3D time grabber to the X/Y
-  frame. Display HUD (FPS, AVG, sparkline, INST, FOC) stays separate from
-  the Conway source HUD (GEN, LIVE, RATE). FPS/sparkline use raw frame
-  time; the 100 ms clamp is simulation catch-up only. The Z stack is a
-  thin tick rail (bar + generation beside the handle), not a HUD card.
-  The control sheet is **View** / **Source** / **Encoding**. GEN/LIVE/RATE
-  belong to Source, not Encoding.
+  (not History) is the buffer span. Play is a display transport outside
+  the sheet; while Conway is the source it also steps the generator.
+  Hovering the plane draws hairlines to the numbered X/Y axes and
+  outlines the cell plus the focus-slice cube if live. Do not attach a
+  3D time grabber to the X/Y frame. Display HUD (FPS, AVG, sparkline,
+  INST, FOC) stays separate from the Conway source HUD (GEN, LIVE, RATE).
+  On a phone the HUD is an FPS chip (tap for the View card); source stats
+  stay in the Source sheet. FPS/sparkline use raw frame time; the 100 ms
+  clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
+  + generation beside the handle), not a HUD card. The control sheet is
+  **View** / **Source** / **Encoding**. GEN/LIVE/RATE belong to Source,
+  not Encoding.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
   pattern geometry). Do not invent a second rule set.
 - Repo files in English. Chat with the human in German.
