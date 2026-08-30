@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+.cursor/
+.env
+node_modules/
+dist/
+.cache/
+*.prof
+.donner-smoke.png

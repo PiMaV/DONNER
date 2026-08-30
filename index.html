@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DONNER | Space-Time Explorer</title>
+  <meta name="description"
+    content="DONNER is a browser space-time explorer for structured scientific data. Conway's Game of Life is the first demonstrator; event-camera streams come next." />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="apple-mobile-web-app-title" content="DONNER" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="icon" type="image/png" sizes="96x96" href="https://mess.engineering/favicon/favicon-96x96.png" />
+  <link rel="icon" type="image/svg+xml" href="https://mess.engineering/favicon/favicon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="https://mess.engineering/favicon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+  <script type="module" src="src/main.js"></script>
+</head>
+
+<body>
+  <canvas id="view" aria-label="Space-time volume"></canvas>
+
+  <header class="brand">
+    <div class="brand-mark" aria-hidden="true">D</div>
+    <div>
+      <h1>DONNER</h1>
+      <p class="tagline">Space-Time Explorer · M.E.S.S.</p>
+    </div>
+  </header>
+
+  <pre id="hud-stats" class="hud-stats" aria-live="polite"></pre>
+
+  <button type="button" id="btn-fold" class="fold" aria-expanded="false" aria-controls="controls">Controls ▸</button>
+
+  <form id="controls" class="controls" autocomplete="off" onsubmit="return false">
+    <p id="hint" class="hint">Orbit · pinch zoom · two-finger pan</p>
+
+    <div class="btn-row">
+      <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
+      <button type="button" id="btn-step" class="btn">Step</button>
+      <button type="button" id="btn-reset" class="btn">Reset</button>
+      <button type="button" id="btn-random" class="btn">Seed</button>
+    </div>
+
+    <label class="field">
+      <span>Pattern</span>
+      <select id="pattern"></select>
+    </label>
+
+    <label class="field">
+      <span>Seed</span>
+      <input id="seed" type="number" min="0" max="2147483647" step="1" />
+    </label>
+
+    <label class="field">
+      <span>Speed <em id="speed-val"></em></span>
+      <input id="speed" type="range" min="1" max="60" step="1" />
+    </label>
+
+    <label class="field">
+      <span>Decay <em id="decay-val"></em></span>
+      <input id="decay" type="range" min="0" max="0.4" step="0.01" />
+    </label>
+
+    <label class="field">
+      <span>History <em id="history-val"></em></span>
+      <input id="history" type="range" min="8" max="96" step="1" />
+    </label>
+
+    <label class="field">
+      <span>Grid</span>
+      <select id="grid"></select>
+    </label>
+
+    <label class="check">
+      <input id="wrap" type="checkbox" />
+      <span>Wrap edges (torus)</span>
+    </label>
+  </form>
+
+  <footer class="legal">
+    <span id="version"></span>
+    <span aria-hidden="true"> · </span>
+    <a href="https://mess.engineering" target="_blank" rel="noopener noreferrer">M.E.S.S.</a>
+    <span aria-hidden="true"> · </span>
+    <a href="https://wetter.mess.engineering" target="_blank" rel="noopener noreferrer">WETTER</a>
+  </footer>
+</body>
+
+</html>
