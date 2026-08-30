@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worldline color: gold still, cyan oscillator, BLITZ-red transit, gray warmup for generations 0–1 (decay affects brightness only).
 - Cube fill encodes stability duration (cap 16 gens); Stability control is None / Time / Focus (not a checkbox).
 - Grid-light slider for the cell lattice and focus-plane fill.
-- Pattern read-hint under the legend (how to read Blinker vs Glider).
+- Pattern read-hint under Pattern in the Source block (how to read Blinker vs Glider).
 - Related-work link list (`docs/related.md`): Conway is the event generator, not the product; Wolfram 2025 highlighted as the internal Life reference; neighbouring CA links found while looking around — not a novelty or influence claim.
 - Bird-eye view: orthographic camera looking down onto the **focus slice** (button **Bird**, key `B`).
 - Isolation: dim the volume to one `(x, y)` worldline (button **Iso**, key `I`; tap a cell or cube).
@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Product axes are X/Y playfield and Z time. Time scrub is a right-hand stack slider, not a 3D gizmo on the coordinate frame.
 - Control **History** is labeled **Window** (time span in the buffer, not a Life log).
 - Display vs source vs encoding is documented: DONNER is the viewer, Conway the addon, color/fill an encoding slot the addon fills.
+- Control sheet grouped into **View**, **Source**, and **Encoding**. GEN / LIVE / RATE stay on the Source HUD, not in Encoding.
 
 ### Removed
 

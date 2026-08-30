@@ -22,6 +22,31 @@ flowchart LR
 Play is a **display** control: it advances the volume. While Conway is
 the source, the same button also steps the generator.
 
+The left sheet is three blocks — **View** (always), **Source** (addon;
+today Conway, including GEN/LIVE/RATE on the right HUD), **Encoding**
+(how points look; Conway fills the legend and Stability). GEN does not
+live in Encoding.
+
+```mermaid
+flowchart TB
+  subgraph view [View display]
+    play[Play]
+    bird[Bird Iso]
+    win[Window Decay GridLight]
+  end
+  subgraph source [Source slot]
+    gen[GEN LIVE RATE]
+    conway[Pattern Seed Speed Edit]
+  end
+  subgraph encoding [Encoding slot]
+    lut[Legend k]
+    fill[Stability s]
+  end
+  view --> volume[Volume]
+  source --> volume
+  encoding --> volume
+```
+
 ## Camera
 
 | Input | Action |
@@ -72,8 +97,8 @@ the source, the same button also steps the generator.
 Color and cube fill are display slots. Conway currently supplies still /
 osc / transit / warmup and Stability **None / Time / Focus**. An event
 source will supply a different LUT (polarity) and may drop these fill
-modes. The sheet still shows the Conway legend and Stability control; a
-dedicated encoding strip is later.
+modes. The sheet **Encoding** block is that slot; GEN / LIVE / RATE stay
+in **Source**.
 
 | Control | Meaning |
 |---------|---------|
@@ -157,6 +182,5 @@ cell lattice is.
 
 ## Later
 
-- Encoding strip in the chrome: adapter supplies LUT and fill modes;
-  Conway keeps filling still/osc/transit + Stability until then.
+- Renderer color LUT from the encoding adapter (still hardcoded Conway kinds).
 - Optional 1%/0.1% FPS lows on the display sparkline.

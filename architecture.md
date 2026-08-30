@@ -48,9 +48,9 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Bird, Iso, Z stack (playhead), Window (buffer span), Decay, Grid light, FPS/INST | Always present |
-| **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit | Swap later for file/stream |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Legend + Stability still sit in the sheet; a dedicated encoding strip is later |
+| **Display** | Orbit, Bird, Iso, Z stack (playhead), Window (buffer span), Decay, Grid light, FPS/INST | Sheet **View** + right display HUD |
+| **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit; HUD GEN / LIVE / RATE | Sheet **Source** + right source HUD. Swap later for file/stream + that source's stats |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Sheet block **Encoding** (legend + Stability). Renderer LUT still hardcoded. |
 
 **Play** is one display button (advance the volume). While Conway is the
 source, that same button also steps the generator. Do not split Run vs
@@ -60,8 +60,30 @@ Focus slider in the control sheet. Keyboard Home / `[` / `]` / Shift+wheel
 still scrub.
 
 The cube renderer should treat `k` as an index into an adapter LUT. Today
-`CubeRenderer` still hard-codes Conway kind colors — a leak to close when
-the encoding strip lands.
+`CubeRenderer` still hard-codes Conway kind colors — a leak to close with
+the encoding adapter, not by moving GEN into Encoding.
+
+The left **control sheet** is the same three blocks as the model:
+
+```mermaid
+flowchart TB
+  subgraph view [View display]
+    play[Play]
+    bird[Bird Iso]
+    win[Window Decay GridLight]
+  end
+  subgraph source [Source slot]
+    gen[GEN LIVE RATE]
+    conway[Pattern Seed Speed Edit]
+  end
+  subgraph encoding [Encoding slot]
+    lut[Legend k]
+    fill[Stability s]
+  end
+  view --> volume[Volume]
+  source --> volume
+  encoding --> volume
+```
 
 ```mermaid
 flowchart TB

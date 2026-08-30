@@ -34,7 +34,8 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   draws hairlines to the numbered X/Y axes and outlines the cell plus the
   focus-slice cube if live. Do not attach a 3D time grabber to the X/Y
   frame. Display HUD (FPS, AVG, sparkline, INST, FOC) stays separate from
-  the Conway source HUD (GEN, LIVE, RATE).
+  the Conway source HUD (GEN, LIVE, RATE). The control sheet is **View** /
+  **Source** / **Encoding**. GEN/LIVE/RATE belong to Source, not Encoding.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
   pattern geometry). Do not invent a second rule set.
 - Repo files in English. Chat with the human in German.

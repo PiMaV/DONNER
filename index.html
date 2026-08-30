@@ -38,10 +38,12 @@
 
   <div class="hud-rail">
     <section class="hud-engine" aria-label="Display telemetry">
+      <h2 class="sheet-label">View</h2>
       <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
       <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
     </section>
     <section class="hud-source" aria-label="Source telemetry">
+      <h2 class="sheet-label">Source</h2>
       <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
     </section>
     <aside class="stack" aria-label="Z time stack">
@@ -63,82 +65,85 @@
   <form id="controls" class="controls" autocomplete="off" onsubmit="return false">
     <p id="hint" class="hint">Orbit · pinch zoom · two-finger pan</p>
 
-    <div class="btn-row">
-      <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
-      <button type="button" id="btn-step" class="btn">Step</button>
-      <button type="button" id="btn-edit" class="btn btn-edit" aria-pressed="false">Edit</button>
-      <button type="button" id="btn-reset" class="btn">Reset</button>
-      <button type="button" id="btn-random" class="btn">Seed</button>
-      <button type="button" id="btn-bird" class="btn btn-bird" aria-pressed="false" title="Orthographic top view of the focus plane">Bird</button>
-      <button type="button" id="btn-iso" class="btn btn-iso" aria-pressed="false" title="Dim the volume; keep one worldline">Iso</button>
-    </div>
+    <section class="sheet-block" data-slot="view" aria-labelledby="sheet-view">
+      <h2 id="sheet-view" class="sheet-label">View</h2>
+      <div class="btn-row">
+        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
+        <button type="button" id="btn-bird" class="btn btn-bird" aria-pressed="false" title="Orthographic top view of the focus plane">Bird</button>
+        <button type="button" id="btn-iso" class="btn btn-iso" aria-pressed="false" title="Dim the volume; keep one worldline">Iso</button>
+      </div>
+      <label class="field">
+        <span>Decay <em id="decay-val"></em></span>
+        <input id="decay" type="range" min="0" max="0.4" step="0.01" />
+      </label>
+      <label class="field">
+        <span>Grid light <em id="grid-bright-val"></em></span>
+        <input id="grid-bright" type="range" min="0" max="1" step="0.01" />
+      </label>
+      <label class="field">
+        <span>Window <em id="history-val"></em></span>
+        <input id="history" type="range" min="8" max="96" step="1" />
+      </label>
+    </section>
 
-    <label class="field">
-      <span>Pattern</span>
-      <select id="pattern"></select>
-    </label>
+    <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="sheet-source">
+      <h2 id="sheet-source" class="sheet-label">Source</h2>
+      <div class="btn-row">
+        <button type="button" id="btn-step" class="btn">Step</button>
+        <button type="button" id="btn-edit" class="btn btn-edit" aria-pressed="false">Edit</button>
+        <button type="button" id="btn-reset" class="btn">Reset</button>
+        <button type="button" id="btn-random" class="btn">Seed</button>
+      </div>
+      <label class="field">
+        <span>Pattern</span>
+        <select id="pattern"></select>
+      </label>
+      <p id="read-hint" class="hint read-hint"></p>
+      <label class="field">
+        <span>Seed</span>
+        <input id="seed" type="number" min="0" max="2147483647" step="1" />
+      </label>
+      <label class="field">
+        <span>Speed <em id="speed-val"></em></span>
+        <input id="speed" type="range" min="1" max="60" step="1" />
+      </label>
+      <label class="field">
+        <span>Grid</span>
+        <select id="grid"></select>
+      </label>
+      <label class="check">
+        <input id="wrap" type="checkbox" />
+        <span>Wrap edges (torus)</span>
+      </label>
+    </section>
 
-    <label class="field">
-      <span>Seed</span>
-      <input id="seed" type="number" min="0" max="2147483647" step="1" />
-    </label>
-
-    <label class="field">
-      <span>Speed <em id="speed-val"></em></span>
-      <input id="speed" type="range" min="1" max="60" step="1" />
-    </label>
-
-    <label class="field">
-      <span>Decay <em id="decay-val"></em></span>
-      <input id="decay" type="range" min="0" max="0.4" step="0.01" />
-    </label>
-
-    <label class="field">
-      <span>Grid light <em id="grid-bright-val"></em></span>
-      <input id="grid-bright" type="range" min="0" max="1" step="0.01" />
-    </label>
-
-    <label class="field">
-      <span>Window <em id="history-val"></em></span>
-      <input id="history" type="range" min="8" max="96" step="1" />
-    </label>
-
-    <label class="field">
-      <span>Grid</span>
-      <select id="grid"></select>
-    </label>
-
-    <label class="check">
-      <input id="wrap" type="checkbox" />
-      <span>Wrap edges (torus)</span>
-    </label>
-
-    <label class="field" title="How cube size encodes stability. Hover an option for details.">
-      <span>Stability</span>
-      <select id="stab-mode">
-        <option value="none"
-          title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
-          None
-        </option>
-        <option value="time"
-          title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
-          Time
-        </option>
-        <option value="focus"
-          title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
-          Focus
-        </option>
-      </select>
-    </label>
-    <p id="stab-hint" class="hint stab-hint"></p>
-
-    <ul class="legend" aria-label="Cell color">
-      <li><i class="swatch still"></i> Still</li>
-      <li><i class="swatch osc"></i> Oscillator</li>
-      <li><i class="swatch flow"></i> Transit</li>
-      <li><i class="swatch warmup"></i> Warmup</li>
-    </ul>
-    <p id="read-hint" class="hint read-hint"></p>
+    <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
+      <h2 id="sheet-encoding" class="sheet-label">Encoding</h2>
+      <label class="field" title="How cube size encodes stability. Hover an option for details.">
+        <span>Stability</span>
+        <select id="stab-mode">
+          <option value="none"
+            title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
+            None
+          </option>
+          <option value="time"
+            title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
+            Time
+          </option>
+          <option value="focus"
+            title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
+            Focus
+          </option>
+        </select>
+      </label>
+      <p id="stab-hint" class="hint stab-hint"></p>
+      <ul class="legend" aria-label="Color encoding">
+        <li><i class="swatch still"></i> Still</li>
+        <li><i class="swatch osc"></i> Oscillator</li>
+        <li><i class="swatch flow"></i> Transit</li>
+        <li><i class="swatch warmup"></i> Warmup</li>
+      </ul>
+    </section>
   </form>
 
   <footer class="legal">

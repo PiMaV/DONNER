@@ -90,6 +90,7 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 - Orbit / zoom / pan, including touch
 - Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate)
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
+- Control sheet grouped as View / Source / Encoding
 
 **Not in v1:** Fibonacci, event-camera import, backend, streaming,
 BLITZ sync, WebXR.
