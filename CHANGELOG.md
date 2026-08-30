@@ -20,12 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Related-work link list (`docs/related.md`): Conway is the event generator, not the product; Wolfram 2025 highlighted as the internal Life reference; neighbouring CA links found while looking around — not a novelty or influence claim.
 - Bird-eye view: orthographic camera looking down onto the **focus slice** (button **Bird**, key `B`).
 - Isolation: dim the volume to one `(x, y)` worldline (button **Iso**, key `I`; tap a cell or cube).
-- **Z stack slider** on the right of the HUD: Now at the top, past at the bottom; readout is focus generation plus past/ghost span. Synced with the Focus control in the sheet.
+- **Z stack slider** on the right of the HUD: Now at the top, past at the bottom; readout is focus generation plus past/ghost span. The Z stack is the only playhead (no Focus slider in the sheet).
 - Numbered product X/Y on the right of the playfield; hover hairlines from the cell to both axes.
 - Hovering the focus plane outlines the cell and, when live, the cube on that slice.
+- Display HUD sparkline of recent frame times plus FPS / AVG / FR, kept apart from the Conway source block (GEN, LIVE, RATE).
+- **Now** button on the Z stack; current time (`tFocus`) sits beside the handle.
 
 ### Changed
 
 - Default seed is Blinker (period-2 along time); Stability defaults to Time. Pattern list starts with oscillators, then glider.
 - Glider (and other translating activity) is classified as transit: neighborhood centroid must stay put for still/osc, so the trail is a coral tube instead of false gold/cyan.
 - Product axes are X/Y playfield and Z time. Time scrub is a right-hand stack slider, not a 3D gizmo on the coordinate frame.
+- Control **History** is labeled **Window** (time span in the buffer, not a Life log).
+- Display vs source vs encoding is documented: DONNER is the viewer, Conway the addon, color/fill an encoding slot the addon fills.
+
+### Removed
+
+- Focus slider from the control sheet. Playhead is the Z stack (**Now** button there, plus Home / `[` / `]` / Shift+wheel).

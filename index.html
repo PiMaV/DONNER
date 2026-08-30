@@ -36,17 +36,27 @@
     </div>
   </header>
 
-  <pre id="hud-stats" class="hud-stats" aria-live="polite"></pre>
-
-  <aside class="stack" aria-label="Z time stack">
-    <span class="stack-name">Z</span>
-    <span id="stack-top" class="stack-cap">Now</span>
-    <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
-      orient="vertical" aria-orientation="vertical"
-      aria-label="Scrub focus through the time stack" />
-    <span id="stack-bot" class="stack-cap">−0</span>
-    <span id="stack-readout" class="stack-readout">0</span>
-  </aside>
+  <div class="hud-rail">
+    <section class="hud-engine" aria-label="Display telemetry">
+      <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
+      <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
+    </section>
+    <section class="hud-source" aria-label="Source telemetry">
+      <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
+    </section>
+    <aside class="stack" aria-label="Z time stack">
+      <span class="stack-name">Z</span>
+      <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
+      <div class="stack-track">
+        <span id="stack-thumb-time" class="stack-thumb-time">0</span>
+        <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
+          orient="vertical" aria-orientation="vertical"
+          aria-label="Scrub focus through the time stack" />
+      </div>
+      <span id="stack-bot" class="stack-cap">−0</span>
+      <span id="stack-readout" class="stack-readout">0</span>
+    </aside>
+  </div>
 
   <button type="button" id="btn-fold" class="fold" aria-expanded="false" aria-controls="controls">Controls ▸</button>
 
@@ -89,16 +99,8 @@
     </label>
 
     <label class="field">
-      <span>History <em id="history-val"></em></span>
+      <span>Window <em id="history-val"></em></span>
       <input id="history" type="range" min="8" max="96" step="1" />
-    </label>
-
-    <label class="field">
-      <span>Focus <em id="focus-val">Now</em></span>
-      <div class="focus-row">
-        <input id="focus" type="range" min="0" max="48" step="1" value="0" />
-        <button type="button" id="btn-focus-now" class="btn btn-now">Now</button>
-      </div>
     </label>
 
     <label class="field">

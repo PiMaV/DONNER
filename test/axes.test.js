@@ -6,6 +6,7 @@ import {
   productToWorld,
   relativeTimeTicks,
   spatialTicks,
+  stackThumbFrac,
   visibleTimeRange,
   worldToProduct,
 } from "../src/axes.js";
@@ -39,5 +40,12 @@ describe("axis ticks", () => {
     assert.ok(ticks.includes(0));
     assert.equal(ticks[0], relMin);
     assert.equal(ticks[ticks.length - 1], relMax);
+  });
+
+  it("maps Now to the top of the Z stack", () => {
+    assert.equal(stackThumbFrac(0, 12), 0);
+    assert.equal(stackThumbFrac(12, 12), 1);
+    assert.equal(stackThumbFrac(6, 12), 0.5);
+    assert.equal(stackThumbFrac(3, 0), 0);
   });
 });

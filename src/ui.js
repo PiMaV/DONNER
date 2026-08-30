@@ -1,6 +1,6 @@
 import { PATTERN_NAMES } from "./conway.js";
 import { DEFAULTS, GRID_PRESETS } from "./config.js";
-import { visibleTimeRange } from "./axes.js";
+import { stackThumbFrac, visibleTimeRange } from "./axes.js";
 
 const STAB_HINT = {
   none: "None: equal cubes. Occupancy only — start here if size is confusing.",
@@ -53,13 +53,11 @@ export function bindUI(on) {
   const gridBrightVal = $("grid-bright-val");
   const history = $("history");
   const historyVal = $("history-val");
-  const focus = $("focus");
-  const focusVal = $("focus-val");
-  const focusNow = $("btn-focus-now");
   const stack = $("stack-slider");
-  const stackTop = $("stack-top");
+  const stackNow = $("btn-stack-now");
   const stackBot = $("stack-bot");
   const stackReadout = $("stack-readout");
+  const stackThumbTime = $("stack-thumb-time");
   const grid = $("grid");
   const wrap = $("wrap");
   const stabMode = $("stab-mode");
@@ -81,7 +79,6 @@ export function bindUI(on) {
   decay.value = String(DEFAULTS.decay);
   gridBright.value = String(DEFAULTS.gridBrightness);
   history.value = String(DEFAULTS.history);
-  focus.value = "0";
   wrap.checked = DEFAULTS.wrap;
   stabMode.value = DEFAULTS.stabMode;
   const syncStabHint = () => {
@@ -141,12 +138,7 @@ export function bindUI(on) {
     syncLabels();
     on.history();
   });
-  const applyStack = () => {
-    focus.value = stack.value;
-    on.focus();
-  };
-  focus.addEventListener("input", () => on.focus());
-  stack.addEventListener("input", applyStack);
+  stack.addEventListener("input", () => on.focus());
   stack.addEventListener(
     "wheel",
     (e) => {
@@ -156,11 +148,11 @@ export function bindUI(on) {
       const next = Math.min(max, Math.max(0, Number(stack.value) + dir));
       if (String(next) === stack.value) return;
       stack.value = String(next);
-      applyStack();
+      on.focus();
     },
     { passive: false },
   );
-  focusNow.addEventListener("click", () => on.focusNow());
+  stackNow.addEventListener("click", () => on.focusNow());
   fold.addEventListener("click", () => {
     const open = panel.classList.toggle("is-open");
     fold.setAttribute("aria-expanded", open ? "true" : "false");
@@ -177,7 +169,7 @@ export function bindUI(on) {
         decay: Number(decay.value),
         gridBrightness: Number(gridBright.value),
         history: Number.parseInt(history.value, 10),
-        focusBack: Number.parseInt(focus.value, 10) || 0,
+        focusBack: Number.parseInt(stack.value, 10) || 0,
         width: g,
         height: g,
         wrap: wrap.checked,
@@ -203,17 +195,17 @@ export function bindUI(on) {
     },
     setFocus(back, maxBack, tFocus = 0, tNow = tFocus, history = 1) {
       const max = Math.max(0, maxBack);
-      focus.max = String(max);
-      focus.value = String(back);
-      focusVal.textContent = back === 0 ? "Now" : `−${back}`;
       stack.max = String(max);
       stack.value = String(back);
-      stackTop.textContent = "Now";
+      stackNow.classList.toggle("is-on", back === 0);
+      stackNow.setAttribute("aria-pressed", back === 0 ? "true" : "false");
       stackBot.textContent = max === 0 ? "—" : `−${max}`;
       const { relMin, relMax } = visibleTimeRange(tNow, tFocus, history);
       const below = relMin === 0 ? "0" : `−${Math.abs(relMin)}`;
       const above = relMax === 0 ? "Now" : `+${relMax}`;
       stackReadout.textContent = `${tFocus}\n${below} / ${above}`;
+      stackThumbTime.textContent = String(tFocus);
+      stackThumbTime.style.top = `${(stackThumbFrac(back, max) * 100).toFixed(2)}%`;
     },
     setHint(text) {
       hint.textContent = text;

@@ -17,6 +17,52 @@ flowchart LR
   rend --> view[Three.js scene]
 ```
 
+## Layers
+
+DONNER is the **display engine**. Conway is a **source addon**. Color and
+cube fill are an **encoding slot** the active addon fills — not Life
+identity baked into the renderer.
+
+```mermaid
+flowchart LR
+  subgraph source [Source addon]
+    conway[Conway B3/S23]
+    evt[Event camera later]
+  end
+  subgraph adapter [Encoding adapter]
+    mapK[Color k]
+    mapS[Fill s]
+    mapV[Value v]
+  end
+  subgraph engine [DONNER display]
+    windowNode[Time window]
+    playhead[Playhead tFocus]
+    viewCam[Bird Iso Orbit]
+    hud[FPS INST]
+  end
+  conway --> adapter
+  evt --> adapter
+  adapter --> soa2[EventSoA]
+  soa2 --> engine
+```
+
+| Layer | Owns | UI now |
+|-------|------|--------|
+| **Display** | Orbit, Bird, Iso, Z stack (playhead), Window (buffer span), Decay, Grid light, FPS/INST | Always present |
+| **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit | Swap later for file/stream |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Legend + Stability still sit in the sheet; a dedicated encoding strip is later |
+
+**Play** is one display button (advance the volume). While Conway is the
+source, that same button also steps the generator. Do not split Run vs
+Play until a recorded stream exists. **Window** is the instantiated time
+span (not a Life log). The **Z stack** is the only playhead; there is no
+Focus slider in the control sheet. Keyboard Home / `[` / `]` / Shift+wheel
+still scrub.
+
+The cube renderer should treat `k` as an index into an adapter LUT. Today
+`CubeRenderer` still hard-codes Conway kind colors — a leak to close when
+the encoding strip lands.
+
 ```mermaid
 flowchart TB
   sim[2D Conway B3/S23] --> hist[Generation ring]
@@ -77,14 +123,16 @@ Present sits at generation `tNow`. The **focus plane** is `tFocus`
 (`tNow` minus a scrub offset) and is always product **Z = 0** (engine Y = 0).
 Older slices sit below; newer slices sit **above as a transparent ghost**
 so the focused generation stays readable. Decay weights the past under the
-plane; **history** is the window instantiated from the simulation head.
+plane; **Window** is the span instantiated from the simulation head
+(the control formerly labeled History).
 
 This split matches the later event-camera design:
 
-- **Time window** — which interval exists in the buffer
-- **Focus / playhead** — which slice is the working plane
+- **Window** — which interval exists in the buffer
+- **Playhead (Z stack)** — which slice is the working plane
 - **Decay** — how strongly older events below that plane fade
-- **Color** — worldline class (still / oscillator / transit / warmup), not age
+- **Encoding** — color and fill from the source adapter (Conway: worldline
+  class still / oscillator / transit / warmup, not age)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
@@ -121,13 +169,14 @@ flowchart LR
 ## Z stack slider
 
 Time is a **HUD slider** on the right, like a 3D slicer through the
-generation stack — not a grabber on the 3D axes. **Now** is the top
-(`focusBack = 0`); the bottom is the deepest stored past. The thumb is
-`tFocus`. The readout is the focus generation plus how far the visible
-window extends below (past) and above (ghost toward Now). The Focus
-control in the sheet stays in sync. Wheel over the stack (or Shift+wheel
-on the canvas) still scrubs. X/Y numbers stay on the playfield frame;
-there is no 3D Z shaft.
+generation stack — not a grabber on the 3D axes. **Now** is a button at
+the top (`focusBack = 0`); the bottom is the deepest stored past. The
+thumb is `tFocus`; the generation sits **beside the handle**. The readout
+below is the focus generation plus how far the visible window extends
+below (past) and above (ghost toward Now). Wheel over the stack (or
+Shift+wheel on the canvas) still scrubs. There is no Focus slider in the
+control sheet. X/Y numbers stay on the playfield frame; there is no 3D Z
+shaft.
 
 ```mermaid
 flowchart TB
@@ -154,12 +203,17 @@ worldline stays fully lit. A thin gold column marks the pillar. Tap the
 same cell or Iso / Escape to clear. Complements bird-eye (whole plane,
 top-down) rather than replacing it.
 
-## Later: nerd FPS HUD
+## Display HUD vs source HUD
 
-Replace the numeric FPS/FR lines with a M.E.S.S. homepage-style nerd overlay:
-sparkline of recent frame times plus rolling averages (and maybe 1%/0.1%
-lows). Purpose: see until which grid/history/instance count the browser stays
-stable. Do not block Conway/stability work on this.
+The right rail is two telemetry blocks plus the Z stack:
+
+- **Display** — sparkline of recent frame times, FPS, rolling **AVG**, FR,
+  INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD, ISO. Cliff-finder:
+  scale Window / Grid until FPS holds.
+- **Source (Conway)** — GEN, LIVE, RATE (generations/s, not frame rate),
+  EDIT. Swap this block when an event source lands.
+
+1%/0.1% lows are not drawn yet.
 
 ## Modules
 
@@ -175,7 +229,8 @@ stable. Do not block Conway/stability work on this.
 | `src/view.js` | Perspective ↔ bird-eye camera |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
 | `src/main.js` | Scene, loop, edit/paint, camera |
-| `src/ui.js` | HUD controls |
+| `src/hud.js` | Display vs source HUD copy; frame-time sparkline |
+| `src/ui.js` | Control sheet and Z-stack bindings |
 
 BLITZ **Ember** decay is a 2D grayscale trail and is **not** used here.
 DONNER decay is visual weight along the time axis.
@@ -192,6 +247,9 @@ points / shader path should keep:
 ```text
 setEvents(soa, { tFocus, decay, timeScale, width, height, cellSize, isolate, sliceOnly })
 ```
+
+Color `k` and fill `s` are encoding fields. The renderer should index an
+adapter LUT, not Conway class names. Today the LUT is still hardcoded.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
@@ -210,7 +268,7 @@ Event camera → sidecar → standardized events
 
 Instanced cubes: one mesh, up to 200 000 instances. Default 32×32 × 48
 generations is tens of thousands of cubes at typical Life density.
-Scale the grid and history from the HUD; treat Conway as a synthetic
+Scale the grid and Window from the HUD; treat Conway as a synthetic
 load generator before real event streams.
 
 ## Stages

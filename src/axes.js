@@ -59,6 +59,13 @@ export function visibleTimeRange(tNow, tFocus, history) {
   };
 }
 
+/** 0 = Now (top of the Z stack), 1 = deepest stored past (bottom). */
+export function stackThumbFrac(back, maxBack) {
+  const max = Math.max(0, maxBack | 0);
+  if (max === 0) return 0;
+  return Math.min(1, Math.max(0, (back | 0) / max));
+}
+
 function uniqueSorted(arr) {
   return [...new Set(arr)].sort((a, b) => a - b);
 }

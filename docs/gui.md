@@ -8,15 +8,19 @@ layout.
 ```mermaid
 flowchart LR
   orbit[Orbit / pinch / pan] --> scene[Volume]
-  play[Play Pause Step] --> sim[Conway]
+  play[Play Pause] --> scene
+  step[Step] --> sim[Conway]
   sim --> scene
-  scrub[Z stack / Focus / Shift+wheel] --> plane[Focus plane]
+  scrub[Z stack / Shift+wheel] --> plane[Focus plane]
   plane --> scene
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
   bird[Bird-eye] --> scene
   iso[Isolation] --> scene
 ```
+
+Play is a **display** control: it advances the volume. While Conway is
+the source, the same button also steps the generator.
 
 ## Camera
 
@@ -38,25 +42,41 @@ flowchart LR
 | Home | Focus Now |
 | `R` | Reset |
 
-## Simulation
+## Display (DONNER)
 
 | Control | Meaning |
 |---------|---------|
-| Play / Pause | Advance generations |
-| Step | One generation (also pauses) |
-| Edit | Paint cells on the focus plane (only at Now) |
+| Play / Pause | Advance the volume. With Conway as source, this also steps the generator. |
 | Bird | Orthographic top-down onto the **focus slice** only; pan / pinch |
 | Iso | Dim the volume; keep one `(x, y)` worldline. Tap a cell or cube. |
+| Decay | Fade of slices **below** the focus plane |
+| Grid light | Brightness of the cell grid and focus-plane fill |
+| Window | Instantiated time span from the simulation head (8–96). Not a Life log. |
+| **Z stack** (right HUD) | Playhead. **Now** snaps to the head. Time sits beside the handle. |
+
+## Source (Conway addon)
+
+| Control | Meaning |
+|---------|---------|
+| Step | One generation (also pauses) |
+| Edit | Paint cells on the focus plane (only at Now) |
 | Reset | Same pattern and seed |
 | Seed | New RNG seed, then reset |
 | Pattern | BLITZ seeds; Gosper gun needs grid ≥ 48 |
 | Speed | Target generations per second (1–60) |
-| Decay | Fade of slices **below** the focus plane |
-| Grid light | Brightness of the cell grid and focus-plane fill |
-| History | Visible generations from the simulation head (8–96) |
-| Focus | Move the working plane through stored history; **Now** snaps to `tNow` |
 | Grid | 16…64; rebuilds the world |
 | Wrap | Torus vs hard edges |
+
+## Encoding (slot; Conway fills it)
+
+Color and cube fill are display slots. Conway currently supplies still /
+osc / transit / warmup and Stability **None / Time / Focus**. An event
+source will supply a different LUT (polarity) and may drop these fill
+modes. The sheet still shows the Conway legend and Stability control; a
+dedicated encoding strip is later.
+
+| Control | Meaning |
+|---------|---------|
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
 The gold **frame** is the playfield edge. Numbered **X/Y** sit on the
@@ -68,29 +88,36 @@ the plane, translucent.
 
 **Bird** looks straight down with an orthographic camera (no parallax).
 **Iso** dims every cell except one worldline; tap a cell on the plane or a
-cube. Edit is unchanged: pause, plane at Now, tap inside the frame.
+cube. Edit is unchanged: pause, plane at Now (Z stack at the top, or Home),
+tap inside the frame.
 
 On narrow viewports the control sheet is behind **Controls ▸** so the
 volume stays dominant.
 
-## HUD (right)
+## HUD (right rail)
 
-| Line | Source |
-|------|--------|
-| GEN | Simulation head |
-| FOC | Focus generation (the plane) |
-| LIVE | Live cells on the **focus** slice |
-| INST | Instanced cubes (`trunc` if SoA capped) |
-| FPS / FR | Frame rate and frame time |
-| RATE | Measured generation rate while playing |
-| BIRD | Present in bird-eye |
-| ISO | Isolated cell, or `…` while picking |
+Two blocks, then the Z stack. Display is cyan; source is muted.
 
-Below the stats, the **Z stack** slider scrubs time (Now at the top, past
-at the bottom). The readout is focus generation plus past / ghost span.
+| Line | Block |
+|------|-------|
+| sparkline | Display — recent frame times (60 fps reference line) |
+| FPS / AVG / FR | Display — instant, rolling average, frame time |
+| INST | Display — instanced cubes (`trunc` if SoA capped) |
+| FOC | Display — playhead generation (also beside the Z-stack handle) |
+| PLAY / PAUSE | Display |
+| BIRD / ISO | Display — view state |
+| GEN | Source — simulation head |
+| LIVE | Source — live cells on the focus slice |
+| RATE | Source — measured generation rate while playing |
+| EDIT | Source — present in edit mode |
 
-This HUD is also a cheap GPU / browser benchmark. If INST hits the cap,
-lower History or Grid before judging FPS.
+**Z stack:** **Now** button at the top snaps the playhead. The thumb shows
+the current time (`tFocus`) beside the handle. Wheel over the stack (or
+Shift+wheel on the canvas) still scrubs. Now at the top, past at the
+bottom.
+
+If INST hits the cap, lower Window or Grid before judging FPS. RATE is
+not frame rate.
 
 ## Visual mapping
 
@@ -121,14 +148,15 @@ Decay only darkens older slices; it does not change hue or cube size.
 Cap is 16 generations. Transit stays smaller in Time/Focus. Warmup cubes
 stay full size so the first slices are not a false “shrink”.
 
-These classes are the **Conway demonstrator**. The later live path is
-event-camera data; polarity (and other encodings) will not reuse this
-still/osc/transit legend by default.
+These classes fill the **encoding slot** for the Conway demonstrator. The
+later live path is event-camera data; polarity (and other encodings) will
+not reuse this still/osc/transit legend by default.
 
 The gold **frame** is the playfield edge. **Grid light** sets how bright the
 cell lattice is.
 
 ## Later
 
-Nerd FPS HUD (sparkline + averages, like the M.E.S.S. homepage overlay) to
-find the performance cliff — not built yet.
+- Encoding strip in the chrome: adapter supplies LUT and fill modes;
+  Conway keeps filling still/osc/transit + Stability until then.
+- Optional 1%/0.1% FPS lows on the display sparkline.

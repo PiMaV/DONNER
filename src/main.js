@@ -5,7 +5,7 @@ import { COLOR, DEFAULTS, VERSION } from "./config.js";
 import { ConwayWorld, seedPattern } from "./conway.js";
 import { cubeFill } from "./dynamics.js";
 import { clampFocusBack, focusGeneration } from "./focus.js";
-import { FrameClock, formatHud } from "./hud.js";
+import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ, cellsEqual } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import {
@@ -28,7 +28,9 @@ import {
 } from "./view.js";
 
 const canvas = document.getElementById("view");
-const hudEl = document.getElementById("hud-stats");
+const hudViewEl = document.getElementById("hud-view");
+const hudSrcEl = document.getElementById("hud-src");
+const hudSparkEl = document.getElementById("hud-spark");
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
 
@@ -309,7 +311,7 @@ function updateHint() {
   if (editing && atNow) {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
-    ui.setHint("Focus is in the past — Now, then tap to paint");
+    ui.setHint("Focus is in the past — Now on the Z stack (or Home), then tap to paint");
   } else if (isolating && !isolateCell) {
     ui.setHint("Iso — tap a cell or cube to keep that worldline");
   } else if (isolating && isolateCell) {
@@ -321,7 +323,7 @@ function updateHint() {
   } else if (playing) {
     ui.setHint("Orbit · Z stack on the right (scroll or drag) · Shift+wheel also works");
   } else {
-    ui.setHint("Paused — Z stack on the right · Focus in the sheet · Edit to paint");
+    ui.setHint("Paused — Z stack on the right · Edit to paint");
   }
   applyGridLook();
   playfield.setEditing(editing);
@@ -522,21 +524,27 @@ function frame(now) {
   renderer.render(scene, activeCamera());
 
   const foc = tFocus();
-  hudEl.textContent = formatHud({
-    generation: world.generation,
-    focus: foc,
-    live: ring.liveAt(foc),
+  const fps = clock.displayFps || 1000 / clock.emaMs;
+  const ms = clock.displayMs || clock.emaMs;
+  hudViewEl.textContent = formatViewHud({
+    fps,
+    avgFps: clock.avgFps,
+    ms,
     instances: cubes.count,
     truncated: soa.truncated,
-    fps: clock.displayFps || 1000 / clock.emaMs,
-    ms: clock.displayMs || clock.emaMs,
-    gps: playing ? measuredGps || gensPerSec : 0,
+    focus: foc,
     playing,
-    editing,
     bird: birdEye,
     isolating,
     isolate: isolating ? isolateCell : null,
   });
+  hudSrcEl.textContent = formatSourceHud({
+    generation: world.generation,
+    live: ring.liveAt(foc),
+    gps: playing ? measuredGps || gensPerSec : 0,
+    editing,
+  });
+  drawSparkline(hudSparkEl, clock);
 
   requestAnimationFrame(frame);
 }

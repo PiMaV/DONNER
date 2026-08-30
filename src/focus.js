@@ -1,4 +1,4 @@
-/** Focus plane vs simulation head. Y = 0 is always tFocus. */
+/** Focus plane vs simulation head. Product Z = 0 is always tFocus. */
 
 export function clampFocusBack(back, generation, historyLen) {
   const max = Math.min(Math.max(0, generation | 0), Math.max(0, historyLen | 0));

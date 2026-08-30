@@ -80,16 +80,16 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
 - Default teaching seed: Blinker (glider is the XY-motion case)
-- Instanced cubes, history along the time axis (product **Z**)
-- Decay, speed, history length, play / pause / step / reset
-- Focus scrub (plane through the stack; newer slices ghosted above)
-- Gold playfield frame; **Z stack slider** on the right (Now at top)
-- Numbered X/Y on the right; hover hairlines to the axes, cell and cube outlines
+- Instanced cubes, Window along the time axis (product **Z**)
+- Decay, speed, Window length, play / pause / step / reset
+- Playhead via the **Z stack** on the right (**Now** button; time beside the handle)
+- Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - Bird-eye: orthographic top view of the focus plane
 - Isolation: one worldline lit, the rest of the volume dimmed
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Performance HUD (generation, focus, live cells, instances, FPS)
+- Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate)
+- Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 
 **Not in v1:** Fibonacci, event-camera import, backend, streaming,
 BLITZ sync, WebXR.
