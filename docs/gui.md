@@ -157,7 +157,7 @@ to expand the View card. Source stats live in the Source sheet.
 | Line | Block |
 |------|-------|
 | sparkline | Display — recent frame times (60 fps reference line) |
-| FPS / AVG / FR | Display — instant, rolling average, frame time |
+| FPS / AVG / 1% / 0.1% / FR | Display — instant, rolling average, slowest-percent FPS, frame time |
 | INST | Display — instanced cubes (`trunc` if SoA capped) |
 | FOC | Display — playhead generation (also beside the Z-stack handle) |
 | PLAY / PAUSE | Display |
@@ -173,8 +173,9 @@ Phone: Now at the right, past at the left. Wheel over the stack (or
 Shift+wheel on the canvas) still scrubs.
 
 If INST hits the cap, lower Window or Grid before judging FPS. RATE is
-not frame rate. FPS and the sparkline are wall-clock frame times; they
-are not clamped to 10.
+not frame rate. FPS, 1%/0.1% lows, and the sparkline are wall-clock
+frame times; they are not clamped to 10. **1%** / **0.1%** are the mean
+FPS of the slowest 1% / 0.1% of the last ~1000 frames — hitch, not AVG.
 
 ## Visual mapping
 
@@ -215,7 +216,6 @@ cell lattice is.
 ## Later
 
 - Event-camera source behind the same `EventSoA`; polarity encoding (not still/osc/transit)
-- Optional 1%/0.1% FPS lows on the display sparkline
 - BLITZ sync, in-browser EVT3
 - **XR** (see [backlog.md](../backlog.md) and [architecture.md](../architecture.md) stage 3):
   phone tabletop first (WebXR `immersive-ar`, tap a plane to place the

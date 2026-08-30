@@ -259,17 +259,17 @@ flowchart TB
   end
 ```
 
-- **Display** — sparkline of recent frame times, FPS, rolling **AVG**, FR,
-  INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD, ISO. Frame times are
-  raw; the 100 ms clamp is simulation catch-up only, so FPS is not stuck
-  at 10 on a slow GPU. Long tab-hidden gaps are skipped. Cliff-finder:
-  scale Window / Grid until FPS holds.
+- **Display** — sparkline of recent frame times, FPS, rolling **AVG**,
+  **1%** / **0.1%** lows (mean of the slowest 1% / 0.1% of a ~1000-frame
+  window), FR, INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD. Frame
+  times are raw; the 100 ms clamp is simulation catch-up only, so FPS is
+  not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
+  Cliff-finder: scale Window / Grid until FPS and 1% low hold.
 - **Source (Conway)** — GEN, LIVE, RATE (generations/s, not frame rate),
   EDIT. Swap this block when an event source lands.
 
 The Z stack is a tick rail (one mark per stored step), not a HUD card:
-**Now**, the bar, the generation beside the handle. 1%/0.1% lows are not
-drawn yet.
+**Now**, the bar, the generation beside the handle.
 
 ## Modules
 
@@ -286,7 +286,7 @@ drawn yet.
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway today) |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
 | `src/main.js` | Scene, loop, edit/paint, camera, cube double-click isolate |
-| `src/hud.js` | Display vs source HUD copy; frame-time sparkline |
+| `src/hud.js` | Display vs source HUD copy; frame-time sparkline; 1%/0.1% lows |
 | `src/ui.js` | Control sheet, transport Play, Z-stack bindings |
 
 BLITZ **Ember** decay is a 2D grayscale trail and is **not** used here.

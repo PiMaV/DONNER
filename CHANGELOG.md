@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Z stack slider** beside the HUD cards: Now at the top, past at the bottom; thin tick rail with one mark per stored step; generation beside the handle. The Z stack is the only playhead (no Focus slider in the sheet).
 - Numbered product X/Y on the right of the playfield; hover hairlines from the cell to both axes.
 - Hovering the focus plane outlines the cell and, when live, the cube on that slice.
-- Display HUD sparkline of recent frame times plus FPS / AVG / FR, kept apart from the Conway source block (GEN, LIVE, RATE). FPS uses raw frame time; the 100 ms clamp is simulation catch-up only.
+- Display HUD sparkline of recent frame times plus FPS / AVG / 1% / 0.1% / FR, kept apart from the Conway source block (GEN, LIVE, RATE). FPS uses raw frame time; the 100 ms clamp is simulation catch-up only.
 - **Now** button on the Z stack; current time (`tFocus`) sits beside the handle.
 - Cube color and fill come from `src/encoding.js` (Conway LUT today); the cube renderer does not import Conway dynamics.
 

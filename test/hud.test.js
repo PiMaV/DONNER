@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FrameClock, formatSourceHud, formatViewHud, SPARK_LEN } from "../src/hud.js";
+import { FrameClock, formatSourceHud, formatViewHud, meanSlowestMs, SPARK_LEN, LOW_LEN } from "../src/hud.js";
 
 describe("FrameClock", () => {
   it("records frame times and a rolling average", () => {
@@ -47,6 +47,35 @@ describe("FrameClock", () => {
     for (let i = 1; i <= SPARK_LEN + 8; i++) clock.tick(i * 16);
     assert.equal(clock.count, SPARK_LEN);
   });
+
+  it("keeps a longer ring for lows than for the sparkline", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    for (let i = 1; i <= LOW_LEN + 8; i++) clock.tick(i * 16);
+    assert.equal(clock.count, SPARK_LEN);
+    assert.equal(clock.lowCount, LOW_LEN);
+  });
+
+  it("drops 1% low when a hitch sits in the slowest percent", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    for (let i = 1; i <= 99; i++) clock.tick(i * 16);
+    clock.tick(99 * 16 + 100);
+    assert.ok(clock.avgFps > 50);
+    assert.ok(clock.low1Fps < 15);
+    assert.ok(clock.low01Fps < 15);
+  });
+});
+
+describe("meanSlowestMs", () => {
+  it("averages the slowest fraction of frames", () => {
+    assert.equal(meanSlowestMs([16, 16, 16], 0.01), 16);
+    const hitch = Array(99).fill(16).concat([100]);
+    assert.equal(meanSlowestMs(hitch, 0.01), 100);
+    const many = Array(990).fill(16).concat(Array(10).fill(100));
+    assert.equal(meanSlowestMs(many, 0.01), 100);
+    assert.equal(meanSlowestMs(many, 0.001), 100);
+  });
 });
 
 describe("HUD copy", () => {
@@ -54,6 +83,8 @@ describe("HUD copy", () => {
     const view = formatViewHud({
       fps: 59.4,
       avgFps: 57.2,
+      low1Fps: 48.2,
+      low01Fps: 21.4,
       ms: 16.8,
       instances: 1200,
       truncated: true,
@@ -71,6 +102,8 @@ describe("HUD copy", () => {
     });
     assert.match(view, /^FPS {2}59/m);
     assert.match(view, /AVG {2}57/);
+    assert.match(view, /^1% {3}48/m);
+    assert.match(view, /^0\.1% 21/m);
     assert.match(view, /INST 1200 trunc/);
     assert.match(view, /FOC {2}12/);
     assert.match(view, /PLAY/);
@@ -83,5 +116,6 @@ describe("HUD copy", () => {
     assert.match(src, /RATE 8\.2 \/s/);
     assert.match(src, /EDIT/);
     assert.doesNotMatch(src, /FPS/);
+    assert.doesNotMatch(src, /1%/);
   });
 });

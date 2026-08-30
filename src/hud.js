@@ -2,10 +2,26 @@
 
 export const SPARK_LEN = 96;
 export const SPARK_MS_CAP = 50;
+/** Rolling window for 1% / 0.1% lows (~16 s at 60 fps). Sparkline stays short. */
+export const LOW_LEN = 1000;
 /** Simulation catch-up cap. HUD uses raw frame time, not this. */
 export const SIM_DT_MAX = 0.1;
 /** Ignore a pause (tab hidden, breakpoint) so AVG/FPS do not stick at 10. */
 export const FRAME_GAP_SKIP = 1;
+
+/**
+ * Mean of the slowest `frac` of frame times (Captec-style 1% / 0.1% low).
+ * `frac` is 0.01 or 0.001. Returns milliseconds.
+ */
+export function meanSlowestMs(values, frac) {
+  const n = values.length;
+  if (!n) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const k = Math.max(1, Math.round(n * frac));
+  let sum = 0;
+  for (let i = n - k; i < n; i++) sum += sorted[i];
+  return sum / k;
+}
 
 export class FrameClock {
   constructor() {
@@ -19,6 +35,12 @@ export class FrameClock {
     this.samples = new Float32Array(SPARK_LEN);
     this.count = 0;
     this.head = 0;
+    this.lowSamples = new Float32Array(LOW_LEN);
+    this.lowCount = 0;
+    this.lowHead = 0;
+    this.displayLow1 = 0;
+    this.displayLow01 = 0;
+    this._lowCopy = [];
   }
 
   get avgMs() {
@@ -36,6 +58,27 @@ export class FrameClock {
     return ms > 0 ? 1000 / ms : 0;
   }
 
+  _copyLows() {
+    const n = this.lowCount;
+    const out = this._lowCopy;
+    out.length = n;
+    const start = this.lowHead - n;
+    for (let i = 0; i < n; i++) {
+      out[i] = this.lowSamples[(start + i + LOW_LEN) % LOW_LEN];
+    }
+    return out;
+  }
+
+  get low1Fps() {
+    const ms = meanSlowestMs(this._copyLows(), 0.01);
+    return ms > 0 ? 1000 / ms : 0;
+  }
+
+  get low01Fps() {
+    const ms = meanSlowestMs(this._copyLows(), 0.001);
+    return ms > 0 ? 1000 / ms : 0;
+  }
+
   tick(nowMs) {
     if (this._last == null) {
       this._last = nowMs;
@@ -49,11 +92,16 @@ export class FrameClock {
     this.samples[this.head] = ms;
     this.head = (this.head + 1) % SPARK_LEN;
     if (this.count < SPARK_LEN) this.count += 1;
+    this.lowSamples[this.lowHead] = ms;
+    this.lowHead = (this.lowHead + 1) % LOW_LEN;
+    if (this.lowCount < LOW_LEN) this.lowCount += 1;
     this._frames += 1;
     this._acc += rawDt;
     if (this._acc >= 0.4) {
       this.displayFps = this._frames / this._acc;
       this.displayMs = this.emaMs;
+      this.displayLow1 = this.low1Fps;
+      this.displayLow01 = this.low01Fps;
       this._frames = 0;
       this._acc = 0;
     }
@@ -64,6 +112,8 @@ export class FrameClock {
 export function formatViewHud({
   fps,
   avgFps,
+  low1Fps,
+  low01Fps,
   ms,
   instances,
   truncated,
@@ -77,6 +127,8 @@ export function formatViewHud({
   const lines = [
     `FPS  ${fps.toFixed(0)}`,
     `AVG  ${avgFps.toFixed(0)}`,
+    `1%   ${low1Fps.toFixed(0)}`,
+    `0.1% ${low01Fps.toFixed(0)}`,
     `FR   ${ms.toFixed(1)} ms`,
     `INST ${instances}${trunc}`,
     `FOC  ${focus}`,

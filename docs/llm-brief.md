@@ -36,8 +36,9 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   the sheet; while Conway is the source it also steps the generator.
   Hovering the plane draws hairlines to the numbered X/Y axes and
   outlines the cell plus the focus-slice cube if live. Do not attach a
-  3D time grabber to the X/Y frame. Display HUD (FPS, AVG, sparkline,
-  INST, FOC) stays separate from the Conway source HUD (GEN, LIVE, RATE).
+  3D time grabber to the X/Y frame. Display HUD (FPS, AVG, 1%/0.1% lows,
+  sparkline, INST, FOC) stays separate from the Conway source HUD (GEN,
+  LIVE, RATE).
   On a phone the HUD is an FPS chip (tap for the View card); source stats
   stay in the Source sheet. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar

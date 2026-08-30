@@ -126,7 +126,7 @@ internet the app still runs, with system fonts.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Display HUD (FPS, AVG, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time
+- Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Control sheet grouped as View / Source / Encoding
 

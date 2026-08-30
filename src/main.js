@@ -559,6 +559,8 @@ function frame(now) {
   hudViewEl.textContent = formatViewHud({
     fps,
     avgFps: clock.avgFps,
+    low1Fps: clock.displayLow1 || clock.low1Fps,
+    low01Fps: clock.displayLow01 || clock.low01Fps,
     ms,
     instances: cubes.count,
     truncated: soa.truncated,

@@ -5,8 +5,8 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 [`docs/gui.md`](docs/gui.md).
 
 **Later:** event-camera source on the same `EventSoA`, a polarity (or
-other) encoding LUT, optional 1%/0.1% FPS lows, then the XR ladder
-below. Do not implement XR in this tree until that stage is opened.
+other) encoding LUT, then the XR ladder below. Do not implement XR in
+this tree until that stage is opened.
 
 **XR ladder** (tech demo, same Three.js scene — not a Unity fork, not a
 projector, not a native iOS wrapper):
