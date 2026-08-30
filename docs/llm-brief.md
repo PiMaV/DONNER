@@ -53,13 +53,16 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 
 - Event-camera `.raw` / EVT3 decode in the browser
 - Backend, WebSocket, BLITZ sync
-- WebXR
+- WebXR (ladder XR-A phone hit-test → XR-B marker → XR-C Quest 3 is
+  documented in [`backlog.md`](../backlog.md) and
+  [`architecture.md`](../architecture.md); do not enable it in this tree)
 - Fibonacci
 - A second Conway implementation that drifts from BLITZ
 
 ## Pointers
 
 - Architecture: [`architecture.md`](../architecture.md)
+- Later / XR ladder: [`backlog.md`](../backlog.md)
 - UI: [`docs/gui.md`](gui.md)
 - Related (not influences; Conway is demonstrator only): [`docs/related.md`](related.md)
   — Wolfram 2025 essay is the internal Life reference, not a DONNER spec

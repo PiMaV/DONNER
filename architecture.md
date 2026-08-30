@@ -333,8 +333,43 @@ load generator before real event streams.
 
 1. **Conway 3D** — this tree
 2. **Event camera** — `x, y, t, polarity` point cloud
-3. **XR** — same scene on Meta Quest 3 (WebXR)
+3. **XR** — same scene, WebXR only. Phone tabletop AR first, then a
+   marker origin, then Quest 3 passthrough. Detail in [backlog.md](backlog.md).
 4. **Integration** — optional sidecar / BLITZ-synced views
+
+Product **Z** (time) already stands on the playfield plane, so a table
+is a natural origin: past below the surface, ghost above. Phone orbit
+today is not AR. Three.js WebXR lives in vendor; the app does not enable
+it. One codebase: feature-detect `immersive-ar`, pause orbit controls in
+session, keep `setEvents(...)`. HTTPS before any device test. iOS Safari
+AR is not the demo path unless `navigator.xr` actually supports it.
+
+```mermaid
+flowchart TB
+  subgraph phone [Phone tabletop AR]
+    hit[Hit-test: tap table place volume]
+    walk[Walk around with phone as window]
+    hit --> walk
+  end
+  subgraph marker [Marker origin]
+    tag[AprilTag or printed playfield frame]
+    seed[Optional: print is Conway seed]
+    tag --> seed
+  end
+  subgraph quest [Quest 3 passthrough MR]
+    table[Volume sits on real table]
+    explore[Walk through stack; hands later]
+    table --> explore
+  end
+  phone --> marker
+  marker --> quest
+```
+
+| Slice | Placement | Device |
+|-------|-----------|--------|
+| **XR-A** | Plane hit-test | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-B** | AprilTag or printed playfield (optional Conway seed) | Same phone AR; marker reused on Quest |
+| **XR-C** | Hit-test and/or marker | Quest 3 passthrough; hands / Z scrub later |
 
 ## WETTER context
 

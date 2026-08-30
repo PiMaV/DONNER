@@ -216,4 +216,10 @@ cell lattice is.
 
 - Event-camera source behind the same `EventSoA`; polarity encoding (not still/osc/transit)
 - Optional 1%/0.1% FPS lows on the display sparkline
-- WebXR, BLITZ sync, in-browser EVT3
+- BLITZ sync, in-browser EVT3
+- **XR** (see [backlog.md](../backlog.md) and [architecture.md](../architecture.md) stage 3):
+  phone tabletop first (WebXR `immersive-ar`, tap a plane to place the
+  volume), then AprilTag or a printed playfield as origin (optional:
+  print is the Conway seed), then Quest 3 passthrough. AR chrome stays
+  thin — Play, Z scrub, Exit — not a second control sheet. Bird-eye is
+  usually unused in AR. No button layout until that stage opens.
