@@ -11,13 +11,13 @@
 import { clamp } from "./rng.js";
 
 export const PATTERN_NAMES = [
-  "Random",
-  "Glider",
   "Blinker",
   "Toad",
   "Beacon",
+  "Glider",
   "R-pentomino",
   "Gosper gun",
+  "Random",
 ];
 
 const GOSPER_COORDS = [

@@ -10,8 +10,10 @@ flowchart LR
   orbit[Orbit / pinch / pan] --> scene[Volume]
   play[Play Pause Step] --> sim[Conway]
   sim --> scene
-  paint[Tap now-plane when paused] --> sim
-  sliders[Speed Decay History] --> view[Renderer]
+  scrub[Focus slider / Shift+wheel] --> plane[Focus plane]
+  plane --> scene
+  edit[Edit mode] --> paint[Tap cell inside frame]
+  paint --> sim
 ```
 
 ## Camera
@@ -21,8 +23,13 @@ flowchart LR
 | Drag / one-finger | Orbit |
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan |
+| Shift+wheel | Scrub focus into the past / back to now |
 | Space | Play / pause |
-| `.` or `N` | Single step |
+| `E` | Edit mode (pauses, snaps focus to Now) |
+| `.` or `N` | Simulation step |
+| `[` / `↓` | Focus one generation into the past |
+| `]` / `↑` | Focus toward Now |
+| Home | Focus Now |
 | `R` | Reset |
 
 ## Simulation
@@ -31,17 +38,26 @@ flowchart LR
 |---------|---------|
 | Play / Pause | Advance generations |
 | Step | One generation (also pauses) |
+| Edit | Paint cells on the focus plane (only at Now) |
 | Reset | Same pattern and seed |
 | Seed | New RNG seed, then reset |
 | Pattern | BLITZ seeds; Gosper gun needs grid ≥ 48 |
 | Speed | Target generations per second (1–60) |
-| Decay | Exponential fade of older slices (0 = crystal, high = present only) |
-| History | Visible generations (8–96) |
+| Decay | Fade of slices **below** the focus plane |
+| Grid light | Brightness of the cell grid and focus-plane fill |
+| History | Visible generations from the simulation head (8–96) |
+| Focus | Move the working plane through stored history; **Now** snaps to `tNow` |
 | Grid | 16…64; rebuilds the world |
 | Wrap | Torus vs hard edges |
+| Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-While **paused**, a short tap (not a drag) on the now-plane toggles a cell.
-The now-plane is the XZ grid at `Y = 0` (current generation).
+The gold **frame** is the playfield edge on the focus plane (rectangle +
+corner posts). Slices newer than the focus sit **above** it, translucent,
+so the focused generation stays readable.
+
+**Edit** is explicit: pause, plane at Now, tap inside the frame to toggle.
+Dragging still orbits. Hover shows the target cell. Scrubbing into the past
+disables paint until **Now**.
 
 On narrow viewports the control sheet is behind **Controls ▸** so the
 volume stays dominant.
@@ -50,8 +66,9 @@ volume stays dominant.
 
 | Line | Source |
 |------|--------|
-| GEN | Conway generation |
-| LIVE | Live cells in the current grid |
+| GEN | Simulation head |
+| FOC | Focus generation (the plane) |
+| LIVE | Live cells on the **focus** slice |
 | INST | Instanced cubes (`trunc` if SoA capped) |
 | FPS / FR | Frame rate and frame time |
 | RATE | Measured generation rate while playing |
@@ -61,6 +78,50 @@ lower History or Grid before judging FPS.
 
 ## Visual mapping
 
-Current generation: gold cubes on the now-plane. Older generations: lerp
-toward cyan, darker and slightly smaller with decay. Trajectories (glider,
-Gosper streams) read as space-time tubes going **down** into the past.
+**Geometry** is time (Y). **Color** is dynamics along each `(x, y)` worldline,
+not a second clock. An oscillator does **not** cycle hue along Y; it
+cycles **occupancy** (cubes present / absent). Mixing extra hues would
+fight the class colors.
+
+| Kind | Color | Typical Conway |
+|------|-------|----------------|
+| Still | gold | block, beehive, blinker core (always on) — activity stays put |
+| Oscillator | cyan | blinker tips, toad, beacon — **only when live**, in place |
+| Transit | BLITZ coral | glider tube, births/deaths, soup — the space-time **curve** |
+| Warmup | gray | generations 0 and 1 — too little history to class |
+
+Default pattern is **Blinker**. Teaching order: Blinker → Toad/Beacon →
+Glider. A glider must read as a coral trail, not mixed cyan/gold: those
+classes mean the pattern sat still. Cyan on a glider was a false friend
+(the ship crawling over the same cell).
+
+Decay only darkens older slices; it does not change hue or cube size.
+**Size / fill** depends on **Stability**:
+
+- **None** — every live cell the same size (truth view for occupancy)
+- **Time** (default) — duration already reached at that generation (taper)
+- **Focus** — duration on the focus plane, whole `(x, y)` column
+
+Cap is 16 generations. Transit stays smaller in Time/Focus. Warmup cubes
+stay full size so the first slices are not a false “shrink”.
+
+These classes are the **Conway demonstrator**. The later live path is
+event-camera data; polarity (and other encodings) will not reuse this
+still/osc/transit legend by default.
+
+The gold **frame** is the playfield edge. **Grid light** sets how bright the
+cell lattice is.
+
+## Later
+
+Drag the time axis on the playfield (corner posts + XYZ gizmo) to scrub
+focus while paused — not built yet.
+
+Nerd FPS HUD (sparkline + averages, like the M.E.S.S. homepage overlay) to
+find the performance cliff — not built yet.
+
+**Bird-eye:** orthographic top view of the focus plane, no perspective /
+parallax — not built yet.
+
+**Isolation / observation:** dim the rest of the field; light only the
+worldline pillar of the current grid cell through time — not built yet.

@@ -11,6 +11,7 @@
  */
 
 import { collectLive } from "./conway.js";
+import { KIND_TRANSIT, kindAt, stabilityAge } from "./dynamics.js";
 
 export class EventSoA {
   constructor(capacity) {
@@ -19,6 +20,8 @@ export class EventSoA {
     this.y = new Float32Array(capacity);
     this.t = new Float32Array(capacity);
     this.v = new Float32Array(capacity);
+    this.k = new Float32Array(capacity);
+    this.s = new Float32Array(capacity);
     this.count = 0;
     this.truncated = false;
   }
@@ -59,6 +62,14 @@ export class GenerationRing {
     this.size = Math.min(this.size + 1, this.capacity);
   }
 
+  liveAt(t) {
+    for (let i = 0; i < this.size; i++) {
+      const idx = (this.head - 1 - i + this.capacity) % this.capacity;
+      if (this.slices[idx].t === t) return this.slices[idx].count;
+    }
+    return 0;
+  }
+
   /** Overwrite the slice for generation `t` (paint on the now-plane). */
   replaceGrid(grid, width, height, t) {
     for (let i = 0; i < this.size; i++) {
@@ -74,27 +85,83 @@ export class GenerationRing {
 
   /**
    * Newest-first fill so the present is never dropped when SoA capacity hits.
-   * @returns {EventSoA}
+   * `width` is needed to classify (x, y) worldlines; omit to skip (k = transit).
+   * @param {number} [width]
+   * @param {{
+   *   tFocus?: number,
+   *   stabMode?: "none" | "time" | "focus",
+   *   height?: number,
+   *   wrap?: boolean,
+   * }} [opts]
    */
-  fillSoA(soa, tRef, window) {
+  fillSoA(soa, tRef, window, width = 0, opts = {}) {
     const tMin = tRef - window;
+    const tFocus = opts.tFocus ?? tRef;
+    const stabMode = opts.stabMode || "none";
+    const project = stabMode === "focus";
+    const useStab = stabMode === "time" || stabMode === "focus";
+    const bounds =
+      width > 0
+        ? {
+            width,
+            height: opts.height || width,
+            wrap: opts.wrap !== false,
+          }
+        : null;
+    const byGen = new Map();
+    if (width > 0) {
+      for (let i = 0; i < this.size; i++) {
+        const idx = (this.head - 1 - i + this.capacity) % this.capacity;
+        const sl = this.slices[idx];
+        const set = new Set();
+        for (let k = 0; k < sl.count; k++) {
+          set.add(sl.y[k] * width + sl.x[k]);
+        }
+        byGen.set(sl.t, set);
+      }
+    }
+    const isLive = (t, packed) => {
+      const set = byGen.get(t);
+      return !!(set && set.has(packed));
+    };
+    const projCache = new Map();
+    const stabAt = (t, packed) => {
+      if (project) {
+        if (!projCache.has(packed)) {
+          projCache.set(packed, stabilityAge(tFocus, packed, isLive, undefined, bounds));
+        }
+        return projCache.get(packed);
+      }
+      return stabilityAge(t, packed, isLive, undefined, bounds);
+    };
+
     let n = 0;
     let truncated = false;
     for (let i = 0; i < this.size; i++) {
       const idx = (this.head - 1 - i + this.capacity) % this.capacity;
       const sl = this.slices[idx];
       if (sl.t < tMin) break;
-      for (let k = 0; k < sl.count; k++) {
+      for (let c = 0; c < sl.count; c++) {
         if (n >= soa.capacity) {
           truncated = true;
           soa.count = n;
           soa.truncated = true;
           return soa;
         }
-        soa.x[n] = sl.x[k];
-        soa.y[n] = sl.y[k];
+        const x = sl.x[c];
+        const y = sl.y[c];
+        soa.x[n] = x;
+        soa.y[n] = y;
         soa.t[n] = sl.t;
         soa.v[n] = 1;
+        if (width > 0) {
+          const packed = y * width + x;
+          soa.k[n] = kindAt(sl.t, packed, isLive, bounds);
+          soa.s[n] = useStab ? stabAt(sl.t, packed) : 0;
+        } else {
+          soa.k[n] = KIND_TRANSIT;
+          soa.s[n] = 0;
+        }
         n += 1;
       }
     }

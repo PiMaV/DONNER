@@ -57,18 +57,24 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 ## Stage 1 (this tree)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
+- Default teaching seed: Blinker (glider is the XY-motion case)
 - Instanced cubes, history along the time axis (world Y)
 - Decay, speed, history length, play / pause / step / reset
-- Paint cells on the now-plane while paused
+- Focus scrub (plane through the stack; newer slices ghosted above)
+- Gold playfield frame on the working plane
+- Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Performance HUD (generation, live cells, instances, FPS)
+- Performance HUD (generation, focus, live cells, instances, FPS)
 
 **Not in v1:** Fibonacci, event-camera import, backend, streaming,
 BLITZ sync, WebXR.
 
 ## Architecture
 
-See [`architecture.md`](architecture.md) and [`docs/gui.md`](docs/gui.md).
+See [`architecture.md`](architecture.md), [`docs/gui.md`](docs/gui.md),
+and [`docs/related.md`](docs/related.md) (Conway is the demonstrator;
+DONNER is the event viewer. Links found while looking around, not
+influences).
 
 Three.js r180 is vendored under `vendor/three/` (MIT). DONNER is GPL-3.0,
 same family as BLITZ.

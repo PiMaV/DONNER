@@ -11,3 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Conway 3D space-time explorer: static Three.js app with instanced cubes, generation history along the time axis, decay, play/pause/step, reset, random seed, torus wrap, touch orbit, cell painting while paused, and a performance HUD.
 - Conway B3/S23 rules and seed patterns ported from BLITZ (`blitz/data/conway.py`).
+- Explicit Edit mode (hover + tap to toggle cells; only on the Now plane).
+- Focus scrub through stored history: plane stays at Y = 0, newer slices render as a transparent ghost, playfield gold frame marks the board edge.
+- Worldline color: gold still, cyan oscillator, BLITZ-red transit, gray warmup for generations 0–1 (decay affects brightness only).
+- Cube fill encodes stability duration (cap 16 gens); Stability control is None / Time / Focus (not a checkbox).
+- Grid-light slider for the cell lattice and focus-plane fill.
+- Pattern read-hint under the legend (how to read Blinker vs Glider).
+- Related-work link list (`docs/related.md`): Conway is the event generator, not the product; Wolfram 2025 highlighted as the internal Life reference; neighbouring CA links found while looking around — not a novelty or influence claim.
+
+### Changed
+
+- Default seed is Blinker (period-2 along time); Stability defaults to Time. Pattern list starts with oscillators, then glider.
+- Glider (and other translating activity) is classified as transit: neighborhood centroid must stay put for still/osc, so the trail is a coral tube instead of false gold/cyan.

@@ -46,6 +46,7 @@
     <div class="btn-row">
       <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
       <button type="button" id="btn-step" class="btn">Step</button>
+      <button type="button" id="btn-edit" class="btn btn-edit" aria-pressed="false">Edit</button>
       <button type="button" id="btn-reset" class="btn">Reset</button>
       <button type="button" id="btn-random" class="btn">Seed</button>
     </div>
@@ -71,8 +72,21 @@
     </label>
 
     <label class="field">
+      <span>Grid light <em id="grid-bright-val"></em></span>
+      <input id="grid-bright" type="range" min="0" max="1" step="0.01" />
+    </label>
+
+    <label class="field">
       <span>History <em id="history-val"></em></span>
       <input id="history" type="range" min="8" max="96" step="1" />
+    </label>
+
+    <label class="field">
+      <span>Focus <em id="focus-val">Now</em></span>
+      <div class="focus-row">
+        <input id="focus" type="range" min="0" max="48" step="1" value="0" />
+        <button type="button" id="btn-focus-now" class="btn btn-now">Now</button>
+      </div>
     </label>
 
     <label class="field">
@@ -84,6 +98,33 @@
       <input id="wrap" type="checkbox" />
       <span>Wrap edges (torus)</span>
     </label>
+
+    <label class="field" title="How cube size encodes stability. Hover an option for details.">
+      <span>Stability</span>
+      <select id="stab-mode">
+        <option value="none"
+          title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
+          None
+        </option>
+        <option value="time"
+          title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
+          Time
+        </option>
+        <option value="focus"
+          title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
+          Focus
+        </option>
+      </select>
+    </label>
+    <p id="stab-hint" class="hint stab-hint"></p>
+
+    <ul class="legend" aria-label="Cell color">
+      <li><i class="swatch still"></i> Still</li>
+      <li><i class="swatch osc"></i> Oscillator</li>
+      <li><i class="swatch flow"></i> Transit</li>
+      <li><i class="swatch warmup"></i> Warmup</li>
+    </ul>
+    <p id="read-hint" class="hint read-hint"></p>
   </form>
 
   <footer class="legal">

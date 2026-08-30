@@ -35,6 +35,7 @@ export class FrameClock {
 
 export function formatHud({
   generation,
+  focus,
   live,
   instances,
   truncated,
@@ -42,11 +43,14 @@ export function formatHud({
   ms,
   gps,
   playing,
+  editing,
 }) {
   const trunc = truncated ? " trunc" : "";
-  const run = playing ? "play" : "pause";
+  let run = playing ? "play" : "pause";
+  if (editing) run = "edit";
   return [
     `GEN  ${generation}`,
+    `FOC  ${focus}`,
     `LIVE ${live}`,
     `INST ${instances}${trunc}`,
     `FPS  ${fps.toFixed(0)}`,

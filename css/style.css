@@ -160,6 +160,12 @@ body {
   font-size: 0.75rem;
 }
 
+.stab-hint,
+.read-hint {
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 .btn-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -197,6 +203,31 @@ body {
 .btn-play.is-live {
   border-color: rgba(0, 255, 242, 0.4);
   color: var(--dampf);
+}
+
+.btn-edit.is-on {
+  border-color: rgba(255, 197, 61, 0.55);
+  color: var(--donner);
+  background: rgba(255, 197, 61, 0.08);
+}
+
+.focus-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus-row input[type="range"] {
+  flex: 1;
+  min-height: 36px;
+  padding: 0;
+  accent-color: var(--donner);
+}
+
+.btn-now {
+  min-width: 52px;
+  min-height: 36px;
+  padding: 0 8px;
 }
 
 .field {
@@ -251,6 +282,46 @@ body {
   width: 18px;
   height: 18px;
   accent-color: var(--donner);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.swatch.still {
+  background: var(--donner);
+}
+
+.swatch.osc {
+  background: var(--dampf);
+}
+
+.swatch.flow {
+  background: var(--blitz);
+}
+
+.swatch.warmup {
+  background: #8a9aa8;
 }
 
 .legal {

@@ -2,10 +2,17 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { COLOR, DEFAULTS, VERSION } from "./config.js";
-import { ConwayWorld, countLive, seedPattern } from "./conway.js";
+import { ConwayWorld, seedPattern } from "./conway.js";
+import { clampFocusBack, focusGeneration } from "./focus.js";
 import { FrameClock, formatHud } from "./hud.js";
 import { mulberry32 } from "./rng.js";
-import { CubeRenderer, createNowGrid, createNowPlane } from "./renderer.js";
+import {
+  CubeRenderer,
+  FocusFrame,
+  createFocusSurface,
+  createHoverMarker,
+  createNowGrid,
+} from "./renderer.js";
 import { EventSoA, GenerationRing } from "./spacetime.js";
 import { bindUI } from "./ui.js";
 
@@ -42,7 +49,7 @@ controls.minDistance = 6;
 controls.maxDistance = 160;
 controls.minPolarAngle = 0.08;
 controls.maxPolarAngle = Math.PI - 0.08;
-controls.target.set(0, -8, 0);
+controls.target.set(0, -6, 0);
 controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
@@ -59,15 +66,22 @@ const cubes = new CubeRenderer(scene, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
+const playfield = new FocusFrame(scene);
+const hover = createHoverMarker(DEFAULTS.cellSize);
+scene.add(hover);
 
 let world;
 let ring;
-let nowPlane;
+let focusSurface;
 let nowGrid;
 let playing = true;
+let editing = false;
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
+let gridBrightness = DEFAULTS.gridBrightness;
+let stabMode = DEFAULTS.stabMode;
+let focusBack = 0;
 let acc = 0;
 let lastStepAt = 0;
 let measuredGps = 0;
@@ -81,6 +95,7 @@ const ndc = new THREE.Vector2();
 
 const ui = bindUI({
   togglePlay,
+  toggleEdit,
   step: () => {
     playing = false;
     ui.setPlaying(false);
@@ -95,10 +110,36 @@ const ui = bindUI({
   decay: () => {
     decay = ui.getConfig().decay;
   },
+  gridBrightness: () => {
+    gridBrightness = ui.getConfig().gridBrightness;
+    applyGridLook();
+  },
   history: () => {
     historyLen = ui.getConfig().history;
+    applyFocus(focusBack);
+  },
+  focus: () => {
+    applyFocus(ui.getConfig().focusBack);
+  },
+  focusNow: () => applyFocus(0),
+  stabMode: () => {
+    stabMode = ui.getConfig().stabMode;
   },
 });
+
+function tFocus() {
+  return focusGeneration(world.generation, focusBack);
+}
+
+function maxFocusBack() {
+  return Math.min(world.generation, historyLen);
+}
+
+function applyFocus(back) {
+  focusBack = clampFocusBack(back, world.generation, historyLen);
+  ui.setFocus(focusBack, maxFocusBack());
+  updateHint();
+}
 
 function setLineOpacity(obj, opacity) {
   const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -113,8 +154,10 @@ function bootWorld(resizeGrid) {
   gensPerSec = cfg.gensPerSec;
   decay = cfg.decay;
   historyLen = cfg.history;
+  gridBrightness = cfg.gridBrightness;
+  stabMode = cfg.stabMode;
 
-  if (nowPlane) scene.remove(nowPlane);
+  if (focusSurface) scene.remove(focusSurface);
   if (nowGrid) scene.remove(nowGrid);
 
   world = new ConwayWorld({
@@ -128,40 +171,76 @@ function bootWorld(resizeGrid) {
   ring = new GenerationRing(DEFAULTS.maxHistory, cfg.width * cfg.height);
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
 
-  nowPlane = createNowPlane(cfg.width, cfg.height, DEFAULTS.cellSize);
+  focusSurface = createFocusSurface(cfg.width, cfg.height, DEFAULTS.cellSize);
   nowGrid = createNowGrid(cfg.width, cfg.height, DEFAULTS.cellSize);
-  scene.add(nowPlane);
+  playfield.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
+  scene.add(focusSurface);
   scene.add(nowGrid);
 
   acc = 0;
+  applyFocus(0);
   if (resizeGrid) {
     const span = Math.max(cfg.width, cfg.height);
     camera.position.set(span * 0.7, span * 0.55, span * 0.9);
-    controls.target.set(0, -Math.min(historyLen, span) * 0.25, 0);
+    controls.target.set(0, -Math.min(historyLen, span) * 0.2, 0);
   }
   ui.setPlaying(playing);
+  ui.setEditing(editing);
   updateHint();
   syncVolume();
 }
 
 function togglePlay() {
   playing = !playing;
+  if (playing) {
+    editing = false;
+    hover.visible = false;
+    ui.setEditing(false);
+  }
   ui.setPlaying(playing);
   updateHint();
 }
 
+function toggleEdit() {
+  editing = !editing;
+  if (editing) {
+    playing = false;
+    applyFocus(0);
+    ui.setPlaying(false);
+  } else {
+    hover.visible = false;
+  }
+  ui.setEditing(editing);
+  updateHint();
+}
+
+function applyGridLook() {
+  const b = Math.min(1, Math.max(0, gridBrightness));
+  if (nowGrid) setLineOpacity(nowGrid, 0.04 + b * 0.82);
+  if (focusSurface) {
+    focusSurface.material.opacity = 0.02 + b * 0.14;
+  }
+}
+
 function updateHint() {
-  ui.setHint(
-    playing
-      ? "Orbit · pinch zoom · two-finger pan"
-      : "Paused — tap the now-plane to toggle a cell",
-  );
-  if (nowGrid) setLineOpacity(nowGrid, playing ? 0.22 : 0.5);
+  const atNow = focusBack === 0;
+  if (editing && atNow) {
+    ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
+  } else if (editing && !atNow) {
+    ui.setHint("Focus is in the past — Now, then tap to paint");
+  } else if (playing) {
+    ui.setHint("Orbit · Shift+wheel scrubs time · two-finger pan");
+  } else {
+    ui.setHint("Paused — Focus slider walks generations · Edit to paint");
+  }
+  applyGridLook();
+  playfield.setEditing(editing);
 }
 
 function stepOnce() {
   world.step();
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
+  applyFocus(focusBack);
   const now = performance.now();
   if (lastStepAt) {
     gpsSteps += 1;
@@ -176,33 +255,68 @@ function stepOnce() {
 }
 
 function syncVolume() {
-  ring.fillSoA(soa, world.generation, historyLen);
+  ring.fillSoA(soa, world.generation, historyLen, world.width, {
+    tFocus: tFocus(),
+    stabMode,
+    height: world.height,
+    wrap: world.wrap,
+  });
   cubes.setEvents(soa, {
-    tRef: world.generation,
+    tFocus: tFocus(),
     decay,
     timeScale: DEFAULTS.timeScale,
     width: world.width,
     height: world.height,
     history: historyLen,
+    stabMode,
     cellSize: DEFAULTS.cellSize,
   });
 }
 
-function paintAt(event) {
+function hitCell(event) {
+  if (!focusSurface) return null;
   const rect = canvas.getBoundingClientRect();
   ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(ndc, camera);
-  const hits = raycaster.intersectObject(nowPlane);
-  if (!hits.length) return;
+  const hits = raycaster.intersectObject(focusSurface);
+  if (!hits.length) return null;
   const p = hits[0].point;
   const ox = (world.width - 1) * 0.5;
   const oz = (world.height - 1) * 0.5;
   const x = Math.round(p.x / DEFAULTS.cellSize + ox);
   const y = Math.round(p.z / DEFAULTS.cellSize + oz);
-  if (world.toggle(x, y)) {
+  if (x < 0 || y < 0 || x >= world.width || y >= world.height) return null;
+  return { x, y };
+}
+
+function paintAt(event) {
+  if (!editing || focusBack !== 0) return;
+  const cell = hitCell(event);
+  if (!cell) return;
+  if (world.toggle(cell.x, cell.y)) {
     ring.replaceGrid(world.grid, world.width, world.height, world.generation);
   }
+}
+
+function updateHover(event) {
+  if (!editing || focusBack !== 0) {
+    hover.visible = false;
+    return;
+  }
+  const cell = hitCell(event);
+  if (!cell) {
+    hover.visible = false;
+    return;
+  }
+  const ox = (world.width - 1) * 0.5;
+  const oz = (world.height - 1) * 0.5;
+  hover.position.set(
+    (cell.x - ox) * DEFAULTS.cellSize,
+    0.08,
+    (cell.y - oz) * DEFAULTS.cellSize,
+  );
+  hover.visible = true;
 }
 
 function resize() {
@@ -217,28 +331,51 @@ canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
   pointerDown = { x: e.clientX, y: e.clientY };
 });
+canvas.addEventListener("pointermove", (e) => {
+  if (editing) updateHover(e);
+});
 window.addEventListener("pointerup", (e) => {
   if (!pointerDown) return;
   const dx = e.clientX - pointerDown.x;
   const dy = e.clientY - pointerDown.y;
   pointerDown = null;
-  if (playing) return;
   if (dx * dx + dy * dy > 36) return;
   if (e.target !== canvas) return;
   paintAt(e);
 });
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+canvas.addEventListener(
+  "wheel",
+  (e) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const dir = Math.sign(e.deltaY) || 1;
+    applyFocus(focusBack + dir);
+  },
+  { capture: true, passive: false },
+);
+
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea, button")) return;
   if (e.code === "Space") {
     e.preventDefault();
     togglePlay();
+  } else if (e.code === "KeyE") {
+    toggleEdit();
   } else if (e.code === "Period" || e.code === "KeyN") {
     playing = false;
     ui.setPlaying(false);
     stepOnce();
     updateHint();
+  } else if (e.code === "BracketLeft" || e.code === "ArrowDown") {
+    applyFocus(focusBack + 1);
+  } else if (e.code === "BracketRight" || e.code === "ArrowUp") {
+    applyFocus(focusBack - 1);
+  } else if (e.code === "Home") {
+    applyFocus(0);
   } else if (e.code === "KeyR") {
     bootWorld(false);
   }
@@ -265,15 +402,18 @@ function frame(now) {
   controls.update();
   renderer.render(scene, camera);
 
+  const foc = tFocus();
   hudEl.textContent = formatHud({
     generation: world.generation,
-    live: countLive(world.grid),
+    focus: foc,
+    live: ring.liveAt(foc),
     instances: cubes.count,
     truncated: soa.truncated,
     fps: clock.displayFps || 1000 / clock.emaMs,
     ms: clock.displayMs || clock.emaMs,
     gps: playing ? measuredGps || gensPerSec : 0,
     playing,
+    editing,
   });
 
   requestAnimationFrame(frame);
