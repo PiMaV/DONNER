@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Grid-light slider for the cell lattice and focus-plane fill.
 - Pattern read-hint under the legend (how to read Blinker vs Glider).
 - Related-work link list (`docs/related.md`): Conway is the event generator, not the product; Wolfram 2025 highlighted as the internal Life reference; neighbouring CA links found while looking around — not a novelty or influence claim.
+- Bird-eye view: orthographic camera looking down onto the **focus slice** (button **Bird**, key `B`).
+- Isolation: dim the volume to one `(x, y)` worldline (button **Iso**, key `I`; tap a cell or cube).
+- On-volume focus: drag cyan corner posts or the XYZ gizmo Y shaft while paused to scrub the playhead.
 
 ### Changed
 

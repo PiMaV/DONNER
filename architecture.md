@@ -36,6 +36,9 @@ flowchart TB
 ```
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
+Bird-eye looks straight down with an orthographic camera. Isolation keeps
+one worldline; on-volume drag on the cyan time axis scrubs `tFocus` while
+paused.
 
 ## Mapping
 
@@ -92,12 +95,39 @@ flowchart LR
   glider --> soup[R-pentomino / random]
 ```
 
-## Later: on-volume focus
+```mermaid
+flowchart LR
+  orbit[Orbit perspective]
+  bird[Bird-eye orthographic]
+  iso[Isolation worldline]
+  scrub[Drag time axis Y]
+  orbit --> volume[Volume]
+  bird --> volume
+  iso --> volume
+  scrub --> plane[Focus plane Y = 0]
+```
 
-Scrub focus by dragging the **time axis** in the scene while paused: taller
-corner posts on the playfield frame plus a small XYZ gizmo (spatial X/Z,
-time = world Y). Out of scope until that interaction is designed against
-OrbitControls.
+## On-volume focus
+
+While **paused** (and not in bird-eye), drag the **cyan** corner posts or the
+Y shaft of the corner XYZ gizmo. Screen-up raises the volume through the
+plane (deeper past). Orbit is locked for that gesture. X/Z on the gizmo
+are spatial, not a second time encoding.
+
+## Bird-eye view
+
+**Bird** (keyboard `B`) swaps to an **orthographic** camera looking down
+onto the focus plane: no perspective, no parallax, **focus slice only**
+(the stack would otherwise collapse onto itself). Pan / pinch; Shift+wheel
+still scrubs. Escape or Bird again returns to the saved orbit pose.
+
+## Isolation / observation
+
+**Iso** (keyboard `I`): tap a cell on the plane, or a cube in the volume.
+The rest of the field drops to a faint transparent wash; that `(x, y)`
+worldline stays fully lit. A thin gold column marks the pillar. Tap the
+same cell or Iso / Escape to clear. Complements bird-eye (whole plane,
+top-down) rather than replacing it.
 
 ## Later: nerd FPS HUD
 
@@ -105,20 +135,6 @@ Replace the numeric FPS/FR lines with a M.E.S.S. homepage-style nerd overlay:
 sparkline of recent frame times plus rolling averages (and maybe 1%/0.1%
 lows). Purpose: see until which grid/history/instance count the browser stays
 stable. Do not block Conway/stability work on this.
-
-## Later: bird-eye view
-
-A button (or camera preset) that looks **straight down** onto the focus
-plane with an **orthographic** camera: no perspective, no parallax. The
-current generation reads as a flat 2D grid. Out of scope until occupancy
-along Y is readable without it.
-
-## Later: isolation / observation mode
-
-Pick one grid cell `(x, y)`. Dim the rest of the volume to a faint
-transparent field. Keep that cell's **worldline pillar** fully lit through
-time so a side-on view shows only one column. Complements bird-eye (whole
-plane, top-down) rather than replacing it.
 
 ## Modules
 
@@ -128,7 +144,9 @@ plane, top-down) rather than replacing it.
 | `src/dynamics.js` | Worldline class still / oscillator / transit |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
-| `src/renderer.js` | Solid + ghost instanced cubes; focus frame |
+| `src/observe.js` | Isolation pick, time-axis drag mapping |
+| `src/view.js` | Perspective ↔ bird-eye camera |
+| `src/renderer.js` | Solid + ghost instanced cubes; focus frame; XYZ gizmo |
 | `src/main.js` | Scene, loop, edit/paint, camera |
 | `src/ui.js` | HUD controls |
 
@@ -145,7 +163,7 @@ The cube renderer is the first implementation, not the only one. A later
 points / shader path should keep:
 
 ```text
-setEvents(soa, { tFocus, decay, timeScale, width, height, cellSize })
+setEvents(soa, { tFocus, decay, timeScale, width, height, cellSize, isolate, sliceOnly })
 ```
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present

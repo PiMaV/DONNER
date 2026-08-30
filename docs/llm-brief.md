@@ -20,6 +20,11 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   via `s`, not decay. Oscillators encode as occupancy along Y, not extra
   hues. Default seed: Blinker; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head.
+- Bird-eye (`B`) is orthographic top-down onto Y = 0 and draws **only the
+  focus slice** (a 2D grid). Isolation (`I`) dims the field to one `(x, y)`
+  worldline. While paused, drag cyan corner posts or the gizmo Y shaft to
+  scrub; do not steal that gesture from OrbitControls while playing or in
+  bird-eye.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
   pattern geometry). Do not invent a second rule set.
 - Repo files in English. Chat with the human in German.

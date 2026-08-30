@@ -211,6 +211,23 @@ body {
   background: rgba(255, 197, 61, 0.08);
 }
 
+.btn-bird.is-on {
+  border-color: rgba(0, 255, 242, 0.5);
+  color: var(--dampf);
+  background: rgba(0, 255, 242, 0.08);
+}
+
+.btn-iso.is-on {
+  border-color: rgba(255, 197, 61, 0.55);
+  color: var(--donner);
+  background: rgba(255, 197, 61, 0.08);
+}
+
+#view.is-scrub,
+#view.is-scrub:active {
+  cursor: ns-resize;
+}
+
 .focus-row {
   display: flex;
   align-items: center;

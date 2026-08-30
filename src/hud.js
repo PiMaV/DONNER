@@ -44,11 +44,14 @@ export function formatHud({
   gps,
   playing,
   editing,
+  bird = false,
+  isolating = false,
+  isolate = null,
 }) {
   const trunc = truncated ? " trunc" : "";
   let run = playing ? "play" : "pause";
   if (editing) run = "edit";
-  return [
+  const lines = [
     `GEN  ${generation}`,
     `FOC  ${focus}`,
     `LIVE ${live}`,
@@ -57,5 +60,9 @@ export function formatHud({
     `FR   ${ms.toFixed(1)} ms`,
     `RATE ${gps.toFixed(1)} /s`,
     run.toUpperCase(),
-  ].join("\n");
+  ];
+  if (bird) lines.push("BIRD");
+  if (isolate) lines.push(`ISO  ${isolate.x},${isolate.y}`);
+  else if (isolating) lines.push("ISO  …");
+  return lines.join("\n");
 }

@@ -16,6 +16,9 @@ export const COLOR = {
 export const GHOST_OPACITY = 0.22;
 export const GHOST_FALLOFF = 0.12;
 
+/** Dim factor for cells that are not the isolated worldline. */
+export const ISOLATE_FIELD = 0.12;
+
 export const DEFAULTS = {
   width: 32,
   height: 32,

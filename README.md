@@ -61,7 +61,9 @@ npm test    # Conway + ring-buffer unit tests (Node 18+)
 - Instanced cubes, history along the time axis (world Y)
 - Decay, speed, history length, play / pause / step / reset
 - Focus scrub (plane through the stack; newer slices ghosted above)
-- Gold playfield frame on the working plane
+- Gold playfield frame; drag cyan time posts / Y-gizmo while paused
+- Bird-eye: orthographic top view of the focus plane
+- Isolation: one worldline lit, the rest of the volume dimmed
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
 - Performance HUD (generation, focus, live cells, instances, FPS)

@@ -40,6 +40,8 @@ export function bindUI(on) {
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
   const editBtn = $("btn-edit");
+  const birdBtn = $("btn-bird");
+  const isoBtn = $("btn-iso");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
@@ -101,6 +103,8 @@ export function bindUI(on) {
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
+  birdBtn.addEventListener("click", () => on.toggleBird());
+  isoBtn.addEventListener("click", () => on.toggleIsolate());
   randBtn.addEventListener("click", () => {
     seed.value = String((Math.random() * 0x7fffffff) | 0);
     on.reset();
@@ -165,6 +169,14 @@ export function bindUI(on) {
     setEditing(editing) {
       editBtn.classList.toggle("is-on", editing);
       editBtn.setAttribute("aria-pressed", editing ? "true" : "false");
+    },
+    setBird(on) {
+      birdBtn.classList.toggle("is-on", on);
+      birdBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    },
+    setIsolating(on) {
+      isoBtn.classList.toggle("is-on", on);
+      isoBtn.setAttribute("aria-pressed", on ? "true" : "false");
     },
     setFocus(back, maxBack) {
       focus.max = String(Math.max(0, maxBack));

@@ -5,16 +5,26 @@ import { COLOR, DEFAULTS, VERSION } from "./config.js";
 import { ConwayWorld, seedPattern } from "./conway.js";
 import { clampFocusBack, focusGeneration } from "./focus.js";
 import { FrameClock, formatHud } from "./hud.js";
+import { cellFromWorldXZ, cellsEqual, dragFocusBack, screenPxPerWorldY } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import {
+  AxesGizmo,
   CubeRenderer,
   FocusFrame,
+  IsolateBeacon,
   createFocusSurface,
   createHoverMarker,
   createNowGrid,
 } from "./renderer.js";
 import { EventSoA, GenerationRing } from "./spacetime.js";
 import { bindUI } from "./ui.js";
+import {
+  applyBirdAspect,
+  createBirdCamera,
+  enterBirdEye,
+  exitBirdEye,
+  fitBirdFrustum,
+} from "./view.js";
 
 const canvas = document.getElementById("view");
 const hudEl = document.getElementById("hud-stats");
@@ -36,10 +46,12 @@ renderer.toneMappingExposure = 1.08;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(COLOR.bg, 48, 160);
+const fog = new THREE.Fog(COLOR.bg, 48, 160);
+scene.fog = fog;
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
 camera.position.set(22, 16, 28);
+const birdCam = createBirdCamera();
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -47,6 +59,8 @@ controls.dampingFactor = 0.08;
 controls.screenSpacePanning = true;
 controls.minDistance = 6;
 controls.maxDistance = 160;
+controls.minZoom = 0.35;
+controls.maxZoom = 8;
 controls.minPolarAngle = 0.08;
 controls.maxPolarAngle = Math.PI - 0.08;
 controls.target.set(0, -6, 0);
@@ -67,6 +81,8 @@ const cubes = new CubeRenderer(scene, {
   cellSize: DEFAULTS.cellSize,
 });
 const playfield = new FocusFrame(scene);
+const axes = new AxesGizmo(scene);
+const beacon = new IsolateBeacon(scene, DEFAULTS.cellSize);
 const hover = createHoverMarker(DEFAULTS.cellSize);
 scene.add(hover);
 
@@ -76,6 +92,9 @@ let focusSurface;
 let nowGrid;
 let playing = true;
 let editing = false;
+let birdEye = false;
+let isolating = false;
+let isolateCell = null;
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
@@ -88,14 +107,21 @@ let measuredGps = 0;
 let gpsWindow = 0;
 let gpsSteps = 0;
 let pointerDown = null;
+let scrubbing = false;
+let scrubStart = null;
 
 const clock = new FrameClock();
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
+const _ndc0 = new THREE.Vector3();
+const _ndc1 = new THREE.Vector3();
+const _origin = new THREE.Vector3();
 
 const ui = bindUI({
   togglePlay,
   toggleEdit,
+  toggleBird,
+  toggleIsolate,
   step: () => {
     playing = false;
     ui.setPlaying(false);
@@ -117,6 +143,7 @@ const ui = bindUI({
   history: () => {
     historyLen = ui.getConfig().history;
     applyFocus(focusBack);
+    syncBeacon();
   },
   focus: () => {
     applyFocus(ui.getConfig().focusBack);
@@ -126,6 +153,10 @@ const ui = bindUI({
     stabMode = ui.getConfig().stabMode;
   },
 });
+
+function activeCamera() {
+  return birdEye ? birdCam : camera;
+}
 
 function tFocus() {
   return focusGeneration(world.generation, focusBack);
@@ -147,6 +178,23 @@ function setLineOpacity(obj, opacity) {
     m.transparent = true;
     m.opacity = opacity;
   }
+}
+
+function syncBeacon() {
+  beacon.setCell(
+    isolating ? isolateCell : null,
+    world.width,
+    world.height,
+    DEFAULTS.cellSize,
+    historyLen,
+    DEFAULTS.timeScale,
+  );
+}
+
+function updateScrubReady() {
+  const ready = !playing && !birdEye;
+  playfield.setScrubReady(ready);
+  axes.setScrubReady(ready);
 }
 
 function bootWorld(resizeGrid) {
@@ -174,8 +222,13 @@ function bootWorld(resizeGrid) {
   focusSurface = createFocusSurface(cfg.width, cfg.height, DEFAULTS.cellSize);
   nowGrid = createNowGrid(cfg.width, cfg.height, DEFAULTS.cellSize);
   playfield.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
+  axes.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
   scene.add(focusSurface);
   scene.add(nowGrid);
+
+  if (isolateCell && (isolateCell.x >= cfg.width || isolateCell.y >= cfg.height)) {
+    isolateCell = null;
+  }
 
   acc = 0;
   applyFocus(0);
@@ -183,9 +236,16 @@ function bootWorld(resizeGrid) {
     const span = Math.max(cfg.width, cfg.height);
     camera.position.set(span * 0.7, span * 0.55, span * 0.9);
     controls.target.set(0, -Math.min(historyLen, span) * 0.2, 0);
+    if (birdEye) {
+      const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+      fitBirdFrustum(birdCam, cfg.width, cfg.height, DEFAULTS.cellSize, aspect);
+    }
   }
   ui.setPlaying(playing);
   ui.setEditing(editing);
+  ui.setBird(birdEye);
+  ui.setIsolating(isolating);
+  syncBeacon();
   updateHint();
   syncVolume();
 }
@@ -196,6 +256,7 @@ function togglePlay() {
     editing = false;
     hover.visible = false;
     ui.setEditing(false);
+    endScrub();
   }
   ui.setPlaying(playing);
   updateHint();
@@ -214,6 +275,37 @@ function toggleEdit() {
   updateHint();
 }
 
+function toggleBird() {
+  birdEye = !birdEye;
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  if (birdEye) {
+    endScrub();
+    enterBirdEye({
+      persp: camera,
+      bird: birdCam,
+      controls,
+      width: world.width,
+      height: world.height,
+      cellSize: DEFAULTS.cellSize,
+      aspect,
+    });
+    scene.fog = null;
+  } else {
+    exitBirdEye({ persp: camera, controls });
+    scene.fog = fog;
+  }
+  ui.setBird(birdEye);
+  updateHint();
+}
+
+function toggleIsolate() {
+  isolating = !isolating;
+  if (!isolating) isolateCell = null;
+  ui.setIsolating(isolating);
+  syncBeacon();
+  updateHint();
+}
+
 function applyGridLook() {
   const b = Math.min(1, Math.max(0, gridBrightness));
   if (nowGrid) setLineOpacity(nowGrid, 0.04 + b * 0.82);
@@ -228,13 +320,22 @@ function updateHint() {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
     ui.setHint("Focus is in the past — Now, then tap to paint");
+  } else if (isolating && !isolateCell) {
+    ui.setHint("Iso — tap a cell or cube to keep that worldline");
+  } else if (isolating && isolateCell) {
+    ui.setHint(
+      `Iso ${isolateCell.x},${isolateCell.y} — orbit sideways for the pillar · tap again to clear`,
+    );
+  } else if (birdEye) {
+    ui.setHint("Bird-eye — pan / pinch, Shift+wheel scrubs time · B to leave");
   } else if (playing) {
-    ui.setHint("Orbit · Shift+wheel scrubs time · two-finger pan");
+    ui.setHint("Orbit · Shift+wheel scrubs time · pause to drag the cyan time axis");
   } else {
-    ui.setHint("Paused — Focus slider walks generations · Edit to paint");
+    ui.setHint("Paused — drag cyan posts / Y-gizmo to scrub · Focus slider · Edit to paint");
   }
   applyGridLook();
   playfield.setEditing(editing);
+  updateScrubReady();
 }
 
 function stepOnce() {
@@ -270,24 +371,78 @@ function syncVolume() {
     history: historyLen,
     stabMode,
     cellSize: DEFAULTS.cellSize,
+    isolate: isolating ? isolateCell : null,
+    sliceOnly: birdEye,
   });
 }
 
-function hitCell(event) {
+function hitCell(event, cubesToo = false) {
   if (!focusSurface) return null;
   const rect = canvas.getBoundingClientRect();
   ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(ndc, camera);
-  const hits = raycaster.intersectObject(focusSurface);
+  raycaster.setFromCamera(ndc, activeCamera());
+  const objs = cubesToo ? [cubes.solid, cubes.ghost, focusSurface] : [focusSurface];
+  const hits = raycaster.intersectObjects(objs, false);
   if (!hits.length) return null;
-  const p = hits[0].point;
-  const ox = (world.width - 1) * 0.5;
-  const oz = (world.height - 1) * 0.5;
-  const x = Math.round(p.x / DEFAULTS.cellSize + ox);
-  const y = Math.round(p.z / DEFAULTS.cellSize + oz);
-  if (x < 0 || y < 0 || x >= world.width || y >= world.height) return null;
-  return { x, y };
+  return cellFromWorldXZ(
+    hits[0].point.x,
+    hits[0].point.z,
+    world.width,
+    world.height,
+    DEFAULTS.cellSize,
+  );
+}
+
+function timeHandleList() {
+  return playfield.timeHandles().concat(axes.timeHandles());
+}
+
+function hitTimeAxis(event) {
+  if (playing || birdEye) return false;
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, activeCamera());
+  return raycaster.intersectObjects(timeHandleList(), false).length > 0;
+}
+
+function pxPerGeneration() {
+  axes.originWorld(_origin);
+  _ndc0.copy(_origin);
+  _ndc1.copy(_origin);
+  _ndc1.y += DEFAULTS.timeScale;
+  _ndc0.project(activeCamera());
+  _ndc1.project(activeCamera());
+  return screenPxPerWorldY(_ndc0.y, _ndc1.y, canvas.clientHeight);
+}
+
+function beginScrub(e) {
+  scrubbing = true;
+  canvas.classList.add("is-scrub");
+  controls.enabled = false;
+  if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+  scrubStart = {
+    y: e.clientY,
+    back: focusBack,
+    px: pxPerGeneration(),
+  };
+}
+
+function moveScrub(e) {
+  if (!scrubbing || !scrubStart) return;
+  applyFocus(dragFocusBack(scrubStart.back, e.clientY - scrubStart.y, scrubStart.px));
+}
+
+function endScrub(e) {
+  if (!scrubbing) return;
+  scrubbing = false;
+  canvas.classList.remove("is-scrub");
+  controls.enabled = true;
+  if (e && canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
+    canvas.releasePointerCapture(e.pointerId);
+  }
+  scrubStart = null;
 }
 
 function paintAt(event) {
@@ -297,6 +452,15 @@ function paintAt(event) {
   if (world.toggle(cell.x, cell.y)) {
     ring.replaceGrid(world.grid, world.width, world.height, world.generation);
   }
+}
+
+function pickIsolate(event) {
+  if (!isolating || editing) return;
+  const cell = hitCell(event, true);
+  if (!cell) return;
+  isolateCell = cellsEqual(isolateCell, cell) ? null : cell;
+  syncBeacon();
+  updateHint();
 }
 
 function updateHover(event) {
@@ -323,25 +487,46 @@ function resize() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   renderer.setSize(w, h, false);
-  camera.aspect = w / Math.max(1, h);
+  const aspect = w / Math.max(1, h);
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
+  applyBirdAspect(birdCam, aspect);
 }
 
-canvas.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
-  pointerDown = { x: e.clientX, y: e.clientY };
-});
+canvas.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button !== 0) return;
+    pointerDown = { x: e.clientX, y: e.clientY };
+    if (hitTimeAxis(e)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      beginScrub(e);
+    }
+  },
+  { capture: true },
+);
 canvas.addEventListener("pointermove", (e) => {
+  if (scrubbing) {
+    moveScrub(e);
+    return;
+  }
   if (editing) updateHover(e);
+  if (!playing && !birdEye && hitTimeAxis(e)) canvas.classList.add("is-scrub");
+  else if (!scrubbing) canvas.classList.remove("is-scrub");
 });
 window.addEventListener("pointerup", (e) => {
+  const wasScrub = scrubbing;
+  endScrub(e);
   if (!pointerDown) return;
   const dx = e.clientX - pointerDown.x;
   const dy = e.clientY - pointerDown.y;
   pointerDown = null;
+  if (wasScrub) return;
   if (dx * dx + dy * dy > 36) return;
   if (e.target !== canvas) return;
-  paintAt(e);
+  if (isolating && !editing) pickIsolate(e);
+  else paintAt(e);
 });
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
@@ -365,6 +550,13 @@ window.addEventListener("keydown", (e) => {
     togglePlay();
   } else if (e.code === "KeyE") {
     toggleEdit();
+  } else if (e.code === "KeyB") {
+    toggleBird();
+  } else if (e.code === "KeyI") {
+    toggleIsolate();
+  } else if (e.code === "Escape") {
+    if (isolating) toggleIsolate();
+    else if (birdEye) toggleBird();
   } else if (e.code === "Period" || e.code === "KeyN") {
     playing = false;
     ui.setPlaying(false);
@@ -400,7 +592,7 @@ function frame(now) {
 
   syncVolume();
   controls.update();
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCamera());
 
   const foc = tFocus();
   hudEl.textContent = formatHud({
@@ -414,6 +606,9 @@ function frame(now) {
     gps: playing ? measuredGps || gensPerSec : 0,
     playing,
     editing,
+    bird: birdEye,
+    isolating,
+    isolate: isolating ? isolateCell : null,
   });
 
   requestAnimationFrame(frame);

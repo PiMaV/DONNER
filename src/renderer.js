@@ -12,6 +12,7 @@
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
 import { KIND_WARMUP, SCALE_UNIFORM, stabilityScale } from "./dynamics.js";
+import { isolationWeight } from "./observe.js";
 
 function seedInstanceColors(mesh, maxCount, color) {
   for (let i = 0; i < maxCount; i++) mesh.setColorAt(i, color);
@@ -78,6 +79,8 @@ export class CubeRenderer {
    *   height: number,
    *   stabMode?: "none" | "time" | "focus",
    *   cellSize?: number,
+   *   isolate?: { x: number, y: number } | null,
+   *   sliceOnly?: boolean,
    * }} view
    */
   setEvents(soa, view) {
@@ -87,6 +90,8 @@ export class CubeRenderer {
     const decay = view.decay;
     const timeScale = view.timeScale;
     const tFocus = view.tFocus;
+    const isolate = view.isolate || null;
+    const sliceOnly = Boolean(view.sliceOnly);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
     const color = this._color;
@@ -109,6 +114,22 @@ export class CubeRenderer {
         view.stabMode === "none" || k === KIND_WARMUP
           ? SCALE_UNIFORM
           : stabilityScale(soa.s[i]);
+      const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
+      if (sliceOnly && Math.abs(dt) >= 0.5) continue;
+
+      if (field < 1) {
+        const ageFade =
+          dt > 0
+            ? Math.exp(-GHOST_FALLOFF * dt)
+            : Math.exp(-decay * Math.max(0, -dt));
+        dummy.scale.setScalar(cell * fill * 0.88);
+        dummy.updateMatrix();
+        this.ghost.setMatrixAt(iGhost, dummy.matrix);
+        color.copy(kind).multiplyScalar(field * (0.45 + 0.55 * ageFade));
+        this.ghost.setColorAt(iGhost, color);
+        iGhost += 1;
+        continue;
+      }
 
       if (dt > 0) {
         const fade = Math.exp(-GHOST_FALLOFF * dt);
@@ -180,8 +201,8 @@ export function createNowGrid(width, height, cellSize) {
 }
 
 /**
- * Playfield frame on the focus plane: outer rectangle plus short corner posts
- * so the board edge reads in 3D, not only in top-down view.
+ * Playfield frame on the focus plane: outer rectangle plus tall corner posts
+ * (time-axis grips). Invisible hit cylinders make the posts easy to grab.
  */
 export class FocusFrame {
   constructor(scene) {
@@ -192,7 +213,18 @@ export class FocusFrame {
       transparent: true,
       opacity: 0.92,
     });
+    this._postMat = new THREE.MeshBasicMaterial({
+      color: COLOR.cyan,
+      transparent: true,
+      opacity: 0.55,
+    });
+    this._hitMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
     this._parts = [];
+    this._timeHits = [];
     scene.add(this.group);
   }
 
@@ -202,17 +234,19 @@ export class FocusFrame {
       p.geometry.dispose();
     }
     this._parts.length = 0;
+    this._timeHits.length = 0;
 
     const hw = (width * cellSize) / 2;
     const hd = (height * cellSize) / 2;
     const t = Math.max(0.07, cellSize * 0.08);
-    const postH = cellSize * 1.25;
+    const postH = cellSize * 5.4;
 
-    const add = (x, y, z, sx, sy, sz) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), this._mat);
+    const add = (x, y, z, sx, sy, sz, mat = this._mat) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
       mesh.position.set(x, y, z);
       this.group.add(mesh);
       this._parts.push(mesh);
+      return mesh;
     };
 
     add(0, t * 0.5, -hd, width * cellSize + t, t, t);
@@ -226,8 +260,21 @@ export class FocusFrame {
       [-hw, hd],
       [hw, hd],
     ]) {
-      add(x, postH * 0.5, z, t, postH, t);
+      add(x, 0, z, t, postH, t, this._postMat);
+      const hit = new THREE.Mesh(
+        new THREE.CylinderGeometry(cellSize * 0.32, cellSize * 0.32, postH * 1.08, 8),
+        this._hitMat,
+      );
+      hit.position.set(x, 0, z);
+      hit.userData.timeScrub = true;
+      this.group.add(hit);
+      this._parts.push(hit);
+      this._timeHits.push(hit);
     }
+  }
+
+  timeHandles() {
+    return this._timeHits;
   }
 
   setEditing(on) {
@@ -235,9 +282,174 @@ export class FocusFrame {
     this._mat.color.setHex(on ? COLOR.gold : COLOR.frame);
   }
 
+  setScrubReady(on) {
+    this._postMat.opacity = on ? 0.85 : 0.4;
+    this._postMat.color.setHex(on ? COLOR.cyan : COLOR.frame);
+  }
+
   dispose() {
     this.scene.remove(this.group);
     for (const p of this._parts) p.geometry.dispose();
+    this._mat.dispose();
+    this._postMat.dispose();
+    this._hitMat.dispose();
+  }
+}
+
+/**
+ * Corner XYZ gizmo: X/Z spatial, Y = time (drag while paused to scrub focus).
+ */
+export class AxesGizmo {
+  constructor(scene) {
+    this.scene = scene;
+    this.group = new THREE.Group();
+    this._parts = [];
+    this._timeHits = [];
+    this._mats = [];
+    scene.add(this.group);
+  }
+
+  setSize(width, height, cellSize) {
+    for (const p of this._parts) {
+      this.group.remove(p);
+      p.geometry.dispose();
+    }
+    this._parts.length = 0;
+    this._timeHits.length = 0;
+    for (const m of this._mats) m.dispose();
+    this._mats.length = 0;
+
+    const hw = (width * cellSize) / 2;
+    const hd = (height * cellSize) / 2;
+    const inset = cellSize * 1.7;
+    this.group.position.set(-hw - inset, 0, -hd - inset);
+
+    const xLen = cellSize * 3.2;
+    const zLen = cellSize * 3.2;
+    const yLen = cellSize * 6.2;
+    const r = Math.max(0.045, cellSize * 0.055);
+
+    this._addShaft(COLOR.gold, xLen, r, 0, -Math.PI / 2);
+    this._addShaft(COLOR.grid, zLen, r, Math.PI / 2, 0);
+    this._addShaft(COLOR.cyan, yLen, r * 1.25, 0, 0);
+
+    const cone = cellSize * 0.22;
+    this._addCone(COLOR.gold, cone, xLen * 0.5, 0, 0, 0, -Math.PI / 2);
+    this._addCone(COLOR.grid, cone, 0, 0, zLen * 0.5, Math.PI / 2, 0);
+    this._addCone(COLOR.cyan, cone * 1.15, 0, yLen * 0.5, 0, 0, 0);
+    this._addCone(COLOR.cyan, cone * 1.15, 0, -yLen * 0.5, 0, Math.PI, 0);
+
+    const hit = new THREE.Mesh(
+      new THREE.CylinderGeometry(cellSize * 0.34, cellSize * 0.34, yLen * 1.12, 8),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    hit.userData.timeScrub = true;
+    this.group.add(hit);
+    this._parts.push(hit);
+    this._timeHits.push(hit);
+    this._mats.push(hit.material);
+  }
+
+  _addShaft(hex, length, radius, rotX, rotZ) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: hex,
+      transparent: true,
+      opacity: 0.9,
+    });
+    this._mats.push(mat);
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius, length, 8),
+      mat,
+    );
+    mesh.rotation.x = rotX;
+    mesh.rotation.z = rotZ;
+    if (rotZ === -Math.PI / 2) mesh.position.x = length * 0.5;
+    else if (rotX === Math.PI / 2) mesh.position.z = length * 0.5;
+    this.group.add(mesh);
+    this._parts.push(mesh);
+  }
+
+  _addCone(hex, size, x, y, z, rotX, rotZ) {
+    const mat = new THREE.MeshBasicMaterial({
+      color: hex,
+      transparent: true,
+      opacity: 0.92,
+    });
+    this._mats.push(mat);
+    const mesh = new THREE.Mesh(new THREE.ConeGeometry(size, size * 1.8, 8), mat);
+    mesh.position.set(x, y, z);
+    mesh.rotation.x = rotX;
+    mesh.rotation.z = rotZ;
+    this.group.add(mesh);
+    this._parts.push(mesh);
+  }
+
+  timeHandles() {
+    return this._timeHits;
+  }
+
+  setScrubReady(on) {
+    for (const m of this._mats) {
+      if (m.color && m.color.getHex() === COLOR.cyan) {
+        m.opacity = on ? 1 : 0.55;
+      }
+    }
+  }
+
+  originWorld(target) {
+    return this.group.getWorldPosition(target);
+  }
+
+  dispose() {
+    this.scene.remove(this.group);
+    for (const p of this._parts) p.geometry.dispose();
+    for (const m of this._mats) m.dispose();
+  }
+}
+
+/** Thin column through time at the isolated cell. */
+export class IsolateBeacon {
+  constructor(scene, cellSize) {
+    this.scene = scene;
+    this._mat = new THREE.MeshBasicMaterial({
+      color: COLOR.gold,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    });
+    this.mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(cellSize * 0.18, 1, cellSize * 0.18),
+      this._mat,
+    );
+    this.mesh.visible = false;
+    this.mesh.renderOrder = 3;
+    scene.add(this.mesh);
+  }
+
+  setCell(cell, width, height, cellSize, history, timeScale) {
+    if (!cell) {
+      this.mesh.visible = false;
+      return;
+    }
+    const ox = (width - 1) * 0.5;
+    const oz = (height - 1) * 0.5;
+    const h = Math.max(12, history) * timeScale;
+    this.mesh.scale.set(1, h, 1);
+    this.mesh.position.set(
+      (cell.x - ox) * cellSize,
+      0,
+      (cell.y - oz) * cellSize,
+    );
+    this.mesh.visible = true;
+  }
+
+  dispose() {
+    this.scene.remove(this.mesh);
+    this.mesh.geometry.dispose();
     this._mat.dispose();
   }
 }

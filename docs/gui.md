@@ -14,6 +14,8 @@ flowchart LR
   plane --> scene
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
+  bird[Bird-eye] --> scene
+  iso[Isolation] --> scene
 ```
 
 ## Camera
@@ -24,8 +26,12 @@ flowchart LR
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan |
 | Shift+wheel | Scrub focus into the past / back to now |
+| Drag cyan posts / Y-gizmo (paused) | Scrub focus (orbit locked for that gesture) |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now) |
+| `B` | Bird-eye (orthographic top view) |
+| `I` | Isolation (tap a cell or cube) |
+| Escape | Leave isolation, or leave bird-eye |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
 | `]` / `↑` | Focus toward Now |
@@ -39,6 +45,8 @@ flowchart LR
 | Play / Pause | Advance generations |
 | Step | One generation (also pauses) |
 | Edit | Paint cells on the focus plane (only at Now) |
+| Bird | Orthographic top-down onto the **focus slice** only; pan / pinch |
+| Iso | Dim the volume; keep one `(x, y)` worldline. Tap a cell or cube. |
 | Reset | Same pattern and seed |
 | Seed | New RNG seed, then reset |
 | Pattern | BLITZ seeds; Gosper gun needs grid ≥ 48 |
@@ -51,13 +59,13 @@ flowchart LR
 | Wrap | Torus vs hard edges |
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-The gold **frame** is the playfield edge on the focus plane (rectangle +
-corner posts). Slices newer than the focus sit **above** it, translucent,
-so the focused generation stays readable.
+The gold **frame** is the playfield edge (rectangle + tall cyan corner posts).
+While paused, drag those posts or the cyan **Y** of the corner XYZ gizmo to
+scrub focus. Slices newer than the focus sit **above** it, translucent.
 
-**Edit** is explicit: pause, plane at Now, tap inside the frame to toggle.
-Dragging still orbits. Hover shows the target cell. Scrubbing into the past
-disables paint until **Now**.
+**Bird** looks straight down with an orthographic camera (no parallax).
+**Iso** dims every cell except one worldline; tap a cell on the plane or a
+cube. Edit is unchanged: pause, plane at Now, tap inside the frame.
 
 On narrow viewports the control sheet is behind **Controls ▸** so the
 volume stays dominant.
@@ -72,6 +80,8 @@ volume stays dominant.
 | INST | Instanced cubes (`trunc` if SoA capped) |
 | FPS / FR | Frame rate and frame time |
 | RATE | Measured generation rate while playing |
+| BIRD | Present in bird-eye |
+| ISO | Isolated cell, or `…` while picking |
 
 This HUD is also a cheap GPU / browser benchmark. If INST hits the cap,
 lower History or Grid before judging FPS.
@@ -114,14 +124,5 @@ cell lattice is.
 
 ## Later
 
-Drag the time axis on the playfield (corner posts + XYZ gizmo) to scrub
-focus while paused — not built yet.
-
 Nerd FPS HUD (sparkline + averages, like the M.E.S.S. homepage overlay) to
 find the performance cliff — not built yet.
-
-**Bird-eye:** orthographic top view of the focus plane, no perspective /
-parallax — not built yet.
-
-**Isolation / observation:** dim the rest of the field; light only the
-worldline pillar of the current grid cell through time — not built yet.
