@@ -50,7 +50,7 @@ flowchart LR
 |-------|------|--------|
 | **Display** | Orbit, Bird, Iso, Z stack (playhead), Window (buffer span), Decay, Grid light, FPS/INST | Sheet **View** + right display HUD |
 | **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit; HUD GEN / LIVE / RATE | Sheet **Source** + right source HUD. Swap later for file/stream + that source's stats |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Sheet block **Encoding** (legend + Stability). Renderer LUT still hardcoded. |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Sheet block **Encoding** (legend + Stability). LUT in `src/encoding.js` |
 
 **Play** is one display button (advance the volume). While Conway is the
 source, that same button also steps the generator. Do not split Run vs
@@ -59,9 +59,9 @@ span (not a Life log). The **Z stack** is the only playhead; there is no
 Focus slider in the control sheet. Keyboard Home / `[` / `]` / Shift+wheel
 still scrub.
 
-The cube renderer should treat `k` as an index into an adapter LUT. Today
-`CubeRenderer` still hard-codes Conway kind colors — a leak to close with
-the encoding adapter, not by moving GEN into Encoding.
+The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX`,
+`encodingFill`). An event source will swap that LUT. Do not move GEN into
+Encoding.
 
 The left **control sheet** is the same three blocks as the model:
 

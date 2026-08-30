@@ -182,5 +182,6 @@ cell lattice is.
 
 ## Later
 
-- Renderer color LUT from the encoding adapter (still hardcoded Conway kinds).
-- Optional 1%/0.1% FPS lows on the display sparkline.
+- Event-camera source behind the same `EventSoA`; polarity encoding (not still/osc/transit)
+- Optional 1%/0.1% FPS lows on the display sparkline
+- WebXR, BLITZ sync, in-browser EVT3

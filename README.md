@@ -74,7 +74,7 @@ python3 -m http.server 8765 --bind 127.0.0.1
 Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
 
 ```bash
-npm test    # Conway + ring-buffer unit tests (Node 18+)
+npm test    # unit tests (Node 18+)
 ```
 
 ## Stage 1 (this tree)
