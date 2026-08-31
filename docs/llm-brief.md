@@ -10,19 +10,23 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   exist — seeding, teaching, and a performance benchmark. The live demo
   target is event data, not Life. Do not grow a Game-of-Life product
   identity. Three layers: **display** (DONNER: camera, Depth, Z-stack
-  playhead, FPS), **source addon** (Conway today + RAM tape proto-file),
+  playhead, FPS), **source addon** (Conway **or** EVT count stack `.npy`),
   **encoding slot**
-  (color `k` + fill `s`; Conway fills still/osc/transit + Stability).
+  (color `k` + fill `s`; Conway fills still/osc/transit + Stability;
+  count fills integer rungs + optional size-by-count).
   `src/dynamics.js` is Conway classification; `src/encoding.js` is the
   LUT the renderer actually indexes. Do not assume the Life legend for
-  polarity streams.
+  count or polarity streams.
 - Keep `Data source → encoding adapter → EventSoA → renderer`. Conway
-  lives in `src/conway.js`. The cube renderer must stay source-agnostic.
-  File format (later `.npy` / `.npz`) is not the runtime contract.
+  lives in `src/conway.js`. Count cubes unpack in `src/npy.js` +
+  `src/count.js`. The cube renderer must stay source-agnostic.
+  File format is not the runtime contract (SoA is). `.npy` count cubes
+  are in; NPZ is still later.
   Product axes: **X, Y = playfield**, **Z = time**. `tFocus` is Z = 0
   (engine Y = 0 internally; Three.js is Y-up). `t > tFocus` is a
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / transit, plus warmup for `t < 2`.
+  Count uses integer rungs (cyan → gold → coral).
   Default Neighborhood is **none** (occupancy). 3×3 or 5×5 is the motion
   gate so gliders become transit tubes (5×5 is the CPU cliff). Cube scale
   follows Stability mode (`none` / `time` / `focus`)
@@ -58,9 +62,15 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is two left
   sheets: **View** (Depth, Decay, Encoding, Bench) and **Source**
-  (Conway). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
+  (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
   (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
   Bench. Camera-only frames must not call `fillSoA`.
+  XR-A session: feature-detect `immersive-ar` and hide **AR** if false.
+  Visible volume lives on a `stage` group, placed once ~0.8 m in front of
+  the viewer (world-locked, 32 cells ≈ 40 cm). Same `setEvents`. AR
+  chrome is Play, Z, Exit on `#xr-overlay` (not `document.body` — that
+  paints the page over passthrough). Hit-test is the next slice. Phone HTTPS is
+  `https://lab.ole.icu/` after `start:lan`.
   Three.js is the engine, not the product name. Do not propose a
   PyQtGraph/BLITZ port or an empty desktop EXE without a sidecar.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
@@ -71,12 +81,11 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 ## Don't (until a later stage)
 
 - Event-camera `.raw` / EVT3 decode in the browser
-- NPY/NPZ loaders (adapter later; runtime stays EventSoA)
+- NPZ loaders; polarity / occupancy / states encodings; sidecar ingest
 - Backend, WebSocket, BLITZ sync
-- WebXR until XR-A is opened (ladder XR-A phone hit-test → XR-B marker →
-  XR-C Quest 3 in [`backlog.md`](../backlog.md) and
-  [`architecture.md`](../architecture.md); P1/P2 baseline is met, so XR-A
-  is the next stage when the human opens it — do not start it in the
+- WebXR hit-test / tap-to-place (XR-A session is in; next slice is plane
+  hit-test → XR-B marker → XR-C Quest 3 in [`backlog.md`](../backlog.md)
+  and [`architecture.md`](../architecture.md); do not start it in the
   same slice as a points renderer)
 - Source-off-rail / thin View (chrome later in [`backlog.md`](../backlog.md);
   not a gate for XR-A)
@@ -91,7 +100,8 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 
 - Architecture: [`architecture.md`](../architecture.md)
 - Later / XR ladder: [`backlog.md`](../backlog.md)
-- LAN HTTPS (mkcert, not ole.icu): `npm run start:https`
+- Phone HTTPS: `https://lab.ole.icu/` after `npm run start:lan`; mkcert
+  fallback `npm run start:https`
 - UI: [`docs/gui.md`](gui.md)
 - Related (not influences; Conway is demonstrator only): [`docs/related.md`](related.md)
   — Wolfram 2025 essay is the internal Life reference, not a DONNER spec

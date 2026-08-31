@@ -33,16 +33,17 @@ Representations) renders sparse space-time events in the browser.
 | Source | Event |
 |--------|--------|
 | Conway (v1) | `x, y, generation, state` |
-| Event camera (later) | `x, y, timestamp, polarity` |
+| Count stack | `x, y, t, count` (EVT `.npy`) |
 
 Conway is the first demonstrator — deterministic, in-browser, no files.
-The renderer does not know whether a point came from a cellular automaton
-or a sensor.
+A count stack is the first event-camera path: the same cubes, a different
+source. The renderer does not know whether a point came from a cellular
+automaton or a sensor.
 
 > Images aren't just pixels — they are structured data.
 
 DONNER extends that idea: **matrix → time series → space-time volume →
-explorative 3D (later XR)**.
+explorative 3D (XR-A session in; hit-test next)**.
 
 ## Axes (X, Y, Z)
 
@@ -78,7 +79,15 @@ npm start
 # same as: python3 -m http.server 8765 --bind 127.0.0.1
 ```
 
-Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
+Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Count stack**
+loads `data/ignition_stack.npy` (symlink to `../datasets/EVT/` in the
+WETTER-Suite layout). Or use **Load .npy**.
+
+```bash
+# from DONNER/, if the demo file is missing:
+mkdir -p data
+ln -sfn ../datasets/EVT/ignition_stack.npy data/ignition_stack.npy
+```
 
 ```bash
 npm test    # unit tests (Node 18+)
@@ -95,17 +104,9 @@ npm run start:lan
 # same as: python3 -m http.server 8765 --bind 0.0.0.0
 ```
 
-```mermaid
-flowchart LR
-  desktop["Desktop python3 -m http.server"]
-  bind["bind 0.0.0.0 port 8765"]
-  phone["Phone browser on Wi-Fi"]
-  desktop --> bind
-  bind --> phone
-```
-
-Find the desktop LAN address, then open **http** (not https) on the phone.
-Do not use `localhost` on the phone — that is the phone itself.
+Find the desktop LAN address, then open **http** (not https) on the phone
+for orbit-only. Do not use `localhost` on the phone — that is the phone
+itself.
 
 ```bash
 hostname -I
@@ -119,9 +120,35 @@ check the firewall for port 8765, or that the address still matches
 `hostname -I` (it can change). Fonts load from `mess.engineering`; without
 internet the app still runs, with system fonts.
 
-### HTTPS on the LAN (phone / WebXR)
+### HTTPS / WebXR (`lab.ole.icu`)
 
-WebXR needs HTTPS. There is no lab reverse proxy yet. Local **mkcert**:
+WebXR needs HTTPS. The lab door is **`https://lab.ole.icu/`**: a Caddy LXC
+with Let’s Encrypt, reverse-proxying the laptop `npm run start:lan`
+listener (`192.168.178.30:8765`). DNS `lab.ole.icu` is LAN-only. Do not
+use `pve.ole.icu:8006`. The Caddyfile lives on the CT, not in this repo.
+
+```mermaid
+flowchart LR
+  phone[Phone Chrome]
+  lab[lab.ole.icu Caddy LXC]
+  laptop["Laptop :8765 start:lan"]
+  phone -->|HTTPS LE| lab
+  lab -->|reverse_proxy| laptop
+  laptop --> xr[WebXR immersive-ar]
+```
+
+```bash
+cd DONNER
+npm run start:lan
+curl -I https://lab.ole.icu/
+# expect HTTP/2 200 while the laptop is serving
+```
+
+On the phone, open the same URL. **AR** is shown only when
+`navigator.xr` supports `immersive-ar` (Android Chrome). Without AR, the
+orbit viewer is unchanged.
+
+If the LXC is down, local **mkcert** is the fallback:
 
 ```bash
 cd DONNER
@@ -132,8 +159,7 @@ npm run start:https
 
 That issues `certs/dev.pem` if missing (gitignored) and serves **https** on
 port 8765, all interfaces. Open the printed `https://<lan-ip>:8765/` URL.
-If the LAN IP changes, `npm run cert` again. Ole.icu / a Proxmox LXC is
-backlog — see [`backlog.md`](backlog.md).
+If the LAN IP changes, `npm run cert` again.
 
 ## Stage 1 (this tree)
 
@@ -150,11 +176,12 @@ backlog — see [`backlog.md`](backlog.md).
 - Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
 - **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses a still or empty board after five identical grids (not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
-- Two left sheets: **View** (display + encoding + bench) and **Source** (Conway). Phone: View ▸ / Source ▸.
+- Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
+- Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
+- XR-A session: WebXR `immersive-ar` passthrough; volume world-locked ~0.8 m in front of the viewer (tabletop scale). **AR** only if the device supports it. Hit-test / tap-to-place is next.
 
-**Not in v1:** Fibonacci, event-camera import, NPY/NPZ loader, backend, streaming,
-BLITZ sync, WebXR, points renderer.
+**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, backend, streaming, BLITZ sync, plane hit-test, XR-B/C, points renderer.
 
 ## Architecture
 

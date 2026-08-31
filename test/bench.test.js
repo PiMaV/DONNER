@@ -205,6 +205,10 @@ describe("append-only tape", () => {
       formatCacheStatus({ gens: 12, events: 40, full: false, tapeMode: false }),
       "Cache 12 gen · 40 cells",
     );
+    assert.equal(
+      formatCacheStatus({ gens: 69, events: 12000, full: true, tapeMode: true, tick: "t" }),
+      "Cache 69 t · 12k cells · full · inspect",
+    );
     assert.match(
       formatCacheStatus({ gens: 800, events: 12000, full: true, tapeMode: true }),
       /full/,

@@ -158,7 +158,27 @@ export function formatViewHud({
   return lines.join("\n");
 }
 
-export function formatSourceHud({ generation, live, gps, editing, tape = false }) {
+export function formatSourceHud({
+  generation,
+  live,
+  gps,
+  editing,
+  tape = false,
+  kind = "conway",
+  sum = 0,
+  ceiling = 0,
+}) {
+  if (kind === "count") {
+    const lines = [
+      `T    ${generation}`,
+      `LIVE ${live}`,
+      `SUM  ${Math.round(sum)}`,
+      `RATE ${gps.toFixed(1)} /s`,
+    ];
+    if (ceiling) lines.push(`MAX  ${ceiling}`);
+    lines.push("COUNT");
+    return lines.join("\n");
+  }
   const lines = [
     `GEN  ${generation}`,
     `LIVE ${live}`,

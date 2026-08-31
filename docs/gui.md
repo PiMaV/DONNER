@@ -20,14 +20,21 @@ flowchart LR
 ```
 
 Play is a **display** transport outside the sheets. **Play** = Live View
-(generator runs, Z locked at Now). **Pause** = Inspect the RAM tape
-(Z from 0). **Pause** lights the brick (fog off, camera far fits the
-tape). Two extra Z handles clip a **slab** (outside not drawn). Play
-from Inspect jumps to live Now.
+(generator runs, Z locked at Now) for Conway; for a count stack it scrubs
+Z through the recording. **Pause** = Inspect the RAM tape (Z from 0).
+**Pause** lights the brick (fog off, camera far fits the tape). Two extra
+Z handles clip a **slab** (outside not drawn). Conway Play from Inspect
+jumps to live Now.
+
+In an **AR session** the same Play and Z stack stay; brand, View/Source
+sheets, and the FPS chip hide. Bird is not offered. **Exit** (or Escape)
+returns to orbit. The WebXR DOM overlay is `#xr-overlay` (HUD only), not
+`document.body`, so the camera passthrough and the volume stay visible.
 
 The left chrome is two sheets — **View** (Bird, Decay, Depth live-only,
-cache, Encoding, Bench) and **Source** (Conway; GEN/LIVE/RATE stay on
-the right HUD). Generator controls do not share a panel with View.
+cache, Encoding, Bench) and **Source** (kind: Conway or count stack;
+GEN/LIVE/RATE or T/LIVE/SUM stay on the right HUD). Generator controls do
+not share a panel with View.
 
 ```mermaid
 flowchart TB
@@ -39,13 +46,17 @@ flowchart TB
     bench[Bench]
   end
   subgraph source [Source slot]
-    gen[GEN LIVE RATE]
+    kind[Conway or Count]
+    gen[GEN LIVE RATE or T LIVE SUM]
     conway[Pattern Seed Speed Stop-stable]
+    npy[npy file ignition demo]
   end
   play[Play transport]
   view --> volume[Volume]
   play --> volume
   source --> volume
+  kind --> conway
+  kind --> npy
 ```
 
 ```mermaid
@@ -70,6 +81,13 @@ flowchart TB
     volP --> zP
     zP --> barP
   end
+  subgraph ar [AR session]
+    pass[Passthrough]
+    volA[Volume in front of viewer]
+    chrome[Play Z Exit]
+    pass --> volA
+    volA --> chrome
+  end
 ```
 
 Isolation is not a sheet mode. Worldline isolation is deferred (later:
@@ -83,12 +101,14 @@ rectangle select on the playfield).
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan in **Bird** only. Orbit mode rotates around the time axis at the brick center (no pan). |
 | Shift+wheel | Scrub focus into the past / back to now |
-| **Z** stack | Scrub the playhead. Inspect also has two **slab** handles (3D-slicer clip). After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now at top. Phone: bottom timeline, Now at the right. Wheel over it steps the playhead. |
+| **Z** stack | Scrub the playhead. Inspect also has two **slab** handles (3D-slicer clip). After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now at top. Phone: bottom timeline, Now at the right; handles have a large touch target. Wheel over it steps the playhead. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now) |
 | `B` | Bird-eye (orthographic top view) |
 | `F` | **Fit** — frame the camera to the drawn slab |
-| Escape | Leave bird-eye |
+| Escape | Leave bird-eye; in AR, end the session |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Volume appears in front of you, then stays world-locked. Not shown on desktop orbit. |
+| **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
 | `]` / `↑` | Focus toward Now |
@@ -108,7 +128,14 @@ rectangle select on the playfield).
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | **Z stack** | Live: locked, label **LIVE**. Inspect: cyan **playhead** (larger) plus two gold **slab** handles. Dragging a gold handle past the playhead pushes it. After **Fit**, scrubbing the playhead does not move the brick. Volume: cyan ring = plane, gold rings = cuts. **Now** snaps the playhead (and opens the top of the slab). |
 
-## Source (Conway addon)
+## Source
+
+| Control | Meaning |
+|---------|---------|
+| Source | **Conway** or **Count stack** |
+| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs Z |
+
+### Conway addon
 
 | Control | Meaning |
 |---------|---------|
@@ -117,18 +144,29 @@ rectangle select on the playfield).
 | Reset | Same pattern and seed |
 | Seed | New RNG seed, then reset |
 | Pattern | BLITZ seeds; Gosper gun needs grid ≥ 48 |
-| Speed | Target generations per second (1–60) |
 | Grid | 16…64; rebuilds the world |
 | Wrap | Torus vs hard edges |
 | Stop when stable | Pause into Inspect after 5 identical grids (still / empty). Oscillators and wrapping gliders keep running. A glider on a hard edge dies, then the empty board pauses — leave Wrap on. Default on. |
 
-## Encoding (slot; Conway fills it)
+### Count stack (EVT)
 
-Color and cube fill are display slots. Conway currently supplies still /
-osc / transit / warmup and Stability **None / Time / Focus**. An event
-source will supply a different LUT (polarity) and may drop these fill
-modes. The sheet **Encoding** block is that slot; GEN / LIVE / RATE stay
-in **Source**.
+| Control | Meaning |
+|---------|---------|
+| Ignition demo | Load `data/ignition_stack.npy` (local symlink into `datasets/EVT/`) |
+| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity |
+| Size by count | Encoding: cube scale follows the integer count. Off: occupancy (color only) |
+
+Count stacks open in Inspect (the recording is already complete). **Play**
+scrubs the cyan plane from oldest to Now and loops. Color is 1 = cyan …
+max = coral. Empty pixels (count 0) are not cubes.
+
+## Encoding (slot)
+
+Color and cube fill are display slots. Conway supplies still / osc /
+transit / warmup and Stability **None / Time / Focus**. A count stack
+supplies integer rungs (cyan → gold → coral) and optional size-by-count.
+Polarity is later. The sheet **Encoding** block is that slot; source
+stats stay in **Source**.
 
 | Control | Meaning |
 |---------|---------|
@@ -185,10 +223,14 @@ to expand the View card. Source stats live in the Source sheet.
 | FOC | Display — playhead generation (also beside the Z-stack handle) |
 | PLAY / PAUSE | Display |
 | BIRD | Display — view state |
-| GEN | Source — simulation head |
-| LIVE | Source — live cells on the focus slice |
-| RATE | Source — measured generation rate while playing |
-| EDIT | Source — present in edit mode |
+| GEN | Source Conway — simulation head |
+| T | Source count — bin index |
+| LIVE | Source — live cells / voxels on the focus slice |
+| SUM | Source count — event sum on the focus slice |
+| MAX | Source count — count ceiling (color ramp top) |
+| RATE | Source — measured generation or playhead rate while playing |
+| COUNT | Source — count stack is active |
+| EDIT | Source Conway — present in edit mode |
 
 **Z stack:** thin rail — **Now**, a tick per stored step, generation
 beside the handle. Desktop: Now at the top, deepest past at the bottom.
@@ -230,9 +272,9 @@ Decay only darkens older slices; it does not change hue or cube size.
 Cap is 16 generations. Transit stays smaller in Time/Focus. Warmup cubes
 stay full size so the first slices are not a false “shrink”.
 
-These classes fill the **encoding slot** for the Conway demonstrator. The
-later live path is event-camera data; polarity (and other encodings) will
-not reuse this still/osc/transit legend by default.
+These classes fill the **encoding slot** for the Conway demonstrator. A
+count stack uses a different LUT: integer rungs cyan → gold → coral.
+Polarity (and occupancy / states) will not reuse still/osc/transit.
 
 The gold **frame** is the playfield edge. **Grid light** sets how bright the
 cell lattice is.
@@ -262,12 +304,12 @@ Bench stays in the sheet, not on the FPS chip.
   cache). Bench, GPU strings, Neighborhood, presets, and dense Encoding
   leave the everyday sheet.
 - **Isolation later:** rectangle select on the playfield (not cube double-click).
-- Event-camera source behind the same `EventSoA`; polarity encoding (not still/osc/transit)
-- NPY/NPZ source adapter (runtime stays EventSoA)
-- BLITZ sync, in-browser EVT3
-- **XR** (see [backlog.md](../backlog.md) and [architecture.md](../architecture.md) stage 3).
-  P1/P2 is in; **XR-A is next when opened:** phone tabletop
-  (`immersive-ar`, tap a plane to place the volume), then AprilTag or a
-  printed playfield as origin (optional: print is the Conway seed), then
-  Quest 3 passthrough. AR chrome stays thin — Play, Z scrub, Exit — not
-  the desktop sheets. Bird-eye is usually unused in AR.
+- Polarity / occupancy / states encodings (count rungs are in)
+- NPZ, sidecar ingest, BLITZ sync, in-browser EVT3
+- **XR-A session is in:** WebXR `immersive-ar` passthrough, volume
+  world-locked ~0.8 m in front of the viewer (tabletop scale). **AR**
+  only if `navigator.xr` supports it. Chrome is Play, Z, Exit. Phone
+  HTTPS is `https://lab.ole.icu/` (`start:lan` upstream); mkcert is
+  fallback. **Next XR-A slice:** plane hit-test (reticle, tap to place).
+  Then XR-B marker, XR-C Quest 3. Do not start a points renderer in the
+  same slice as further XR work.

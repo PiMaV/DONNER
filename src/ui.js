@@ -39,6 +39,8 @@ function fillSelect(el, values, selected) {
 
 export function bindUI(on) {
   const playBtn = $("btn-play");
+  const arBtn = $("btn-ar");
+  const xrExit = $("btn-xr-exit");
   const stepBtn = $("btn-step");
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
@@ -70,6 +72,7 @@ export function bindUI(on) {
   let clipNearBack = 0;
   let clipFarBack = 0;
   let stackDrag = null;
+  let arSupported = false;
   const grid = $("grid");
   const wrap = $("wrap");
   const stopStable = $("stop-stable");
@@ -81,6 +84,15 @@ export function bindUI(on) {
   const panelView = $("panel-view");
   const panelSource = $("panel-source");
   const hint = $("hint");
+  const sourceKind = $("source-kind");
+  const countFile = $("count-file");
+  const countDemo = $("btn-count-demo");
+  const countMeta = $("count-meta");
+  const countHint = $("count-hint");
+  const countSize = $("count-size");
+  const countLegLo = $("count-leg-lo");
+  const countLegMid = $("count-leg-mid");
+  const countLegHi = $("count-leg-hi");
   const preset = $("bench-preset");
   const presetHint = $("preset-hint");
   const dyn = $("bench-dynamics");
@@ -121,6 +133,9 @@ export function bindUI(on) {
   stabScale.checked = DEFAULTS.stabScale;
   encMin.checked = DEFAULTS.encodingMinimal;
   fullRebuild.checked = DEFAULTS.forceFullRebuild;
+  if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
+  if (countSize) countSize.checked = false;
+  document.body.classList.toggle("source-count", DEFAULTS.sourceKind === "count");
   const syncStabHint = () => {
     const key = stabMode.value;
     stabHint.textContent = STAB_HINT[key] || STAB_HINT.none;
@@ -146,6 +161,8 @@ export function bindUI(on) {
   syncLabels();
 
   playBtn.addEventListener("click", () => on.togglePlay());
+  if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
+  if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
@@ -204,6 +221,20 @@ export function bindUI(on) {
     if (applying) return;
     on.preset();
   });
+  sourceKind?.addEventListener("change", () => {
+    if (applying) return;
+    on.sourceKind?.();
+  });
+  countDemo?.addEventListener("click", () => on.countDemo?.());
+  countFile?.addEventListener("change", () => {
+    const file = countFile.files && countFile.files[0];
+    countFile.value = "";
+    if (file) on.countFile?.(file);
+  });
+  countSize?.addEventListener("change", () => {
+    if (applying) return;
+    on.countSize?.();
+  });
   const layoutStack = () => {
     const max = Number(stack.max) || 0;
     const foc = Number(stack.value) || 0;
@@ -237,13 +268,41 @@ export function bindUI(on) {
     return Math.round(Math.min(1, Math.max(0, frac)) * max);
   };
 
+  const handlePad = window.matchMedia("(pointer: coarse)").matches ? 22 : 12;
+  const handleKindAt = (e) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    const hits = [];
+    const consider = (el, kind) => {
+      if (!el || el.disabled) return;
+      const r = el.getBoundingClientRect();
+      if (
+        x < r.left - handlePad ||
+        x > r.right + handlePad ||
+        y < r.top - handlePad ||
+        y > r.bottom + handlePad
+      ) {
+        return;
+      }
+      const cx = r.left + r.width * 0.5;
+      const cy = r.top + r.height * 0.5;
+      hits.push({ kind, d: (x - cx) ** 2 + (y - cy) ** 2 });
+    };
+    consider(zFocus, "focus");
+    if (document.body.classList.contains("is-inspect")) {
+      consider(zClipNear, "near");
+      consider(zClipFar, "far");
+    }
+    if (!hits.length) return null;
+    hits.sort((a, b) => a.d - b.d);
+    return hits[0].kind;
+  };
+
   const kindFromPointer = (e) => {
     if (stack.disabled) return null;
-    const inspect = document.body.classList.contains("is-inspect");
-    if (e.target === zClipNear && inspect) return "near";
-    if (e.target === zClipFar && inspect) return "far";
-    if (e.target === zFocus) return "focus";
-    if (!inspect) return "focus";
+    const fromHandle = handleKindAt(e);
+    if (fromHandle) return fromHandle;
+    if (!document.body.classList.contains("is-inspect")) return "focus";
     const back = backFromPointer(e);
     const foc = Number(stack.value) || 0;
     const dN = Math.abs(back - clipNearBack);
@@ -280,6 +339,7 @@ export function bindUI(on) {
   };
   stackTrack.addEventListener("pointerup", endDrag);
   stackTrack.addEventListener("pointercancel", endDrag);
+  stackTrack.addEventListener("lostpointercapture", endDrag);
   stackTrack.addEventListener(
     "wheel",
     (e) => {
@@ -365,10 +425,14 @@ export function bindUI(on) {
         encodingMinimal: encMin.checked,
         forceFullRebuild: fullRebuild.checked,
         preset: preset.value,
+        sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
+        countSize: countSize ? countSize.checked : false,
       };
     },
     applyPreset(p) {
       applying = true;
+      if (sourceKind) sourceKind.value = "conway";
+      document.body.classList.remove("source-count");
       pattern.value = p.pattern;
       grid.value = String(p.width);
       history.value = String(p.visible);
@@ -388,6 +452,14 @@ export function bindUI(on) {
       playBtn.textContent = playing ? "Pause" : "Play";
       playBtn.setAttribute("aria-pressed", playing ? "true" : "false");
       playBtn.classList.toggle("is-live", playing);
+    },
+    setArAvailable(ok) {
+      arSupported = Boolean(ok);
+      if (arBtn) arBtn.hidden = !arSupported || document.body.classList.contains("is-ar");
+    },
+    setArActive(active) {
+      if (xrExit) xrExit.hidden = !active;
+      if (arBtn) arBtn.hidden = !arSupported || active;
     },
     setEditing(editing) {
       editBtn.classList.toggle("is-on", editing);
@@ -431,16 +503,36 @@ export function bindUI(on) {
       stackThumbTime.textContent = String(tFocus);
       layoutStack();
     },
-    setCache({ gens, events, full, inspect, atNow = true }) {
+    setCache({ gens, events, full, inspect, atNow = true, tick = "gen", source = "conway" }) {
       cacheStatus.textContent = formatCacheStatus({
         gens,
         events,
         full,
         tapeMode: Boolean(inspect),
+        tick,
       });
-      editBtn.disabled = Boolean(inspect) && !atNow;
-      stepBtn.disabled = Boolean(inspect);
+      const count = source === "count";
+      editBtn.disabled = count || (Boolean(inspect) && !atNow);
+      stepBtn.disabled = count ? false : Boolean(inspect);
       document.body.classList.toggle("is-inspect", Boolean(inspect));
+    },
+    setSourceKind(kind) {
+      const count = kind === "count";
+      if (sourceKind) sourceKind.value = count ? "count" : "conway";
+      document.body.classList.toggle("source-count", count);
+    },
+    setCountMeta(text) {
+      if (countMeta) countMeta.textContent = text || "";
+    },
+    setCountHint(text) {
+      if (countHint) countHint.textContent = text;
+    },
+    setCountLegend(ceiling) {
+      const hi = Math.max(1, ceiling | 0);
+      const mid = Math.max(1, Math.round((1 + hi) / 2));
+      if (countLegLo) countLegLo.textContent = "1";
+      if (countLegMid) countLegMid.textContent = String(mid);
+      if (countLegHi) countLegHi.textContent = String(hi);
     },
     setHint(text) {
       hint.textContent = text;

@@ -13,3 +13,5 @@ dist/
 certs/
 __pycache__/
 *.pyc
+data/*.npy
+!data/ignition_stack.npy

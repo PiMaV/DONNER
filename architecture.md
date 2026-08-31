@@ -25,10 +25,10 @@ flowchart TB
 flowchart LR
   subgraph sources [Data sources]
     conway[Conway simulation]
-    evt[Event camera later]
+    count[EVT count stack npy]
   end
   conway --> soa[Event SoA x y t v]
-  evt --> soa
+  count --> soa
   soa --> rend[Space-time renderer]
   rend --> view[Three.js scene]
 ```
@@ -43,7 +43,7 @@ identity baked into the renderer.
 flowchart LR
   subgraph source [Source addon]
     conway[Conway B3/S23]
-    evt[Event camera later]
+    count[EVT count stack]
   end
   subgraph adapter [Encoding adapter]
     mapK[Color k]
@@ -57,7 +57,7 @@ flowchart LR
     hud[FPS INST]
   end
   conway --> adapter
-  evt --> adapter
+  count --> adapter
   adapter --> soa2[EventSoA]
   soa2 --> engine
 ```
@@ -65,22 +65,22 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Bird, Z stack, Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
-| **Source (Conway)** | Pattern, Seed, Wrap, Grid size, Speed, Step, Reset, Edit; HUD GEN / LIVE / RATE | Sheet **Source** (own left card) + right source HUD. Swap later for file/stream + that source's stats |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Event later: polarity (other fill TBD). | Block inside the **View** sheet (legend + Stability). LUT in `src/encoding.js` |
+| **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
 
 **Play** is one display button, always visible outside the sheets.
-**Play** is Live View: the generator runs, the playhead stays at Now, the
-Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer opens its RAM
-tape, Z is gen 0 … cached Now, and **every cached slice is drawn** (no
-sliding Depth window — cubes must not pop in from nothing). Play from
-Inspect jumps to live Now (no tape replay). **Depth** is live-only GPU
-wake. **Decay** and the cache are viewer-owned. Decay is on/off: fade
-toward the oldest drawn slice (live: back of Depth; inspect: tape start).
+For Conway, **Play** is Live View: the generator runs, the playhead stays
+at Now, the Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer
+opens its RAM tape, Z is gen 0 … cached Now, and **every cached slice is
+drawn**. Play from Inspect jumps to live Now (no tape replay). A **count
+stack** loads already-complete, so it opens in Inspect; **Play** scrubs Z
+through the recording (loops). **Depth** is live-only GPU wake (hidden
+in Inspect). **Decay** and the cache are viewer-owned. Decay is on/off:
+fade toward the oldest drawn slice (live: back of Depth; inspect: tape start).
 
-The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX`,
-`encodingFill`). An event source will swap that LUT. Do not move GEN into
-Encoding.
+The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX` or
+`countKindHex`, `encodingFill`). Do not move GEN into Encoding.
 
 The left chrome is two sheets, not one mixed panel:
 
@@ -93,13 +93,24 @@ flowchart TB
     bench[Bench]
   end
   subgraph source [Source slot]
-    gen[GEN LIVE RATE]
+    kind[Conway or Count]
+    gen[GEN LIVE RATE or T LIVE SUM]
     conway[Pattern Seed Speed Edit]
+    npy[npy cube]
   end
   view --> volume[Volume]
   playT[Play transport]
   playT --> volume
   source --> volume
+  kind --> conway
+  kind --> npy
+```
+
+```mermaid
+flowchart TB
+  npy[EVT count npy] --> sparse[Nonzero voxels]
+  sparse --> soa[Event SoA]
+  soa --> cubes[Solid cubes + ghost above focus]
 ```
 
 ```mermaid
@@ -140,20 +151,21 @@ flowchart LR
   z[Z time] --> stack[Past below / ghost above]
 ```
 
-| Concept | Conway | Event camera (later) | Product axis | Engine (Three.js) |
-|---------|--------|----------------------|--------------|-------------------|
+| Concept | Conway | Count stack | Product axis | Engine (Three.js) |
+|---------|--------|-------------|--------------|-------------------|
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
-| Time | generation | timestamp | Z (plane at 0; past below, newer above) | world Y |
-| Value | alive = 1 | polarity | — | `v` |
-| Dynamics | still / osc / transit / warmup | later (not this classifier) | `k` (color); time stays on Z | `k` |
+| Time | generation | bin index (Δt slice) | Z (plane at 0; past below, newer above) | world Y |
+| Value | alive = 1 | integer count | — | `v` |
+| Dynamics | still / osc / transit / warmup | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
-not the destination. Live demos target event-camera streams
-(`x, y, timestamp, polarity`) through the same SoA. Still / oscillator /
-transit and the 5×5 motion gate live in `src/dynamics.js` as a **Conway
-adapter**. Do not treat that legend as the event-camera product: polarity,
-rate, and other encodings attach later. The renderer only consumes packed
-events (`x, y, t, v, k, s`).
+not the destination. The first event-camera path is an EVT **count** cube
+(`(T, H, W)` uint16, events per pixel per Δt) unpacked into the same SoA.
+Polarity / occupancy / states encodings and live streams attach later.
+Still / oscillator / transit and the 5×5 motion gate live in
+`src/dynamics.js` as a **Conway adapter**. Do not treat that legend as the
+event-camera product. The renderer only consumes packed events
+(`x, y, t, v, k, s`).
 
 Time is not a fake spatial dimension: it is the third axis of a space-time
 volume. **Start with a blinker**, not a glider: the pattern sits still in
@@ -171,11 +183,13 @@ the RAM tape; **Pause** draws that whole tape.
 
 This split matches the later event-camera design:
 
-- **Depth** — live GPU budget (wake). Hidden while Inspect.
-- **Playhead (Z stack)** — Live: locked at Now. Inspect (Pause): position on the tape
+- **Depth** — live GPU budget (wake). Hidden while Inspect (count stacks
+  load already-complete, so they open in Inspect).
+- **Playhead (Z stack)** — Conway Live: locked at Now. Inspect / count:
+  position on the tape. Count **Play** auto-scrubs that playhead.
 - **Decay** — on: fade to 0 at the oldest drawn slice. Off: even brick.
 - **Encoding** — color and fill from the source adapter (Conway: worldline
-  class still / oscillator / transit / warmup, not age)
+  class still / oscillator / transit / warmup; count: integer rungs)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
@@ -303,8 +317,8 @@ flowchart TB
   Cliff-finder: scale Depth / Grid until FPS and 1% low hold. A clear
   software rasterizer adds **SOFTWARE**. Path timers and GPU strings live
   in the control-sheet **Bench** block, not this card.
-- **Source (Conway)** — GEN, LIVE, RATE (generations/s, not frame rate),
-  EDIT. Swap this block when an event source lands.
+- **Source** — Conway: GEN, LIVE, RATE (generations/s, not frame rate),
+  EDIT. Count: T, LIVE, SUM, MAX, RATE (playhead/s while Play scrubs).
 
 The Z stack is a tick rail, not a HUD card: **Now**, the bar, the
 generation beside the handle. Ends are **absolute** generations (oldest
@@ -324,7 +338,9 @@ grow the DOM.
 | `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ bird-eye camera |
-| `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway today) |
+| `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
+| `src/count.js` | Sparse count volume → `EventSoA` |
+| `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
 | `src/main.js` | Scene, loop, dirty flags, edit/paint, camera, Z slab |
@@ -348,8 +364,8 @@ setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, is
 ```
 
 Color `k` and fill `s` are encoding fields. The renderer indexes
-`src/encoding.js` (`CONWAY_KIND_HEX`, `encodingFill`) and does not
-import Conway dynamics. An event source will swap the LUT.
+`src/encoding.js` (`CONWAY_KIND_HEX` or `countKindHex`, `encodingFill`)
+and does not import Conway dynamics.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
@@ -358,17 +374,17 @@ No WebSocket, no BLITZ sync, no EVT3 decode in the browser. Those attach
 behind the same SoA later:
 
 ```text
-Event camera → sidecar → standardized events
+Event camera → sidecar → count cube .npy
                           ├─ BLITZ (dense stack)
                           ├─ DONNER (space-time 3D)
                           └─ DONNER XR (same scene)
 ```
 
-File format is not the runtime contract. Later sources may arrive as `.npy`
-or `.npz` (WETTER’s NumPy interchange), a stream, or a sidecar. A **source
-adapter** unpacks them into `EventSoA`. A monolithic NPZ is a transport
-container, not random-access slicing — do not teach the renderer to read
-NPZ. No NPY/NPZ loader in this tree.
+File format is not the runtime contract. A **source adapter** unpacks
+`.npy` count cubes (`src/npy.js` + `src/count.js`) into `EventSoA`. A
+monolithic NPZ is still a transport container — do not teach the renderer
+to read NPZ. Polarity / occupancy / states views of the same ON/OFF
+planes are later encodings, not extra parsers.
 
 ## Delivery (product / renderer / shells)
 
@@ -456,11 +472,12 @@ at 5×5). Dynamics and Stability stay on for teaching.
 
 ## Dirty state
 
-`requestAnimationFrame` no longer rebuilds the volume every frame.
+The animation loop (`setAnimationLoop`) no longer rebuilds the volume every
+frame. XR frames come from the same callback.
 
 ```mermaid
 flowchart TB
-  raf[requestAnimationFrame]
+  raf[setAnimationLoop]
   cam[camera dirty]
   view[view dirty]
   src[source dirty]
@@ -560,37 +577,54 @@ flowchart LR
   s1[Stage1 Conway]
   p1[P1 Instrument]
   p2[P2 DirtyState]
-  xra[XR-A later]
+  xra[XR-A session]
   p3[P3 Cross platform]
   pts[Point renderer later]
   s1 --> p1 --> p2 --> xra --> p3 --> pts
 ```
 
 1. **Conway 3D** — this tree (P1 timers + P2 dirty/window are in)
-2. **Event camera** — `x, y, t, polarity` behind the same SoA (not next)
-3. **XR** — same scene, WebXR only. **P1/P2 baseline is met; XR-A is the
-   next stage when opened.** Phone tabletop AR first, then a marker
-   origin, then Quest 3 passthrough. Detail in [backlog.md](backlog.md).
-   Do not start XR-A in the same slice as a new renderer.
+2. **Event camera** — count-stack `.npy` is in (same SoA). Polarity /
+   occupancy / states encodings, sidecar ingest, and EVT3-in-browser are
+   later.
+3. **XR** — same scene, WebXR only. **XR-A session is opened:**
+   passthrough + viewer-front volume. The DOM overlay is `#xr-overlay`
+   (Play / Z / Exit), not `document.body`. Hit-test is the next XR-A
+   slice. Then a marker origin (XR-B), then Quest 3 passthrough (XR-C).
+   Detail in [backlog.md](backlog.md). Do not start a new renderer in
+   the same slice as XR.
 4. **Integration** — optional sidecar / BLITZ via dataset + ROI, not shared
    widgets. Later: Open in DONNER / send space-time ROI back to BLITZ.
 
 Product **Z** (time) already stands on the playfield plane, so a table
 is a natural origin: past below the surface, ghost above. Phone orbit
-today is not AR. Three.js WebXR lives in vendor; the app does not yet
-enable it (`renderer.xr.enabled`, hit-test, AR overlay). One codebase:
-feature-detect `immersive-ar`, pause orbit controls in session, keep
-`setEvents(...)`. Phone HTTPS is `npm run start:https` (mkcert). An
-ole.icu proxy LXC is backlog. iOS Safari AR is not the demo path unless
-`navigator.xr` actually supports it. Chrome later (Source off the rail,
-thin View) is in [backlog.md](backlog.md) and is not a gate for XR-A.
+is still the non-AR fallback. One codebase: feature-detect
+`immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
+`setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
+laptop `start:lan`). mkcert (`npm run start:https`) is fallback if the
+LXC is down. Do not use `pve.ole.icu:8006`. iOS Safari AR is not the
+demo path unless `navigator.xr` actually supports it. Chrome later
+(Source off the rail, thin View) is in [backlog.md](backlog.md) and is
+not a gate for XR-A.
+
+```mermaid
+flowchart LR
+  phone[Phone Chrome]
+  lab[lab.ole.icu Caddy LXC]
+  laptop["Laptop :8765 start:lan"]
+  phone -->|HTTPS LE| lab
+  lab -->|reverse_proxy| laptop
+  laptop --> xr[WebXR immersive-ar]
+  xr --> vol[Volume world-locked in front of viewer]
+```
 
 ```mermaid
 flowchart TB
   subgraph phone [Phone tabletop AR]
-    hit[Hit-test: tap table place volume]
+    sess[Session: passthrough, volume in front]
+    hit[Next: hit-test tap table to place]
     walk[Walk around with phone as window]
-    hit --> walk
+    sess --> hit --> walk
   end
   subgraph marker [Marker origin]
     tag[AprilTag or printed playfield frame]
@@ -608,7 +642,8 @@ flowchart TB
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Plane hit-test | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-A session** | Viewer-front, then world-locked (~0.8 m, 32 cells ≈ 40 cm) | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-A next** | Plane hit-test (reticle, tap to place) | Same |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Same phone AR; marker reused on Quest |
 | **XR-C** | Hit-test and/or marker | Quest 3 passthrough; hands / Z scrub later |
 

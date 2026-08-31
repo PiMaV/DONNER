@@ -11,7 +11,8 @@ import {
   probeGpu,
 } from "./bench.js";
 import { ConwayWorld, gridsEqual, seedPattern } from "./conway.js";
-import { encodingCubeFill } from "./encoding.js";
+import { countVolumeFromNpy } from "./count.js";
+import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex, encodingCubeFill } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ } from "./observe.js";
@@ -49,6 +50,12 @@ import {
   exitBirdEye,
   fitBirdFrustum,
 } from "./view.js";
+import {
+  isImmersiveArSupported,
+  requestImmersiveAr,
+  viewerFrontPosition,
+  xrStageScale,
+} from "./xr.js";
 
 const canvas = document.getElementById("view");
 const hudViewEl = document.getElementById("hud-view");
@@ -64,7 +71,7 @@ const coarse = window.matchMedia("(pointer: coarse)").matches;
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: !coarse,
-  alpha: false,
+  alpha: true,
   powerPreference: "high-performance",
 });
 renderer.setClearColor(COLOR.bg, 1);
@@ -72,10 +79,17 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
+renderer.xr.enabled = true;
 
 const scene = new THREE.Scene();
 const fog = new THREE.Fog(COLOR.bg, 48, 160);
 scene.fog = fog;
+const stage = new THREE.Group();
+stage.name = "stage";
+scene.add(stage);
+const _xrPos = new THREE.Vector3();
+const _xrQuat = new THREE.Quaternion();
+const _hitLocal = new THREE.Vector3();
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
 camera.position.set(22, 16, 28);
@@ -106,24 +120,27 @@ fill.position.set(-20, 8, -12);
 scene.add(fill);
 
 const soa = new EventSoA(DEFAULTS.maxInstances);
-const cubes = new CubeRenderer(scene, {
+const cubes = new CubeRenderer(stage, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
-const playfield = new FocusFrame(scene, COLOR.cyan);
-const clipNearFrame = new FocusFrame(scene, COLOR.gold);
-const clipFarFrame = new FocusFrame(scene, COLOR.gold);
+const playfield = new FocusFrame(stage, COLOR.cyan);
+const clipNearFrame = new FocusFrame(stage, COLOR.gold);
+const clipFarFrame = new FocusFrame(stage, COLOR.gold);
 clipNearFrame.setVisible(false);
 clipFarFrame.setVisible(false);
-const axes = new CoordinateFrame(scene);
-const hairlines = new PlaneHairlines(scene);
-const beacon = new IsolateBeacon(scene, DEFAULTS.cellSize);
-const hover = new HoverOutlines(scene, DEFAULTS.cellSize);
+const axes = new CoordinateFrame(stage);
+const hairlines = new PlaneHairlines(stage);
+const beacon = new IsolateBeacon(stage, DEFAULTS.cellSize);
+const hover = new HoverOutlines(stage, DEFAULTS.cellSize);
 
 let world;
 let ring;
 let tape;
 let tapeMode = false;
+let sourceId = "conway";
+let countVol = null;
+let countSizeByCount = false;
 let focusSurface;
 let nowGrid;
 let playing = true;
@@ -158,6 +175,7 @@ let lastSpanKey = "";
 let stableStreak = 0;
 let stoppedStable = false;
 let prevGrid = new Uint8Array(0);
+let arPlacePending = false;
 
 const clock = new FrameClock();
 const paths = new PathTimer();
@@ -171,12 +189,19 @@ const ui = bindUI({
   toggleBird,
   fitVolume,
   step: () => {
+    if (sourceId === "count") {
+      playing = false;
+      ui.setPlaying(false);
+      stepCountPlayhead();
+      updateHint();
+      return;
+    }
     if (tapeMode) return;
     enterInspect();
     stepOnce();
     updateHint();
   },
-  reset: () => bootWorld(false),
+  reset: () => (sourceId === "count" ? applyFocus(0) : bootWorld(false)),
   rebuild: () => bootWorld(true),
   speed: () => {
     gensPerSec = ui.getConfig().gensPerSec;
@@ -227,6 +252,21 @@ const ui = bindUI({
     tapeMode = false;
     bootWorld(true);
   },
+  sourceKind: () => {
+    switchSource(ui.getConfig().sourceKind);
+  },
+  countDemo: () => {
+    loadCountDemo();
+  },
+  countFile: (file) => {
+    loadCountFromFile(file);
+  },
+  countSize: () => {
+    countSizeByCount = ui.getConfig().countSize;
+    dirtyEncoding = true;
+  },
+  enterAr,
+  exitAr,
 });
 
 function activeCamera() {
@@ -280,9 +320,76 @@ function maxFocusBack() {
   return Math.min(world.generation, historyLen);
 }
 
+function arPresenting() {
+  return renderer.xr.isPresenting;
+}
+
+function resetStageOrbit() {
+  stage.position.set(0, 0, 0);
+  stage.quaternion.identity();
+  stage.scale.setScalar(1);
+}
+
+function placeStageInFrontOfViewer() {
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  cam.updateMatrixWorld();
+  cam.getWorldPosition(_xrPos);
+  cam.getWorldQuaternion(_xrQuat);
+  const front = viewerFrontPosition(
+    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
+    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
+  );
+  stage.position.set(front.x, front.y, front.z);
+  stage.quaternion.identity();
+  stage.scale.setScalar(xrStageScale(DEFAULTS.cellSize));
+}
+
+async function enterAr() {
+  if (arPresenting()) return;
+  if (birdEye) toggleBird();
+  const xr = navigator.xr;
+  if (!(await isImmersiveArSupported(xr))) return;
+  const overlay = document.getElementById("xr-overlay") || document.body;
+  try {
+    const session = await requestImmersiveAr(xr, overlay);
+    await renderer.xr.setSession(session);
+  } catch (err) {
+    console.warn("WebXR session failed", err);
+  }
+}
+
+function exitAr() {
+  const session = renderer.xr.getSession();
+  if (session) session.end();
+}
+
+function onArSessionStart() {
+  document.documentElement.classList.add("is-ar");
+  document.body.classList.add("is-ar");
+  renderer.setClearAlpha(0);
+  controls.enabled = false;
+  arPlacePending = true;
+  syncFog();
+  ui.setArActive(true);
+  updateHint();
+}
+
+function onArSessionEnd() {
+  document.documentElement.classList.remove("is-ar");
+  document.body.classList.remove("is-ar");
+  renderer.setClearAlpha(1);
+  controls.enabled = true;
+  arPlacePending = false;
+  resetStageOrbit();
+  syncFog();
+  pinOrbitPivot();
+  ui.setArActive(false);
+  updateHint();
+}
+
 function syncFog() {
   const inspect = inspectMode();
-  scene.fog = birdEye || inspect ? null : fog;
+  scene.fog = birdEye || inspect || arPresenting() ? null : fog;
   hemi.intensity = inspect ? 1.08 : 0.72;
   key.intensity = inspect ? 1.05 : 0.9;
 }
@@ -315,7 +422,7 @@ function currentSlabY() {
 }
 
 function pinOrbitPivot() {
-  if (birdEye || !world) return;
+  if (arPresenting() || birdEye || !world) return;
   const { yMid } = currentSlabY();
   if (!Number.isFinite(yMid)) return;
   if (!Number.isFinite(camera.position.x)) {
@@ -330,7 +437,7 @@ function pinOrbitPivot() {
 }
 
 function fitVolume() {
-  if (!world) return;
+  if (!world || arPresenting()) return;
   if (birdEye) {
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
     fitBirdFrustum(birdCam, world.width, world.height, DEFAULTS.cellSize, aspect);
@@ -406,6 +513,8 @@ function syncCacheUi() {
     full: tape.stopped,
     inspect: tapeMode,
     atNow: focusBack === 0,
+    tick: sourceId === "count" ? "t" : "gen",
+    source: sourceId,
   });
 }
 
@@ -428,8 +537,172 @@ function syncBeacon() {
   );
 }
 
+function layoutPlayfield(width, height) {
+  if (focusSurface) stage.remove(focusSurface);
+  if (nowGrid) stage.remove(nowGrid);
+  focusSurface = createFocusSurface(width, height, DEFAULTS.cellSize);
+  nowGrid = createNowGrid(width, height, DEFAULTS.cellSize);
+  playfield.setSize(width, height, DEFAULTS.cellSize);
+  clipNearFrame.setSize(width, height, DEFAULTS.cellSize);
+  clipFarFrame.setSize(width, height, DEFAULTS.cellSize);
+  axes.setSize(width, height, DEFAULTS.cellSize);
+  stage.add(focusSurface);
+  stage.add(nowGrid);
+  if (hoverCell && (hoverCell.x >= width || hoverCell.y >= height)) {
+    hoverCell = null;
+  }
+}
+
+function countWorld(vol) {
+  return {
+    width: vol.width,
+    height: vol.height,
+    generation: vol.newestT(),
+    wrap: false,
+    grid: new Uint8Array(0),
+    step() {},
+    toggle() {
+      return false;
+    },
+  };
+}
+
+function stabForFill() {
+  if (sourceId === "count") return countSizeByCount ? "time" : "none";
+  return stabScaleOn ? stabMode : "none";
+}
+
+function encodingWarmupK() {
+  return sourceId === "count" ? -1 : CONWAY_WARMUP_K;
+}
+
+function markGps() {
+  const now = performance.now();
+  if (lastStepAt) {
+    gpsSteps += 1;
+    gpsWindow += (now - lastStepAt) / 1000;
+    if (gpsWindow >= 0.4) {
+      measuredGps = gpsSteps / gpsWindow;
+      gpsSteps = 0;
+      gpsWindow = 0;
+    }
+  }
+  lastStepAt = now;
+}
+
+function stepCountPlayhead() {
+  const max = maxFocusBack();
+  if (max <= 0) return;
+  if (focusBack <= 0) applyFocus(max);
+  else applyFocus(focusBack - 1);
+  markGps();
+}
+
+function bootCount(vol) {
+  sourceId = "count";
+  countVol = vol;
+  countSizeByCount = ui.getConfig().countSize;
+  gensPerSec = ui.getConfig().gensPerSec;
+  decay = ui.getConfig().decay;
+  historyLen = ui.getConfig().history;
+  gridBrightness = ui.getConfig().gridBrightness;
+  encodingMinimal = ui.getConfig().encodingMinimal;
+  forceFullRebuild = ui.getConfig().forceFullRebuild;
+  playing = false;
+  editing = false;
+  tapeMode = true;
+  stoppedStable = false;
+  world = countWorld(vol);
+  ring = null;
+  tape = vol;
+  layoutPlayfield(vol.width, vol.height);
+  cubes.setKindHex(countKindHex(vol.ceiling), -1);
+  ui.setSourceKind("count");
+  ui.setCountLegend(vol.ceiling);
+  ui.setCountMeta(
+    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.ceiling} · ${vol.count} voxels`,
+  );
+  acc = 0;
+  clipNearBack = 0;
+  clipFarBack = Math.max(0, vol.newestT() - vol.oldestT());
+  applyFocus(0);
+  syncFog();
+  syncViewRange();
+  const span = Math.max(vol.width, vol.height);
+  camera.position.set(span * 0.55, Math.max(24, vol.nT * 0.45), span * 0.7);
+  controls.target.set(0, -Math.min(vol.nT, span) * 0.15, 0);
+  if (birdEye) {
+    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    fitBirdFrustum(birdCam, vol.width, vol.height, DEFAULTS.cellSize, aspect);
+  }
+  pinOrbitPivot();
+  ui.setPlaying(false);
+  ui.setEditing(false);
+  ui.setBird(birdEye);
+  syncBeacon();
+  lastSpanKey = "";
+  hoverKey = "";
+  dirtySource = true;
+  dirtyView = true;
+  dirtyEncoding = true;
+  paths.reset();
+  clock.reset();
+  fillAndUpload();
+  syncCacheUi();
+  fitVolume();
+  updateHint();
+}
+
+async function loadCountFromUrl(url, name) {
+  ui.setSourceKind("count");
+  ui.setCountHint(`Loading ${name}…`);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    const buf = await res.arrayBuffer();
+    bootCount(countVolumeFromNpy(buf, name));
+    ui.setCountHint("EVT count cube (T × H × W). Integer events per pixel per Δt.");
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    ui.setCountHint(`Could not load ${name}. Use Load .npy (${msg}).`);
+    if (!countVol) {
+      ui.setSourceKind("conway");
+      sourceId = "conway";
+    }
+    updateHint();
+  }
+}
+
+function loadCountDemo() {
+  return loadCountFromUrl(DEFAULTS.countDemoUrl, DEFAULTS.countDemoName);
+}
+
+async function loadCountFromFile(file) {
+  ui.setCountHint(`Loading ${file.name}…`);
+  try {
+    const buf = await file.arrayBuffer();
+    const name = String(file.name || "count").replace(/\.npy$/i, "");
+    bootCount(countVolumeFromNpy(buf, name));
+    ui.setCountHint("EVT count cube (T × H × W). Integer events per pixel per Δt.");
+  } catch (err) {
+    ui.setCountHint(err && err.message ? err.message : String(err));
+    updateHint();
+  }
+}
+
+function switchSource(kind) {
+  if (kind === "count") {
+    if (countVol) bootCount(countVol);
+    else loadCountDemo();
+    return;
+  }
+  playing = true;
+  bootWorld(true);
+}
+
 function bootWorld(resizeGrid) {
   const cfg = ui.getConfig();
+  sourceId = "conway";
   gensPerSec = cfg.gensPerSec;
   decay = cfg.decay;
   historyLen = cfg.history;
@@ -441,9 +714,6 @@ function bootWorld(resizeGrid) {
   encodingMinimal = cfg.encodingMinimal;
   forceFullRebuild = cfg.forceFullRebuild;
   tapeMode = !playing;
-
-  if (focusSurface) scene.remove(focusSurface);
-  if (nowGrid) scene.remove(nowGrid);
 
   world = new ConwayWorld({
     width: cfg.width,
@@ -461,19 +731,9 @@ function bootWorld(resizeGrid) {
   });
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
   tape.pushGrid(world.grid, world.width, world.height, world.generation);
-
-  focusSurface = createFocusSurface(cfg.width, cfg.height, DEFAULTS.cellSize);
-  nowGrid = createNowGrid(cfg.width, cfg.height, DEFAULTS.cellSize);
-  playfield.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
-  clipNearFrame.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
-  clipFarFrame.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
-  axes.setSize(cfg.width, cfg.height, DEFAULTS.cellSize);
-  scene.add(focusSurface);
-  scene.add(nowGrid);
-
-  if (hoverCell && (hoverCell.x >= cfg.width || hoverCell.y >= cfg.height)) {
-    hoverCell = null;
-  }
+  layoutPlayfield(cfg.width, cfg.height);
+  cubes.setKindHex(CONWAY_KIND_HEX, CONWAY_WARMUP_K);
+  ui.setSourceKind("conway");
 
   acc = 0;
   stableStreak = 0;
@@ -510,6 +770,18 @@ function bootWorld(resizeGrid) {
 }
 
 function togglePlay() {
+  if (sourceId === "count") {
+    if (playing) {
+      playing = false;
+      ui.setPlaying(false);
+    } else {
+      playing = true;
+      ui.setPlaying(true);
+      if (focusBack === 0) applyFocus(maxFocusBack());
+    }
+    updateHint();
+    return;
+  }
   if (playing) {
     editing = false;
     ui.setEditing(false);
@@ -523,6 +795,7 @@ function togglePlay() {
 }
 
 function toggleEdit() {
+  if (sourceId === "count") return;
   if (tapeMode && focusBack !== 0) return;
   if (playing) {
     enterInspect();
@@ -538,6 +811,7 @@ function toggleEdit() {
 }
 
 function toggleBird() {
+  if (arPresenting()) return;
   birdEye = !birdEye;
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   if (birdEye) {
@@ -582,7 +856,15 @@ function syncClipPlanes() {
 
 function updateHint() {
   const atNow = focusBack === 0;
-  if (tapeMode && stoppedStable) {
+  if (arPresenting()) {
+    ui.setHint("AR — volume is world-locked in front of you · Exit returns to orbit");
+  } else if (sourceId === "count") {
+    ui.setHint(
+      playing
+        ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
+        : "Count stack — cyan plane · gold cuts · Play scrubs Z · Load another .npy in Source",
+    );
+  } else if (tapeMode && stoppedStable) {
     ui.setHint(
       `Inspect — still for ${DEFAULTS.stableHold} gens · cyan plane · gold cuts · Play is live`,
     );
@@ -617,6 +899,7 @@ function maybeStopStable() {
 }
 
 function stepOnce() {
+  if (sourceId === "count") return;
   if (prevGrid.length !== world.grid.length) prevGrid = new Uint8Array(world.grid.length);
   prevGrid.set(world.grid);
   world.step();
@@ -631,17 +914,7 @@ function stepOnce() {
     stableStreak += 1;
     maybeStopStable();
   }
-  const now = performance.now();
-  if (lastStepAt) {
-    gpsSteps += 1;
-    gpsWindow += (now - lastStepAt) / 1000;
-    if (gpsWindow >= 0.4) {
-      measuredGps = gpsSteps / gpsWindow;
-      gpsSteps = 0;
-      gpsWindow = 0;
-    }
-  }
-  lastStepAt = now;
+  markGps();
   dirtySource = true;
 }
 
@@ -650,7 +923,7 @@ function fillVolume() {
   const span = inspectMode() ? volumeSpan() : null;
   store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
     tFocus: tFocus(),
-    stabMode: stabScaleOn ? stabMode : "none",
+    stabMode: stabForFill(),
     height: world.height,
     wrap: world.wrap,
     dynamics: dynamicsOn,
@@ -673,7 +946,7 @@ function uploadInstances() {
     width: world.width,
     height: world.height,
     history: volumeWindow(),
-    stabMode: stabScaleOn ? stabMode : "none",
+    stabMode: stabForFill(),
     cellSize: DEFAULTS.cellSize,
     isolate: null,
     sliceOnly: birdEye,
@@ -730,9 +1003,11 @@ function hitCell(event, cubesToo = false) {
   const objs = cubesToo ? [cubes.solid, cubes.ghost, focusSurface] : [focusSurface];
   const hits = raycaster.intersectObjects(objs, false);
   if (!hits.length) return null;
+  _hitLocal.copy(hits[0].point);
+  stage.worldToLocal(_hitLocal);
   return cellFromWorldXZ(
-    hits[0].point.x,
-    hits[0].point.z,
+    _hitLocal.x,
+    _hitLocal.z,
     world.width,
     world.height,
     DEFAULTS.cellSize,
@@ -740,7 +1015,7 @@ function hitCell(event, cubesToo = false) {
 }
 
 function paintAt(event) {
-  if (!editing || focusBack !== 0) return;
+  if (sourceId === "count" || !editing || focusBack !== 0) return;
   const cell = hitCell(event);
   if (!cell) return;
   if (world.toggle(cell.x, cell.y)) {
@@ -766,10 +1041,14 @@ function syncHover() {
     return;
   }
   const foc = tFocus();
-  const key = `${hoverCell.x},${hoverCell.y},${foc},${soa.count},${stabMode},${stabScaleOn}`;
+  const key = `${hoverCell.x},${hoverCell.y},${foc},${soa.count},${stabForFill()}`;
   if (key === hoverKey) return;
   hoverKey = key;
-  const fill = encodingCubeFill(eventAt(soa, hoverCell.x, hoverCell.y, foc), stabScaleOn ? stabMode : "none");
+  const fill = encodingCubeFill(
+    eventAt(soa, hoverCell.x, hoverCell.y, foc),
+    stabForFill(),
+    encodingWarmupK(),
+  );
   hover.set(hoverCell, world.width, world.height, DEFAULTS.cellSize, fill);
 }
 
@@ -782,6 +1061,7 @@ function updateHover(event) {
 }
 
 function resize() {
+  if (arPresenting()) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   renderer.setSize(w, h, false);
@@ -845,14 +1125,22 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     togglePlay();
   } else if (e.code === "KeyE") {
-    toggleEdit();
+    if (sourceId !== "count") toggleEdit();
   } else if (e.code === "KeyB") {
     toggleBird();
   } else if (e.code === "KeyF") {
     fitVolume();
   } else if (e.code === "Escape") {
-    if (birdEye) toggleBird();
+    if (arPresenting()) exitAr();
+    else if (birdEye) toggleBird();
   } else if (e.code === "Period" || e.code === "KeyN") {
+    if (sourceId === "count") {
+      playing = false;
+      ui.setPlaying(false);
+      stepCountPlayhead();
+      updateHint();
+      return;
+    }
     if (tapeMode) return;
     enterInspect();
     stepOnce();
@@ -867,7 +1155,8 @@ window.addEventListener("keydown", (e) => {
     clipNearBack = 0;
     applyFocus(0);
   } else if (e.code === "KeyR") {
-    bootWorld(false);
+    if (sourceId === "count") applyFocus(0);
+    else bootWorld(false);
   }
 });
 
@@ -881,7 +1170,8 @@ function frame(now) {
     paths.measure("sim", () => {
       while (playing && acc >= 1 && steps < DEFAULTS.maxStepCatchUp) {
         acc -= 1;
-        stepOnce();
+        if (sourceId === "count") stepCountPlayhead();
+        else stepOnce();
         steps += 1;
       }
     });
@@ -893,8 +1183,14 @@ function frame(now) {
 
   syncVolume();
   paths.measure("hover", syncHover);
-  pinOrbitPivot();
-  controls.update();
+  if (arPlacePending && arPresenting()) {
+    placeStageInFrontOfViewer();
+    arPlacePending = false;
+  }
+  if (!arPresenting()) {
+    pinOrbitPivot();
+    controls.update();
+  }
   paths.measure("rend", () => {
     renderer.render(scene, activeCamera());
   });
@@ -924,6 +1220,9 @@ function frame(now) {
       gps: playing ? measuredGps || gensPerSec : 0,
       editing,
       tape: tapeMode,
+      kind: sourceId,
+      sum: sourceId === "count" && countVol ? countVol.sumAt(foc) : 0,
+      ceiling: sourceId === "count" && countVol ? countVol.ceiling : 0,
     });
     if (tape) {
       ui.setCache({
@@ -932,6 +1231,8 @@ function frame(now) {
         full: tape.stopped,
         inspect: tapeMode,
         atNow: focusBack === 0,
+        tick: sourceId === "count" ? "t" : "gen",
+        source: sourceId,
       });
     }
     drawSparkline(hudSparkEl, clock);
@@ -946,11 +1247,12 @@ function frame(now) {
       });
     }
   });
-
-  requestAnimationFrame(frame);
 }
 
 resize();
 bootWorld(true);
 ui.setPlaying(playing);
-requestAnimationFrame(frame);
+renderer.xr.addEventListener("sessionstart", onArSessionStart);
+renderer.xr.addEventListener("sessionend", onArSessionEnd);
+isImmersiveArSupported().then((ok) => ui.setArAvailable(ok));
+renderer.setAnimationLoop(frame);

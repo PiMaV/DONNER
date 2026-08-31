@@ -67,6 +67,12 @@ export class CubeRenderer {
     this._kindColor = kindHex.map((hex) => new THREE.Color(hex));
   }
 
+  /** Swap the encoding LUT without rebuilding the instanced meshes. */
+  setKindHex(kindHex, warmupK = this._warmupK) {
+    this._kindColor = kindHex.map((hex) => new THREE.Color(hex));
+    this._warmupK = warmupK;
+  }
+
   /**
    * @param {import("./spacetime.js").EventSoA} soa
    * @param {{
@@ -190,16 +196,40 @@ export function createFocusSurface(width, height, cellSize) {
 }
 
 export function createNowGrid(width, height, cellSize) {
-  const span = Math.max(width, height) * cellSize;
-  const divs = Math.max(width, height);
-  const grid = new THREE.GridHelper(span, divs, COLOR.grid, COLOR.gridDiv);
-  grid.position.y = 0.01;
-  const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
-  for (const m of mats) {
-    m.transparent = true;
-    m.opacity = 0.35;
-    m.fog = false;
+  if (width === height) {
+    const span = width * cellSize;
+    const grid = new THREE.GridHelper(span, width, COLOR.grid, COLOR.gridDiv);
+    grid.position.y = 0.01;
+    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+    for (const m of mats) {
+      m.transparent = true;
+      m.opacity = 0.35;
+      m.fog = false;
+    }
+    return grid;
   }
+  const hw = (width * cellSize) / 2;
+  const hd = (height * cellSize) / 2;
+  const pos = [];
+  for (let i = 0; i <= width; i++) {
+    const x = -hw + i * cellSize;
+    pos.push(x, 0, -hd, x, 0, hd);
+  }
+  for (let j = 0; j <= height; j++) {
+    const z = -hd + j * cellSize;
+    pos.push(-hw, 0, z, hw, 0, z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+  const mat = new THREE.LineBasicMaterial({
+    color: COLOR.grid,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    fog: false,
+  });
+  const grid = new THREE.LineSegments(geo, mat);
+  grid.position.y = 0.01;
   return grid;
 }
 

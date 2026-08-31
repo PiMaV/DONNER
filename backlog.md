@@ -4,11 +4,20 @@ Shipped work is in [`CHANGELOG.md`](CHANGELOG.md). Remaining product
 stages live under **Later** in [`architecture.md`](architecture.md) and
 [`docs/gui.md`](docs/gui.md).
 
-**Later:** event-camera source on the same `EventSoA`, a polarity (or
-other) encoding LUT, then the XR ladder below. P1 instrumentation and
-P2 dirty-state / visible window are in this tree — the P1/P2 gate for
-XR-A is met. NPY/NPZ loaders, a points renderer, and slice-append SoA
-updates are also later.
+**Later:** polarity / occupancy / states encodings on the same `EventSoA`,
+sidecar ingest, then the XR ladder below. Count-stack `.npy` is in.
+P1 instrumentation and P2 dirty-state / visible window are in this tree.
+NPZ loaders, a points renderer, and slice-append SoA updates are also later.
+
+## Public connection
+
+https://github.com/uzh-rpg/event-based_vision_resources#software-utilities
+
+Hier mal PR oder so.
+würde eigentlich sehr gut passen
+(eher zu event viewer?)
+
+## coord system wie in CAD; damit man von der seite schauen kann und immer orientiert ist
 
 ## Chrome (desktop / phone orbit — not XR-A)
 
@@ -31,39 +40,41 @@ applies: AR chrome is not the desktop sheets.
 
 ## HTTPS / ops
 
-**Phone / XR tests:** local mkcert — `npm run cert` then
-`npm run start:https` (see README). Trust the mkcert CA on the phone
-once. Re-issue if the LAN IP changes.
+**Phone / XR URL:** `https://lab.ole.icu/` (Caddy LXC, Let’s Encrypt,
+LAN DNS). Upstream is the laptop: `npm run start:lan` on
+`192.168.178.30:8765`. A 502 means DONNER is not listening. Do not serve
+DONNER from `pve.ole.icu:8006`. The Caddyfile stays on the CT, not in
+this git.
 
-**Later (ops):** an ole.icu reverse-proxy LXC (Let's Encrypt DNS-01, same
-split-horizon pattern as `pve.ole.icu`, no WAN). No lab LXC yet. Do not
-serve DONNER from `pve.ole.icu:8006`.
+**Fallback:** local mkcert — `npm run cert` then `npm run start:https`
+(see README) when the LXC is down. Trust the mkcert CA on the phone
+once. Re-issue if the LAN IP changes.
 
 ## XR ladder
 
 Tech demo, same Three.js scene — not a Unity fork, not a projector, not a
-native iOS wrapper. P1/P2 baseline is in; **XR-A is the next product
-stage when opened**. Do not start XR-A in the same slice as a new
-renderer (points / million-event).
+native iOS wrapper. P1/P2 baseline is in; **XR-A session is opened**.
+Do not start a new renderer (points / million-event) in the same slice
+as hit-test or XR-B/C.
 
 ```mermaid
 flowchart LR
-  xra[XR-A phone tabletop]
+  xra[XR-A session]
   xrb[XR-B marker origin]
   xrc[XR-C Quest 3 passthrough]
   xra --> xrb --> xrc
 ```
 
-1. **XR-A — phone tabletop.** WebXR `immersive-ar`, plane **hit-test**:
-   tap a table, place the volume, walk around with the phone as a window.
-   Demo path is **Android Chrome**. iPhone only if `navigator.xr` actually
-   supports AR; otherwise treat it as blocked. No 8th Wall, no ARKit
-   shell. Feature-detect; fallback is today's orbit viewer. **HTTPS**
-   for that test is local mkcert (`npm run start:https`), not an ole.icu
-   LXC. Keep Depth/Grid smaller than the desktop 200 000-cube envelope.
-   AR UI is a thin overlay (Play, Z scrub, Exit); Bird-eye is usually
-   redundant (you look down yourself). Pause `OrbitControls` while a
-   session is active. Renderer contract `setEvents(...)` stays.
+1. **XR-A — phone tabletop.** WebXR `immersive-ar` on **Android Chrome**.
+   **Opened (session slice):** passthrough, volume ~0.8 m in front of the
+   viewer then world-locked, tabletop scale (32 cells ≈ 40 cm). Feature
+   detect; no AR button if `immersive-ar` is missing. Orbit is the
+   fallback. **HTTPS** is `https://lab.ole.icu/` (`start:lan` upstream);
+   mkcert is fallback. AR chrome is Play, Z, Exit. Pause `OrbitControls`
+   in session. `setEvents(...)` stays. **Next slice:** plane **hit-test**
+   (reticle, tap a table to place). Teaching 32 is enough; no extra
+   Depth/Grid cap this stage. iPhone only if `navigator.xr` actually
+   supports AR. No 8th Wall, no ARKit shell.
 
 2. **XR-B — marker origin.** AprilTag or a printed gold playfield frame
    for a repeatable origin and metric scale. Optional gag: the print *is*
@@ -76,7 +87,8 @@ flowchart LR
    capture feel; XR-A is only the window demo.
 
 Out of this ladder: projection mapping, Unreal, Vision Pro as a first
-target, event-camera import (stage 2).
+target. Count-stack `.npy` is in; polarity encodings and EVT3-in-browser
+stay later.
 
 ## Isolation (later)
 

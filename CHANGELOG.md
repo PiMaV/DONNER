@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-31
+
+### Added
+
+- Source switch: **Conway** or an EVT **count stack** (`.npy` cube). Count is events per pixel per Δt; cubes sit where the count is > 0. Color is a discrete cyan → gold → coral ramp by integer count. **Play** scrubs Z through the recording; **Pause** inspects the brick. Demo file: `data/ignition_stack.npy` (symlink to the local EVT dataset) or **Load .npy**.
+- XR-A session: WebXR `immersive-ar` with camera passthrough. The volume sits about 0.8 m in front of the viewer, world-locked at tabletop scale (32 cells ≈ 40 cm). **AR** is shown only when the device supports it; **Exit** returns to orbit. Plane hit-test is not in this slice.
+- Phone AR URL `https://lab.ole.icu/` (Caddy LXC, Let’s Encrypt) reverse-proxies `npm run start:lan` on the laptop. `npm run start:https` (mkcert) stays the fallback when the LXC is down.
+
+### Changed
+
+- While an AR session is active, brand, View/Source sheets, and the FPS chip hide. Play and the Z stack stay. Bird-eye is not offered in AR.
+
+### Fixed
+
+- AR session showed the HUD but no camera or volume: the WebXR DOM overlay was `document.body`, so the opaque page background covered passthrough. Overlay is now Play / Z / Exit only (`#xr-overlay`), and `html` goes transparent in session.
+- Phone Z-stack handles were too small to grab; hit targets are larger and the timeline does not steal the drag as a page scroll.
 ## [0.1.0] - 2026-08-31
 
 ### Added

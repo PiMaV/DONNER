@@ -133,6 +133,24 @@ describe("HUD copy", () => {
     assert.doesNotMatch(src, /1%/);
   });
 
+  it("prints count-stack stats without Conway GEN/EDIT", () => {
+    const src = formatSourceHud({
+      generation: 12,
+      live: 80,
+      gps: 4.5,
+      kind: "count",
+      sum: 210,
+      ceiling: 9,
+    });
+    assert.match(src, /T {4}12/);
+    assert.match(src, /LIVE 80/);
+    assert.match(src, /SUM {2}210/);
+    assert.match(src, /MAX {2}9/);
+    assert.match(src, /COUNT/);
+    assert.doesNotMatch(src, /GEN/);
+    assert.doesNotMatch(src, /EDIT/);
+  });
+
   it("adds a SOFTWARE line when the rasterizer is a CPU fallback", () => {
     const view = formatViewHud({
       fps: 12,

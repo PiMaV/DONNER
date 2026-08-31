@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>DONNER | Space-Time Explorer</title>
   <meta name="description"
-    content="DONNER is a browser space-time explorer for structured scientific data. Conway's Game of Life is the first demonstrator; event-camera streams come next." />
+    content="DONNER is a browser space-time explorer for structured scientific data. Conway's Game of Life and event-camera count stacks share the same volume." />
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -38,6 +38,7 @@
 
   <button type="button" id="hud-fps" class="fps-chip" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
 
+  <div id="xr-overlay" class="xr-overlay">
   <div class="hud-rail">
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
@@ -69,9 +70,12 @@
         <span id="stack-bot" class="stack-cap">−0</span>
       </aside>
       <div id="transport" class="transport">
+        <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
+        <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
+  </div>
   </div>
 
   <div class="fold-bar">
@@ -107,7 +111,7 @@
 
     <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
       <h2 id="sheet-encoding" class="sheet-label">Encoding</h2>
-      <label class="field" title="How cube size encodes stability. Hover an option for details.">
+      <label class="field encoding-conway" title="How cube size encodes stability. Hover an option for details.">
         <span>Stability</span>
         <select id="stab-mode">
           <option value="none"
@@ -124,12 +128,22 @@
           </option>
         </select>
       </label>
-      <p id="stab-hint" class="hint stab-hint"></p>
-      <ul class="legend" aria-label="Color encoding">
+      <p id="stab-hint" class="hint stab-hint encoding-conway"></p>
+      <ul class="legend encoding-conway" aria-label="Color encoding">
         <li><i class="swatch still"></i> Still</li>
         <li><i class="swatch osc"></i> Oscillator</li>
         <li><i class="swatch flow"></i> Transit</li>
         <li><i class="swatch warmup"></i> Warmup</li>
+      </ul>
+      <label class="check encoding-count" title="Cube size follows the integer count. Off: occupancy only, color carries the count.">
+        <input id="count-size" type="checkbox" />
+        <span>Size by count</span>
+      </label>
+      <p id="count-enc-hint" class="hint encoding-count">Color is events per pixel per Δt. Cyan = 1, gold = mid, coral = max.</p>
+      <ul class="legend encoding-count" aria-label="Count encoding">
+        <li><i class="swatch osc"></i> <span id="count-leg-lo">1</span></li>
+        <li><i class="swatch still"></i> <span id="count-leg-mid">mid</span></li>
+        <li><i class="swatch flow"></i> <span id="count-leg-hi">max</span></li>
       </ul>
     </section>
 
@@ -173,6 +187,18 @@
     <div id="panel-source" class="controls panel-source">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="sheet-source">
       <h2 id="sheet-source" class="sheet-label">Source</h2>
+      <label class="field">
+        <span>Source</span>
+        <select id="source-kind">
+          <option value="conway" selected>Conway</option>
+          <option value="count">Count stack</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Speed <em id="speed-val"></em></span>
+        <input id="speed" type="range" min="1" max="60" step="1" />
+      </label>
+      <div id="source-conway">
       <div class="btn-row">
         <button type="button" id="btn-step" class="btn">Step</button>
         <button type="button" id="btn-edit" class="btn btn-edit" aria-pressed="false">Edit</button>
@@ -189,10 +215,6 @@
         <input id="seed" type="number" min="0" max="2147483647" step="1" />
       </label>
       <label class="field">
-        <span>Speed <em id="speed-val"></em></span>
-        <input id="speed" type="range" min="1" max="60" step="1" />
-      </label>
-      <label class="field">
         <span>Grid</span>
         <select id="grid"></select>
       </label>
@@ -204,6 +226,17 @@
         <input id="stop-stable" type="checkbox" />
         <span>Stop when stable</span>
       </label>
+      </div>
+      <div id="source-count">
+        <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt.</p>
+        <div class="btn-row">
+          <button type="button" id="btn-count-demo" class="btn">Ignition demo</button>
+          <label class="btn file-btn">Load .npy
+            <input id="count-file" type="file" accept=".npy,application/octet-stream" />
+          </label>
+        </div>
+        <p id="count-meta" class="hint"></p>
+      </div>
     </section>
     </div>
   </form>
