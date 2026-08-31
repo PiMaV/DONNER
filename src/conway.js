@@ -205,6 +205,14 @@ export function seedPattern(name, height, width, rng, density = 0.28) {
   return seedPattern("Random", h, w, rng, density);
 }
 
+export function gridsEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export function countLive(grid) {
   let n = 0;
   for (let i = 0; i < grid.length; i++) n += grid[i];
@@ -228,25 +236,32 @@ export function collectLive(grid, width, height, xs, ys) {
 
 export class ConwayWorld {
   constructor({ width, height, wrap = true }) {
-    this.width = width;
-    this.height = height;
+    this.width = Math.max(8, width | 0);
+    this.height = Math.max(8, height | 0);
     this.wrap = wrap;
     this.generation = 0;
-    this._a = new Uint8Array(width * height);
-    this._b = new Uint8Array(width * height);
+    this._a = new Uint8Array(this.width * this.height);
+    this._b = new Uint8Array(this.width * this.height);
     this.grid = this._a;
   }
 
   load(grid) {
-    this.grid.set(grid);
+    this._a.fill(0);
+    this._b.fill(0);
+    this.grid = this._a;
+    if (grid && grid.length) {
+      this.grid.set(grid.subarray(0, Math.min(grid.length, this.grid.length)));
+    }
     this.generation = 0;
   }
 
   step() {
     const next = this.grid === this._a ? this._b : this._a;
     stepClassicInto(this.grid, next, this.width, this.height, this.wrap);
+    const changed = !gridsEqual(this.grid, next);
     this.grid = next;
     this.generation += 1;
+    return changed;
   }
 
   toggle(x, y) {

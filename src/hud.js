@@ -107,6 +107,22 @@ export class FrameClock {
     }
     return Math.min(rawDt, SIM_DT_MAX);
   }
+
+  reset() {
+    this.emaMs = 16.7;
+    this.fps = 60;
+    this._last = null;
+    this._frames = 0;
+    this._acc = 0;
+    this.displayFps = 0;
+    this.displayMs = 16.7;
+    this.count = 0;
+    this.head = 0;
+    this.lowCount = 0;
+    this.lowHead = 0;
+    this.displayLow1 = 0;
+    this.displayLow01 = 0;
+  }
 }
 
 export function formatViewHud({
@@ -122,6 +138,7 @@ export function formatViewHud({
   bird = false,
   isolating = false,
   isolate = null,
+  software = false,
 }) {
   const trunc = truncated ? " trunc" : "";
   const lines = [
@@ -134,18 +151,20 @@ export function formatViewHud({
     `FOC  ${focus}`,
     playing ? "PLAY" : "PAUSE",
   ];
+  if (software) lines.push("SOFTWARE");
   if (bird) lines.push("BIRD");
   if (isolate) lines.push(`ISO  ${isolate.x},${isolate.y}`);
   else if (isolating) lines.push("ISO  …");
   return lines.join("\n");
 }
 
-export function formatSourceHud({ generation, live, gps, editing }) {
+export function formatSourceHud({ generation, live, gps, editing, tape = false }) {
   const lines = [
     `GEN  ${generation}`,
     `LIVE ${live}`,
     `RATE ${gps.toFixed(1)} /s`,
   ];
+  if (tape) lines.push("TAPE");
   if (editing) lines.push("EDIT");
   return lines.join("\n");
 }

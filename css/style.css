@@ -60,8 +60,8 @@ body {
 
 .brand,
 .hud-rail,
-.controls,
-.fold,
+.controls-root,
+.fold-bar,
 .legal,
 .fps-chip {
   position: fixed;
@@ -202,7 +202,7 @@ body {
   pointer-events: auto;
   flex: 1 1 auto;
   min-height: 140px;
-  width: 4.1rem;
+  width: 4.8rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -217,7 +217,7 @@ body {
   position: static;
   pointer-events: auto;
   flex: 0 0 auto;
-  width: 4.1rem;
+  width: 4.8rem;
 }
 
 .stack-name {
@@ -270,6 +270,76 @@ body {
   min-height: 80px;
 }
 
+.stack-rail {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+
+.stack-slab {
+  position: absolute;
+  left: 18px;
+  width: 3px;
+  top: calc(var(--near) * 100%);
+  height: calc((var(--far) - var(--near)) * 100%);
+  min-height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 197, 61, 0.85);
+  box-shadow: 0 0 8px rgba(255, 197, 61, 0.35);
+  pointer-events: none;
+}
+
+body:not(.is-inspect) .stack-slab,
+body:not(.is-inspect) .z-clip {
+  display: none;
+}
+
+.z-handle {
+  --frac: 0;
+  position: absolute;
+  top: calc(var(--frac) * 100%);
+  transform: translateY(-50%);
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  cursor: ns-resize;
+  z-index: 2;
+}
+
+.z-handle:focus-visible {
+  outline: 1px solid var(--dampf);
+  outline-offset: 2px;
+}
+
+.z-clip {
+  left: 2px;
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--donner);
+  box-shadow: 0 0 8px rgba(255, 197, 61, 0.4);
+}
+
+.z-focus {
+  left: 14px;
+  width: 22px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--dampf);
+  box-shadow: 0 0 10px rgba(0, 255, 242, 0.55);
+  z-index: 3;
+}
+
+.z-focus:disabled,
+.stack-range:disabled + .z-focus {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .stack-ticks {
   position: absolute;
   left: 0;
@@ -298,7 +368,7 @@ body {
 .stack-thumb-time {
   --frac: 0;
   position: absolute;
-  left: 26px;
+  left: 40px;
   top: calc(var(--frac) * 100%);
   transform: translateY(-50%);
   color: var(--dampf);
@@ -315,15 +385,22 @@ body {
   top: 0;
   bottom: 0;
   height: 100%;
-  width: 14px;
+  width: 22px;
   margin: 0;
   writing-mode: vertical-lr;
   direction: ltr;
   -moz-orient: vertical;
   appearance: none;
   background: transparent;
-  accent-color: var(--dampf);
   cursor: ns-resize;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stack-range:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .stack-range::-webkit-slider-runnable-track {
@@ -358,10 +435,18 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
-.fold {
+.fold-bar {
   display: none;
   bottom: calc(12px + var(--safe-b));
   left: calc(12px + var(--safe-l));
+  right: calc(12px + var(--safe-r));
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.fold {
+  display: none;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
@@ -370,12 +455,21 @@ body {
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   padding: 10px 14px;
+  pointer-events: auto;
 }
 
-.controls {
+.controls-root {
   top: calc(76px + var(--safe-t));
   left: calc(12px + var(--safe-l));
   width: min(280px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100dvh - 140px);
+  overflow: auto;
+}
+
+.controls {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -384,8 +478,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: calc(100dvh - 140px);
-  overflow: auto;
 }
 
 .sheet-label {
@@ -405,6 +497,48 @@ body {
 
 [data-slot="encoding"] .sheet-label {
   color: var(--donner);
+}
+
+[data-slot="bench"] .sheet-label {
+  color: var(--muted);
+}
+
+.hud-bench {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+#bench-cliff strong {
+  color: var(--blitz);
+  font-weight: 650;
+}
+
+.is-hidden {
+  display: none;
+}
+
+.inspect-only {
+  display: none;
+}
+
+body.is-inspect .inspect-only {
+  display: block;
+}
+
+body.is-inspect #depth-field {
+  display: none;
+}
+
+body.is-software .fps-chip {
+  color: var(--blitz);
+  border-color: rgba(255, 90, 79, 0.55);
+}
+
+#hud-gpu.is-soft {
+  color: var(--blitz);
 }
 
 .sheet-block {
@@ -456,6 +590,11 @@ body {
 .btn:focus-visible {
   border-color: rgba(255, 197, 61, 0.45);
   outline: none;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .btn:active {
@@ -591,9 +730,13 @@ body {
 }
 
 @media (max-width: 720px) {
+  .fold-bar {
+    display: flex;
+    z-index: 3;
+  }
+
   .fold {
     display: block;
-    z-index: 3;
   }
 
   .fps-chip {
@@ -605,10 +748,23 @@ body {
     display: none;
   }
 
-  .controls {
+  .controls-root {
     top: auto;
     left: calc(12px + var(--safe-l));
     right: calc(12px + var(--safe-r));
+    bottom: 0;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    pointer-events: none;
+    background: none;
+    gap: 0;
+  }
+
+  .controls {
+    position: absolute;
+    left: 0;
+    right: 0;
     bottom: calc(118px + var(--safe-b));
     width: auto;
     max-height: 38dvh;
@@ -694,6 +850,44 @@ body {
     width: auto;
   }
 
+  .stack-rail {
+    left: 0;
+    right: 0;
+    top: 16px;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+  }
+
+  .stack-slab {
+    left: calc((1 - var(--far)) * 100%);
+    width: calc((var(--far) - var(--near)) * 100%);
+    top: 16px;
+    height: 3px;
+    min-height: 0;
+    min-width: 4px;
+  }
+
+  .z-handle {
+    top: 8px;
+    left: calc((1 - var(--frac)) * 100%);
+    transform: translateX(-50%);
+    cursor: ew-resize;
+  }
+
+  .z-clip {
+    top: 22px;
+    width: 10px;
+    height: 12px;
+  }
+
+  .z-focus {
+    top: 6px;
+    left: calc((1 - var(--frac)) * 100%);
+    width: 16px;
+    height: 18px;
+  }
+
   .btn-stack-now {
     order: 3;
     flex: 0 0 auto;
@@ -739,6 +933,7 @@ body {
     writing-mode: horizontal-tb;
     direction: rtl;
     cursor: ew-resize;
+    pointer-events: none;
   }
 
   .stack-range::-webkit-slider-runnable-track {

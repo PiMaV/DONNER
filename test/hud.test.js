@@ -65,6 +65,18 @@ describe("FrameClock", () => {
     assert.ok(clock.low1Fps < 15);
     assert.ok(clock.low01Fps < 15);
   });
+
+  it("reset clears the rolling window so a new preset does not inherit hitches", () => {
+    const clock = new FrameClock();
+    clock.tick(0);
+    clock.tick(100);
+    clock.reset();
+    assert.equal(clock.count, 0);
+    assert.equal(clock.lowCount, 0);
+    clock.tick(0);
+    clock.tick(16);
+    assert.ok(clock.avgMs < 30);
+  });
 });
 
 describe("meanSlowestMs", () => {
@@ -109,13 +121,31 @@ describe("HUD copy", () => {
     assert.match(view, /PLAY/);
     assert.match(view, /BIRD/);
     assert.match(view, /ISO {2}3,4/);
+    assert.doesNotMatch(view, /SOFTWARE/);
     assert.doesNotMatch(view, /GEN/);
     assert.doesNotMatch(view, /RATE/);
     assert.match(src, /GEN {2}40/);
     assert.match(src, /LIVE 9/);
     assert.match(src, /RATE 8\.2 \/s/);
     assert.match(src, /EDIT/);
+    assert.doesNotMatch(src, /TAPE/);
     assert.doesNotMatch(src, /FPS/);
     assert.doesNotMatch(src, /1%/);
+  });
+
+  it("adds a SOFTWARE line when the rasterizer is a CPU fallback", () => {
+    const view = formatViewHud({
+      fps: 12,
+      avgFps: 12,
+      low1Fps: 10,
+      low01Fps: 9,
+      ms: 80,
+      instances: 10,
+      truncated: false,
+      focus: 0,
+      playing: false,
+      software: true,
+    });
+    assert.match(view, /SOFTWARE/);
   });
 });

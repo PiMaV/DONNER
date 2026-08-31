@@ -6,9 +6,9 @@
  *
  * Occupancy alone is not enough: a glider crawls over the same cell for
  * several gens, which looks like still/osc on that pixel. Still and osc
- * require the neighborhood centroid to stay put (net shift over two
- * gens below MOTION_THRESH). Translating activity is always transit —
- * that trail is the space-time curve.
+ * require a neighborhood centroid to stay put (net shift over two
+ * gens below MOTION_THRESH). Default is occupancy only (radius 0).
+ * 3×3 or 5×5 is a special case so gliders become transit tubes.
  *
  * Conway-only. Event-camera color is a later adapter; do not assume this
  * legend for polarity streams.
@@ -24,7 +24,7 @@ export const KIND_WARMUP = 3;
 /** Generations 0 .. CLASSIFY_AFTER-1 are unclassified. */
 export const CLASSIFY_AFTER = 2;
 
-/** 5×5 window; net centroid shift over two gens above this → transit. */
+/** Max motion window (5×5). 0 = occupancy only; 1 = 3×3; 2 = 5×5. */
 export const MOTION_RADIUS = 2;
 export const MOTION_THRESH = 0.3;
 
@@ -53,13 +53,14 @@ function minImage(d, n) {
   return d;
 }
 
-function neighborhoodCentroid(t, cx, cy, isLive, bounds) {
+function neighborhoodCentroid(t, cx, cy, isLive, bounds, radius) {
   const { width, height, wrap } = bounds;
+  const r = radius | 0;
   let sx = 0;
   let sy = 0;
   let n = 0;
-  for (let dy = -MOTION_RADIUS; dy <= MOTION_RADIUS; dy++) {
-    for (let dx = -MOTION_RADIUS; dx <= MOTION_RADIUS; dx++) {
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
       let x = cx + dx;
       let y = cy + dy;
       if (wrap) {
@@ -78,22 +79,39 @@ function neighborhoodCentroid(t, cx, cy, isLive, bounds) {
   return [sx / n, sy / n];
 }
 
+/**
+ * Motion-window radius from fill/bench opts. Default 0 (occupancy only).
+ * `neighborhood: false` keeps older tests; `true` means 5×5.
+ */
+export function kindOptsRadius(opts = {}) {
+  if (opts.neighborhoodRadius != null) return Math.max(0, opts.neighborhoodRadius | 0);
+  if (opts.neighborhood === false) return 0;
+  if (opts.neighborhood === true) return MOTION_RADIUS;
+  return 0;
+}
+
 /** True when live activity around this cell translated (spaceship, debris). */
-export function neighborhoodTranslated(t, packed, isLive, bounds) {
-  if (!bounds || t < CLASSIFY_AFTER) return false;
+export function neighborhoodTranslated(t, packed, isLive, bounds, radius = MOTION_RADIUS) {
+  if (!bounds || t < CLASSIFY_AFTER || radius < 1) return false;
   const cx = packed % bounds.width;
   const cy = (packed / bounds.width) | 0;
-  const now = neighborhoodCentroid(t, cx, cy, isLive, bounds);
-  const then = neighborhoodCentroid(t - 2, cx, cy, isLive, bounds);
+  const now = neighborhoodCentroid(t, cx, cy, isLive, bounds, radius);
+  const then = neighborhoodCentroid(t - 2, cx, cy, isLive, bounds, radius);
   if (!now || !then) return true;
   const dx = now[0] - then[0];
   const dy = now[1] - then[1];
   return Math.hypot(dx, dy) > MOTION_THRESH;
 }
 
-export function kindAt(t, packed, isLive, bounds) {
+/**
+ * @param {{ neighborhood?: boolean, neighborhoodRadius?: number }} [opts]
+ */
+export function kindAt(t, packed, isLive, bounds, opts = {}) {
   if (t < CLASSIFY_AFTER) return KIND_WARMUP;
-  if (neighborhoodTranslated(t, packed, isLive, bounds)) return KIND_TRANSIT;
+  const radius = kindOptsRadius(opts);
+  if (radius > 0 && neighborhoodTranslated(t, packed, isLive, bounds, radius)) {
+    return KIND_TRANSIT;
+  }
   return classifyWorldline(
     isLive(t - 1, packed),
     isLive(t - 2, packed),
@@ -102,15 +120,15 @@ export function kindAt(t, packed, isLive, bounds) {
 }
 
 /** Run length of the same non-transit class ending at `t`. 0 if dead or transit. */
-export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS, bounds) {
+export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS, bounds, kindOpts = {}) {
   if (!isLive(t, packed)) return 0;
-  const k0 = kindAt(t, packed, isLive, bounds);
+  const k0 = kindAt(t, packed, isLive, bounds, kindOpts);
   if (k0 === KIND_TRANSIT || k0 === KIND_WARMUP) return 0;
   let n = 1;
   while (n < cap) {
     const tp = t - n;
     if (!isLive(tp, packed)) break;
-    if (kindAt(tp, packed, isLive, bounds) !== k0) break;
+    if (kindAt(tp, packed, isLive, bounds, kindOpts) !== k0) break;
     n += 1;
   }
   return n;

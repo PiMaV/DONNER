@@ -7,6 +7,8 @@
   "scripts": {
     "start": "python3 -m http.server 8765 --bind 127.0.0.1",
     "start:lan": "python3 -m http.server 8765 --bind 0.0.0.0",
+    "cert": "bash scripts/mkcert-lan.sh",
+    "start:https": "bash scripts/start-https.sh",
     "test": "node --test test/*.test.js"
   }
 }

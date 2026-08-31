@@ -67,12 +67,54 @@ export function stackThumbFrac(back, maxBack) {
 }
 
 /**
+ * Inspect Z slab. `dragged` is which handle moved:
+ *   focus — playhead pushes the clips
+ *   near / far — that clip pushes the playhead (and the other clip if needed)
+ */
+export function clampSlab(topBack, focusBack, botBack, maxBack, dragged = "focus") {
+  const max = Math.max(0, maxBack | 0);
+  const clamp = (v) => Math.min(max, Math.max(0, v | 0));
+  let top = clamp(topBack);
+  let foc = clamp(focusBack);
+  let bot = clamp(botBack);
+  if (bot < top) bot = top;
+  if (dragged === "near") {
+    if (top > foc) foc = top;
+    if (foc > bot) bot = foc;
+  } else if (dragged === "far") {
+    if (bot < foc) foc = bot;
+    if (foc < top) top = foc;
+  } else {
+    if (foc < top) top = foc;
+    if (foc > bot) bot = foc;
+  }
+  return { topBack: top, focusBack: foc, botBack: bot };
+}
+
+/** Absolute generations for a slab given Now and back-offsets. */
+export function slabGenerations(tNow, topBack, botBack) {
+  const now = tNow | 0;
+  const hi = now - (topBack | 0);
+  const lo = now - (botBack | 0);
+  return { tLo: Math.min(lo, hi), tHi: Math.max(lo, hi) };
+}
+
+/**
  * Tick marks along the Z stack. One mark per stored step; majors at
  * ends and a coarse stride so a 96-deep window stays readable.
  */
 export function stackTickMarks(maxBack) {
   const max = Math.max(0, maxBack | 0);
   if (max === 0) return [{ frac: 0, major: true }];
+  if (max > 128) {
+    const stride = max > 512 ? 32 : 16;
+    const out = [{ frac: 0, major: true }];
+    for (let i = stride; i < max; i += stride) {
+      out.push({ frac: i / max, major: i % (stride * 4) === 0 });
+    }
+    out.push({ frac: 1, major: true });
+    return out;
+  }
   const stride = max > 48 ? 8 : max > 24 ? 4 : 1;
   const out = [];
   for (let i = 0; i <= max; i++) {

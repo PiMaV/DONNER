@@ -11,7 +11,9 @@
 
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
+import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
+import { depthFade } from "./fade.js";
 import { isolationWeight } from "./observe.js";
 
 function seedInstanceColors(mesh, maxCount, color) {
@@ -69,7 +71,8 @@ export class CubeRenderer {
    * @param {import("./spacetime.js").EventSoA} soa
    * @param {{
    *   tFocus: number,
-   *   decay: number,
+   *   decay: boolean,
+   *   fadeSpan: number,
    *   timeScale: number,
    *   width: number,
    *   height: number,
@@ -77,21 +80,25 @@ export class CubeRenderer {
    *   cellSize?: number,
    *   isolate?: { x: number, y: number } | null,
    *   sliceOnly?: boolean,
+   *   encodingMinimal?: boolean,
    * }} view
    */
   setEvents(soa, view) {
     const cell = view.cellSize ?? this.cellSize;
     const ox = (view.width - 1) * 0.5;
     const oz = (view.height - 1) * 0.5;
-    const decay = view.decay;
+    const decayOn = Boolean(view.decay);
+    const fadeSpan = Math.max(1, view.fadeSpan | 0);
     const timeScale = view.timeScale;
     const tFocus = view.tFocus;
     const isolate = view.isolate || null;
     const sliceOnly = Boolean(view.sliceOnly);
+    const minimal = Boolean(view.encodingMinimal);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
     const color = this._color;
     const kinds = this._kindColor;
+    const uniformKind = kinds[0];
 
     let iSolid = 0;
     let iGhost = 0;
@@ -105,8 +112,10 @@ export class CubeRenderer {
         (soa.y[i] - oz) * cell,
       );
       const k = soa.k[i] | 0;
-      const kind = kinds[k] || kinds[0];
-      const fill = encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
+      const kind = minimal ? uniformKind : kinds[k] || kinds[0];
+      const fill = minimal
+        ? SCALE_UNIFORM
+        : encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
       const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
       if (sliceOnly && Math.abs(dt) >= 0.5) continue;
 
@@ -114,7 +123,7 @@ export class CubeRenderer {
         const ageFade =
           dt > 0
             ? Math.exp(-GHOST_FALLOFF * dt)
-            : Math.exp(-decay * Math.max(0, -dt));
+            : depthFade(Math.max(0, -dt), fadeSpan, decayOn);
         dummy.scale.setScalar(cell * fill * 0.88);
         dummy.updateMatrix();
         this.ghost.setMatrixAt(iGhost, dummy.matrix);
@@ -134,12 +143,12 @@ export class CubeRenderer {
         iGhost += 1;
       } else {
         const age = -dt;
-        const w = Math.exp(-decay * age);
+        const w = depthFade(age, fadeSpan, decayOn);
         const onFocus = age < 0.5;
         dummy.scale.setScalar(cell * fill);
         dummy.updateMatrix();
         this.solid.setMatrixAt(iSolid, dummy.matrix);
-        color.copy(kind).multiplyScalar(onFocus ? 1 : 0.16 + 0.84 * w);
+        color.copy(kind).multiplyScalar(onFocus ? 1 : w);
         this.solid.setColorAt(iSolid, color);
         iSolid += 1;
       }
@@ -168,7 +177,7 @@ export class CubeRenderer {
 export function createFocusSurface(width, height, cellSize) {
   const geo = new THREE.PlaneGeometry(width * cellSize, height * cellSize);
   const mat = new THREE.MeshBasicMaterial({
-    color: COLOR.gold,
+    color: COLOR.cyan,
     transparent: true,
     opacity: 0.07,
     side: THREE.DoubleSide,
@@ -189,20 +198,21 @@ export function createNowGrid(width, height, cellSize) {
   for (const m of mats) {
     m.transparent = true;
     m.opacity = 0.35;
+    m.fog = false;
   }
   return grid;
 }
 
 /**
- * Playfield frame on the focus plane: outer rectangle only. X/Y numbers
- * live on the right-hand coordinate frame; Z time is the HUD stack slider.
+ * Rectangle ring on a time plane (product Z). Cyan = playhead; gold = slab cuts.
  */
 export class FocusFrame {
-  constructor(scene) {
+  constructor(scene, hex = COLOR.cyan) {
     this.scene = scene;
+    this._hex = hex;
     this.group = new THREE.Group();
     this._mat = new THREE.MeshBasicMaterial({
-      color: COLOR.frame,
+      color: hex,
       transparent: true,
       opacity: 0.92,
     });
@@ -234,9 +244,17 @@ export class FocusFrame {
     add(hw, t * 0.5, 0, t, t, height * cellSize);
   }
 
+  setY(y) {
+    this.group.position.y = y;
+  }
+
+  setVisible(on) {
+    this.group.visible = Boolean(on);
+  }
+
   setEditing(on) {
     this._mat.opacity = on ? 1 : 0.78;
-    this._mat.color.setHex(on ? COLOR.gold : COLOR.frame);
+    this._mat.color.setHex(this._hex);
   }
 
   dispose() {

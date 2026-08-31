@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ConwayWorld,
   countLive,
+  gridsEqual,
   seedPattern,
   stepClassic,
 } from "../src/conway.js";
@@ -55,6 +57,48 @@ describe("Conway B3/S23 (BLITZ parity)", () => {
     grid[2 * 5 + 2] = 1;
     const next = stepClassic(grid, 5, 5, false);
     assert.equal(countLive(next), 0);
+  });
+
+  it("step reports a still 2×2 block as unchanged", () => {
+    const world = new ConwayWorld({ width: 8, height: 8, wrap: true });
+    const grid = new Uint8Array(64);
+    grid[3 * 8 + 3] = 1;
+    grid[3 * 8 + 4] = 1;
+    grid[4 * 8 + 3] = 1;
+    grid[4 * 8 + 4] = 1;
+    world.load(grid);
+    assert.equal(world.step(), false);
+    assert.equal(world.step(), false);
+    assert.ok(gridsEqual(world.grid, grid));
+  });
+
+  it("a blinker never goes five generations without a change", () => {
+    const world = new ConwayWorld({ width: 9, height: 9, wrap: true });
+    world.load(seedPattern("Blinker", 9, 9, mulberry32(0)));
+    let hold = 0;
+    for (let i = 0; i < 16; i++) {
+      hold = world.step() ? 0 : hold + 1;
+      assert.ok(hold < 5);
+    }
+  });
+
+  it("a wrapping glider is never bitwise still", () => {
+    const world = new ConwayWorld({ width: 32, height: 32, wrap: true });
+    world.load(seedPattern("Glider", 32, 32, mulberry32(0)));
+    let hold = 0;
+    for (let i = 0; i < 80; i++) {
+      const prev = Uint8Array.from(world.grid);
+      world.step();
+      hold = gridsEqual(prev, world.grid) ? hold + 1 : 0;
+      assert.equal(hold, 0);
+    }
+  });
+
+  it("clamps a bad size so load still seeds a blinker", () => {
+    const world = new ConwayWorld({ width: Number.NaN, height: Number.NaN });
+    world.load(seedPattern("Blinker", world.height, world.width, mulberry32(0)));
+    assert.equal(world.width, 8);
+    assert.equal(countLive(world.grid), 3);
   });
 });
 
@@ -133,7 +177,7 @@ describe("worldline color class", () => {
       ring.pushGrid(grid, n, n, t);
       grid = stepClassic(grid, n, n, true);
     }
-    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true });
+    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 2 });
     let still = 0;
     let osc = 0;
     let transit = 0;
@@ -149,6 +193,49 @@ describe("worldline color class", () => {
     assert.equal(still, 0);
     assert.equal(osc, 0);
     assert.equal(warmup, 0);
+    assert.ok(transit > 0);
+  });
+
+  it("leaves glider occupancy as still/osc when neighborhood is off", () => {
+    const n = 16;
+    let grid = seedPattern("Glider", n, n, mulberry32(0));
+    const ring = new GenerationRing(24, n * n);
+    const soa = new EventSoA(n * n * 24);
+    for (let t = 0; t < 16; t++) {
+      ring.pushGrid(grid, n, n, t);
+      grid = stepClassic(grid, n, n, true);
+    }
+    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 0 });
+    let locked = 0;
+    for (let i = 0; i < soa.count; i++) {
+      if (soa.t[i] < 8) continue;
+      if (soa.k[i] === KIND_STILL || soa.k[i] === KIND_OSC) locked += 1;
+    }
+    assert.ok(locked > 0);
+  });
+
+  it("tags a glider as transit with a 3×3 neighborhood", () => {
+    const n = 16;
+    let grid = seedPattern("Glider", n, n, mulberry32(0));
+    const ring = new GenerationRing(24, n * n);
+    const soa = new EventSoA(n * n * 24);
+    for (let t = 0; t < 16; t++) {
+      ring.pushGrid(grid, n, n, t);
+      grid = stepClassic(grid, n, n, true);
+    }
+    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 1 });
+    let still = 0;
+    let osc = 0;
+    let transit = 0;
+    for (let i = 0; i < soa.count; i++) {
+      if (soa.t[i] < 8) continue;
+      const k = soa.k[i];
+      if (k === KIND_STILL) still += 1;
+      else if (k === KIND_OSC) osc += 1;
+      else if (k === KIND_TRANSIT) transit += 1;
+    }
+    assert.equal(still, 0);
+    assert.equal(osc, 0);
     assert.ok(transit > 0);
   });
 });

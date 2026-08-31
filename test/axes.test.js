@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  clampSlab,
   formatZTick,
   productToWorld,
   relativeTimeTicks,
+  slabGenerations,
   spatialTicks,
   stackThumbFrac,
   stackTickMarks,
@@ -57,5 +59,55 @@ describe("axis ticks", () => {
     assert.equal(marks[12].frac, 1);
     assert.ok(marks.filter((m) => m.major).length > 2);
     assert.equal(stackTickMarks(0).length, 1);
+  });
+
+  it("does not emit a DOM tick per generation on a 1000-deep resident buffer", () => {
+    const marks = stackTickMarks(1000);
+    assert.ok(marks.length < 80);
+    assert.equal(marks[0].frac, 0);
+    assert.equal(marks[marks.length - 1].frac, 1);
+  });
+});
+
+describe("Z slab", () => {
+  it("playhead pushes the clips when the focus handle moves", () => {
+    assert.deepEqual(clampSlab(0, 20, 40, 40, "focus"), {
+      topBack: 0,
+      focusBack: 20,
+      botBack: 40,
+    });
+    assert.deepEqual(clampSlab(25, 20, 40, 40, "focus"), {
+      topBack: 20,
+      focusBack: 20,
+      botBack: 40,
+    });
+    assert.deepEqual(clampSlab(0, 20, 10, 40, "focus"), {
+      topBack: 0,
+      focusBack: 20,
+      botBack: 20,
+    });
+  });
+
+  it("a clip handle pushes the playhead when dragged past it", () => {
+    assert.deepEqual(clampSlab(25, 20, 40, 40, "near"), {
+      topBack: 25,
+      focusBack: 25,
+      botBack: 40,
+    });
+    assert.deepEqual(clampSlab(0, 20, 10, 40, "far"), {
+      topBack: 0,
+      focusBack: 10,
+      botBack: 10,
+    });
+    assert.deepEqual(clampSlab(35, 20, 30, 40, "near"), {
+      topBack: 35,
+      focusBack: 35,
+      botBack: 35,
+    });
+  });
+
+  it("maps back-offsets to absolute generations", () => {
+    assert.deepEqual(slabGenerations(100, 0, 40), { tLo: 60, tHi: 100 });
+    assert.deepEqual(slabGenerations(100, 10, 10), { tLo: 90, tHi: 90 });
   });
 });

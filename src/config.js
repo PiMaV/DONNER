@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.1.0-dev";
+export const VERSION = "0.1.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -23,19 +23,28 @@ export const DEFAULTS = {
   width: 32,
   height: 32,
   wrap: true,
+  stopWhenStable: true,
+  stableHold: 5,
   pattern: "Blinker",
   seed: 42,
   density: 0.28,
   gensPerSec: 8,
-  decay: 0.12,
+  decay: true,
   history: 48,
   gridBrightness: 0.4,
   cellSize: 1,
   timeScale: 1,
   maxInstances: 200_000,
-  maxHistory: 96,
+  maxVisible: 128,
   maxStepCatchUp: 8,
   stabMode: "time",
+  dynamics: true,
+  neighborhoodRadius: 0,
+  stabScale: true,
+  encodingMinimal: false,
+  forceFullRebuild: false,
+  maxTapeSlices: 4096,
+  maxTapeEvents: 400_000,
 };
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];

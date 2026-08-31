@@ -16,6 +16,12 @@ Raw Data → DAMPF → KEIM → WOLKE → BLITZ
 ```
 
 DONNER is a parallel app, not a pipeline stage: **BLITZ & DONNER**.
+Explore in DONNER; analyze in BLITZ. They share a data source, not a GUI.
+
+The HTML+JS scene **is** the product window (demo, phone, later WebXR).
+Three.js is the current engine, not the name. A compiled desktop wrap
+comes only when local files or a sidecar exist — not as an empty EXE
+around `index.html`. Do not fold DONNER into BLITZ/PyQtGraph.
 
 ---
 
@@ -113,25 +119,42 @@ check the firewall for port 8765, or that the address still matches
 `hostname -I` (it can change). Fonts load from `mess.engineering`; without
 internet the app still runs, with system fonts.
 
+### HTTPS on the LAN (phone / WebXR)
+
+WebXR needs HTTPS. There is no lab reverse proxy yet. Local **mkcert**:
+
+```bash
+cd DONNER
+# once: install mkcert, then trust its CA on the phone
+#   $(mkcert -CAROOT)/rootCA.pem
+npm run start:https
+```
+
+That issues `certs/dev.pem` if missing (gitignored) and serves **https** on
+port 8765, all interfaces. Open the printed `https://<lan-ip>:8765/` URL.
+If the LAN IP changes, `npm run cert` again. Ole.icu / a Proxmox LXC is
+backlog — see [`backlog.md`](backlog.md).
+
 ## Stage 1 (this tree)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
 - Default teaching seed: Blinker (glider is the XY-motion case)
-- Instanced cubes, Window along the time axis (product **Z**)
-- Decay, speed, Window length, play / pause / step / reset
+- Instanced cubes, Depth along the time axis (product **Z**)
+- Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **Z stack** (desktop: beside the HUD, Now at top; phone: bottom timeline, Now at the right)
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - Bird-eye: orthographic top view of the focus plane
-- Isolation: double-click a cube to keep one worldline
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time
+- Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
+- **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses a still or empty board after five identical grids (not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
-- Control sheet grouped as View / Source / Encoding
+- Two left sheets: **View** (display + encoding + bench) and **Source** (Conway). Phone: View ▸ / Source ▸.
+- Dirty-state render loop: camera motion does not rebuild EventSoA
 
-**Not in v1:** Fibonacci, event-camera import, backend, streaming,
-BLITZ sync, WebXR.
+**Not in v1:** Fibonacci, event-camera import, NPY/NPZ loader, backend, streaming,
+BLITZ sync, WebXR, points renderer.
 
 ## Architecture
 

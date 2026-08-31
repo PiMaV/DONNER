@@ -10,3 +10,6 @@ dist/
 .cache/
 *.prof
 .donner-smoke.png
+certs/
+__pycache__/
+*.pyc
