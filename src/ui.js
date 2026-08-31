@@ -41,6 +41,7 @@ export function bindUI(on) {
   const playBtn = $("btn-play");
   const arBtn = $("btn-ar");
   const xrExit = $("btn-xr-exit");
+  const arMag = $("ar-mag");
   const stepBtn = $("btn-step");
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
@@ -163,6 +164,7 @@ export function bindUI(on) {
   playBtn.addEventListener("click", () => on.togglePlay());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
+  if (arMag && on.arMag) arMag.addEventListener("input", () => on.arMag());
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
@@ -460,6 +462,9 @@ export function bindUI(on) {
     setArActive(active) {
       if (xrExit) xrExit.hidden = !active;
       if (arBtn) arBtn.hidden = !arSupported || active;
+    },
+    getArMag() {
+      return arMag ? Number(arMag.value) : 1;
     },
     setEditing(editing) {
       editBtn.classList.toggle("is-on", editing);

@@ -31,7 +31,7 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   gate so gliders become transit tubes (5×5 is the CPU cliff). Cube scale
   follows Stability mode (`none` / `time` / `focus`)
   via `s`, not decay. Oscillators encode as occupancy along Z, not extra
-  hues. Default seed: Blinker; default Stability: Time.
+  hues. Default seed: R-pentomino, started paused; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - Bird-eye (`B`) is orthographic top-down onto Z = 0 and draws **only the
@@ -65,12 +65,16 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
   (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
   Bench. Camera-only frames must not call `fillSoA`.
-  XR-A session: feature-detect `immersive-ar` and hide **AR** if false.
-  Visible volume lives on a `stage` group, placed once ~0.8 m in front of
-  the viewer (world-locked, 32 cells ≈ 40 cm). Same `setEvents`. AR
-  chrome is Play, Z, Exit on `#xr-overlay` (not `document.body` — that
-  paints the page over passthrough). Hit-test is the next slice. Phone HTTPS is
-  `https://lab.ole.icu/` after `start:lan`.
+  XR-A: feature-detect `immersive-ar` and hide **AR** if false.
+  Visible volume lives on a `stage` group. Plane hit-test shows a gold
+  square on the table; tap places and locks the pose for the session.
+  The pillar base (gen 0) stays on the table; **Play** grows the tape
+  upward; Z clips a segment in place. Same `setEvents`.
+  If hit-test is missing, the volume sits ~0.8 m in front of the viewer.
+  Decay is off in AR. A Size slider (0.4×–2.5×) is on the overlay.
+  AR chrome is Play, Z, Size, Exit on `#xr-overlay` (not `document.body`
+  — that paints the page over passthrough). Next is XR-B marker. Phone
+  HTTPS is `https://lab.ole.icu/` after `start:lan`.
   Three.js is the engine, not the product name. Do not propose a
   PyQtGraph/BLITZ port or an empty desktop EXE without a sidecar.
 - Port Conway behaviour from BLITZ `blitz/data/conway.py` (B3/S23, wrap,
@@ -83,9 +87,9 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 - Event-camera `.raw` / EVT3 decode in the browser
 - NPZ loaders; polarity / occupancy / states encodings; sidecar ingest
 - Backend, WebSocket, BLITZ sync
-- WebXR hit-test / tap-to-place (XR-A session is in; next slice is plane
-  hit-test → XR-B marker → XR-C Quest 3 in [`backlog.md`](../backlog.md)
-  and [`architecture.md`](../architecture.md); do not start it in the
+- WebXR marker origin / Quest (XR-A hit-test is in; next is XR-B marker
+  → XR-C Quest 3 in [`backlog.md`](../backlog.md) and
+  [`architecture.md`](../architecture.md); do not start it in the
   same slice as a points renderer)
 - Source-off-rail / thin View (chrome later in [`backlog.md`](../backlog.md);
   not a gate for XR-A)

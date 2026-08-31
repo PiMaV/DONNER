@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-31
+
+### Added
+
+- XR-A table tap: plane hit-test with a gold playfield reticle. Tap places the volume on the table (tabletop scale) and **locks** the pose for the session. If the device has no hit-test, the volume still sits in front of the viewer.
+
+### Changed
+
+- In AR the volume is a **pillar** whose oldest slice (gen 0 / tape start) stays on the table. **Play** grows that tape **up** from the table (it does not drop the live wake through the surface). **Pause** and the Z slab clip a segment in place. Decay is off. A **Size** slider (0.4×–2.5×) scales the whole pillar.
+- Default Conway seed is **R-pentomino**, started **paused** (no autoplay).
+
+### Fixed
+
+- After the first AR table tap, Z-handle and overlay taps re-fired WebXR `select` and jumped the volume to the gold square. The table pose now stays locked for the session. The Z slab no longer re-sits the visible chunk on the table.
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

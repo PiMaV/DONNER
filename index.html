@@ -52,6 +52,11 @@
       </section>
     </div>
     <div class="hud-time">
+      <label class="ar-size" for="ar-mag">
+        <span>Size</span>
+        <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
+          aria-label="AR volume size" />
+      </label>
       <aside class="stack" aria-label="Z time stack">
         <span class="stack-name">Z</span>
         <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
@@ -71,7 +76,7 @@
       </aside>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="true">Pause</button>
+        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false">Play</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>

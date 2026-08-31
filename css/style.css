@@ -664,8 +664,31 @@ body.is-ar .hud-rail {
 
 body.is-ar .hud-time,
 body.is-ar .stack,
-body.is-ar .transport {
+body.is-ar .transport,
+body.is-ar .ar-size {
   pointer-events: auto;
+}
+
+.ar-size {
+  display: none;
+}
+
+body.is-ar .ar-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px 2px;
+  color: var(--dampf);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+
+body.is-ar .ar-size input {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--donner);
 }
 
 .btn-play.is-live {
@@ -921,10 +944,15 @@ body.source-count .encoding-conway {
 
   .hud-time {
     flex-direction: row;
+    flex-wrap: wrap;
     width: 100%;
     min-width: 0;
     min-height: 0;
     align-items: center;
+  }
+
+  body.is-ar .ar-size {
+    order: -1;
   }
 
   .stack {

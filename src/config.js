@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -25,7 +25,7 @@ export const DEFAULTS = {
   wrap: true,
   stopWhenStable: true,
   stableHold: 5,
-  pattern: "Blinker",
+  pattern: "R-pentomino",
   seed: 42,
   density: 0.28,
   gensPerSec: 8,

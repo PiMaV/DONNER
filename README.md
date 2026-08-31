@@ -43,7 +43,7 @@ automaton or a sensor.
 > Images aren't just pixels — they are structured data.
 
 DONNER extends that idea: **matrix → time series → space-time volume →
-explorative 3D (XR-A session in; hit-test next)**.
+explorative 3D (XR-A tabletop in; marker next)**.
 
 ## Axes (X, Y, Z)
 
@@ -164,7 +164,7 @@ If the LAN IP changes, `npm run cert` again.
 ## Stage 1 (this tree)
 
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
-- Default teaching seed: Blinker (glider is the XY-motion case)
+- Default seed: R-pentomino, started paused (Play to run). Blinker is the occupancy lesson if you pick it.
 - Instanced cubes, Depth along the time axis (product **Z**)
 - Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **Z stack** (desktop: beside the HUD, Now at top; phone: bottom timeline, Now at the right)
@@ -179,9 +179,9 @@ If the LAN IP changes, `npm run cert` again.
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
 - Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
-- XR-A session: WebXR `immersive-ar` passthrough; volume world-locked ~0.8 m in front of the viewer (tabletop scale). **AR** only if the device supports it. Hit-test / tap-to-place is next.
+- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; gen 0 stays on the table; Z clips a segment in place. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing.
 
-**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, backend, streaming, BLITZ sync, plane hit-test, XR-B/C, points renderer.
+**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, backend, streaming, BLITZ sync, XR-B/C, points renderer.
 
 ## Architecture
 

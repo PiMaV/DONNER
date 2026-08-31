@@ -202,8 +202,8 @@ that stays put (net shift over two generations). Translating activity is
 then transit. Generations `t = 0, 1` are **warmup** (gray). Cube **scale**
 follows Stability **None / Time / Focus**. Decay is brightness only.
 
-Default seed is **Blinker**, Stability **Time**. Teaching order: Blinker →
-Toad / Beacon → Glider → R-pentomino / soup.
+Default seed is **R-pentomino**, started **paused**. Stability **Time**.
+Oscillator lesson if you pick it: Blinker → Toad / Beacon → Glider.
 
 ```mermaid
 flowchart LR
@@ -587,18 +587,22 @@ flowchart LR
 2. **Event camera** — count-stack `.npy` is in (same SoA). Polarity /
    occupancy / states encodings, sidecar ingest, and EVT3-in-browser are
    later.
-3. **XR** — same scene, WebXR only. **XR-A session is opened:**
-   passthrough + viewer-front volume. The DOM overlay is `#xr-overlay`
-   (Play / Z / Exit), not `document.body`. Hit-test is the next XR-A
-   slice. Then a marker origin (XR-B), then Quest 3 passthrough (XR-C).
-   Detail in [backlog.md](backlog.md). Do not start a new renderer in
-   the same slice as XR.
+3. **XR** — same scene, WebXR only. **XR-A is opened:** passthrough,
+   plane hit-test (tap a table to place, then lock for the session),
+   viewer-front fallback. The volume is a pillar: gen 0 on the table,
+   **Play** grows the tape up, Z clips a segment in place. The DOM overlay is `#xr-overlay`
+   (Play / Z / Size / Exit), not `document.body`. Next
+   is XR-B marker origin, then XR-C Quest 3 passthrough. Detail in
+   [backlog.md](backlog.md). Do not start a new renderer in the same
+   slice as XR.
 4. **Integration** — optional sidecar / BLITZ via dataset + ROI, not shared
    widgets. Later: Open in DONNER / send space-time ROI back to BLITZ.
 
 Product **Z** (time) already stands on the playfield plane, so a table
-is a natural origin: past below the surface, ghost above. Phone orbit
-is still the non-AR fallback. One codebase: feature-detect
+is a natural origin. In AR the **oldest slice** (gen 0 / tape start)
+sits on the table and **Play** grows the tape up as a pillar; Z clips a
+segment in place (it does not slide that chunk onto the table). Phone
+orbit is still the non-AR fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
 laptop `start:lan`). mkcert (`npm run start:https`) is fallback if the
@@ -615,14 +619,14 @@ flowchart LR
   phone -->|HTTPS LE| lab
   lab -->|reverse_proxy| laptop
   laptop --> xr[WebXR immersive-ar]
-  xr --> vol[Volume world-locked in front of viewer]
+  xr --> vol[Hit-test place on table]
 ```
 
 ```mermaid
 flowchart TB
   subgraph phone [Phone tabletop AR]
-    sess[Session: passthrough, volume in front]
-    hit[Next: hit-test tap table to place]
+    sess[Session: passthrough]
+    hit[Hit-test: tap table, lock pillar at 0]
     walk[Walk around with phone as window]
     sess --> hit --> walk
   end
@@ -642,8 +646,7 @@ flowchart TB
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A session** | Viewer-front, then world-locked (~0.8 m, 32 cells ≈ 40 cm) | Android Chrome; iPhone only if WebXR AR exists |
-| **XR-A next** | Plane hit-test (reticle, tap to place) | Same |
+| **XR-A** | Plane hit-test (gold reticle, tap to place then lock); pillar at gen 0; Z clips in place; viewer-front if hit-test is missing | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Same phone AR; marker reused on Quest |
 | **XR-C** | Hit-test and/or marker | Quest 3 passthrough; hands / Z scrub later |
 

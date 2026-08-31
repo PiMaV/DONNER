@@ -51,8 +51,13 @@ import {
   fitBirdFrustum,
 } from "./view.js";
 import {
+  XR_BOARD_METERS,
+  XR_MAG_DEFAULT,
+  arBottomLift,
+  clampArMag,
   isImmersiveArSupported,
   requestImmersiveAr,
+  requestViewerHitTestSource,
   viewerFrontPosition,
   xrStageScale,
 } from "./xr.js";
@@ -87,8 +92,17 @@ scene.fog = fog;
 const stage = new THREE.Group();
 stage.name = "stage";
 scene.add(stage);
+const reticle = createArReticle();
+scene.add(reticle);
+const xrSelect = renderer.xr.getController(0);
+xrSelect.addEventListener("select", onArSelect);
+scene.add(xrSelect);
 const _xrPos = new THREE.Vector3();
 const _xrQuat = new THREE.Quaternion();
+const _xrScale = new THREE.Vector3();
+const _xrUp = new THREE.Vector3();
+const arAnchorPos = new THREE.Vector3();
+const arAnchorQuat = new THREE.Quaternion();
 const _hitLocal = new THREE.Vector3();
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
@@ -143,7 +157,7 @@ let countVol = null;
 let countSizeByCount = false;
 let focusSurface;
 let nowGrid;
-let playing = true;
+let playing = false;
 let editing = false;
 let birdEye = false;
 let gensPerSec = DEFAULTS.gensPerSec;
@@ -176,6 +190,12 @@ let stableStreak = 0;
 let stoppedStable = false;
 let prevGrid = new Uint8Array(0);
 let arPlacePending = false;
+let arHitTestSource = null;
+let arPlaced = false;
+let arUseHitTest = false;
+let arAnchored = false;
+let arLocked = false;
+let arMag = XR_MAG_DEFAULT;
 
 const clock = new FrameClock();
 const paths = new PathTimer();
@@ -267,18 +287,26 @@ const ui = bindUI({
   },
   enterAr,
   exitAr,
+  arMag: () => {
+    arMag = clampArMag(ui.getArMag());
+    applyArStagePose();
+  },
 });
 
 function activeCamera() {
   return birdEye ? birdCam : camera;
 }
 
+function arPillar() {
+  return arPresenting() && Boolean(tape);
+}
+
 function viewNow() {
-  return tapeMode && tape ? tape.newestT() : world.generation;
+  return (tapeMode || arPillar()) && tape ? tape.newestT() : world.generation;
 }
 
 function viewStore() {
-  return tapeMode && tape ? tape : ring;
+  return (tapeMode || arPillar()) && tape ? tape : ring;
 }
 
 function tFocus() {
@@ -299,6 +327,9 @@ function volumeSpan() {
       tHi: Math.min(newest, Math.max(tLo, tHi)),
     };
   }
+  if (arPillar()) {
+    return { tLo: tape.oldestT(), tHi: viewNow() };
+  }
   return visibleTimeSpan(
     tFocus(),
     viewNow(),
@@ -308,7 +339,7 @@ function volumeSpan() {
 }
 
 function volumeWindow() {
-  if (inspectMode()) {
+  if (inspectMode() || arPillar()) {
     const span = volumeSpan();
     return Math.max(1, span.tHi - span.tLo + 1);
   }
@@ -320,6 +351,44 @@ function maxFocusBack() {
   return Math.min(world.generation, historyLen);
 }
 
+function createArReticle() {
+  const group = new THREE.Group();
+  group.name = "ar-reticle";
+  group.matrixAutoUpdate = false;
+  group.visible = false;
+  const hw = XR_BOARD_METERS * 0.5;
+  const square = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-hw, 0.002, -hw),
+    new THREE.Vector3(hw, 0.002, -hw),
+    new THREE.Vector3(hw, 0.002, hw),
+    new THREE.Vector3(-hw, 0.002, hw),
+  ]);
+  const loop = new THREE.LineLoop(
+    square,
+    new THREE.LineBasicMaterial({
+      color: COLOR.gold,
+      depthWrite: false,
+    }),
+  );
+  loop.frustumCulled = false;
+  loop.renderOrder = 10;
+  group.add(loop);
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.028, 0.042, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({
+      color: COLOR.cyan,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  );
+  ring.position.y = 0.003;
+  ring.renderOrder = 11;
+  group.add(ring);
+  return group;
+}
+
 function arPresenting() {
   return renderer.xr.isPresenting;
 }
@@ -328,6 +397,37 @@ function resetStageOrbit() {
   stage.position.set(0, 0, 0);
   stage.quaternion.identity();
   stage.scale.setScalar(1);
+  stage.visible = true;
+}
+
+function stopHitTest() {
+  if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
+    arHitTestSource.cancel();
+  }
+  arHitTestSource = null;
+  arUseHitTest = false;
+  arPlaced = false;
+  arAnchored = false;
+  arLocked = false;
+  reticle.visible = false;
+}
+
+/** Oldest slice of the full pillar, not the live wake or a clipped slab. */
+function arPillarYMin() {
+  const store = viewStore();
+  if (!store) return 0;
+  return slabYRange(tFocus(), store.oldestT(), viewNow(), DEFAULTS.timeScale).yMin;
+}
+
+function applyArStagePose() {
+  if (!arPresenting() || !arAnchored || !world) return;
+  const s = xrStageScale(DEFAULTS.cellSize, arMag);
+  stage.quaternion.copy(arAnchorQuat);
+  stage.scale.setScalar(s);
+  const lift = arBottomLift(arPillarYMin(), s);
+  _xrUp.set(0, 1, 0).applyQuaternion(arAnchorQuat);
+  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, lift);
+  stage.visible = true;
 }
 
 function placeStageInFrontOfViewer() {
@@ -339,9 +439,52 @@ function placeStageInFrontOfViewer() {
     { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
     { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
   );
-  stage.position.set(front.x, front.y, front.z);
-  stage.quaternion.identity();
-  stage.scale.setScalar(xrStageScale(DEFAULTS.cellSize));
+  arAnchorPos.set(front.x, front.y, front.z);
+  arAnchorQuat.identity();
+  arAnchored = true;
+  arPlaced = true;
+  arLocked = true;
+  applyArStagePose();
+}
+
+function placeStageFromReticle() {
+  if (arLocked || !reticle.visible) return;
+  reticle.matrix.decompose(arAnchorPos, arAnchorQuat, _xrScale);
+  arAnchored = true;
+  arPlaced = true;
+  arLocked = true;
+  reticle.visible = false;
+  applyArStagePose();
+  updateHint();
+}
+
+function onArSelect() {
+  if (!arPresenting() || !arUseHitTest || arLocked) return;
+  placeStageFromReticle();
+}
+
+function updateReticle(xrFrame) {
+  if (!arPresenting() || !arUseHitTest || !arHitTestSource || !xrFrame || arLocked) {
+    reticle.visible = false;
+    return;
+  }
+  const refSpace = renderer.xr.getReferenceSpace();
+  if (!refSpace || typeof xrFrame.getHitTestResults !== "function") {
+    reticle.visible = false;
+    return;
+  }
+  const hits = xrFrame.getHitTestResults(arHitTestSource);
+  if (!hits.length) {
+    reticle.visible = false;
+    return;
+  }
+  const pose = hits[0].getPose(refSpace);
+  if (!pose) {
+    reticle.visible = false;
+    return;
+  }
+  reticle.visible = true;
+  reticle.matrix.fromArray(pose.transform.matrix);
 }
 
 async function enterAr() {
@@ -363,12 +506,26 @@ function exitAr() {
   if (session) session.end();
 }
 
-function onArSessionStart() {
+async function onArSessionStart() {
   document.documentElement.classList.add("is-ar");
   document.body.classList.add("is-ar");
   renderer.setClearAlpha(0);
   controls.enabled = false;
-  arPlacePending = true;
+  arPlacePending = false;
+  arPlaced = false;
+  arLocked = false;
+  arUseHitTest = false;
+  stage.visible = false;
+  reticle.visible = false;
+  const session = renderer.xr.getSession();
+  arHitTestSource = await requestViewerHitTestSource(session);
+  arUseHitTest = Boolean(arHitTestSource);
+  if (!arUseHitTest) {
+    arPlacePending = true;
+    stage.visible = true;
+  }
+  dirtySource = true;
+  dirtyView = true;
   syncFog();
   ui.setArActive(true);
   updateHint();
@@ -380,7 +537,10 @@ function onArSessionEnd() {
   renderer.setClearAlpha(1);
   controls.enabled = true;
   arPlacePending = false;
+  stopHitTest();
   resetStageOrbit();
+  dirtySource = true;
+  dirtyView = true;
   syncFog();
   pinOrbitPivot();
   ui.setArActive(false);
@@ -389,9 +549,10 @@ function onArSessionEnd() {
 
 function syncFog() {
   const inspect = inspectMode();
-  scene.fog = birdEye || inspect || arPresenting() ? null : fog;
-  hemi.intensity = inspect ? 1.08 : 0.72;
-  key.intensity = inspect ? 1.05 : 0.9;
+  const ar = arPresenting();
+  scene.fog = birdEye || inspect || ar ? null : fog;
+  hemi.intensity = inspect || ar ? 1.08 : 0.72;
+  key.intensity = inspect || ar ? 1.05 : 0.9;
 }
 
 function syncViewRange() {
@@ -696,7 +857,6 @@ function switchSource(kind) {
     else loadCountDemo();
     return;
   }
-  playing = true;
   bootWorld(true);
 }
 
@@ -857,7 +1017,13 @@ function syncClipPlanes() {
 function updateHint() {
   const atNow = focusBack === 0;
   if (arPresenting()) {
-    ui.setHint("AR — volume is world-locked in front of you · Exit returns to orbit");
+    if (arUseHitTest && !arPlaced) {
+      ui.setHint("AR — point at a table until the gold square appears, then tap");
+    } else if (arUseHitTest) {
+      ui.setHint("AR — pillar at 0 · Play grows up from the table · Exit returns to orbit");
+    } else {
+      ui.setHint("AR — volume is world-locked in front of you · Exit returns to orbit");
+    }
   } else if (sourceId === "count") {
     ui.setHint(
       playing
@@ -920,7 +1086,7 @@ function stepOnce() {
 
 function fillVolume() {
   const store = viewStore();
-  const span = inspectMode() ? volumeSpan() : null;
+  const span = inspectMode() || arPillar() ? volumeSpan() : null;
   store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
     tFocus: tFocus(),
     stabMode: stabForFill(),
@@ -940,7 +1106,7 @@ function fadeSpan() {
 function uploadInstances() {
   cubes.setEvents(soa, {
     tFocus: tFocus(),
-    decay,
+    decay: arPresenting() ? false : decay,
     fadeSpan: fadeSpan(),
     timeScale: DEFAULTS.timeScale,
     width: world.width,
@@ -1162,7 +1328,7 @@ window.addEventListener("keydown", (e) => {
 
 window.addEventListener("resize", resize);
 
-function frame(now) {
+function frame(now, xrFrame) {
   const dt = clock.tick(now);
   if (playing) {
     acc += dt * gensPerSec;
@@ -1183,11 +1349,14 @@ function frame(now) {
 
   syncVolume();
   paths.measure("hover", syncHover);
-  if (arPlacePending && arPresenting()) {
-    placeStageInFrontOfViewer();
-    arPlacePending = false;
-  }
-  if (!arPresenting()) {
+  if (arPresenting()) {
+    updateReticle(xrFrame);
+    if (arPlacePending) {
+      placeStageInFrontOfViewer();
+      arPlacePending = false;
+    }
+    if (arPlaced) applyArStagePose();
+  } else {
     pinOrbitPivot();
     controls.update();
   }

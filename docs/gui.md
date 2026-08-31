@@ -19,17 +19,33 @@ flowchart LR
   iso[Double-click cube] --> scene
 ```
 
-Play is a **display** transport outside the sheets. **Play** = Live View
-(generator runs, Z locked at Now) for Conway; for a count stack it scrubs
-Z through the recording. **Pause** = Inspect the RAM tape (Z from 0).
-**Pause** lights the brick (fog off, camera far fits the tape). Two extra
-Z handles clip a **slab** (outside not drawn). Conway Play from Inspect
-jumps to live Now.
+Play is a **display** transport outside the sheets. Conway loads **paused**
+(R-pentomino). **Play** = Live View (generator runs, Z locked at Now);
+for a count stack it scrubs Z through the recording. **Pause** = Inspect
+the RAM tape (Z from 0). **Pause** lights the brick (fog off, camera far
+fits the tape). Two extra Z handles clip a **slab** (outside not drawn).
+Conway Play from Inspect jumps to live Now.
 
 In an **AR session** the same Play and Z stack stay; brand, View/Source
-sheets, and the FPS chip hide. Bird is not offered. **Exit** (or Escape)
-returns to orbit. The WebXR DOM overlay is `#xr-overlay` (HUD only), not
-`document.body`, so the camera passthrough and the volume stay visible.
+sheets, and the FPS chip hide. Bird is not offered. Point at a table
+until a gold square appears, then **tap** to place. The pose **locks**
+for the session (Z and Size do not move the origin). The volume is a
+**pillar**: gen 0 stays on the table; **Play** grows the tape upward;
+Z clips a segment in place; **Size** scales the whole stack. **Exit**
+(or Escape) returns to orbit. The WebXR DOM
+overlay is `#xr-overlay` (HUD only), not `document.body`, so the camera
+passthrough and the volume stay visible.
+
+```mermaid
+flowchart LR
+  look[Look at table]
+  tap[Tap gold square]
+  lock[Pose locked at 0]
+  play[Play grows the tape up]
+  clip[Z clips a segment in place]
+  look --> tap --> lock --> play
+  lock --> clip
+```
 
 The left chrome is two sheets — **View** (Bird, Decay, Depth live-only,
 cache, Encoding, Bench) and **Source** (kind: Conway or count stack;
@@ -83,9 +99,11 @@ flowchart TB
   end
   subgraph ar [AR session]
     pass[Passthrough]
-    volA[Volume in front of viewer]
+    ret[Gold square on table]
+    volA[Tap to place volume]
     chrome[Play Z Exit]
-    pass --> volA
+    pass --> ret
+    ret --> volA
     volA --> chrome
   end
 ```
@@ -107,7 +125,7 @@ rectangle select on the playfield).
 | `B` | Bird-eye (orthographic top view) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Leave bird-eye; in AR, end the session |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Volume appears in front of you, then stays world-locked. Not shown on desktop orbit. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Play** grows the pillar from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -257,8 +275,9 @@ fight the class colors.
 | Transit | BLITZ coral | glider tube, births/deaths, soup — the space-time **curve** |
 | Warmup | gray | generations 0 and 1 — too little history to class |
 
-Default pattern is **Blinker**. Teaching order: Blinker → Toad/Beacon →
-Glider. A glider must read as a coral trail, not mixed cyan/gold: those
+Default pattern is **R-pentomino**, started **paused** (Play to run).
+Teaching order if you switch seeds: Blinker → Toad/Beacon → Glider.
+A glider must read as a coral trail, not mixed cyan/gold: those
 classes mean the pattern sat still. Cyan on a glider was a false friend
 (the ship crawling over the same cell).
 
@@ -306,10 +325,10 @@ Bench stays in the sheet, not on the FPS chip.
 - **Isolation later:** rectangle select on the playfield (not cube double-click).
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, sidecar ingest, BLITZ sync, in-browser EVT3
-- **XR-A session is in:** WebXR `immersive-ar` passthrough, volume
-  world-locked ~0.8 m in front of the viewer (tabletop scale). **AR**
-  only if `navigator.xr` supports it. Chrome is Play, Z, Exit. Phone
-  HTTPS is `https://lab.ole.icu/` (`start:lan` upstream); mkcert is
-  fallback. **Next XR-A slice:** plane hit-test (reticle, tap to place).
-  Then XR-B marker, XR-C Quest 3. Do not start a points renderer in the
-  same slice as further XR work.
+- **XR-A is in:** WebXR `immersive-ar` passthrough and plane hit-test
+  (gold reticle, tap a table to place; pose locks; Z clips a segment in
+  the pillar). **AR** only if `navigator.xr` supports it. Chrome is
+  Play, Z, Size, Exit. Phone HTTPS is
+  `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
+  **Next:** XR-B marker, then XR-C Quest 3. Do not start a points
+  renderer in the same slice as further XR work.

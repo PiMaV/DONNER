@@ -18,6 +18,13 @@ describe("slab world Y", () => {
     assert.equal(y.yMid, -20);
   });
 
+  it("keeps gen 0 at the pillar base when a mid slab is clipped", () => {
+    const pillar = slabYRange(50, 0, 100, 1);
+    const slab = slabYRange(50, 40, 60, 1);
+    assert.equal(pillar.yMin, -50);
+    assert.equal(slab.yMin, -10);
+  });
+
   it("keeps the brick mid-height when the playhead moves through a fixed slab", () => {
     const a = slabYRange(80, 40, 80, 1);
     const b = slabYRange(60, 40, 80, 1);

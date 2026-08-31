@@ -55,7 +55,7 @@ once. Re-issue if the LAN IP changes.
 Tech demo, same Three.js scene — not a Unity fork, not a projector, not a
 native iOS wrapper. P1/P2 baseline is in; **XR-A session is opened**.
 Do not start a new renderer (points / million-event) in the same slice
-as hit-test or XR-B/C.
+as XR-B/C.
 
 ```mermaid
 flowchart LR
@@ -66,15 +66,18 @@ flowchart LR
 ```
 
 1. **XR-A — phone tabletop.** WebXR `immersive-ar` on **Android Chrome**.
-   **Opened (session slice):** passthrough, volume ~0.8 m in front of the
-   viewer then world-locked, tabletop scale (32 cells ≈ 40 cm). Feature
-   detect; no AR button if `immersive-ar` is missing. Orbit is the
-   fallback. **HTTPS** is `https://lab.ole.icu/` (`start:lan` upstream);
-   mkcert is fallback. AR chrome is Play, Z, Exit. Pause `OrbitControls`
-   in session. `setEvents(...)` stays. **Next slice:** plane **hit-test**
-   (reticle, tap a table to place). Teaching 32 is enough; no extra
-   Depth/Grid cap this stage. iPhone only if `navigator.xr` actually
-   supports AR. No 8th Wall, no ARKit shell.
+   **Opened:** passthrough, plane **hit-test** (gold square reticle, tap
+   to place, then lock for the session), tabletop scale (32 cells ≈ 40 cm).
+   The volume is a pillar: gen 0 on the table, **Play** grows the tape
+   up, Z clips a segment in place.
+   If hit-test is missing, the volume sits ~0.8 m in front of the viewer.
+   Feature detect; no AR button if `immersive-ar` is missing. Orbit is
+   the fallback. **HTTPS** is `https://lab.ole.icu/` (`start:lan`
+   upstream); mkcert is fallback. AR chrome is Play, Z, Size, Exit. Pause
+   `OrbitControls` in session. `setEvents(...)` stays. Teaching 32 is
+   enough; no extra Depth/Grid cap this stage. iPhone only if
+   `navigator.xr` actually supports AR. No 8th Wall, no ARKit shell.
+   **Next:** XR-B marker origin.
 
 2. **XR-B — marker origin.** AprilTag or a printed gold playfield frame
    for a repeatable origin and metric scale. Optional gag: the print *is*
