@@ -102,7 +102,7 @@ describe("HUD copy", () => {
       truncated: true,
       focus: 12,
       playing: true,
-      bird: true,
+      ortho: true,
       isolating: true,
       isolate: { x: 3, y: 4 },
     });
@@ -119,7 +119,7 @@ describe("HUD copy", () => {
     assert.match(view, /INST 1200 trunc/);
     assert.match(view, /FOC {2}12/);
     assert.match(view, /PLAY/);
-    assert.match(view, /BIRD/);
+    assert.match(view, /ORTHO/);
     assert.match(view, /ISO {2}3,4/);
     assert.doesNotMatch(view, /SOFTWARE/);
     assert.doesNotMatch(view, /GEN/);

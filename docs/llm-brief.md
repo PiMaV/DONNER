@@ -34,11 +34,12 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   hues. Default seed: R-pentomino, started paused; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
-- Bird-eye (`B`) is orthographic top-down onto Z = 0 and draws **only the
-  focus slice** (a 2D grid). Do not wire cube double-click isolation
-  (deferred; later rectangle select). Scrub Z with the **stack slider**
-  (desktop: right, Now at top; phone: bottom, Now at right) or
-  Shift+wheel; there is no Focus slider in the control sheet. Inspect
+- **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
+  (deferred; later rectangle select). A CAD viewcube (bottom-left, product X/Y/Z) snaps the camera; hide it in AR. Scrub the **stack slider**
+  (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
+  Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
+  cyan playhead and gold slab grips onto that product axis (full time brick).
+  Play still owns time. Inspect
   has two extra **slab** handles; outside the band is not drawn. Gold
   handles push the cyan playhead when dragged past it. The focus plane
   ring is cyan; slab cuts are gold rings in the volume. **Depth**
@@ -50,18 +51,20 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   grids (still life or empty). Oscillators and wrapping gliders keep running;
   a glider that walks off a hard edge becomes empty and then pauses (Wrap on
   for a perpetual ship). **Fit** (`F`) frames the camera to the drawn slab;
-  Inspect Z scrub then moves only the cyan plane (brick stays put). Orbit
-  around the time axis at the brick center; pan is Bird-only.
+  Inspect Z scrub then moves only the cyan plane (brick stays put). **Align to Z**
+  (default on) orbits around the time axis at the brick center; off allows XY pan.
+  Ortho always pans. Hover and Edit stay on the Z playfield (disabled on X/Y slices).
+  Cube cap is a Bench number (default 200 000).
   Hovering the plane draws hairlines to the numbered X/Y axes and
   outlines the cell plus the focus-slice cube if live. Do not attach a
   3D time grabber to the X/Y frame. Display HUD (FPS, AVG, 1%/0.1% lows,
   sparkline, INST, FOC) stays separate from the Conway source HUD (GEN,
-  LIVE, RATE).
+  LIVE, RATE). HUD shows **ORTHO** when parallax is off.
   On a phone the HUD is an FPS chip (tap for the View card); source stats
   stay in the Source sheet. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is two left
-  sheets: **View** (Depth, Decay, Encoding, Bench) and **Source**
+  sheets: **View** (Parallax, Align to Z, Depth, Decay, Encoding, Bench) and **Source**
   (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
   (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
   Bench. Camera-only frames must not call `fillSoA`.

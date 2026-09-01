@@ -167,9 +167,10 @@ If the LAN IP changes, `npm run cert` again.
 - Default seed: R-pentomino, started paused (Play to run). Blinker is the occupancy lesson if you pick it.
 - Instanced cubes, Depth along the time axis (product **Z**)
 - Decay, speed, Depth (wake length), play / pause / step / reset
-- Playhead via the **Z stack** (desktop: beside the HUD, Now at top; phone: bottom timeline, Now at the right)
+- Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
-- Bird-eye: orthographic top view of the focus plane
+- CAD viewcube (orbit only): click a product axis to snap the camera
+- Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch

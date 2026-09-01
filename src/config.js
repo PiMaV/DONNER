@@ -35,6 +35,11 @@ export const DEFAULTS = {
   cellSize: 1,
   timeScale: 1,
   maxInstances: 200_000,
+  cubeCapMin: 20_000,
+  cubeCapMax: 4_000_000,
+  alignZ: true,
+  parallax: true,
+  sliceAxis: "z",
   maxVisible: 128,
   maxStepCatchUp: 8,
   stabMode: "time",
@@ -51,3 +56,9 @@ export const DEFAULTS = {
 };
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];
+
+export function clampCubeCap(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULTS.maxInstances;
+  return Math.min(DEFAULTS.cubeCapMax, Math.max(DEFAULTS.cubeCapMin, Math.round(v)));
+}

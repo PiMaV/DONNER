@@ -11,12 +11,12 @@ flowchart LR
   play[Play Pause] --> scene
   step[Step] --> sim[Conway]
   sim --> scene
-  scrub[Z stack / Shift+wheel] --> plane[Focus plane]
+  scrub[Slice stack / Shift+wheel] --> plane[Focus plane]
   plane --> scene
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
-  bird[Bird-eye] --> scene
-  iso[Double-click cube] --> scene
+  gizmo[CAD viewcube] --> scene
+  para[Parallax] --> scene
 ```
 
 Play is a **display** transport outside the sheets. Conway loads **paused**
@@ -27,7 +27,7 @@ fits the tape). Two extra Z handles clip a **slab** (outside not drawn).
 Conway Play from Inspect jumps to live Now.
 
 In an **AR session** the same Play and Z stack stay; brand, View/Source
-sheets, and the FPS chip hide. Bird is not offered. Point at a table
+sheets, and the FPS chip hide. The viewcube and Parallax are not offered. Point at a table
 until a gold square appears, then **tap** to place. The pose **locks**
 for the session (Z and Size do not move the origin). The volume is a
 **pillar**: gen 0 stays on the table; **Play** grows the tape upward;
@@ -47,7 +47,7 @@ flowchart LR
   lock --> clip
 ```
 
-The left chrome is two sheets — **View** (Bird, Decay, Depth live-only,
+The left chrome is two sheets — **View** (Parallax, Align to Z, Decay, Depth live-only,
 cache, Encoding, Bench) and **Source** (kind: Conway or count stack;
 GEN/LIVE/RATE or T/LIVE/SUM stay on the right HUD). Generator controls do
 not share a panel with View.
@@ -55,7 +55,8 @@ not share a panel with View.
 ```mermaid
 flowchart TB
   subgraph view [View display]
-    bird[Bird]
+    bird[Parallax]
+    align[Align to Z]
     fit[Fit slab]
     win[Depth live Decay GridLight Cache]
     enc[Encoding]
@@ -117,14 +118,15 @@ rectangle select on the playfield).
 |-------|--------|
 | Drag / one-finger | Orbit |
 | Wheel / pinch | Zoom |
-| Right-drag / two-finger | Pan in **Bird** only. Orbit mode rotates around the time axis at the brick center (no pan). |
-| Shift+wheel | Scrub focus into the past / back to now |
-| **Z** stack | Scrub the playhead. Inspect also has two **slab** handles (3D-slicer clip). After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now at top. Phone: bottom timeline, Now at the right; handles have a large touch target. Wheel over it steps the playhead. |
+| Right-drag / two-finger | Pan when **Parallax** is off, or when **Align to Z** is off. Align to Z (default) rotates around the time axis at the brick center. |
+| Shift+wheel | Scrub the current slice axis |
+| **Slice stack** | X / Y / Z (default Z = time). Cyan playhead plus two gold **slab** handles (Inspect, and always on X/Y). After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now/max at top. Phone: bottom timeline. Wheel over it steps the playhead. |
 | Space | Play / pause |
-| `E` | Edit mode (pauses, snaps focus to Now) |
-| `B` | Bird-eye (orthographic top view) |
+| `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
+| `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
-| Escape | Leave bird-eye; in AR, end the session |
+| Escape | Restore parallax; in AR, end the session |
+| Viewcube | Click a product axis (lower-left) to snap that view. Hidden in AR. |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Play** grows the pillar from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
@@ -137,14 +139,16 @@ rectangle select on the playfield).
 
 | Control | Meaning |
 |---------|---------|
-| Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, Z moves the cyan plane through a still brick. Play jumps to live Now. |
-| Bird | Orthographic top-down onto the **focus slice** only; pan / pinch |
+| Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. |
+| Parallax | Default on = perspective. Off = orthographic at the current look. Key `B`. |
+| Align to Z | Default on = orbit around the time axis. Off = free pan. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
 | Decay | On/off. On: fade to 0 at the oldest **drawn** slice (live: back of Depth; inspect: back of the Z slab). Off: even brick. |
 | Grid light | Brightness of the cell grid and focus-plane fill |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
-| **Z stack** | Live: locked, label **LIVE**. Inspect: cyan **playhead** (larger) plus two gold **slab** handles. Dragging a gold handle past the playhead pushes it. After **Fit**, scrubbing the playhead does not move the brick. Volume: cyan ring = plane, gold rings = cuts. **Now** snaps the playhead (and opens the top of the slab). |
+| Cube cap | Bench instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
+| **Slice stack** | Live Z: locked, label **LIVE**. Inspect or X/Y: cyan **playhead** plus two gold **slab** handles. Dragging a gold handle past the playhead pushes it. **Now** snaps to the high end of the rail. |
 
 ## Source
 
@@ -190,17 +194,18 @@ stats stay in **Source**.
 |---------|---------|
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-The **cyan frame** is the current Z plane. Numbered **X/Y** sit on the
+The **cyan frame** is the current slice plane. Numbered **X/Y** sit on the
 **right** (gold). Inspect also draws **gold rings** at the slab cuts.
-Time is the **Z stack slider** beside the HUD (Now at the top),
-not a 3D gizmo. Hovering the plane draws two thin lines to X and Y,
+The stack slider beside the HUD (Now/max at the top) is Z time by
+default, or X / Y. The CAD viewcube is navigation, not a grabber.
+Hovering the Z plane draws two thin lines to X and Y,
 a gold square on the cell, and a pale cage around the cube on that
 slice when the cell is live. Slices newer than the focus sit **above**
 the plane, translucent.
 
-**Bird** looks straight down with an orthographic camera (no parallax).
-Worldline **isolation** is deferred (later: rectangle select). Edit is
-unchanged: pause, plane at Now, tap inside the frame.
+**Parallax** off is orthographic at the current look (no vanishing point).
+Click the viewcube to look from +X / +Y / +Z. Worldline **isolation** is
+deferred (later: rectangle select). Edit stays on the Z playfield at Now.
 
 Inspect **Z slab** (3D-slicer):
 
@@ -240,7 +245,7 @@ to expand the View card. Source stats live in the Source sheet.
 | INST | Display — instanced cubes (`trunc` if SoA capped) |
 | FOC | Display — playhead generation (also beside the Z-stack handle) |
 | PLAY / PAUSE | Display |
-| BIRD | Display — view state |
+| ORTHO | Display — parallax off |
 | GEN | Source Conway — simulation head |
 | T | Source count — bin index |
 | LIVE | Source — live cells / voxels on the focus slice |
@@ -250,8 +255,8 @@ to expand the View card. Source stats live in the Source sheet.
 | COUNT | Source — count stack is active |
 | EDIT | Source Conway — present in edit mode |
 
-**Z stack:** thin rail — **Now**, a tick per stored step, generation
-beside the handle. Desktop: Now at the top, deepest past at the bottom.
+**Slice stack:** thin rail — **Now**, a tick per stored step, label
+beside the handle. Desktop: Now/max at the top. Phone: Now/max at the right.
 Phone: Now at the right, past at the left. Wheel over the stack (or
 Shift+wheel on the canvas) still scrubs.
 
@@ -319,7 +324,7 @@ Bench stays in the sheet, not on the FPS chip.
 
 - **Source off the rail:** Conway HUD (GEN / LIVE / RATE) and the left
   Source sheet leave the viewer chrome; generator is its own surface.
-- **Thin View:** teaching View keeps Bird / Decay / Depth (and maybe
+- **Thin View:** teaching View keeps Parallax / Align to Z / Decay / Depth (and maybe
   cache). Bench, GPU strings, Neighborhood, presets, and dense Encoding
   leave the everyday sheet.
 - **Isolation later:** rectangle select on the playfield (not cube double-click).

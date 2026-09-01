@@ -11,6 +11,7 @@
 
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
+import { eventOnSlice, normalizeSliceAxis } from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
 import { depthFade } from "./fade.js";
@@ -86,6 +87,10 @@ export class CubeRenderer {
    *   cellSize?: number,
    *   isolate?: { x: number, y: number } | null,
    *   sliceOnly?: boolean,
+   *   sliceAxis?: "x" | "y" | "z",
+   *   sliceLo?: number,
+   *   sliceHi?: number,
+   *   sliceFocus?: number,
    *   encodingMinimal?: boolean,
    * }} view
    */
@@ -99,6 +104,10 @@ export class CubeRenderer {
     const tFocus = view.tFocus;
     const isolate = view.isolate || null;
     const sliceOnly = Boolean(view.sliceOnly);
+    const sliceAxis = normalizeSliceAxis(view.sliceAxis);
+    const sliceLo = view.sliceLo;
+    const sliceHi = view.sliceHi;
+    const sliceFocus = view.sliceFocus ?? (sliceAxis === "z" ? tFocus : 0);
     const minimal = Boolean(view.encodingMinimal);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
@@ -112,6 +121,16 @@ export class CubeRenderer {
     for (let i = 0; i < n; i++) {
       const t = soa.t[i];
       const dt = t - tFocus;
+      if (
+        !eventOnSlice(sliceAxis, soa.x[i], soa.y[i], t, {
+          lo: sliceLo,
+          hi: sliceHi,
+          focus: sliceFocus,
+          sliceOnly,
+        })
+      ) {
+        continue;
+      }
       dummy.position.set(
         (soa.x[i] - ox) * cell,
         dt * timeScale,
@@ -123,7 +142,6 @@ export class CubeRenderer {
         ? SCALE_UNIFORM
         : encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
       const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
-      if (sliceOnly && Math.abs(dt) >= 0.5) continue;
 
       if (field < 1) {
         const ageFade =
@@ -179,20 +197,44 @@ export class CubeRenderer {
   }
 }
 
-/** Translucent XZ slab at Y = 0 — hit target and draw-plane fill. */
-export function createFocusSurface(width, height, cellSize) {
-  const geo = new THREE.PlaneGeometry(width * cellSize, height * cellSize);
-  const mat = new THREE.MeshBasicMaterial({
+function sliceSurfaceMat() {
+  return new THREE.MeshBasicMaterial({
     color: COLOR.cyan,
     transparent: true,
     opacity: 0.07,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = 0;
+}
+
+/** Translucent slice plane — hit target and fill. Product Z is the playfield. */
+export function createFocusSurface(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
+  const a = normalizeSliceAxis(axis);
+  const cs = cellSize;
+  const timeH = Math.max(cs, Math.abs(yMax - yMin) || cs);
+  let geo;
+  if (a === "x") geo = new THREE.PlaneGeometry(height * cs, timeH);
+  else if (a === "y") geo = new THREE.PlaneGeometry(width * cs, timeH);
+  else geo = new THREE.PlaneGeometry(width * cs, height * cs);
+  const mesh = new THREE.Mesh(geo, sliceSurfaceMat());
+  mesh.userData.axis = a;
+  orientSlicePlane(mesh, a, width, height, cs, yMin, yMax, 0);
   return mesh;
+}
+
+export function orientSlicePlane(mesh, axis, width, height, cellSize, yMin, yMax, coord) {
+  const a = normalizeSliceAxis(axis);
+  const yMid = (yMin + yMax) / 2;
+  mesh.rotation.set(0, 0, 0);
+  if (a === "x") {
+    mesh.rotation.y = Math.PI / 2;
+    mesh.position.set(coord, yMid, 0);
+  } else if (a === "y") {
+    mesh.position.set(0, yMid, coord);
+  } else {
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, coord, 0);
+  }
 }
 
 export function createNowGrid(width, height, cellSize) {
@@ -234,7 +276,7 @@ export function createNowGrid(width, height, cellSize) {
 }
 
 /**
- * Rectangle ring on a time plane (product Z). Cyan = playhead; gold = slab cuts.
+ * Rectangle ring on the current slice plane. Cyan = playhead; gold = slab cuts.
  */
 export class FocusFrame {
   constructor(scene, hex = COLOR.cyan) {
@@ -247,19 +289,23 @@ export class FocusFrame {
       opacity: 0.92,
     });
     this._parts = [];
+    this._axis = "z";
     scene.add(this.group);
   }
 
-  setSize(width, height, cellSize) {
+  setSize(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
     for (const p of this._parts) {
       this.group.remove(p);
       p.geometry.dispose();
     }
     this._parts.length = 0;
+    this._axis = normalizeSliceAxis(axis);
 
     const hw = (width * cellSize) / 2;
     const hd = (height * cellSize) / 2;
     const t = Math.max(0.07, cellSize * 0.08);
+    const yMid = (yMin + yMax) / 2;
+    const hy = Math.max(cellSize, Math.abs(yMax - yMin) / 2);
 
     const add = (x, y, z, sx, sy, sz) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), this._mat);
@@ -268,14 +314,33 @@ export class FocusFrame {
       this._parts.push(mesh);
     };
 
-    add(0, t * 0.5, -hd, width * cellSize + t, t, t);
-    add(0, t * 0.5, hd, width * cellSize + t, t, t);
-    add(-hw, t * 0.5, 0, t, t, height * cellSize);
-    add(hw, t * 0.5, 0, t, t, height * cellSize);
+    if (this._axis === "x") {
+      add(0, yMid, -hd, t, hy * 2 + t, t);
+      add(0, yMid, hd, t, hy * 2 + t, t);
+      add(0, yMin, 0, t, t, height * cellSize + t);
+      add(0, yMax, 0, t, t, height * cellSize + t);
+    } else if (this._axis === "y") {
+      add(-hw, yMid, 0, t, hy * 2 + t, t);
+      add(hw, yMid, 0, t, hy * 2 + t, t);
+      add(0, yMin, 0, width * cellSize + t, t, t);
+      add(0, yMax, 0, width * cellSize + t, t, t);
+    } else {
+      add(0, t * 0.5, -hd, width * cellSize + t, t, t);
+      add(0, t * 0.5, hd, width * cellSize + t, t, t);
+      add(-hw, t * 0.5, 0, t, t, height * cellSize);
+      add(hw, t * 0.5, 0, t, t, height * cellSize);
+    }
+  }
+
+  setOffset(axis, coord) {
+    const a = normalizeSliceAxis(axis);
+    if (a === "x") this.group.position.set(coord, 0, 0);
+    else if (a === "y") this.group.position.set(0, 0, coord);
+    else this.group.position.set(0, coord, 0);
   }
 
   setY(y) {
-    this.group.position.y = y;
+    this.setOffset("z", y);
   }
 
   setVisible(on) {

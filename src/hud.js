@@ -135,7 +135,7 @@ export function formatViewHud({
   truncated,
   focus,
   playing,
-  bird = false,
+  ortho = false,
   isolating = false,
   isolate = null,
   software = false,
@@ -152,7 +152,7 @@ export function formatViewHud({
     playing ? "PLAY" : "PAUSE",
   ];
   if (software) lines.push("SOFTWARE");
-  if (bird) lines.push("BIRD");
+  if (ortho) lines.push("ORTHO");
   if (isolate) lines.push(`ISO  ${isolate.x},${isolate.y}`);
   else if (isolating) lines.push("ISO  …");
   return lines.join("\n");

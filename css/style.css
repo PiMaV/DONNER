@@ -231,11 +231,39 @@ body {
   gap: 6px;
 }
 
-.stack-name {
+.stack-name,
+.slice-axes {
   font-family: Orbitron, sans-serif;
   font-size: 0.58rem;
   letter-spacing: 0.12em;
   color: var(--dampf);
+}
+
+.slice-axes {
+  display: flex;
+  gap: 2px;
+}
+
+.btn-slice {
+  appearance: none;
+  margin: 0;
+  padding: 2px 6px;
+  min-width: 22px;
+  min-height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.54rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.btn-slice.is-on {
+  border-color: rgba(0, 255, 242, 0.55);
+  color: var(--dampf);
+  box-shadow: 0 0 8px rgba(0, 255, 242, 0.25);
 }
 
 .stack-cap {
@@ -307,8 +335,8 @@ body {
   pointer-events: none;
 }
 
-body:not(.is-inspect) .stack-slab,
-body:not(.is-inspect) .z-clip {
+body:not(.is-inspect):not(.has-slab) .stack-slab,
+body:not(.is-inspect):not(.has-slab) .z-clip {
   display: none;
 }
 
@@ -669,6 +697,10 @@ body.is-ar .ar-size {
   pointer-events: auto;
 }
 
+body.is-ar .slice-axes {
+  display: none !important;
+}
+
 .ar-size {
   display: none;
 }
@@ -702,7 +734,7 @@ body.is-ar .ar-size input {
   background: rgba(255, 197, 61, 0.08);
 }
 
-.btn-bird.is-on {
+.btn-parallax.is-on {
   border-color: rgba(0, 255, 242, 0.5);
   color: var(--dampf);
   background: rgba(0, 255, 242, 0.08);
@@ -962,6 +994,12 @@ body.source-count .encoding-conway {
     height: 56px;
     padding: 0 4px;
     gap: 8px;
+  }
+
+  .slice-axes {
+    display: flex;
+    order: 0;
+    flex: 0 0 auto;
   }
 
   .stack-name {

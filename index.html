@@ -57,8 +57,12 @@
         <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
           aria-label="AR volume size" />
       </label>
-      <aside class="stack" aria-label="Z time stack">
-        <span class="stack-name">Z</span>
+      <aside class="stack" aria-label="Slice stack">
+        <div class="slice-axes" role="radiogroup" aria-label="Slice axis">
+          <button type="button" id="slice-x" class="btn-slice" data-axis="x" aria-pressed="false">X</button>
+          <button type="button" id="slice-y" class="btn-slice" data-axis="y" aria-pressed="false">Y</button>
+          <button type="button" id="slice-z" class="btn-slice is-on" data-axis="z" aria-pressed="true">Z</button>
+        </div>
         <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
         <div id="stack-track" class="stack-track">
           <div id="stack-ticks" class="stack-ticks" aria-hidden="true"></div>
@@ -69,7 +73,7 @@
           <button type="button" id="z-focus" class="z-handle z-focus" aria-label="Focus plane"></button>
           <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
             orient="vertical" aria-orientation="vertical"
-            aria-label="Scrub focus through the time stack" />
+            aria-label="Scrub the slice plane" />
           <span id="stack-thumb-time" class="stack-thumb-time">0</span>
         </div>
         <span id="stack-bot" class="stack-cap">−0</span>
@@ -95,9 +99,13 @@
     <section class="sheet-block" data-slot="view" aria-labelledby="sheet-view">
       <h2 id="sheet-view" class="sheet-label">View</h2>
       <div class="btn-row">
-        <button type="button" id="btn-bird" class="btn btn-bird" aria-pressed="false" title="Orthographic top view of the focus plane">Bird</button>
+        <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
         <button type="button" id="btn-fit" class="btn" title="Frame the camera between the gold cuts (the cyan plane still scrubs)">Fit</button>
       </div>
+      <label class="check" title="Orbit around the time axis at the brick center. Off: free pan (XY translation).">
+        <input id="align-z" type="checkbox" checked />
+        <span>Align to Z</span>
+      </label>
       <label class="check">
         <input id="decay" type="checkbox" checked />
         <span>Decay (fade toward oldest drawn)</span>
@@ -183,6 +191,10 @@
       <label class="check">
         <input id="bench-full-rebuild" type="checkbox" />
         <span>Force full rebuild</span>
+      </label>
+      <label class="field" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
+        <span>Cube cap</span>
+        <input id="cube-cap" type="number" min="20000" max="4000000" step="10000" value="200000" />
       </label>
       <pre id="hud-gpu" class="hud-stats hud-bench" aria-live="off"></pre>
       <pre id="hud-bench" class="hud-stats hud-bench" aria-live="off"></pre>

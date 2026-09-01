@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CAD viewcube (desktop and phone orbit, not AR): product X/Y/Z, rotates with the camera, click a face to snap that view.
+- Slice-axis control on the stack (X / Y / Z). Default stays Z (time). Gold slab grips work on the chosen axis; Play still owns time.
+- Bench **Cube cap** (default 200 000, up to 4 000 000) so the instance envelope is a setting, not a hard constant.
+
+### Changed
+
+- **Bird** is now **Parallax** (default on = perspective). Off is orthographic at the current look, not a forced top-down 2D viewer. `B` / Escape toggle it. HUD shows `ORTHO` when off.
+- **Align to Z** (default on) keeps orbit on the time axis at the brick center. Off allows free pan (XY translation). Ortho always pans.
+
 ## [0.3.0] - 2026-08-31
 
 ### Added

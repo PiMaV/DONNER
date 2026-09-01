@@ -17,6 +17,68 @@ export function worldToProduct(wx, wy, wz) {
   return { x: wx, y: wz, z: wy };
 }
 
+export function normalizeSliceAxis(axis) {
+  const a = String(axis || "z").toLowerCase();
+  return a === "x" || a === "y" ? a : "z";
+}
+
+/**
+ * Camera sit direction for a product-axis view.
+ * +Z is top-down (world +Y), +Y is a side (world +Z), +X is a side (world +X).
+ */
+export function productViewDir(axis, sign) {
+  const s = sign < 0 ? -1 : 1;
+  const a = normalizeSliceAxis(axis);
+  if (a === "x") return { x: s, y: 0, z: 0 };
+  if (a === "y") return { x: 0, y: 0, z: s };
+  return { x: 0, y: s, z: 0 };
+}
+
+/** Stack max (back = 0 is the high end: Now, or max X/Y). */
+export function sliceMaxBack(axis, width, height, timeMaxBack) {
+  const a = normalizeSliceAxis(axis);
+  if (a === "x") return Math.max(0, (width | 0) - 1);
+  if (a === "y") return Math.max(0, (height | 0) - 1);
+  return Math.max(0, timeMaxBack | 0);
+}
+
+/** High end of the rail is back = 0. */
+export function axisIndexFromBack(back, maxBack) {
+  return Math.max(0, (maxBack | 0) - (back | 0));
+}
+
+export function slabIndices(topBack, botBack, maxBack) {
+  const hi = axisIndexFromBack(topBack, maxBack);
+  const lo = axisIndexFromBack(botBack, maxBack);
+  return { lo: Math.min(lo, hi), hi: Math.max(lo, hi) };
+}
+
+/**
+ * Whether an event sits on the current slice slab.
+ * Time (Z) is already clipped in fillSoA unless sliceOnly.
+ */
+export function eventOnSlice(axis, x, y, t, { lo, hi, focus, sliceOnly }) {
+  const a = normalizeSliceAxis(axis);
+  const value = a === "x" ? x : a === "y" ? y : t;
+  if (sliceOnly) return Math.abs(value - focus) < 0.5;
+  if (a === "z") return true;
+  return value >= lo && value <= hi;
+}
+
+export function lookAlignedWithAxis(cam, target, axis, cosMin = Math.cos((15 * Math.PI) / 180)) {
+  const dir = productViewDir(axis, 1);
+  let dx = target.x - cam.x;
+  let dy = target.y - cam.y;
+  let dz = target.z - cam.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 1e-6) return false;
+  dx /= len;
+  dy /= len;
+  dz /= len;
+  const dot = Math.abs(dx * dir.x + dy * dir.y + dz * dir.z);
+  return dot >= cosMin;
+}
+
 /** Tick indices along a grid axis of length `n` (inclusive 0 .. n-1). */
 export function spatialTicks(n) {
   const last = Math.max(0, n - 1);

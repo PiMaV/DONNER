@@ -17,8 +17,6 @@ Hier mal PR oder so.
 würde eigentlich sehr gut passen
 (eher zu event viewer?)
 
-## coord system wie in CAD; damit man von der seite schauen kann und immer orientiert ist
-
 ## Chrome (desktop / phone orbit — not XR-A)
 
 Keep the generator out of the viewer chrome. The left split (View card vs
@@ -31,7 +29,7 @@ Source card) is a first cut, not the end state.
 - **Thin View.** The View sheet is too dense for teaching (Bench timers,
   GPU strings, Neighborhood, presets, Encoding legend, cache line, …).
   Strip View to display controls the human actually uses on the volume
-  (Bird, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
+  (Parallax, Align to Z, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
   leave the teaching View (fold, flag, or a separate debug sheet).
 
 These are orbit-shell polish. XR-A already specifies a **thin overlay**

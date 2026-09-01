@@ -53,7 +53,7 @@ flowchart LR
   subgraph engine [DONNER display]
     windowNode[Time window]
     playhead[Playhead tFocus]
-    viewCam[Bird Orbit]
+    viewCam[Orbit Parallax]
     hud[FPS INST]
   end
   conway --> adapter
@@ -64,7 +64,7 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Bird, Z stack, Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
+| **Display** | Orbit, Parallax, Align to Z, CAD gizmo, slice stack (X/Y/Z), Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
 | **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
@@ -87,7 +87,7 @@ The left chrome is two sheets, not one mixed panel:
 ```mermaid
 flowchart TB
   subgraph view [View display]
-    bird[Bird]
+    bird[Parallax]
     win[Depth live Decay GridLight Cache]
     enc[Encoding]
     bench[Bench]
@@ -132,11 +132,12 @@ flowchart TB
 ```
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
-Bird-eye looks straight down with an orthographic camera. Worldline
-isolation is deferred (later: rectangle select). Scrub **Z** (time) with the stack
-slider (desktop: right, Now at the top; phone: bottom, Now at the right),
-or Shift+wheel. Inspect adds two **slab** handles: generations outside
-the band are not drawn.
+Bird-eye is gone: **Parallax** off is orthographic at the current look.
+A CAD viewcube snaps product-axis views. Worldline
+isolation is deferred (later: rectangle select). Scrub the **stack**
+(desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
+along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
+handles: samples outside the band are not drawn.
 
 ## Mapping
 
@@ -215,29 +216,37 @@ flowchart LR
 ```mermaid
 flowchart LR
   orbit[Orbit perspective]
-  bird[Bird-eye orthographic]
-  slab[Z slab clips]
-  scrub[Z playhead]
+  ortho[Ortho no parallax]
+  gizmo[CAD viewcube]
+  slab[Slice slab XYZ]
+  scrub[Stack playhead]
   orbit --> volume[Volume]
-  bird --> volume
+  ortho --> volume
+  gizmo --> orbit
+  gizmo --> ortho
   slab --> volume
-  scrub --> plane[Cyan plane through a still brick]
+  scrub --> plane[Cyan plane]
 ```
 
 Orbit (browser) rotates around the **time axis** through the playfield
-origin; the pivot sits at the mid-height of the drawn brick. **Fit**
+origin when **Align to Z** is on; the pivot sits at the mid-height of the
+drawn brick. Turn Align to Z off for free pan. **Parallax** off keeps the
+look and switches to an orthographic camera. **Fit**
 frames the camera between the gold cuts. Scrubbing the cyan playhead
 then slides the plane through that brick; the volume does not jump.
 
-## Z stack slider
+## Slice stack
 
-Time is a **HUD slider**, like a 3D slicer through the generation stack —
-not a grabber on the 3D axes. **Now** is `focusBack = 0`; the far end is
-the deepest stored past. The thumb is `tFocus`; the generation sits
-**beside the handle**. A tick mark per stored step rasters the rail.
-Wheel over the stack (or Shift+wheel on the canvas) still scrubs. There
-is no Focus slider in the control sheet. X/Y numbers stay on the
-playfield frame; there is no 3D Z shaft.
+The HUD slider is a **3D slicer** through the chosen product axis —
+Z (time) by default, or X / Y. **Now** is `focusBack = 0` (high end of
+the rail: live head on Z, max index on X/Y). The far end is the other
+bound. The thumb is the cyan plane. Inspect (and X/Y always) has gold
+slab grips. Wheel over the stack (or Shift+wheel on the canvas) still
+scrubs. X/Y numbers stay on the playfield frame. A CAD viewcube in the
+canvas corner is navigation only, not a time grabber.
+
+When the slice axis is X or Y, the time brick is the live wake or the
+whole inspect tape; Play still advances time and does not move the stack.
 
 Desktop: vertical rail on the right, **Now at the top**, past at the
 bottom. Phone: horizontal timeline at the bottom, **Now at the right**,
@@ -268,12 +277,35 @@ brick center. Live: only the cyan playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
 
-## Bird-eye view
+## Parallax, gizmo, Align to Z
 
-**Bird** (keyboard `B`) swaps to an **orthographic** camera looking down
-onto the focus plane: no perspective, no parallax, **focus slice only**
-(the stack would otherwise collapse onto itself). Pan / pinch; Shift+wheel
-still scrubs. Escape or Bird again returns to the saved orbit pose.
+**Parallax** (default on, keyboard `B`) is perspective. Off copies the
+current pose onto an orthographic camera so you can look from the side
+without a vanishing point. Escape turns parallax back on. When the look
+sits within ~15° of the slice axis, ortho draws only the playhead plane
+so cells do not stack.
+
+A CAD **viewcube** sits in the lower-left of the canvas (product X gold,
+Y muted, Z cyan). It rotates with the camera; click a face to snap that
+view. Hidden in AR.
+
+**Align to Z** (default on) pins orbit to the time axis through the brick
+center. Off allows screen-space pan. Ortho always pans.
+
+```mermaid
+flowchart LR
+  gizmo[CAD gizmo snap]
+  para[Parallax on off]
+  align[Align to Z]
+  slice[Slice axis XYZ]
+  cam[Orbit or ortho camera]
+  vol[Drawn slab]
+  gizmo --> cam
+  para --> cam
+  align --> cam
+  slice --> vol
+  cam --> vol
+```
 
 ## Isolation / observation
 
@@ -311,7 +343,7 @@ flowchart TB
 
 - **Display** — sparkline of recent frame times, FPS, rolling **AVG**,
   **1%** / **0.1%** lows (mean of the slowest 1% / 0.1% of a ~1000-frame
-  window), FR, INST (`trunc` if capped), FOC, PLAY/PAUSE, BIRD. Frame
+  window), FR, INST (`trunc` if capped), FOC, PLAY/PAUSE, ORTHO. Frame
   times are raw; the 100 ms clamp is simulation catch-up only, so FPS is
   not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
   Cliff-finder: scale Depth / Grid until FPS and 1% low hold. A clear
@@ -334,18 +366,19 @@ grow the DOM.
 | `src/dynamics.js` | Worldline class still / oscillator / transit |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
-| `src/axes.js` | Product X/Y/Z vs engine; tick labels |
+| `src/axes.js` | Product X/Y/Z vs engine; slice stack; tick labels |
 | `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
-| `src/view.js` | Perspective ↔ bird-eye camera |
+| `src/view.js` | Perspective ↔ orthographic (parallax) |
+| `src/gizmo.js` | CAD viewcube (product axes, click-to-snap) |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
 | `src/count.js` | Sparse count volume → `EventSoA` |
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
-| `src/main.js` | Scene, loop, dirty flags, edit/paint, camera, Z slab |
+| `src/main.js` | Scene, loop, dirty flags, edit/paint, camera, slice slab |
 | `src/hud.js` | Display vs source HUD copy; frame-time sparkline; 1%/0.1% lows |
-| `src/ui.js` | Two left sheets (View / Source), transport Play, Z-stack |
+| `src/ui.js` | Two left sheets (View / Source), transport Play, slice stack |
 
 BLITZ **Ember** decay is a 2D grayscale trail and is **not** used here.
 DONNER decay is visual weight along the time axis.
@@ -360,7 +393,7 @@ The cube renderer is the first implementation, not the only one. A later
 points / shader path should keep:
 
 ```text
-setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, isolate, sliceOnly, stabMode })
+setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, isolate, sliceAxis, sliceLo, sliceHi, sliceFocus, sliceOnly, stabMode })
 ```
 
 Color `k` and fill `s` are encoding fields. The renderer indexes
@@ -464,8 +497,9 @@ Off = even brick.
 Cache status lives in View. Conway Source does not own Depth, Decay, or
 the tape. Caps: 4096 gens or 400 000 cells, then `full` (recording from
 the start stops). Reset starts a new tape. Changing Depth resizes the
-wake ring only. The 200 000-instance cap still newest-first (`trunc` in
-the HUD) if Inspect is denser than the GPU envelope.
+wake ring only. The instance cap (Bench **Cube cap**, default 200 000)
+still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
+envelope.
 
 Neighborhood default is **none**. 3×3 / 5×5 is the motion gate (CPU cliff
 at 5×5). Dynamics and Stability stay on for teaching.
@@ -498,7 +532,7 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Decay, Bird slice, Inspect Z playhead | `setEvents` (decay/focus still CPU-baked) |
+| view | Decay, slice axis, Inspect playhead | `setEvents` (decay/focus still CPU-baked) |
 | source | Conway step, paint, live wake moved, enter Inspect, **Z slab** | `fillSoA` of **Depth** (live) or the **slab** (inspect), then `setEvents` |
 | encoding | Stability, Bench flags | same as source |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
@@ -523,7 +557,8 @@ preset starts Play.
 
 ## Performance envelope
 
-Instanced cubes: one mesh, up to 200 000 instances. Conway is the synthetic
+Instanced cubes: one mesh, default 200 000 instances (Bench **Cube cap**
+up to 4 000 000). Conway is the synthetic
 load generator. Use the **Bench** sheet: path timers (`sim` / `soa` /
 `inst` / `hov` / `rend` CPU / `hud`), WebGL/software detection, feature
 toggles, presets.

@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, clampCubeCap } from "./config.js";
 import { BENCH_PRESETS } from "./bench.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, stackThumbFrac, stackTickMarks } from "./axes.js";
@@ -46,8 +46,13 @@ export function bindUI(on) {
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
   const editBtn = $("btn-edit");
-  const birdBtn = $("btn-bird");
+  const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
+  const alignZ = $("align-z");
+  const sliceX = $("slice-x");
+  const sliceY = $("slice-y");
+  const sliceZ = $("slice-z");
+  const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
   const pattern = $("pattern");
   const seed = $("seed");
@@ -134,6 +139,8 @@ export function bindUI(on) {
   stabScale.checked = DEFAULTS.stabScale;
   encMin.checked = DEFAULTS.encodingMinimal;
   fullRebuild.checked = DEFAULTS.forceFullRebuild;
+  if (alignZ) alignZ.checked = DEFAULTS.alignZ;
+  if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
   if (countSize) countSize.checked = false;
   document.body.classList.toggle("source-count", DEFAULTS.sourceKind === "count");
@@ -168,8 +175,18 @@ export function bindUI(on) {
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
-  birdBtn.addEventListener("click", () => on.toggleBird());
+  parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
+  alignZ?.addEventListener("change", () => on.alignZ?.());
+  const onSlice = (axis) => () => on.sliceAxis?.(axis);
+  sliceX?.addEventListener("click", onSlice("x"));
+  sliceY?.addEventListener("click", onSlice("y"));
+  sliceZ?.addEventListener("click", onSlice("z"));
+  cubeCap?.addEventListener("change", () => {
+    if (applying) return;
+    cubeCap.value = String(clampCubeCap(cubeCap.value));
+    on.cubeCap?.();
+  });
   randBtn.addEventListener("click", () => {
     seed.value = String((Math.random() * 0x7fffffff) | 0);
     on.reset();
@@ -275,8 +292,15 @@ export function bindUI(on) {
     const x = e.clientX;
     const y = e.clientY;
     const hits = [];
-    const consider = (el, kind) => {
-      if (!el || el.disabled) return;
+      const consider = (el, kind) => {
+        if (!el || el.disabled) return;
+        if (
+          kind !== "focus" &&
+          !document.body.classList.contains("is-inspect") &&
+          !document.body.classList.contains("has-slab")
+        ) {
+          return;
+        }
       const r = el.getBoundingClientRect();
       if (
         x < r.left - handlePad ||
@@ -291,7 +315,10 @@ export function bindUI(on) {
       hits.push({ kind, d: (x - cx) ** 2 + (y - cy) ** 2 });
     };
     consider(zFocus, "focus");
-    if (document.body.classList.contains("is-inspect")) {
+    if (
+      document.body.classList.contains("is-inspect") ||
+      document.body.classList.contains("has-slab")
+    ) {
       consider(zClipNear, "near");
       consider(zClipFar, "far");
     }
@@ -304,7 +331,12 @@ export function bindUI(on) {
     if (stack.disabled) return null;
     const fromHandle = handleKindAt(e);
     if (fromHandle) return fromHandle;
-    if (!document.body.classList.contains("is-inspect")) return "focus";
+    if (
+      !document.body.classList.contains("is-inspect") &&
+      !document.body.classList.contains("has-slab")
+    ) {
+      return "focus";
+    }
     const back = backFromPointer(e);
     const foc = Number(stack.value) || 0;
     const dN = Math.abs(back - clipNearBack);
@@ -429,6 +461,8 @@ export function bindUI(on) {
         preset: preset.value,
         sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: countSize ? countSize.checked : false,
+        alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
+        maxInstances: cubeCap ? clampCubeCap(cubeCap.value) : DEFAULTS.maxInstances,
       };
     },
     applyPreset(p) {
@@ -470,9 +504,25 @@ export function bindUI(on) {
       editBtn.classList.toggle("is-on", editing);
       editBtn.setAttribute("aria-pressed", editing ? "true" : "false");
     },
-    setBird(on) {
-      birdBtn.classList.toggle("is-on", on);
-      birdBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    setParallax(on) {
+      if (!parallaxBtn) return;
+      parallaxBtn.classList.toggle("is-on", on);
+      parallaxBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    },
+    setSliceAxis(axis) {
+      const a = axis === "x" || axis === "y" ? axis : "z";
+      const buttons = [
+        [sliceX, "x"],
+        [sliceY, "y"],
+        [sliceZ, "z"],
+      ];
+      for (const [el, id] of buttons) {
+        if (!el) continue;
+        const on = id === a;
+        el.classList.toggle("is-on", on);
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+      document.body.classList.toggle("has-slab", a !== "z");
     },
     setFps(fps) {
       fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
@@ -517,7 +567,8 @@ export function bindUI(on) {
         tick,
       });
       const count = source === "count";
-      editBtn.disabled = count || (Boolean(inspect) && !atNow);
+      const spatial = document.body.classList.contains("has-slab");
+      editBtn.disabled = count || spatial || (Boolean(inspect) && !atNow);
       stepBtn.disabled = count ? false : Boolean(inspect);
       document.body.classList.toggle("is-inspect", Boolean(inspect));
     },

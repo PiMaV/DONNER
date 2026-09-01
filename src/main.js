@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { COLOR, DEFAULTS, VERSION } from "./config.js";
+import { COLOR, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
 import {
   BENCH_PRESETS,
   PathTimer,
@@ -24,6 +24,7 @@ import {
   IsolateBeacon,
   createFocusSurface,
   createNowGrid,
+  orientSlicePlane,
 } from "./renderer.js";
 import { CoordinateFrame, PlaneHairlines } from "./coords.js";
 import {
@@ -33,23 +34,36 @@ import {
   fadePastSpan,
   visibleTimeSpan,
 } from "./spacetime.js";
-import { clampSlab, slabGenerations } from "./axes.js";
+import {
+  axisIndexFromBack,
+  clampSlab,
+  lookAlignedWithAxis,
+  normalizeSliceAxis,
+  productViewDir,
+  slabGenerations,
+  slabIndices,
+  sliceMaxBack,
+} from "./axes.js";
 import {
   fitOrbitDistance,
+  offsetLength,
+  pinOrbitHeight,
   pinOrbitToAxis,
   placeOnViewRay,
   playfieldHalfExtent,
   slabYRange,
+  snapPose,
   volumeRadius,
 } from "./orbit.js";
 import { bindUI } from "./ui.js";
 import {
-  applyBirdAspect,
-  createBirdCamera,
-  enterBirdEye,
-  exitBirdEye,
-  fitBirdFrustum,
+  applyOrthoAspect,
+  createOrthoCamera,
+  enterOrtho,
+  exitOrtho,
+  setOrthoFrustum,
 } from "./view.js";
+import { ViewGizmo } from "./gizmo.js";
 import {
   XR_BOARD_METERS,
   XR_MAG_DEFAULT,
@@ -85,6 +99,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
 renderer.xr.enabled = true;
+renderer.autoClear = true;
 
 const scene = new THREE.Scene();
 const fog = new THREE.Fog(COLOR.bg, 48, 160);
@@ -107,7 +122,7 @@ const _hitLocal = new THREE.Vector3();
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
 camera.position.set(22, 16, 28);
-const birdCam = createBirdCamera();
+const orthoCam = createOrthoCamera();
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -118,11 +133,13 @@ controls.maxDistance = 160;
 controls.enablePan = false;
 controls.minZoom = 0.35;
 controls.maxZoom = 8;
-controls.minPolarAngle = 0.08;
-controls.maxPolarAngle = Math.PI - 0.08;
+controls.minPolarAngle = 0;
+controls.maxPolarAngle = Math.PI;
 controls.target.set(0, -6, 0);
 controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+const gizmo = new ViewGizmo({ coarse });
 
 const hemi = new THREE.HemisphereLight(0xb8c8e0, 0x0a0e13, 0.72);
 scene.add(hemi);
@@ -133,8 +150,8 @@ const fill = new THREE.DirectionalLight(0x88ddff, 0.22);
 fill.position.set(-20, 8, -12);
 scene.add(fill);
 
-const soa = new EventSoA(DEFAULTS.maxInstances);
-const cubes = new CubeRenderer(stage, {
+let soa = new EventSoA(DEFAULTS.maxInstances);
+let cubes = new CubeRenderer(stage, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
@@ -159,7 +176,15 @@ let focusSurface;
 let nowGrid;
 let playing = false;
 let editing = false;
-let birdEye = false;
+let parallax = DEFAULTS.parallax;
+let alignZ = DEFAULTS.alignZ;
+let sliceAxis = DEFAULTS.sliceAxis;
+let timeFocusBack = 0;
+let timeNearBack = 0;
+let timeFarBack = 0;
+let spaceNearBack = 0;
+let spaceFocusBack = 0;
+let spaceFarBack = -1;
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
@@ -206,8 +231,15 @@ let gpuInfo = null;
 const ui = bindUI({
   togglePlay,
   toggleEdit,
-  toggleBird,
+  toggleParallax,
   fitVolume,
+  alignZ: () => {
+    alignZ = ui.getConfig().alignZ;
+    syncOrbitPan();
+    pinOrbitPivot();
+  },
+  sliceAxis: (axis) => setSliceAxis(axis),
+  cubeCap: () => applyCubeCap(),
   step: () => {
     if (sourceId === "count") {
       playing = false;
@@ -243,8 +275,8 @@ const ui = bindUI({
     applyFocus(cfg.focusBack);
   },
   focusNow: () => {
-    if (playing) return;
-    clipNearBack = 0;
+    if (stackLiveLocked()) return;
+    if (sliceAxis === "z") clipNearBack = 0;
     applyFocus(0);
   },
   stabMode: () => {
@@ -294,7 +326,7 @@ const ui = bindUI({
 });
 
 function activeCamera() {
-  return birdEye ? birdCam : camera;
+  return parallax ? camera : orthoCam;
 }
 
 function arPillar() {
@@ -310,7 +342,8 @@ function viewStore() {
 }
 
 function tFocus() {
-  return focusGeneration(viewNow(), focusBack);
+  const back = sliceAxis === "z" ? focusBack : timeFocusBack;
+  return focusGeneration(viewNow(), back);
 }
 
 function inspectMode() {
@@ -319,6 +352,11 @@ function inspectMode() {
 
 function volumeSpan() {
   if (inspectMode()) {
+    if (sliceAxis !== "z") {
+      const oldest = viewStore().oldestT();
+      const newest = viewNow();
+      return { tLo: oldest, tHi: newest };
+    }
     const { tLo, tHi } = slabGenerations(viewNow(), clipNearBack, clipFarBack);
     const oldest = viewStore().oldestT();
     const newest = viewNow();
@@ -346,9 +384,33 @@ function volumeWindow() {
   return Math.max(1, historyLen);
 }
 
-function maxFocusBack() {
+function maxTimeBack() {
   if (inspectMode()) return Math.max(0, tape.newestT() - tape.oldestT());
   return Math.min(world.generation, historyLen);
+}
+
+function maxSliceBack() {
+  if (sliceAxis === "z") return maxTimeBack();
+  if (!world) return 0;
+  return sliceMaxBack(sliceAxis, world.width, world.height, 0);
+}
+
+function stackLiveLocked() {
+  return sliceAxis === "z" && playing && !tapeMode;
+}
+
+function spatialCoord(back, axis = sliceAxis) {
+  if (!world) return 0;
+  const max = sliceMaxBack(axis, world.width, world.height, 0);
+  const idx = axisIndexFromBack(back, max);
+  const cs = DEFAULTS.cellSize;
+  if (axis === "x") return (idx - (world.width - 1) * 0.5) * cs;
+  return (idx - (world.height - 1) * 0.5) * cs;
+}
+
+function sliceWorldCoord(back) {
+  if (sliceAxis === "z") return (focusBack - back) * DEFAULTS.timeScale;
+  return spatialCoord(back);
 }
 
 function createArReticle() {
@@ -489,7 +551,8 @@ function updateReticle(xrFrame) {
 
 async function enterAr() {
   if (arPresenting()) return;
-  if (birdEye) toggleBird();
+  if (!parallax) toggleParallax();
+  if (sliceAxis !== "z") setSliceAxis("z");
   const xr = navigator.xr;
   if (!(await isImmersiveArSupported(xr))) return;
   const overlay = document.getElementById("xr-overlay") || document.body;
@@ -550,7 +613,7 @@ function onArSessionEnd() {
 function syncFog() {
   const inspect = inspectMode();
   const ar = arPresenting();
-  scene.fog = birdEye || inspect || ar ? null : fog;
+  scene.fog = !parallax || inspect || ar ? null : fog;
   hemi.intensity = inspect || ar ? 1.08 : 0.72;
   key.intensity = inspect || ar ? 1.05 : 0.9;
 }
@@ -565,6 +628,11 @@ function syncViewRange() {
     camera.far = 400;
   }
   camera.updateProjectionMatrix();
+  if (!parallax) {
+    orthoCam.near = camera.near;
+    orthoCam.far = camera.far;
+    applyOrthoAspect(orthoCam, canvas.clientWidth / Math.max(1, canvas.clientHeight));
+  }
 }
 
 /** Depth: grow the wake ring, do not reset Conway. Tape stays as recorded. */
@@ -583,44 +651,58 @@ function currentSlabY() {
 }
 
 function pinOrbitPivot() {
-  if (arPresenting() || birdEye || !world) return;
+  if (arPresenting() || !world || !alignZ) return;
+  const cam = activeCamera();
   const { yMid } = currentSlabY();
   if (!Number.isFinite(yMid)) return;
-  if (!Number.isFinite(camera.position.x)) {
-    camera.position.set(22, 16, 28);
+  if (!Number.isFinite(cam.position.x)) {
+    cam.position.set(22, 16, 28);
     controls.target.set(0, 0, 0);
   }
-  const pinned = pinOrbitToAxis(camera.position, controls.target, yMid);
+  const pinned = parallax
+    ? pinOrbitToAxis(cam.position, controls.target, yMid)
+    : pinOrbitHeight(cam.position, controls.target, yMid);
   if (!Number.isFinite(pinned.cam.x) || !Number.isFinite(pinned.target.y)) return;
-  camera.position.set(pinned.cam.x, pinned.cam.y, pinned.cam.z);
+  cam.position.set(pinned.cam.x, pinned.cam.y, pinned.cam.z);
   controls.target.set(pinned.target.x, pinned.target.y, pinned.target.z);
-  camera.lookAt(controls.target);
+  cam.lookAt(controls.target);
+}
+
+function syncOrbitPan() {
+  controls.enablePan = !arPresenting() && (!parallax || !alignZ);
 }
 
 function fitVolume() {
   if (!world || arPresenting()) return;
-  if (birdEye) {
-    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-    fitBirdFrustum(birdCam, world.width, world.height, DEFAULTS.cellSize, aspect);
-    return;
-  }
   const { yMin, yMax, yMid } = currentSlabY();
   const { hx, hz } = playfieldHalfExtent(world.width, world.height, DEFAULTS.cellSize);
   const radius = volumeRadius(hx, hz, yMin, yMax);
-  const dist = fitOrbitDistance(camera.fov, radius, 1.28);
+  const cam = activeCamera();
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   controls.target.set(0, yMid, 0);
-  const pos = placeOnViewRay(camera.position, controls.target, dist);
-  camera.position.set(pos.x, pos.y, pos.z);
-  controls.maxDistance = Math.min(2400, Math.max(controls.maxDistance, dist * 1.4, 220));
-  camera.far = Math.max(camera.far, dist + radius * 3, 400);
-  camera.updateProjectionMatrix();
+  if (!parallax) {
+    const dist = Math.max(12, radius * 2.2);
+    const pos = placeOnViewRay(cam.position, controls.target, dist);
+    cam.position.set(pos.x, pos.y, pos.z);
+    setOrthoFrustum(orthoCam, radius * 1.2, aspect, 0.1, Math.max(400, dist + radius * 4));
+    orthoCam.zoom = 1;
+    orthoCam.lookAt(controls.target);
+    controls.maxDistance = Math.min(2400, Math.max(220, dist * 1.4));
+  } else {
+    const dist = fitOrbitDistance(camera.fov, radius, 1.28);
+    const pos = placeOnViewRay(camera.position, controls.target, dist);
+    camera.position.set(pos.x, pos.y, pos.z);
+    controls.maxDistance = Math.min(2400, Math.max(controls.maxDistance, dist * 1.4, 220));
+    camera.far = Math.max(camera.far, dist + radius * 3, 400);
+    camera.updateProjectionMatrix();
+  }
   pinOrbitPivot();
   controls.update();
 }
 
 function applyFocus(back) {
-  const live = playing && !tapeMode;
-  const max = live ? 0 : maxFocusBack();
+  const live = stackLiveLocked();
+  const max = live ? 0 : maxSliceBack();
   const now = viewNow();
   const slab = live
     ? { topBack: 0, focusBack: 0, botBack: 0 }
@@ -628,7 +710,10 @@ function applyFocus(back) {
   clipNearBack = slab.topBack;
   clipFarBack = slab.botBack;
   focusBack = live ? 0 : slab.focusBack;
-  ui.setFocus(focusBack, max, tFocus(), now - max, live, clipNearBack, clipFarBack);
+  if (sliceAxis === "z") timeFocusBack = focusBack;
+  const label = sliceAxis === "z" ? tFocus() : axisIndexFromBack(focusBack, max);
+  const lowLabel = sliceAxis === "z" ? now - max : 0;
+  ui.setFocus(focusBack, max, label, lowLabel, live, clipNearBack, clipFarBack);
   syncClipPlanes();
   pinOrbitPivot();
   updateHint();
@@ -640,8 +725,10 @@ function enterInspect() {
   if (tapeMode && !playing) return;
   playing = false;
   tapeMode = true;
-  clipNearBack = 0;
-  clipFarBack = maxFocusBack();
+  if (sliceAxis === "z") {
+    clipNearBack = 0;
+    clipFarBack = maxTimeBack();
+  }
   ui.setPlaying(false);
   dirtySource = true;
   syncCacheUi();
@@ -655,10 +742,13 @@ function enterLive() {
   editing = false;
   stoppedStable = false;
   acc = 0;
-  clipNearBack = 0;
-  clipFarBack = 0;
+  if (sliceAxis === "z") {
+    clipNearBack = 0;
+    clipFarBack = 0;
+  }
+  timeFocusBack = 0;
   clearHover();
-  applyFocus(0);
+  applyFocus(sliceAxis === "z" ? 0 : focusBack);
   ui.setPlaying(true);
   ui.setEditing(false);
   dirtySource = true;
@@ -673,7 +763,7 @@ function syncCacheUi() {
     events: tape.eventCount,
     full: tape.stopped,
     inspect: tapeMode,
-    atNow: focusBack === 0,
+    atNow: sliceAxis === "z" ? focusBack === 0 : true,
     tick: sourceId === "count" ? "t" : "gen",
     source: sourceId,
   });
@@ -699,19 +789,47 @@ function syncBeacon() {
 }
 
 function layoutPlayfield(width, height) {
-  if (focusSurface) stage.remove(focusSurface);
-  if (nowGrid) stage.remove(nowGrid);
-  focusSurface = createFocusSurface(width, height, DEFAULTS.cellSize);
-  nowGrid = createNowGrid(width, height, DEFAULTS.cellSize);
-  playfield.setSize(width, height, DEFAULTS.cellSize);
-  clipNearFrame.setSize(width, height, DEFAULTS.cellSize);
-  clipFarFrame.setSize(width, height, DEFAULTS.cellSize);
+  rebuildSliceVisuals(width, height);
   axes.setSize(width, height, DEFAULTS.cellSize);
-  stage.add(focusSurface);
-  stage.add(nowGrid);
   if (hoverCell && (hoverCell.x >= width || hoverCell.y >= height)) {
     hoverCell = null;
   }
+}
+
+function disposeObject3(obj) {
+  if (!obj) return;
+  stage.remove(obj);
+  if (obj.geometry) obj.geometry.dispose();
+  const mats = obj.material
+    ? Array.isArray(obj.material)
+      ? obj.material
+      : [obj.material]
+    : [];
+  for (const m of mats) m.dispose();
+}
+
+function brickYRange() {
+  if (sliceAxis !== "z" && (inspectMode() || arPillar()) && tape) {
+    return slabYRange(tFocus(), tape.oldestT(), viewNow(), DEFAULTS.timeScale);
+  }
+  return currentSlabY();
+}
+
+function rebuildSliceVisuals(width = world?.width, height = world?.height) {
+  if (!width || !height) return;
+  const { yMin, yMax } = brickYRange();
+  disposeObject3(focusSurface);
+  disposeObject3(nowGrid);
+  focusSurface = createFocusSurface(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
+  nowGrid = createNowGrid(width, height, DEFAULTS.cellSize);
+  nowGrid.visible = sliceAxis === "z";
+  playfield.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
+  clipNearFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
+  clipFarFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
+  stage.add(focusSurface);
+  stage.add(nowGrid);
+  syncClipPlanes();
+  applyGridLook();
 }
 
 function countWorld(vol) {
@@ -752,7 +870,17 @@ function markGps() {
 }
 
 function stepCountPlayhead() {
-  const max = maxFocusBack();
+  if (sliceAxis !== "z") {
+    const max = maxTimeBack();
+    if (max <= 0) return;
+    if (timeFocusBack <= 0) timeFocusBack = max;
+    else timeFocusBack -= 1;
+    markGps();
+    dirtySource = true;
+    dirtyView = true;
+    return;
+  }
+  const max = maxTimeBack();
   if (max <= 0) return;
   if (focusBack <= 0) applyFocus(max);
   else applyFocus(focusBack - 1);
@@ -785,21 +913,27 @@ function bootCount(vol) {
   );
   acc = 0;
   clipNearBack = 0;
-  clipFarBack = Math.max(0, vol.newestT() - vol.oldestT());
+  timeFocusBack = 0;
+  if (sliceAxis === "z") {
+    clipFarBack = Math.max(0, vol.newestT() - vol.oldestT());
+  } else {
+    clipFarBack = sliceMaxBack(sliceAxis, vol.width, vol.height, 0);
+  }
   applyFocus(0);
   syncFog();
   syncViewRange();
   const span = Math.max(vol.width, vol.height);
   camera.position.set(span * 0.55, Math.max(24, vol.nT * 0.45), span * 0.7);
   controls.target.set(0, -Math.min(vol.nT, span) * 0.15, 0);
-  if (birdEye) {
-    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-    fitBirdFrustum(birdCam, vol.width, vol.height, DEFAULTS.cellSize, aspect);
+  if (!parallax) {
+    copyActivePoseToOrtho();
   }
   pinOrbitPivot();
   ui.setPlaying(false);
   ui.setEditing(false);
-  ui.setBird(birdEye);
+  ui.setParallax(parallax);
+  ui.setSliceAxis(sliceAxis);
+  syncOrbitPan();
   syncBeacon();
   lastSpanKey = "";
   hoverKey = "";
@@ -899,7 +1033,12 @@ function bootWorld(resizeGrid) {
   stableStreak = 0;
   stoppedStable = false;
   clipNearBack = 0;
-  clipFarBack = tapeMode ? Math.max(0, tape.newestT() - tape.oldestT()) : 0;
+  timeFocusBack = 0;
+  if (sliceAxis === "z") {
+    clipFarBack = tapeMode ? Math.max(0, tape.newestT() - tape.oldestT()) : 0;
+  } else {
+    clipFarBack = sliceMaxBack(sliceAxis, cfg.width, cfg.height, 0);
+  }
   applyFocus(0);
   syncFog();
   syncViewRange();
@@ -907,15 +1046,14 @@ function bootWorld(resizeGrid) {
     const span = Math.max(cfg.width, cfg.height);
     camera.position.set(span * 0.7, span * 0.55, span * 0.9);
     controls.target.set(0, -Math.min(historyLen, span) * 0.2, 0);
-    if (birdEye) {
-      const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-      fitBirdFrustum(birdCam, cfg.width, cfg.height, DEFAULTS.cellSize, aspect);
-    }
+    if (!parallax) copyActivePoseToOrtho();
   }
   pinOrbitPivot();
   ui.setPlaying(playing);
   ui.setEditing(editing);
-  ui.setBird(birdEye);
+  ui.setParallax(parallax);
+  ui.setSliceAxis(sliceAxis);
+  syncOrbitPan();
   syncBeacon();
   lastSpanKey = "";
   hoverKey = "";
@@ -937,7 +1075,8 @@ function togglePlay() {
     } else {
       playing = true;
       ui.setPlaying(true);
-      if (focusBack === 0) applyFocus(maxFocusBack());
+      if (sliceAxis === "z" && focusBack === 0) applyFocus(maxTimeBack());
+      else if (sliceAxis !== "z" && timeFocusBack === 0) timeFocusBack = maxTimeBack();
     }
     updateHint();
     return;
@@ -946,7 +1085,7 @@ function togglePlay() {
     editing = false;
     ui.setEditing(false);
     enterInspect();
-    applyFocus(0);
+    applyFocus(sliceAxis === "z" ? 0 : focusBack);
   } else {
     enterLive();
   }
@@ -955,7 +1094,7 @@ function togglePlay() {
 }
 
 function toggleEdit() {
-  if (sourceId === "count") return;
+  if (sourceId === "count" || sliceAxis !== "z") return;
   if (tapeMode && focusBack !== 0) return;
   if (playing) {
     enterInspect();
@@ -970,29 +1109,109 @@ function toggleEdit() {
   updateHint();
 }
 
-function toggleBird() {
-  if (arPresenting()) return;
-  birdEye = !birdEye;
+function copyActivePoseToOrtho() {
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-  if (birdEye) {
-    enterBirdEye({
+  enterOrtho({
+    persp: camera,
+    ortho: orthoCam,
+    controls,
+    aspect,
+    fov: camera.fov,
+    target: controls.target,
+  });
+}
+
+function toggleParallax() {
+  if (arPresenting()) return;
+  parallax = !parallax;
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  if (!parallax) {
+    enterOrtho({
       persp: camera,
-      bird: birdCam,
+      ortho: orthoCam,
       controls,
-      width: world.width,
-      height: world.height,
-      cellSize: DEFAULTS.cellSize,
       aspect,
+      fov: camera.fov,
+      target: controls.target,
     });
   } else {
-    exitBirdEye({ persp: camera, controls });
+    exitOrtho({
+      persp: camera,
+      ortho: orthoCam,
+      controls,
+      target: controls.target,
+    });
     pinOrbitPivot();
   }
-  controls.enablePan = birdEye;
+  syncOrbitPan();
   syncFog();
-  ui.setBird(birdEye);
+  ui.setParallax(parallax);
   dirtyView = true;
   updateHint();
+}
+
+function snapToProductView(axis, sign) {
+  if (arPresenting()) return;
+  const cam = activeCamera();
+  const dist = offsetLength(cam.position, controls.target) || 40;
+  const pos = snapPose(controls.target, productViewDir(axis, sign), dist);
+  cam.position.set(pos.x, pos.y, pos.z);
+  cam.lookAt(controls.target);
+  controls.update();
+  dirtyView = true;
+}
+
+function setSliceAxis(next) {
+  const a = normalizeSliceAxis(next);
+  if (a === sliceAxis) return;
+  if (sliceAxis === "z") {
+    timeFocusBack = focusBack;
+    timeNearBack = clipNearBack;
+    timeFarBack = clipFarBack;
+  } else {
+    spaceNearBack = clipNearBack;
+    spaceFocusBack = focusBack;
+    spaceFarBack = clipFarBack;
+  }
+  sliceAxis = a;
+  if (a === "z") {
+    clipNearBack = timeNearBack;
+    focusBack = timeFocusBack;
+    clipFarBack = timeFarBack;
+  } else {
+    const max = sliceMaxBack(a, world.width, world.height, 0);
+    if (spaceFarBack < 0) {
+      clipNearBack = 0;
+      focusBack = 0;
+      clipFarBack = max;
+    } else {
+      clipNearBack = spaceNearBack;
+      focusBack = spaceFocusBack;
+      clipFarBack = Math.min(spaceFarBack, max);
+    }
+  }
+  if (editing && a !== "z") {
+    editing = false;
+    ui.setEditing(false);
+  }
+  ui.setSliceAxis(a);
+  rebuildSliceVisuals();
+  applyFocus(focusBack);
+  dirtySource = true;
+}
+
+function applyCubeCap() {
+  const cap = clampCubeCap(ui.getConfig().maxInstances);
+  if (soa.capacity === cap) return;
+  soa = new EventSoA(cap);
+  cubes.dispose();
+  cubes = new CubeRenderer(stage, {
+    maxCount: cap,
+    cellSize: DEFAULTS.cellSize,
+    kindHex: sourceId === "count" && countVol ? countKindHex(countVol.ceiling) : CONWAY_KIND_HEX,
+    warmupK: encodingWarmupK(),
+  });
+  dirtySource = true;
 }
 
 function applyGridLook() {
@@ -1004,14 +1223,27 @@ function applyGridLook() {
 }
 
 function syncClipPlanes() {
-  const inspect = inspectMode();
-  const ts = DEFAULTS.timeScale;
-  const showNear = inspect && clipNearBack !== focusBack;
-  const showFar = inspect && clipFarBack !== focusBack;
+  const slabOn = inspectMode() || sliceAxis !== "z";
+  const showNear = slabOn && !stackLiveLocked() && clipNearBack !== focusBack;
+  const showFar = slabOn && !stackLiveLocked() && clipFarBack !== focusBack;
   clipNearFrame.setVisible(showNear);
   clipFarFrame.setVisible(showFar);
-  if (showNear) clipNearFrame.setY((focusBack - clipNearBack) * ts);
-  if (showFar) clipFarFrame.setY((focusBack - clipFarBack) * ts);
+  playfield.setOffset(sliceAxis, sliceWorldCoord(focusBack));
+  if (showNear) clipNearFrame.setOffset(sliceAxis, sliceWorldCoord(clipNearBack));
+  if (showFar) clipFarFrame.setOffset(sliceAxis, sliceWorldCoord(clipFarBack));
+  if (focusSurface && world) {
+    const { yMin, yMax } = brickYRange();
+    orientSlicePlane(
+      focusSurface,
+      sliceAxis,
+      world.width,
+      world.height,
+      DEFAULTS.cellSize,
+      yMin,
+      yMax,
+      sliceWorldCoord(focusBack),
+    );
+  }
 }
 
 function updateHint() {
@@ -1028,7 +1260,7 @@ function updateHint() {
     ui.setHint(
       playing
         ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
-        : "Count stack — cyan plane · gold cuts · Play scrubs Z · Load another .npy in Source",
+        : "Count stack — cyan plane · gold cuts · Play scrubs time · Load another .npy in Source",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
@@ -1040,8 +1272,8 @@ function updateHint() {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
     ui.setHint("Focus is in the past — Now on the Z stack (or Home), then tap to paint");
-  } else if (birdEye) {
-    ui.setHint("Bird-eye — pan / pinch, Shift+wheel scrubs time · B to leave");
+  } else if (!parallax) {
+    ui.setHint("Ortho — no parallax · gizmo snaps views · B restores perspective");
   } else if (playing && cubes.count > 20000) {
     ui.setHint(
       `INST ${cubes.count} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
@@ -1061,7 +1293,7 @@ function maybeStopStable() {
   if (stableStreak < DEFAULTS.stableHold) return;
   stoppedStable = true;
   enterInspect();
-  applyFocus(0);
+  applyFocus(sliceAxis === "z" ? 0 : focusBack);
 }
 
 function stepOnce() {
@@ -1086,7 +1318,13 @@ function stepOnce() {
 
 function fillVolume() {
   const store = viewStore();
-  const span = inspectMode() || arPillar() ? volumeSpan() : null;
+  const spatial = sliceAxis !== "z";
+  const span =
+    inspectMode() || arPillar()
+      ? spatial
+        ? { tLo: store.oldestT(), tHi: viewNow() }
+        : volumeSpan()
+      : null;
   store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
     tFocus: tFocus(),
     stabMode: stabForFill(),
@@ -1104,6 +1342,12 @@ function fadeSpan() {
 }
 
 function uploadInstances() {
+  const max = maxSliceBack();
+  const span = slabIndices(clipNearBack, clipFarBack, max);
+  const cam = activeCamera();
+  const aligned =
+    !parallax &&
+    lookAlignedWithAxis(cam.position, controls.target, sliceAxis);
   cubes.setEvents(soa, {
     tFocus: tFocus(),
     decay: arPresenting() ? false : decay,
@@ -1115,7 +1359,11 @@ function uploadInstances() {
     stabMode: stabForFill(),
     cellSize: DEFAULTS.cellSize,
     isolate: null,
-    sliceOnly: birdEye,
+    sliceAxis,
+    sliceLo: span.lo,
+    sliceHi: span.hi,
+    sliceFocus: sliceAxis === "z" ? tFocus() : axisIndexFromBack(focusBack, max),
+    sliceOnly: aligned,
     encodingMinimal,
   });
 }
@@ -1132,7 +1380,9 @@ function fillAndUpload() {
 
 function spanKey() {
   const span = volumeSpan();
-  return `${span.tLo}:${span.tHi}`;
+  const max = maxSliceBack();
+  const spatial = slabIndices(clipNearBack, clipFarBack, max);
+  return `${span.tLo}:${span.tHi}:${sliceAxis}:${spatial.lo}:${spatial.hi}:${focusBack}`;
 }
 
 function syncVolume() {
@@ -1161,7 +1411,7 @@ function syncVolume() {
 }
 
 function hitCell(event, cubesToo = false) {
-  if (!focusSurface) return null;
+  if (!focusSurface || sliceAxis !== "z") return null;
   const rect = canvas.getBoundingClientRect();
   ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1219,6 +1469,10 @@ function syncHover() {
 }
 
 function updateHover(event) {
+  if (sliceAxis !== "z") {
+    clearHover();
+    return;
+  }
   const cell = hitCell(event);
   hoverCell = cell;
   hairlines.setCell(cell, world.width, world.height, DEFAULTS.cellSize);
@@ -1234,7 +1488,7 @@ function resize() {
   const aspect = w / Math.max(1, h);
   camera.aspect = aspect;
   camera.updateProjectionMatrix();
-  applyBirdAspect(birdCam, aspect);
+  applyOrthoAspect(orthoCam, aspect);
   refreshGpu();
 }
 
@@ -1251,10 +1505,23 @@ function refreshGpu() {
   }
 }
 
-canvas.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
-  pointerDown = { x: e.clientX, y: e.clientY };
-});
+canvas.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button !== 0) return;
+    if (!arPresenting()) {
+      const view = gizmo.hit(e.clientX, e.clientY, canvas);
+      if (view) {
+        e.stopImmediatePropagation();
+        snapToProductView(view.axis, view.sign);
+        pointerDown = null;
+        return;
+      }
+    }
+    pointerDown = { x: e.clientX, y: e.clientY };
+  },
+  { capture: true },
+);
 canvas.addEventListener("pointermove", (e) => {
   updateHover(e);
 });
@@ -1279,7 +1546,7 @@ canvas.addEventListener(
     e.stopPropagation();
     e.stopImmediatePropagation();
     const dir = Math.sign(e.deltaY) || 1;
-    enterInspect();
+    if (sliceAxis === "z") enterInspect();
     applyFocus(focusBack + dir);
   },
   { capture: true, passive: false },
@@ -1293,12 +1560,12 @@ window.addEventListener("keydown", (e) => {
   } else if (e.code === "KeyE") {
     if (sourceId !== "count") toggleEdit();
   } else if (e.code === "KeyB") {
-    toggleBird();
+    toggleParallax();
   } else if (e.code === "KeyF") {
     fitVolume();
   } else if (e.code === "Escape") {
     if (arPresenting()) exitAr();
-    else if (birdEye) toggleBird();
+    else if (!parallax) toggleParallax();
   } else if (e.code === "Period" || e.code === "KeyN") {
     if (sourceId === "count") {
       playing = false;
@@ -1312,13 +1579,13 @@ window.addEventListener("keydown", (e) => {
     stepOnce();
     updateHint();
   } else if (e.code === "BracketLeft" || e.code === "ArrowDown") {
-    enterInspect();
+    if (sliceAxis === "z") enterInspect();
     applyFocus(focusBack + 1);
   } else if (e.code === "BracketRight" || e.code === "ArrowUp") {
-    enterInspect();
+    if (sliceAxis === "z") enterInspect();
     applyFocus(focusBack - 1);
   } else if (e.code === "Home") {
-    clipNearBack = 0;
+    if (sliceAxis === "z") clipNearBack = 0;
     applyFocus(0);
   } else if (e.code === "KeyR") {
     if (sourceId === "count") applyFocus(0);
@@ -1361,7 +1628,17 @@ function frame(now, xrFrame) {
     controls.update();
   }
   paths.measure("rend", () => {
-    renderer.render(scene, activeCamera());
+    if (arPresenting()) {
+      renderer.autoClear = true;
+      renderer.render(scene, activeCamera());
+      return;
+    }
+    renderer.autoClear = false;
+    renderer.clear();
+    const cam = activeCamera();
+    renderer.render(scene, cam);
+    gizmo.sync(cam);
+    gizmo.render(renderer);
   });
 
   paths.measure("hud", () => {
@@ -1379,7 +1656,7 @@ function frame(now, xrFrame) {
       truncated: soa.truncated,
       focus: foc,
       playing,
-      bird: birdEye,
+      ortho: !parallax,
       software: Boolean(gpuInfo && gpuInfo.software),
     });
     ui.setFps(fps);
@@ -1399,7 +1676,7 @@ function frame(now, xrFrame) {
         events: tape.eventCount,
         full: tape.stopped,
         inspect: tapeMode,
-        atNow: focusBack === 0,
+        atNow: sliceAxis === "z" ? focusBack === 0 : true,
         tick: sourceId === "count" ? "t" : "gen",
         source: sourceId,
       });
