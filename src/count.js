@@ -381,7 +381,6 @@ export class CountVolume {
     const foci = opts.foci || { x: -1, y: -1, z: tFocus };
     const shade = normalizeShadeMode(opts.shade || "hull");
     const activeAxis = opts.activeAxis || "z";
-    const useStab = opts.stabScale !== false && (opts.stabMode === "time" || opts.stabMode === "focus");
     const hi = Math.max(1, this.ceiling);
     let n = 0;
     let truncated = false;
@@ -396,7 +395,7 @@ export class CountVolume {
       soa.t[n] = this.t[i];
       soa.v[n] = v;
       soa.k[n] = Math.min(hi, v);
-      soa.s[n] = useStab ? (v / hi) * MAX_STAB_GENS : 0;
+      soa.s[n] = (v / hi) * MAX_STAB_GENS;
       n += 1;
       return true;
     };

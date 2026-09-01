@@ -87,11 +87,12 @@ empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meine
 
 ## Conway encoding cost
 
-**Stability scaling** (`stabScale` / Time / Focus) is a real `fillSoA`
-hit: every live cell in the AABB runs `stabilityAge`, including Inspect
-Triple/Ghost rebuilds on playhead moves. For Conway that is teaching
-fill only — **nice-to-have, not required**. Later: default off, or skip
-it on those rebuilds. Do not treat it as a display essential.
+Conway `s` is stamped per generation (along Z). None / Time / Focus and
+count **Size by count** are display. Neighborhood restamp stays.
+
+**Later:** drop the Bench “Stability scaling” checkbox (Source Stability
+None is enough). Ghost/Triple still refill the occupancy list on
+playhead — next cut after stored `s`.
 
 ## Chrome (desktop / phone orbit — not XR-A)
 

@@ -29,6 +29,7 @@ import {
 } from "../src/dynamics.js";
 import { clampFocusBack, focusGeneration } from "../src/focus.js";
 import { EventSoA, eventAt, GenerationRing } from "../src/spacetime.js";
+import { focusSByPacked } from "../src/encoding.js";
 
 describe("Conway B3/S23 (BLITZ parity)", () => {
   it("blinker oscillates with period 2 on a torus", () => {
@@ -328,7 +329,7 @@ describe("stability age", () => {
     assert.equal(stabilityScale(16), stabilityScale(99));
   });
 
-  it("projects focus age onto earlier cubes when asked", () => {
+  it("stamps per-generation s; focus is a lookup, not a fillSoA rewrite", () => {
     const rng = mulberry32(0);
     let grid = seedPattern("Blinker", 9, 9, rng);
     const ring = new GenerationRing(8, 81);
@@ -337,13 +338,23 @@ describe("stability age", () => {
       ring.pushGrid(grid, 9, 9, t);
       if (t < 2) grid = stepClassic(grid, 9, 9, true);
     }
-    ring.fillSoA(soa, 2, 8, 9, { tFocus: 2, stabMode: "focus" });
-    const atCore = [];
+    ring.fillSoA(soa, 2, 8, 9, { tFocus: 2 });
+    const timeS = [];
     for (let i = 0; i < soa.count; i++) {
-      if (soa.x[i] === 4 && soa.y[i] === 4) atCore.push(soa.s[i]);
+      if (soa.x[i] === 4 && soa.y[i] === 4) timeS.push(soa.s[i]);
     }
-    assert.ok(atCore.length >= 2);
-    assert.ok(atCore.every((s) => s === atCore[0]));
+    assert.ok(timeS.length >= 2);
+    ring.fillSoA(soa, 2, 8, 9, { tFocus: 0, stabMode: "focus" });
+    const again = [];
+    for (let i = 0; i < soa.count; i++) {
+      if (soa.x[i] === 4 && soa.y[i] === 4) again.push(soa.s[i]);
+    }
+    assert.deepEqual(again, timeS);
+    const map = focusSByPacked(soa, 2, 9);
+    const packed = 4 * 9 + 4;
+    assert.ok(map.has(packed));
+    const projected = timeS.map(() => map.get(packed));
+    assert.ok(projected.every((s) => s === projected[0]));
   });
 });
 

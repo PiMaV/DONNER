@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Conway **stability** (`s`) is stamped per generation on the tape. None / Time / Focus and count **Size by count** are display (`setEvents`). Inspect playhead and those toggles no longer rerun `stabilityAge`. Neighborhood still restamps the tape once.
 - Phone orbit: one finger rotates and pinch zooms; playhead and clips move only on the stack sliders. Mouse still grabs a frame edge.
 - Quest AR no longer shows the in-world Play / stand / Exit plate (unreadable and out of reach). Thumbstick still yaws; both grips still pinch size. Grab a bounding frame to slide the volume in the room.
 

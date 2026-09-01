@@ -80,6 +80,8 @@ class Slice {
     this.count = 0;
     this.x = new Uint16Array(maxCells);
     this.y = new Uint16Array(maxCells);
+    this.k = new Uint8Array(maxCells);
+    this.s = new Uint8Array(maxCells);
   }
 }
 
@@ -103,6 +105,10 @@ export class GenerationRing {
     /** @type {Map<number, Set<number>>} */
     this.liveByGen = new Map();
     this._width = 0;
+    this._height = 0;
+    this._wrap = true;
+    this._kindOpts = { neighborhoodRadius: 0 };
+    this._stampKey = "";
   }
 
   clear() {
@@ -111,6 +117,7 @@ export class GenerationRing {
     this.eventCount = 0;
     this.stopped = false;
     this.liveByGen.clear();
+    this._stampKey = "";
   }
 
   /**
@@ -130,6 +137,8 @@ export class GenerationRing {
       dst.count = src.count;
       dst.x.set(src.x.subarray(0, src.count));
       dst.y.set(src.y.subarray(0, src.count));
+      dst.k.set(src.k.subarray(0, src.count));
+      dst.s.set(src.s.subarray(0, src.count));
     }
     this.slices = next;
     this.capacity = cap;
@@ -161,6 +170,63 @@ export class GenerationRing {
     this.liveByGen.set(sl.t, set);
   }
 
+  /** Neighborhood / wrap for stamps. A new key restamps on the next fill. */
+  setClassify(opts = {}) {
+    if (opts.wrap != null) this._wrap = Boolean(opts.wrap);
+    if (opts.neighborhoodRadius != null || opts.neighborhood != null) {
+      this._kindOpts = { neighborhoodRadius: kindOptsRadius(opts) };
+    }
+  }
+
+  _classifyKey(width, height) {
+    const w = width | 0;
+    const h = (height | 0) || w;
+    const wrap = this._wrap !== false ? 1 : 0;
+    const r = kindOptsRadius(this._kindOpts || {});
+    return `${w}:${h}:${wrap}:${r}`;
+  }
+
+  _isLive(t, packed) {
+    const set = this.liveByGen.get(t);
+    return !!(set && set.has(packed));
+  }
+
+  stampSlice(sl, width, height) {
+    const w = width | 0;
+    if (!sl || !w) return;
+    const h = (height | 0) || this._height || w;
+    const bounds = { width: w, height: h, wrap: this._wrap !== false };
+    const kindOpts = this._kindOpts || { neighborhoodRadius: 0 };
+    const isLive = (t, packed) => this._isLive(t, packed);
+    for (let c = 0; c < sl.count; c++) {
+      const packed = sl.y[c] * w + sl.x[c];
+      sl.k[c] = kindAt(sl.t, packed, isLive, bounds, kindOpts);
+      sl.s[c] = stabilityAge(sl.t, packed, isLive, undefined, bounds, kindOpts);
+    }
+    this._stampKey = this._classifyKey(w, h);
+  }
+
+  stampAll(width, height) {
+    const w = (width | 0) || this._width;
+    const h = (height | 0) || this._height || w;
+    if (!w) return;
+    for (let i = 0; i < this.size; i++) {
+      const idx = (this.head - this.size + i + this.capacity) % this.capacity;
+      this.stampSlice(this.slices[idx], w, h);
+    }
+  }
+
+  _ensureStamped(width, opts) {
+    this.setClassify({
+      wrap: opts.wrap,
+      neighborhood: opts.neighborhood,
+      neighborhoodRadius: opts.neighborhoodRadius,
+    });
+    const height = opts.height || width;
+    const key = this._classifyKey(width, height);
+    if (key !== this._stampKey) this.stampAll(width, height);
+  }
+
   pushGrid(grid, width, height, t) {
     if (this.appendOnly && this.stopped) return false;
     if (this.appendOnly && this.size === this.capacity) {
@@ -179,6 +245,8 @@ export class GenerationRing {
     sl.t = t;
     sl.count = collectLive(grid, width, height, sl.x, sl.y);
     this._indexSlice(sl, width);
+    this._height = height || width;
+    this.stampSlice(sl, width, this._height);
     this.head = (this.head + 1) % this.capacity;
     this.size = Math.min(this.size + 1, this.capacity);
     if (this.appendOnly) {
@@ -208,6 +276,8 @@ export class GenerationRing {
         sl.count = collectLive(grid, width, height, sl.x, sl.y);
         if (this.appendOnly) this.eventCount += sl.count - prev;
         this._indexSlice(sl, width);
+        this._height = height || width;
+        this.stampSlice(sl, width, this._height);
         return;
       }
     }
@@ -216,17 +286,17 @@ export class GenerationRing {
 
   /**
    * Newest-first fill so the present is never dropped when SoA capacity hits.
-   * `width` is needed to classify (x, y) worldlines; omit to skip (k = moving).
+   * Copies `k` / `s` stamped on each slice (worldline class and stability
+   * along Z). Display modes None / Time / Focus do not belong here.
+   * `width` is needed to copy classification; omit to skip (k = moving).
    * @param {number} [width]
    * @param {{
    *   tFocus?: number,
-   *   stabMode?: "none" | "time" | "focus",
    *   height?: number,
    *   wrap?: boolean,
    *   dynamics?: boolean,
    *   neighborhood?: boolean,
    *   neighborhoodRadius?: number,
-   *   stabScale?: boolean,
    *   tLo?: number,
    *   tHi?: number,
    *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number },
@@ -242,37 +312,8 @@ export class GenerationRing {
           }
         : visibleTimeSpan(tFocus, tRef, this.oldestT(), window);
     const { tLo, tHi } = span;
-    const stabMode = opts.stabMode || "none";
-    const project = stabMode === "focus";
     const dynamics = opts.dynamics !== false;
-    const useStab =
-      opts.stabScale !== false && (stabMode === "time" || stabMode === "focus");
-    const kindOpts = { neighborhoodRadius: kindOptsRadius(opts) };
-    const bounds =
-      width > 0
-        ? {
-            width,
-            height: opts.height || width,
-            wrap: opts.wrap !== false,
-          }
-        : null;
-    const isLive = (t, packed) => {
-      const set = this.liveByGen.get(t);
-      return !!(set && set.has(packed));
-    };
-    const projCache = new Map();
-    const stabAt = (t, packed) => {
-      if (project) {
-        if (!projCache.has(packed)) {
-          projCache.set(
-            packed,
-            stabilityAge(tFocus, packed, isLive, undefined, bounds, kindOpts),
-          );
-        }
-        return projCache.get(packed);
-      }
-      return stabilityAge(t, packed, isLive, undefined, bounds, kindOpts);
-    };
+    if (width > 0 && dynamics) this._ensureStamped(width, opts);
 
     let n = 0;
     let truncated = false;
@@ -296,9 +337,8 @@ export class GenerationRing {
         soa.t[n] = sl.t;
         soa.v[n] = 1;
         if (width > 0 && dynamics) {
-          const packed = y * width + x;
-          soa.k[n] = kindAt(sl.t, packed, isLive, bounds, kindOpts);
-          soa.s[n] = useStab ? stabAt(sl.t, packed) : 0;
+          soa.k[n] = sl.k[c];
+          soa.s[n] = sl.s[c];
         } else {
           soa.k[n] = KIND_MOVING;
           soa.s[n] = 0;

@@ -293,7 +293,10 @@ a cell for a few gens looks still/osc on that worldline. Occupancy-only
 glider tubes need a 3×3 or 5×5 centroid that stays put (net shift over two
 generations). Translating activity is then **moving**. **Base** (gray) is
 generations `t = 0, 1` and the first cube of each `(x, y)` worldline.
-Cube **scale** follows Stability **None / Time / Focus**.
+Cube **scale** follows Stability **None / Time / Focus** from `s`
+stamped on each Conway slice (run-length along Z). Toggles and Focus are
+`setEvents` lookups, not a `stabilityAge` rebuild. Count uses the same
+`s` slot for magnitude (**Size by count**), also display-only.
 Decay is brightness only.
 
 ```mermaid
@@ -844,9 +847,9 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Decay, slice axis, Inspect **Hull** playhead | `setEvents` when instances change; Hull + Decay off skips even that (clip meshes only) |
-| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Triple** | `fillSoA` of **Depth** (live) or the **slab** (inspect), then `setEvents` |
-| encoding | Stability, Bench flags | same as source |
+| view | Decay, Stability None/Time/Focus, Size by count, encoding-minimal, Inspect **Hull** playhead (Focus still needs `setEvents`) | `setEvents` when instances or fill change; Hull + Decay off + Time/None skips even that (clip meshes only) |
+| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Triple** | `fillSoA` copies stamped `k`/`s`; Ghost/Triple still rebuild the occupancy list |
+| encoding | Neighborhood (restamp tape once), Dynamics on/off | Neighborhood: `stampAll` then fill. Dynamics: fill copies vs zeros `k`/`s`. **Not** Stability / Size-by-count |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
 | ring | Depth | wake `GenerationRing.resize` (keep newest slices) |
 

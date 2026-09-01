@@ -48,9 +48,11 @@ advantage, not a deployment convenience.
   and the first cube of each worldline.
   Count uses integer rungs (cyan → gold → coral).
   Default Neighborhood is **none** (occupancy). 3×3 or 5×5 is the motion
-  gate so gliders become moving tubes (5×5 is the CPU cliff). Cube scale
-  follows Stability mode (`none` / `time` / `focus`)
-  via `s`, not decay. Oscillators encode as occupancy along Z, not extra
+  gate so gliders become moving tubes (5×5 is the CPU cliff). Cube scale follows Stability mode (`none` / `time` / `focus`)
+  via stamped `s` on each generation (along Z). None / Time / Focus and
+  count **Size by count** are display (`setEvents`); do not rerun
+  `stabilityAge` on playhead or toggle. Neighborhood change restamps the
+  tape once. Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino, started paused; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
@@ -102,8 +104,9 @@ advantage, not a deployment convenience.
   (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
   (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
   Bench. Camera-only frames must not call `fillSoA`. Inspect Hull playhead
-  must not either (clip, Ghost, and Triple still refill; clip uses the hull
-  cache plus AABB faces, not a full occupancy scan).
+  must not either (clip, Ghost, and Triple still refill occupancy; clip uses the hull
+  cache plus AABB faces, not a full occupancy scan). Stability None/Time/Focus
+  must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
   Visible volume lives on a `stage` group, then `stand` (which product

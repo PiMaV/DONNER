@@ -250,7 +250,7 @@ stats stay in **Source**.
 
 | Control | Meaning |
 |---------|---------|
-| Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
+| Stability | Display of stamped Conway `s` (not a rebuild). **None** — equal size. **Time** (default) — fill already reached at that generation. **Focus** — fill on the focus plane, whole column. |
 
 The **axis-colored frames** are the three slice planes (X `#5b8cff`, Y
 `#e8c547`, Z `#3ecf8e`). Inspect also draws **clip rings** on all three
@@ -429,11 +429,10 @@ classes mean the pattern sat still. Cyan on a glider was a false friend
 (the ship crawling over the same cell).
 
 Decay only darkens older **Z** slices; it does not change hue or cube size.
-**Size / fill** depends on **Stability**:
-
-- **None** — every live cell the same size (truth view for occupancy)
-- **Time** (default) — duration already reached at that generation (taper)
-- **Focus** — duration on the focus plane, whole `(x, y)` column
+**Size / fill** (Conway) reads stamped stability along Z. **None / Time /
+Focus** only change how that stored `s` is shown (Focus = value on the
+playhead, whole column). Count **Size by count** is the same idea for
+integer magnitude. Neither toggle rebuilds the tape.
 
 Cap is 16 generations. Moving and Unsettled stay smaller in Time/Focus. Base cubes
 stay full size so the first slices are not a false “shrink”.

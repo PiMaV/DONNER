@@ -22,7 +22,7 @@ import {
   zWorldY,
 } from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
-import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
+import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill, focusSByPacked } from "./encoding.js";
 import { depthFade, sliceDistanceFade } from "./fade.js";
 import { frameBarThickness, frameHandleInset, frameRingBox, frameRingWorldEdges } from "./frame.js";
 import { isolationWeight } from "./observe.js";
@@ -132,6 +132,11 @@ export class CubeRenderer {
     const alongHi =
       activeAxis === "x" ? aabb?.xHi : activeAxis === "y" ? aabb?.yHi : aabb?.tHi;
     const alongFocus = foci[activeAxis];
+    const stabMode = view.stabMode || "none";
+    const focusS =
+      stabMode === "focus" && view.width > 0
+        ? focusSByPacked(soa, tFocus, view.width)
+        : null;
 
     let iSolid = 0;
     let iGhost = 0;
@@ -164,9 +169,10 @@ export class CubeRenderer {
       dummy.position.set((x - ox) * cell, zWorldY(t, tNow, timeScale), (y - oz) * cell);
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
+      const s = focusS ? focusS.get((y | 0) * view.width + (x | 0)) || 0 : soa.s[i];
       const fill = minimal
         ? SCALE_UNIFORM
-        : encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
+        : encodingFill(k, s, focusS ? "time" : stabMode, this._warmupK);
       const field = isolationWeight(isolate, x, y);
       const asGhost = cls === "ghost" || field < 1 || spatialW < 1;
       const dGhost = inspectShade ? 0 : dt;

@@ -9,6 +9,7 @@ import {
   countKindHex,
   encodingCubeFill,
   encodingFill,
+  focusSByPacked,
   lerpHex,
 } from "../src/encoding.js";
 
@@ -33,5 +34,19 @@ describe("encoding adapter", () => {
     assert.equal(lut[4], COUNT_RAMP_HEX[2]);
     assert.equal(lerpHex(0xff0000, 0x00ff00, 0), 0xff0000);
     assert.equal(encodingFill(3, 8, "none", -1), SCALE_UNIFORM);
+  });
+
+  it("looks up time-mode s on the focus generation", () => {
+    const soa = {
+      count: 3,
+      x: Float32Array.from([1, 1, 2]),
+      y: Float32Array.from([0, 0, 0]),
+      t: Float32Array.from([4, 5, 5]),
+      s: Float32Array.from([2, 8, 3]),
+    };
+    const map = focusSByPacked(soa, 5, 8);
+    assert.equal(map.get(1), 8);
+    assert.equal(map.get(2), 3);
+    assert.equal(map.has(0), false);
   });
 });
