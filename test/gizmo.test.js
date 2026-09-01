@@ -3,13 +3,11 @@ import { describe, it } from "node:test";
 
 import {
   axisIndexFromBack,
-  eventOnSlice,
   lookAlignedWithAxis,
   productViewDir,
   productToWorld,
   slabIndices,
   sliceMaxBack,
-  sliceViewMode,
 } from "../src/axes.js";
 import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
@@ -50,34 +48,6 @@ describe("slice stack indices", () => {
     assert.deepEqual(slabIndices(0, 31, 31), { lo: 0, hi: 31 });
     assert.deepEqual(slabIndices(0, 0, 31), { lo: 31, hi: 31 });
     assert.deepEqual(slabIndices(5, 10, 31), { lo: 21, hi: 26 });
-  });
-});
-
-describe("eventOnSlice", () => {
-  it("keeps time events when the axis is Z unless sliceOnly", () => {
-    assert.equal(eventOnSlice("z", 1, 2, 9, { lo: 0, hi: 4, focus: 9, sliceOnly: false }), true);
-    assert.equal(eventOnSlice("z", 1, 2, 8, { lo: 0, hi: 4, focus: 9, sliceOnly: true }), false);
-    assert.equal(eventOnSlice("z", 1, 2, 9, { lo: 0, hi: 4, focus: 9, sliceOnly: true }), true);
-  });
-
-  it("uses stack-axis ghost for Z and for dense X/Y", () => {
-    assert.deepEqual(sliceViewMode("z"), { stackGhost: true, spatialFade: false });
-    assert.deepEqual(sliceViewMode("x"), { stackGhost: false, spatialFade: true });
-    assert.deepEqual(sliceViewMode("x", { sliceStackGhost: true }), {
-      stackGhost: true,
-      spatialFade: false,
-    });
-    assert.deepEqual(sliceViewMode("y", { sliceOnly: true }), {
-      stackGhost: false,
-      spatialFade: false,
-    });
-  });
-
-  it("clips X and Y slabs", () => {
-    assert.equal(eventOnSlice("x", 4, 2, 9, { lo: 3, hi: 5, focus: 4, sliceOnly: false }), true);
-    assert.equal(eventOnSlice("x", 1, 2, 9, { lo: 3, hi: 5, focus: 4, sliceOnly: false }), false);
-    assert.equal(eventOnSlice("y", 1, 7, 9, { lo: 7, hi: 7, focus: 7, sliceOnly: true }), true);
-    assert.equal(eventOnSlice("y", 1, 6, 9, { lo: 7, hi: 7, focus: 7, sliceOnly: true }), false);
   });
 });
 

@@ -53,33 +53,6 @@ export function slabIndices(topBack, botBack, maxBack) {
   return { lo: Math.min(lo, hi), hi: Math.max(lo, hi) };
 }
 
-/**
- * Solid/ghost policy for the active stack axis.
- * Z (and dense count on X/Y) is one-sided: solid toward the past, ghost
- * toward Now. Sparse Conway/EVT X/Y still fades both ways to the gold grips.
- */
-export function sliceViewMode(axis, { sliceOnly = false, sliceStackGhost = false } = {}) {
-  const a = normalizeSliceAxis(axis);
-  const stackGhost = a === "z" || Boolean(sliceStackGhost);
-  const spatialFade = a !== "z" && !sliceOnly && !stackGhost;
-  return { stackGhost, spatialFade };
-}
-
-/**
- * Whether an event sits on the current slice slab.
- * Time (Z) is already clipped in fillSoA unless sliceOnly.
- * Sparse X/Y gold grips still clip here; proximity fade inside that slab
- * is `sliceDistanceFade` in the renderer (ghost → gone), not this boolean.
- * Dense count X/Y clips in `fillSoA` and uses stack-axis ghost like Z.
- */
-export function eventOnSlice(axis, x, y, t, { lo, hi, focus, sliceOnly }) {
-  const a = normalizeSliceAxis(axis);
-  const value = a === "x" ? x : a === "y" ? y : t;
-  if (sliceOnly) return Math.abs(value - focus) < 0.5;
-  if (a === "z") return true;
-  return value >= lo && value <= hi;
-}
-
 export function lookAlignedWithAxis(cam, target, axis, cosMin = Math.cos((15 * Math.PI) / 180)) {
   const dir = productViewDir(axis, 1);
   let dx = target.x - cam.x;
@@ -93,6 +66,141 @@ export function lookAlignedWithAxis(cam, target, axis, cosMin = Math.cos((15 * M
   const dot = Math.abs(dx * dir.x + dy * dir.y + dz * dir.z);
   return dot >= cosMin;
 }
+
+/** Viewcube face lock: one ortho plane. Not inferred from ortho + look. */
+export function sliceOnlyFromPlaneLock(planeLock) {
+  return Boolean(planeLock);
+}
+
+/** Leave the 2D cut when the look leaves the slice axis (~15°). */
+export function planeLockShouldExit(planeLock, cam, target, axis) {
+  return Boolean(planeLock) && !lookAlignedWithAxis(cam, target, axis);
+}
+
+/** Inspect display: outer hull, peek (ghost), or three solid cuts. */
+export function normalizeShadeMode(mode) {
+  const m = String(mode || "hull").toLowerCase();
+  return m === "ghost" || m === "triple" ? m : "hull";
+}
+
+/** Hull + pointer-down on a handle/plane becomes a temporary ghost peek. */
+export function effectiveShade(mode, held = false) {
+  const m = normalizeShadeMode(mode);
+  if (m === "hull" && held) return "ghost";
+  return m;
+}
+
+export function inAabb(x, y, t, aabb) {
+  if (!aabb) return true;
+  const px = Number(x);
+  const py = Number(y);
+  const pt = Number(t);
+  if (aabb.xLo != null && px < aabb.xLo) return false;
+  if (aabb.xHi != null && px > aabb.xHi) return false;
+  if (aabb.yLo != null && py < aabb.yLo) return false;
+  if (aabb.yHi != null && py > aabb.yHi) return false;
+  if (aabb.tLo != null && pt < aabb.tLo) return false;
+  if (aabb.tHi != null && pt > aabb.tHi) return false;
+  return true;
+}
+
+export function onAxisPlane(x, y, t, axis, focus) {
+  const a = normalizeSliceAxis(axis);
+  const value = a === "x" ? x : a === "y" ? y : t;
+  return Math.abs(value - focus) < 0.5;
+}
+
+export function onAnyPlane(x, y, t, foci) {
+  const f = foci || {};
+  return (
+    onAxisPlane(x, y, t, "x", f.x) ||
+    onAxisPlane(x, y, t, "y", f.y) ||
+    onAxisPlane(x, y, t, "z", f.z)
+  );
+}
+
+export function aabbFromSlabs(slabs, width, height, tNow, tOldest = 0) {
+  const w = Math.max(0, (width | 0) - 1);
+  const h = Math.max(0, (height | 0) - 1);
+  const now = tNow | 0;
+  const oldest = tOldest | 0;
+  const sx = slabs?.x || { near: 0, far: w };
+  const sy = slabs?.y || { near: 0, far: h };
+  const sz = slabs?.z || { near: 0, far: Math.max(0, now - oldest) };
+  const x = slabIndices(sx.near, sx.far, w);
+  const y = slabIndices(sy.near, sy.far, h);
+  const z = slabGenerations(now, sz.near, sz.far);
+  return {
+    xLo: x.lo,
+    xHi: x.hi,
+    yLo: y.lo,
+    yHi: y.hi,
+    tLo: Math.max(oldest, z.tLo),
+    tHi: Math.min(now, z.tHi),
+  };
+}
+
+export function fociFromSlabs(slabs, width, height, tNow) {
+  const w = Math.max(0, (width | 0) - 1);
+  const h = Math.max(0, (height | 0) - 1);
+  const now = tNow | 0;
+  return {
+    x: axisIndexFromBack(slabs?.x?.focus ?? 0, w),
+    y: axisIndexFromBack(slabs?.y?.focus ?? 0, h),
+    z: now - (slabs?.z?.focus | 0),
+  };
+}
+
+export function shouldEmitVoxel(
+  x,
+  y,
+  t,
+  { aabb, foci, shade, activeAxis = "z", isHull = true } = {},
+) {
+  if (!inAabb(x, y, t, aabb)) return false;
+  if (isHull) return true;
+  const mode = normalizeShadeMode(shade);
+  if (mode === "hull") return false;
+  const f = foci || {};
+  if (mode === "ghost") {
+    const axis = normalizeSliceAxis(activeAxis);
+    return onAxisPlane(x, y, t, axis, f[axis]);
+  }
+  return onAnyPlane(x, y, t, f);
+}
+
+export function voxelShadeClass(
+  x,
+  y,
+  t,
+  { aabb, foci, activeAxis = "z", shade = "hull", isHull = true } = {},
+) {
+  if (!inAabb(x, y, t, aabb)) return "skip";
+  const mode = normalizeShadeMode(shade);
+  const axis = normalizeSliceAxis(activeAxis);
+  const f = foci || {};
+  const onActive = onAxisPlane(x, y, t, axis, f[axis]);
+  const onAny = onAnyPlane(x, y, t, f);
+  if (mode === "hull") return isHull ? "solid" : "skip";
+  if (mode === "ghost") {
+    if (onActive) return "solid";
+    if (isHull) return "ghost";
+    return "skip";
+  }
+  if (onAny) return "solid";
+  if (isHull) return "ghost";
+  return "skip";
+}
+
+export function stepFocusBack(focusBack, maxBack, step = -1) {
+  const max = Math.max(0, maxBack | 0);
+  if (max <= 0) return 0;
+  let next = (focusBack | 0) + (step | 0);
+  if (next < 0) return max;
+  if (next > max) return 0;
+  return next;
+}
+
 
 /** Tick indices along a grid axis of length `n` (inclusive 0 .. n-1). */
 export function spatialTicks(n) {

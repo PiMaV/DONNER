@@ -4,21 +4,26 @@ import { describe, it } from "node:test";
 import {
   ConwayWorld,
   countLive,
+  gridCyclePeriod,
   gridsEqual,
   seedPattern,
   stepClassic,
 } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
 import {
+  KIND_MOVING,
   KIND_OSC,
   KIND_STILL,
-  KIND_TRANSIT,
+  KIND_UNSETTLED,
   KIND_WARMUP,
+  MAX_OSC_PERIOD,
   MAX_STAB_GENS,
-  SCALE_TRANSIT,
+  SCALE_OPEN,
   SCALE_UNIFORM,
   classifyWorldline,
   cubeFill,
+  kindAt,
+  occupancyPeriod,
   stabilityAge,
   stabilityScale,
 } from "../src/dynamics.js";
@@ -94,6 +99,61 @@ describe("Conway B3/S23 (BLITZ parity)", () => {
     }
   });
 
+  it("a 2×2 block has grid cycle period 1", () => {
+    const world = new ConwayWorld({ width: 8, height: 8, wrap: true });
+    const grid = new Uint8Array(64);
+    grid[3 * 8 + 3] = 1;
+    grid[3 * 8 + 4] = 1;
+    grid[4 * 8 + 3] = 1;
+    grid[4 * 8 + 4] = 1;
+    world.load(grid);
+    const hist = [Uint8Array.from(world.grid)];
+    world.step();
+    assert.equal(gridCyclePeriod(world.grid, hist, MAX_OSC_PERIOD), 1);
+  });
+
+  it("a blinker has grid cycle period 2, not 1", () => {
+    const world = new ConwayWorld({ width: 9, height: 9, wrap: true });
+    world.load(seedPattern("Blinker", 9, 9, mulberry32(0)));
+    const hist = [Uint8Array.from(world.grid)];
+    world.step();
+    assert.equal(gridCyclePeriod(world.grid, hist, MAX_OSC_PERIOD), 0);
+    hist.unshift(Uint8Array.from(world.grid));
+    world.step();
+    assert.equal(gridCyclePeriod(world.grid, hist, MAX_OSC_PERIOD), 2);
+  });
+
+  it("stills plus a blinker are ash with period 2", () => {
+    const n = 9;
+    const grid = new Uint8Array(n * n);
+    grid[1 * n + 1] = 1;
+    grid[1 * n + 2] = 1;
+    grid[2 * n + 1] = 1;
+    grid[2 * n + 2] = 1;
+    grid[6 * n + 3] = 1;
+    grid[6 * n + 4] = 1;
+    grid[6 * n + 5] = 1;
+    const world = new ConwayWorld({ width: n, height: n, wrap: true });
+    world.load(grid);
+    const hist = [Uint8Array.from(world.grid)];
+    world.step();
+    hist.unshift(Uint8Array.from(world.grid));
+    world.step();
+    assert.equal(gridCyclePeriod(world.grid, hist, MAX_OSC_PERIOD), 2);
+  });
+
+  it("a wrapping glider has no cycle within period 15", () => {
+    const world = new ConwayWorld({ width: 32, height: 32, wrap: true });
+    world.load(seedPattern("Glider", 32, 32, mulberry32(0)));
+    const hist = [Uint8Array.from(world.grid)];
+    for (let i = 0; i < 80; i++) {
+      world.step();
+      assert.equal(gridCyclePeriod(world.grid, hist, MAX_OSC_PERIOD), 0);
+      hist.unshift(Uint8Array.from(world.grid));
+      while (hist.length > MAX_OSC_PERIOD) hist.pop();
+    }
+  });
+
   it("clamps a bad size so load still seeds a blinker", () => {
     const world = new ConwayWorld({ width: Number.NaN, height: Number.NaN });
     world.load(seedPattern("Blinker", world.height, world.width, mulberry32(0)));
@@ -128,13 +188,13 @@ describe("focus plane", () => {
 });
 
 describe("worldline color class", () => {
-  it("classifies still, period-2, and transit occupancy", () => {
+  it("classifies still, period-2, and unsettled occupancy", () => {
     assert.equal(classifyWorldline(true, true, true), KIND_STILL);
     assert.equal(classifyWorldline(false, true, false), KIND_OSC);
-    assert.equal(classifyWorldline(false, false, false), KIND_TRANSIT);
+    assert.equal(classifyWorldline(false, false, false), KIND_UNSETTLED);
   });
 
-  it("tags the first two generations as warmup, not transit", () => {
+  it("tags the first two generations as warmup, not unsettled", () => {
     const rng = mulberry32(0);
     let grid = seedPattern("Blinker", 9, 9, rng);
     const ring = new GenerationRing(8, 81);
@@ -168,7 +228,7 @@ describe("worldline color class", () => {
     assert.equal(kindAt(5, 4), KIND_OSC);
   });
 
-  it("tags a glider as transit, not still or oscillator", () => {
+  it("tags a glider as moving, not still or oscillator", () => {
     const n = 16;
     let grid = seedPattern("Glider", n, n, mulberry32(0));
     const ring = new GenerationRing(24, n * n);
@@ -180,20 +240,20 @@ describe("worldline color class", () => {
     ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 2 });
     let still = 0;
     let osc = 0;
-    let transit = 0;
+    let moving = 0;
     let warmup = 0;
     for (let i = 0; i < soa.count; i++) {
       if (soa.t[i] < 8) continue;
       const k = soa.k[i];
       if (k === KIND_STILL) still += 1;
       else if (k === KIND_OSC) osc += 1;
-      else if (k === KIND_TRANSIT) transit += 1;
+      else if (k === KIND_MOVING) moving += 1;
       else if (k === KIND_WARMUP) warmup += 1;
     }
     assert.equal(still, 0);
     assert.equal(osc, 0);
     assert.equal(warmup, 0);
-    assert.ok(transit > 0);
+    assert.ok(moving > 0);
   });
 
   it("leaves glider occupancy as still/osc when neighborhood is off", () => {
@@ -214,7 +274,7 @@ describe("worldline color class", () => {
     assert.ok(locked > 0);
   });
 
-  it("tags a glider as transit with a 3×3 neighborhood", () => {
+  it("tags a glider as moving with a 3×3 neighborhood", () => {
     const n = 16;
     let grid = seedPattern("Glider", n, n, mulberry32(0));
     const ring = new GenerationRing(24, n * n);
@@ -226,17 +286,32 @@ describe("worldline color class", () => {
     ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 1 });
     let still = 0;
     let osc = 0;
-    let transit = 0;
+    let moving = 0;
     for (let i = 0; i < soa.count; i++) {
       if (soa.t[i] < 8) continue;
       const k = soa.k[i];
       if (k === KIND_STILL) still += 1;
       else if (k === KIND_OSC) osc += 1;
-      else if (k === KIND_TRANSIT) transit += 1;
+      else if (k === KIND_MOVING) moving += 1;
     }
     assert.equal(still, 0);
     assert.equal(osc, 0);
-    assert.ok(transit > 0);
+    assert.ok(moving > 0);
+  });
+
+  it("locks period-3 occupancy as oscillator, not unsettled", () => {
+    const isLive = (t) => t >= 0 && t % 3 === 0;
+    assert.equal(occupancyPeriod(4, 0, isLive), 0);
+    assert.equal(occupancyPeriod(6, 0, isLive), 3);
+    assert.equal(kindAt(6, 0, isLive), KIND_OSC);
+    assert.equal(kindAt(3, 0, isLive), KIND_UNSETTLED);
+  });
+
+  it("locks period-15 occupancy after 2p history", () => {
+    const isLive = (t) => t >= 0 && t % 15 === 0;
+    assert.equal(occupancyPeriod(15, 0, isLive), 0);
+    assert.equal(occupancyPeriod(30, 0, isLive), 15);
+    assert.equal(kindAt(30, 0, isLive), KIND_OSC);
   });
 });
 
@@ -280,7 +355,7 @@ describe("focus-slice hover lookup", () => {
     soa.x[1] = 3;
     soa.y[1] = 4;
     soa.t[1] = 9;
-    soa.k[1] = KIND_TRANSIT;
+    soa.k[1] = KIND_MOVING;
     soa.s[1] = 0;
     const e = eventAt(soa, 3, 4, 10);
     assert.equal(e.k, KIND_STILL);
@@ -292,7 +367,8 @@ describe("focus-slice hover lookup", () => {
     assert.equal(cubeFill(null, "time"), 0);
     assert.equal(cubeFill({ k: KIND_WARMUP, s: 0 }, "time"), SCALE_UNIFORM);
     assert.equal(cubeFill({ k: KIND_STILL, s: 8 }, "none"), SCALE_UNIFORM);
-    assert.equal(cubeFill({ k: KIND_TRANSIT, s: 0 }, "time"), SCALE_TRANSIT);
+    assert.equal(cubeFill({ k: KIND_MOVING, s: 0 }, "time"), SCALE_OPEN);
+    assert.equal(cubeFill({ k: KIND_UNSETTLED, s: 0 }, "time"), SCALE_OPEN);
     assert.ok(
       cubeFill({ k: KIND_STILL, s: 16 }, "time") >
         cubeFill({ k: KIND_STILL, s: 2 }, "time"),

@@ -1,6 +1,6 @@
 /**
  * Encoding adapter: color LUT and fill for packed `k` / `s`.
- * Conway fills still/osc/transit; a count stack fills integer rungs.
+ * Conway fills still/osc/moving/unsettled/warmup; a count stack fills integer rungs.
  */
 
 import { COLOR } from "./config.js";
@@ -8,12 +8,13 @@ import { KIND_WARMUP, SCALE_UNIFORM, stabilityScale } from "./dynamics.js";
 
 export const CONWAY_WARMUP_K = KIND_WARMUP;
 
-/** Hex colors indexed by Conway `k` (still, osc, transit, warmup). */
+/** Hex colors indexed by Conway `k` (still, osc, moving, warmup, unsettled). */
 export const CONWAY_KIND_HEX = [
   COLOR.gold,
   COLOR.cyan,
   COLOR.blitz,
   COLOR.warmup,
+  COLOR.unsettled,
 ];
 
 /** Count rungs: 1 = cyan, mid = gold, max = BLITZ coral. Index 0 unused. */

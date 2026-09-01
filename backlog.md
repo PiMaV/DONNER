@@ -69,6 +69,15 @@ These are orbit-shell polish. XR-A already specifies a **thin overlay**
 (Play, Z, Exit) and must not wait on this cleanup — but the same instinct
 applies: AR chrome is not the desktop sheets.
 
+## Visible sun (later)
+
+A **visible sun** with a position in the scene is extra: a gold marker on a
+ring around the brick that you drag, so Lambert relief is a studio lamp you
+can see. Desktop first. Do not put a CGI sun in AR until that extra is wanted
+— AR keeps **Yaw** (slider / swipe after place, then walk). A view-locked
+headlamp (key/fill follow the camera) is a separate slice; the desktop Light
+slider stays until that ships. Not this slice.
+
 ## HTTPS / ops
 
 **Phone / XR URL:** `https://lab.ole.icu/` (Caddy LXC, Let’s Encrypt,

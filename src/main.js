@@ -10,8 +10,9 @@ import {
   inferBound,
   probeGpu,
 } from "./bench.js";
-import { ConwayWorld, gridsEqual, seedPattern } from "./conway.js";
-import { countVolumeFromNpy, denseSlabBacks, isDenseCount, slideDenseSlabBacks } from "./count.js";
+import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
+import { MAX_OSC_PERIOD } from "./dynamics.js";
+import { countVolumeFromNpy, isDenseCount } from "./count.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex, encodingCubeFill } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
@@ -25,7 +26,7 @@ import {
   HoverOutlines,
   IsolateBeacon,
   createFocusSurface,
-  createNowGrid,
+  createSliceGrid,
   orientSlicePlane,
 } from "./renderer.js";
 import { CoordinateFrame, PlaneHairlines } from "./coords.js";
@@ -37,14 +38,18 @@ import {
   visibleTimeSpan,
 } from "./spacetime.js";
 import {
+  aabbFromSlabs,
   axisIndexFromBack,
   clampSlab,
-  lookAlignedWithAxis,
+  effectiveShade,
+  fociFromSlabs,
   normalizeSliceAxis,
+  planeLockShouldExit,
   productViewDir,
   slabGenerations,
-  slabIndices,
   sliceMaxBack,
+  sliceOnlyFromPlaneLock,
+  stepFocusBack,
 } from "./axes.js";
 import {
   fitOrbitDistance,
@@ -52,7 +57,6 @@ import {
   pinOrbitHeight,
   pinOrbitToAxis,
   placeOnViewRay,
-  playfieldHalfExtent,
   slabYRange,
   snapPose,
   volumeRadius,
@@ -185,7 +189,11 @@ let cubes = new CubeRenderer(turntable, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
-const playfield = new FocusFrame(turntable, COLOR.cyan);
+const playfields = {
+  x: new FocusFrame(turntable, COLOR.cyan),
+  y: new FocusFrame(turntable, COLOR.cyan),
+  z: new FocusFrame(turntable, COLOR.cyan),
+};
 const clipNearFrame = new FocusFrame(turntable, COLOR.gold);
 const clipFarFrame = new FocusFrame(turntable, COLOR.gold);
 clipNearFrame.setVisible(false);
@@ -205,38 +213,37 @@ let countSizeByCount = false;
 const wolke = new WolkeViewer({ io });
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt. Stream: sidecar Send as counts.";
-let focusSurface;
+let focusSurfaces = { x: null, y: null, z: null };
 let nowGrid;
 let playing = false;
 let editing = false;
 let parallax = DEFAULTS.parallax;
 let alignZ = DEFAULTS.alignZ;
-let sliceAxis = DEFAULTS.sliceAxis;
-let timeFocusBack = 0;
-let timeNearBack = 0;
-let timeFarBack = 0;
-let spaceNearBack = 0;
-let spaceFocusBack = 0;
-let spaceFarBack = -1;
+let activeAxis = DEFAULTS.sliceAxis;
+let shadeMode = DEFAULTS.shadeMode;
+let shadeHeld = false;
+let planeLock = false;
+let slabs = {
+  x: { near: 0, focus: 0, far: 0 },
+  y: { near: 0, focus: 0, far: 0 },
+  z: { near: 0, focus: 0, far: 0 },
+};
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
-let gridBrightness = DEFAULTS.gridBrightness;
 let stabMode = DEFAULTS.stabMode;
 let dynamicsOn = DEFAULTS.dynamics;
 let neighborhoodRadius = DEFAULTS.neighborhoodRadius;
 let stabScaleOn = DEFAULTS.stabScale;
 let encodingMinimal = DEFAULTS.encodingMinimal;
 let forceFullRebuild = DEFAULTS.forceFullRebuild;
-let focusBack = 0;
-let clipNearBack = 0;
-let clipFarBack = 0;
 let acc = 0;
 let lastStepAt = 0;
 let measuredGps = 0;
 let gpsWindow = 0;
 let gpsSteps = 0;
 let pointerDown = null;
+let planeDrag = null;
 let hoverCell = null;
 let hoverKey = "";
 let dirtySource = true;
@@ -246,7 +253,8 @@ let lastWork = "soa";
 let lastSpanKey = "";
 let stableStreak = 0;
 let stoppedStable = false;
-let prevGrid = new Uint8Array(0);
+/** Newest-first copies of recent grids (`[0]` = t-1) for ash cycle detection. */
+const gridHistory = [];
 let arPlacePending = false;
 let arHitTestSource = null;
 let arPlaced = false;
@@ -280,7 +288,14 @@ const ui = bindUI({
   light: (deg) => {
     setLightAzimuth(yawFromDegrees(deg ?? ui.getLightDegrees()));
   },
-  sliceAxis: (axis) => setSliceAxis(axis),
+  sliceAxis: (axis) => setActiveAxis(axis),
+  activeAxis: (axis) => setActiveAxis(axis),
+  shade: (mode) => setShadeMode(mode),
+  slab: (next) => {
+    enterInspect();
+    applySlab(next.axis, next, next.dragged || "focus");
+  },
+  slabHold: (held) => setShadeHeld(held),
   cubeCap: () => applyCubeCap(),
   step: () => {
     if (sourceId === "count") {
@@ -304,22 +319,11 @@ const ui = bindUI({
     decay = ui.getConfig().decay;
     dirtyView = true;
   },
-  gridBrightness: () => {
-    gridBrightness = ui.getConfig().gridBrightness;
-    applyGridLook();
-  },
   history: () => applyRingCapacity(),
-  focus: () => {
-    const cfg = ui.getConfig();
-    enterInspect();
-    clipNearBack = cfg.clipNearBack;
-    clipFarBack = cfg.clipFarBack;
-    applyFocus(cfg.focusBack);
-  },
   focusNow: () => {
     if (stackLiveLocked()) return;
-    if (sliceAxis === "z") clipNearBack = 0;
-    applyFocus(0);
+    slabs.z.near = 0;
+    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
   },
   stabMode: () => {
     stabMode = ui.getConfig().stabMode;
@@ -388,8 +392,7 @@ function viewStore() {
 }
 
 function tFocus() {
-  const back = sliceAxis === "z" ? focusBack : timeFocusBack;
-  return focusGeneration(viewNow(), back);
+  return focusGeneration(viewNow(), slabs.z.focus);
 }
 
 function inspectMode() {
@@ -398,12 +401,7 @@ function inspectMode() {
 
 function volumeSpan() {
   if (inspectMode()) {
-    if (sliceAxis !== "z") {
-      const oldest = viewStore().oldestT();
-      const newest = viewNow();
-      return { tLo: oldest, tHi: newest };
-    }
-    const { tLo, tHi } = slabGenerations(viewNow(), clipNearBack, clipFarBack);
+    const { tLo, tHi } = slabGenerations(viewNow(), slabs.z.near, slabs.z.far);
     const oldest = viewStore().oldestT();
     const newest = viewNow();
     return {
@@ -435,28 +433,81 @@ function maxTimeBack() {
   return Math.min(world.generation, historyLen);
 }
 
-function maxSliceBack() {
-  if (sliceAxis === "z") return maxTimeBack();
+function axisMaxBack(axis = activeAxis) {
+  const a = normalizeSliceAxis(axis);
+  if (a === "z") return maxTimeBack();
   if (!world) return 0;
-  return sliceMaxBack(sliceAxis, world.width, world.height, 0);
+  return sliceMaxBack(a, world.width, world.height, 0);
 }
 
 function stackLiveLocked() {
-  return sliceAxis === "z" && playing && !tapeMode;
+  return playing && !tapeMode;
 }
 
-function spatialCoord(back, axis = sliceAxis) {
+function spatialCoord(back, axis) {
   if (!world) return 0;
-  const max = sliceMaxBack(axis, world.width, world.height, 0);
+  const a = normalizeSliceAxis(axis);
+  const max = sliceMaxBack(a, world.width, world.height, 0);
   const idx = axisIndexFromBack(back, max);
   const cs = DEFAULTS.cellSize;
-  if (axis === "x") return (idx - (world.width - 1) * 0.5) * cs;
+  if (a === "x") return (idx - (world.width - 1) * 0.5) * cs;
   return (idx - (world.height - 1) * 0.5) * cs;
 }
 
-function sliceWorldCoord(back) {
-  if (sliceAxis === "z") return (focusBack - back) * DEFAULTS.timeScale;
-  return spatialCoord(back);
+function sliceWorldCoord(back, axis = activeAxis) {
+  const a = normalizeSliceAxis(axis);
+  if (a === "z") return (slabs.z.focus - back) * DEFAULTS.timeScale;
+  return spatialCoord(back, a);
+}
+
+function cropAabb() {
+  if (!world || (!inspectMode() && !arPillar())) return null;
+  return aabbFromSlabs(
+    slabs,
+    world.width,
+    world.height,
+    viewNow(),
+    viewStore().oldestT(),
+  );
+}
+
+function cropFoci() {
+  if (!world) return { x: 0, y: 0, z: tFocus() };
+  return fociFromSlabs(slabs, world.width, world.height, viewNow());
+}
+
+function inspectShade() {
+  if (!inspectMode() || arPresenting()) return null;
+  return effectiveShade(shadeMode, shadeHeld);
+}
+
+function railUi(axis) {
+  const a = normalizeSliceAxis(axis);
+  const live = a === "z" && stackLiveLocked();
+  const max = live ? 0 : axisMaxBack(a);
+  const s = slabs[a];
+  const label = a === "z" ? (live ? viewNow() : tFocus()) : axisIndexFromBack(s.focus, max);
+  const oldest = a === "z" ? viewNow() - max : 0;
+  return {
+    back: s.focus,
+    maxBack: max,
+    label,
+    oldest,
+    live,
+    near: s.near,
+    far: s.far,
+  };
+}
+
+function syncStackUi() {
+  ui.setSlabs({
+    activeAxis,
+    x: railUi("x"),
+    y: railUi("y"),
+    z: railUi("z"),
+  });
+  ui.setActiveAxis(activeAxis);
+  ui.setShade(shadeMode);
 }
 
 function createArReticle() {
@@ -619,8 +670,12 @@ function updateReticle(xrFrame) {
 
 async function enterAr() {
   if (arPresenting()) return;
+  if (planeLock) {
+    planeLock = false;
+    dirtyView = true;
+  }
   if (!parallax) toggleParallax();
-  if (sliceAxis !== "z") setSliceAxis("z");
+  if (activeAxis !== "z") setActiveAxis("z");
   const xr = navigator.xr;
   if (!(await isImmersiveArSupported(xr))) return;
   const overlay = document.getElementById("xr-overlay") || document.body;
@@ -718,7 +773,7 @@ function applyRingCapacity() {
   const cfg = ui.getConfig();
   historyLen = cfg.history;
   if (ring && ring.capacity !== historyLen) ring.resize(historyLen);
-  applyFocus(focusBack);
+  applySlab("z", slabs.z, "focus");
   syncBeacon();
   dirtySource = true;
 }
@@ -729,7 +784,7 @@ function currentSlabY() {
 }
 
 function pinOrbitPivot() {
-  if (arPresenting() || !world || !alignZ) return;
+  if (arPresenting() || !world || !alignZ || planeLock) return;
   const cam = activeCamera();
   const { yMid } = currentSlabY();
   if (!Number.isFinite(yMid)) return;
@@ -752,8 +807,17 @@ function syncOrbitPan() {
 
 function fitVolume() {
   if (!world || arPresenting()) return;
+  const box = cropAabb();
   const { yMin, yMax, yMid } = currentSlabY();
-  const { hx, hz } = playfieldHalfExtent(world.width, world.height, DEFAULTS.cellSize);
+  const cs = DEFAULTS.cellSize;
+  const ox = (world.width - 1) * 0.5;
+  const oz = (world.height - 1) * 0.5;
+  const xLo = box ? box.xLo : 0;
+  const xHi = box ? box.xHi : world.width - 1;
+  const yLo = box ? box.yLo : 0;
+  const yHi = box ? box.yHi : world.height - 1;
+  const hx = Math.max(Math.abs(xLo - ox), Math.abs(xHi - ox)) * cs;
+  const hz = Math.max(Math.abs(yLo - oz), Math.abs(yHi - oz)) * cs;
   const radius = volumeRadius(hx, hz, yMin, yMax);
   const cam = activeCamera();
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -778,24 +842,31 @@ function fitVolume() {
   controls.update();
 }
 
-function applyFocus(back) {
-  const live = stackLiveLocked();
-  const max = live ? 0 : maxSliceBack();
-  const now = viewNow();
-  const slab = live
+function applySlab(axis, next, dragged = "focus") {
+  const a = normalizeSliceAxis(axis);
+  const live = a === "z" && stackLiveLocked();
+  const max = live ? 0 : axisMaxBack(a);
+  const cur = slabs[a];
+  const clamped = live
     ? { topBack: 0, focusBack: 0, botBack: 0 }
-    : clampSlab(clipNearBack, back, clipFarBack, max, "focus");
-  clipNearBack = slab.topBack;
-  clipFarBack = slab.botBack;
-  focusBack = live ? 0 : slab.focusBack;
-  if (sliceAxis === "z") timeFocusBack = focusBack;
-  const label = sliceAxis === "z" ? tFocus() : axisIndexFromBack(focusBack, max);
-  const lowLabel = sliceAxis === "z" ? now - max : 0;
-  ui.setFocus(focusBack, max, label, lowLabel, live, clipNearBack, clipFarBack);
+    : clampSlab(
+        next.near ?? cur.near,
+        next.focus ?? cur.focus,
+        next.far ?? cur.far,
+        max,
+        dragged,
+      );
+  slabs[a] = {
+    near: clamped.topBack,
+    focus: live ? 0 : clamped.focusBack,
+    far: clamped.botBack,
+  };
+  syncStackUi();
   syncClipPlanes();
   pinOrbitPivot();
   updateHint();
   dirtyView = true;
+  if (inspectMode()) dirtySource = true;
   if (stabScaleOn && stabMode === "focus") dirtyEncoding = true;
 }
 
@@ -803,12 +874,11 @@ function enterInspect() {
   if (tapeMode && !playing) return;
   playing = false;
   tapeMode = true;
-  if (sliceAxis === "z") {
-    if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
-      clipNearBack = 0;
-      clipFarBack = maxTimeBack();
-    }
+  if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
+    slabs.z.near = 0;
+    slabs.z.far = maxTimeBack();
   }
+  ensureSpatialSlabs();
   ui.setPlaying(false);
   dirtySource = true;
   syncCacheUi();
@@ -822,13 +892,10 @@ function enterLive() {
   editing = false;
   stoppedStable = false;
   acc = 0;
-  if (sliceAxis === "z") {
-    clipNearBack = 0;
-    clipFarBack = 0;
-  }
-  timeFocusBack = 0;
+  slabs.z = { near: 0, focus: 0, far: 0 };
+  setActiveAxis("z");
   clearHover();
-  applyFocus(sliceAxis === "z" ? 0 : focusBack);
+  applySlab("z", slabs.z, "focus");
   ui.setPlaying(true);
   ui.setEditing(false);
   dirtySource = true;
@@ -843,7 +910,7 @@ function syncCacheUi() {
     events: tape.eventCount,
     full: tape.stopped,
     inspect: tapeMode,
-    atNow: sliceAxis === "z" ? focusBack === 0 : true,
+    atNow: slabs.z.focus === 0,
     tick: sourceId === "count" ? "t" : "gen",
     source: sourceId,
   });
@@ -889,25 +956,23 @@ function disposeObject3(obj) {
 }
 
 function brickYRange() {
-  if (sliceAxis !== "z" && (inspectMode() || arPillar()) && tape) {
-    return slabYRange(tFocus(), tape.oldestT(), viewNow(), DEFAULTS.timeScale);
-  }
   return currentSlabY();
 }
 
 function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   if (!width || !height) return;
   const { yMin, yMax } = brickYRange();
-  disposeObject3(focusSurface);
+  for (const a of ["x", "y", "z"]) {
+    disposeObject3(focusSurfaces[a]);
+    focusSurfaces[a] = createFocusSurface(width, height, DEFAULTS.cellSize, a, yMin, yMax);
+    turntable.add(focusSurfaces[a]);
+    playfields[a].setSize(width, height, DEFAULTS.cellSize, a, yMin, yMax);
+  }
   disposeObject3(nowGrid);
-  focusSurface = createFocusSurface(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
-  nowGrid = createNowGrid(width, height, DEFAULTS.cellSize);
-  nowGrid.visible = sliceAxis === "z";
-  playfield.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
-  clipNearFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
-  clipFarFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
-  turntable.add(focusSurface);
+  nowGrid = createSliceGrid(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
   turntable.add(nowGrid);
+  clipNearFrame.setSize(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
+  clipFarFrame.setSize(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
   syncClipPlanes();
   applyGridLook();
 }
@@ -949,27 +1014,30 @@ function markGps() {
   lastStepAt = now;
 }
 
-function applyDenseCountWindow(vol, axis = sliceAxis) {
-  const a = normalizeSliceAxis(axis);
-  const max =
-    a === "z"
-      ? Math.max(0, vol.newestT() - vol.oldestT())
-      : sliceMaxBack(a, vol.width, vol.height, 0);
-  const s = denseSlabBacks({ oldestT: () => 0, newestT: () => max });
-  clipNearBack = s.nearBack;
-  clipFarBack = s.farBack;
-  if (a === "z") {
-    timeNearBack = s.nearBack;
-    timeFarBack = s.farBack;
-    timeFocusBack = s.focusBack;
-  } else {
-    spaceNearBack = s.nearBack;
-    spaceFarBack = s.farBack;
-    spaceFocusBack = s.focusBack;
-  }
+function ensureSpatialSlabs() {
+  if (!world) return;
+  const xMax = Math.max(0, world.width - 1);
+  const yMax = Math.max(0, world.height - 1);
+  if (slabs.x.far < 1 && xMax > 0) slabs.x = { near: 0, focus: 0, far: xMax };
+  else slabs.x.far = Math.min(slabs.x.far, xMax);
+  if (slabs.y.far < 1 && yMax > 0) slabs.y = { near: 0, focus: 0, far: yMax };
+  else slabs.y.far = Math.min(slabs.y.far, yMax);
+}
+
+function fullExtentSlabs(vol) {
+  const zMax = Math.max(0, vol.newestT() - vol.oldestT());
+  const xMax = Math.max(0, vol.width - 1);
+  const yMax = Math.max(0, vol.height - 1);
+  slabs.x = { near: 0, focus: xMax >> 1, far: xMax };
+  slabs.y = { near: 0, focus: yMax >> 1, far: yMax };
+  slabs.z = { near: 0, focus: zMax >> 1, far: zMax };
+}
+
+function applyDenseCountWindow(vol) {
+  fullExtentSlabs(vol);
   decay = false;
   ui.setDecay(false);
-  applyFocus(s.focusBack);
+  applySlab(activeAxis, slabs[activeAxis], "focus");
 }
 
 function resetCountView() {
@@ -977,34 +1045,15 @@ function resetCountView() {
     applyDenseCountWindow(countVol);
     return;
   }
-  applyFocus(0);
+  applySlab("z", { ...slabs.z, focus: 0 }, "focus");
 }
 
 function stepCountPlayhead() {
-  if (countVol && isDenseCount(countVol)) {
-    const max = maxSliceBack();
-    if (max <= 0) return;
-    const next = slideDenseSlabBacks(clipNearBack, focusBack, clipFarBack, max, -1);
-    clipNearBack = next.nearBack;
-    clipFarBack = next.farBack;
-    applyFocus(next.focusBack);
-    markGps();
-    return;
-  }
-  if (sliceAxis !== "z") {
-    const max = maxTimeBack();
-    if (max <= 0) return;
-    if (timeFocusBack <= 0) timeFocusBack = max;
-    else timeFocusBack -= 1;
-    markGps();
-    dirtySource = true;
-    dirtyView = true;
-    return;
-  }
-  const max = maxTimeBack();
+  const a = inspectMode() ? activeAxis : "z";
+  const max = axisMaxBack(a);
   if (max <= 0) return;
-  if (focusBack <= 0) applyFocus(max);
-  else applyFocus(focusBack - 1);
+  const next = stepFocusBack(slabs[a].focus, max, -1);
+  applySlab(a, { ...slabs[a], focus: next }, "focus");
   markGps();
 }
 
@@ -1015,7 +1064,6 @@ function bootCount(vol) {
   gensPerSec = ui.getConfig().gensPerSec;
   decay = ui.getConfig().decay;
   historyLen = ui.getConfig().history;
-  gridBrightness = ui.getConfig().gridBrightness;
   encodingMinimal = ui.getConfig().encodingMinimal;
   forceFullRebuild = ui.getConfig().forceFullRebuild;
   playing = false;
@@ -1033,17 +1081,14 @@ function bootCount(vol) {
     `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.ceiling} · ${vol.count} voxels`,
   );
   acc = 0;
-  clipNearBack = 0;
-  timeFocusBack = 0;
   if (isDenseCount(vol)) {
     applyDenseCountWindow(vol);
-  } else if (sliceAxis === "z") {
-    decay = ui.getConfig().decay;
-    clipFarBack = Math.max(0, vol.newestT() - vol.oldestT());
-    applyFocus(0);
   } else {
-    clipFarBack = sliceMaxBack(sliceAxis, vol.width, vol.height, 0);
-    applyFocus(0);
+    decay = ui.getConfig().decay;
+    slabs.x = { near: 0, focus: 0, far: Math.max(0, vol.width - 1) };
+    slabs.y = { near: 0, focus: 0, far: Math.max(0, vol.height - 1) };
+    slabs.z = { near: 0, focus: 0, far: Math.max(0, vol.newestT() - vol.oldestT()) };
+    applySlab("z", slabs.z, "focus");
   }
   syncFog();
   syncViewRange();
@@ -1057,7 +1102,7 @@ function bootCount(vol) {
   ui.setPlaying(false);
   ui.setEditing(false);
   ui.setParallax(parallax);
-  ui.setSliceAxis(sliceAxis);
+  syncStackUi();
   syncOrbitPan();
   syncBeacon();
   lastSpanKey = "";
@@ -1165,7 +1210,6 @@ function bootWorld(resizeGrid) {
   gensPerSec = cfg.gensPerSec;
   decay = cfg.decay;
   historyLen = cfg.history;
-  gridBrightness = cfg.gridBrightness;
   stabMode = cfg.stabMode;
   dynamicsOn = cfg.dynamics;
   neighborhoodRadius = cfg.neighborhoodRadius;
@@ -1197,14 +1241,18 @@ function bootWorld(resizeGrid) {
   acc = 0;
   stableStreak = 0;
   stoppedStable = false;
-  clipNearBack = 0;
-  timeFocusBack = 0;
-  if (sliceAxis === "z") {
-    clipFarBack = tapeMode ? Math.max(0, tape.newestT() - tape.oldestT()) : 0;
-  } else {
-    clipFarBack = sliceMaxBack(sliceAxis, cfg.width, cfg.height, 0);
-  }
-  applyFocus(0);
+  gridHistory.length = 0;
+  rememberGrid(world.grid);
+  const xMax = Math.max(0, cfg.width - 1);
+  const yMax = Math.max(0, cfg.height - 1);
+  slabs.x = { near: 0, focus: 0, far: xMax };
+  slabs.y = { near: 0, focus: 0, far: yMax };
+  slabs.z = {
+    near: 0,
+    focus: 0,
+    far: tapeMode ? Math.max(0, tape.newestT() - tape.oldestT()) : 0,
+  };
+  applySlab("z", slabs.z, "focus");
   syncFog();
   syncViewRange();
   if (resizeGrid) {
@@ -1217,7 +1265,7 @@ function bootWorld(resizeGrid) {
   ui.setPlaying(playing);
   ui.setEditing(editing);
   ui.setParallax(parallax);
-  ui.setSliceAxis(sliceAxis);
+  syncStackUi();
   syncOrbitPan();
   syncBeacon();
   lastSpanKey = "";
@@ -1240,14 +1288,10 @@ function togglePlay() {
     } else {
       playing = true;
       ui.setPlaying(true);
-      if (sliceAxis === "z" && focusBack === 0 && !(countVol && isDenseCount(countVol))) {
-        applyFocus(maxTimeBack());
-      } else if (
-        sliceAxis !== "z" &&
-        timeFocusBack === 0 &&
-        !(countVol && isDenseCount(countVol))
-      ) {
-        timeFocusBack = maxTimeBack();
+      if (activeAxis === "z" && slabs.z.focus === 0 && !(countVol && isDenseCount(countVol))) {
+        applySlab("z", { ...slabs.z, focus: maxTimeBack() }, "focus");
+      } else if (slabs[activeAxis].focus === 0 && !(countVol && isDenseCount(countVol))) {
+        applySlab(activeAxis, { ...slabs[activeAxis], focus: axisMaxBack(activeAxis) }, "focus");
       }
     }
     updateHint();
@@ -1257,7 +1301,7 @@ function togglePlay() {
     editing = false;
     ui.setEditing(false);
     enterInspect();
-    applyFocus(sliceAxis === "z" ? 0 : focusBack);
+    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
   } else {
     enterLive();
   }
@@ -1266,15 +1310,15 @@ function togglePlay() {
 }
 
 function toggleEdit() {
-  if (sourceId === "count" || sliceAxis !== "z") return;
-  if (tapeMode && focusBack !== 0) return;
+  if (sourceId === "count") return;
+  if (tapeMode && slabs.z.focus !== 0) return;
   if (playing) {
     enterInspect();
-    applyFocus(0);
+    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
   }
   editing = !editing;
   if (editing) {
-    applyFocus(0);
+    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
     ui.setPlaying(false);
   }
   ui.setEditing(editing);
@@ -1293,9 +1337,11 @@ function copyActivePoseToOrtho() {
   });
 }
 
-function toggleParallax() {
+function applyParallax(on) {
   if (arPresenting()) return;
-  parallax = !parallax;
+  const next = Boolean(on);
+  if (next === parallax) return;
+  parallax = next;
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   if (!parallax) {
     enterOrtho({
@@ -1319,7 +1365,34 @@ function toggleParallax() {
   syncFog();
   ui.setParallax(parallax);
   dirtyView = true;
+}
+
+function toggleParallax() {
+  if (arPresenting()) return;
+  if (planeLock && !parallax) {
+    planeLock = false;
+    dirtyView = true;
+  }
+  applyParallax(!parallax);
   updateHint();
+}
+
+function exitPlaneLock() {
+  if (!planeLock) return;
+  planeLock = false;
+  applyParallax(true);
+  dirtyView = true;
+  updateHint();
+}
+
+function maybeExitPlaneLock() {
+  if (!planeLock || arPresenting()) return;
+  const cam = activeCamera();
+  if (
+    planeLockShouldExit(true, cam.position, controls.target, activeAxis)
+  ) {
+    exitPlaneLock();
+  }
 }
 
 function snapToProductView(axis, sign) {
@@ -1333,47 +1406,51 @@ function snapToProductView(axis, sign) {
   dirtyView = true;
 }
 
-function setSliceAxis(next) {
+function enterPlaneLock(axis, sign) {
+  if (arPresenting()) return;
+  setActiveAxis(axis, { keepPlaneLock: true });
+  applyParallax(false);
+  planeLock = true;
+  snapToProductView(axis, sign);
+  dirtyView = true;
+  updateHint();
+}
+
+function setShadeMode(mode) {
+  const next = mode === "ghost" || mode === "triple" ? mode : "hull";
+  if (next === shadeMode) return;
+  shadeMode = next;
+  ui.setShade(shadeMode);
+  if (inspectMode()) dirtySource = true;
+  dirtyView = true;
+  updateHint();
+}
+
+function setShadeHeld(held) {
+  const next = Boolean(held);
+  if (next === shadeHeld) return;
+  shadeHeld = next;
+  if (inspectMode() && shadeMode === "hull") dirtySource = true;
+  dirtyView = true;
+}
+
+function setActiveAxis(next, opts = {}) {
   const a = normalizeSliceAxis(next);
-  if (a === sliceAxis) return;
-  if (sliceAxis === "z") {
-    timeFocusBack = focusBack;
-    timeNearBack = clipNearBack;
-    timeFarBack = clipFarBack;
-  } else {
-    spaceNearBack = clipNearBack;
-    spaceFocusBack = focusBack;
-    spaceFarBack = clipFarBack;
+  if (planeLock && !opts.keepPlaneLock) {
+    planeLock = false;
+    applyParallax(true);
   }
-  sliceAxis = a;
-  if (sourceId === "count" && countVol && isDenseCount(countVol)) {
-    applyDenseCountWindow(countVol, a);
-  } else if (a === "z") {
-    clipNearBack = timeNearBack;
-    focusBack = timeFocusBack;
-    clipFarBack = timeFarBack;
-  } else {
-    const max = sliceMaxBack(a, world.width, world.height, 0);
-    if (spaceFarBack < 0) {
-      clipNearBack = 0;
-      focusBack = 0;
-      clipFarBack = max;
-    } else {
-      clipNearBack = spaceNearBack;
-      focusBack = spaceFocusBack;
-      clipFarBack = Math.min(spaceFarBack, max);
-    }
-  }
+  const changed = a !== activeAxis;
+  activeAxis = a;
   if (editing && a !== "z") {
     editing = false;
     ui.setEditing(false);
   }
-  ui.setSliceAxis(a);
-  rebuildSliceVisuals();
-  if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
-    applyFocus(focusBack);
-  }
-  dirtySource = true;
+  ui.setActiveAxis(a);
+  if (changed) rebuildSliceVisuals();
+  else syncClipPlanes();
+  dirtyView = true;
+  if (inspectMode()) dirtySource = true;
 }
 
 function applyCubeCap() {
@@ -1391,39 +1468,70 @@ function applyCubeCap() {
 }
 
 function applyGridLook() {
-  const b = Math.min(1, Math.max(0, gridBrightness));
-  if (nowGrid) setLineOpacity(nowGrid, 0.04 + b * 0.82);
-  if (focusSurface) {
-    focusSurface.material.opacity = 0.02 + b * 0.14;
+  const inspect = inspectMode();
+  if (nowGrid) {
+    nowGrid.visible = true;
+    setLineOpacity(nowGrid, inspect ? 0.4 : 0.18);
+  }
+  for (const a of ["x", "y", "z"]) {
+    const surf = focusSurfaces[a];
+    const show = a === "z" || inspect;
+    const active = a === activeAxis;
+    if (surf) {
+      surf.visible = show;
+      surf.material.opacity = inspect ? (active ? 0.1 : 0.03) : 0.07;
+    }
+    playfields[a].setVisible(show);
+    playfields[a].setEmphasis(inspect && active ? "active" : a === "z" ? "active" : "idle");
   }
 }
 
 function syncClipPlanes() {
-  const slabOn = inspectMode() || sliceAxis !== "z";
-  const showNear = slabOn && !stackLiveLocked() && clipNearBack !== focusBack;
-  const showFar = slabOn && !stackLiveLocked() && clipFarBack !== focusBack;
+  if (!world) return;
+  const { yMin, yMax } = brickYRange();
+  const showGold = inspectMode() && !stackLiveLocked();
+  const s = slabs[activeAxis];
+  const showNear = showGold && s.near !== s.focus;
+  const showFar = showGold && s.far !== s.focus;
   clipNearFrame.setVisible(showNear);
   clipFarFrame.setVisible(showFar);
-  playfield.setOffset(sliceAxis, sliceWorldCoord(focusBack));
-  if (showNear) clipNearFrame.setOffset(sliceAxis, sliceWorldCoord(clipNearBack));
-  if (showFar) clipFarFrame.setOffset(sliceAxis, sliceWorldCoord(clipFarBack));
-  if (focusSurface && world) {
-    const { yMin, yMax } = brickYRange();
+  clipNearFrame.setSize(world.width, world.height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
+  clipFarFrame.setSize(world.width, world.height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
+  for (const a of ["x", "y", "z"]) {
+    const coord = sliceWorldCoord(slabs[a].focus, a);
+    playfields[a].setOffset(a, coord);
+    if (focusSurfaces[a]) {
+      orientSlicePlane(
+        focusSurfaces[a],
+        a,
+        world.width,
+        world.height,
+        DEFAULTS.cellSize,
+        yMin,
+        yMax,
+        coord,
+      );
+    }
+  }
+  if (nowGrid) {
     orientSlicePlane(
-      focusSurface,
-      sliceAxis,
+      nowGrid,
+      activeAxis,
       world.width,
       world.height,
       DEFAULTS.cellSize,
       yMin,
       yMax,
-      sliceWorldCoord(focusBack),
+      sliceWorldCoord(slabs[activeAxis].focus, activeAxis),
     );
   }
+  if (showNear) clipNearFrame.setOffset(activeAxis, sliceWorldCoord(s.near, activeAxis));
+  if (showFar) clipFarFrame.setOffset(activeAxis, sliceWorldCoord(s.far, activeAxis));
+  applyGridLook();
 }
 
 function updateHint() {
-  const atNow = focusBack === 0;
+  const atNow = slabs.z.focus === 0;
   if (arPresenting()) {
     if (arUseHitTest && !arPlaced) {
       ui.setHint("AR — point at a table until the gold square appears, then tap");
@@ -1432,20 +1540,22 @@ function updateHint() {
     } else {
       ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
     }
+  } else if (planeLock) {
+    ui.setHint("Slice — ortho cut · stack slider walks the plane · orbit restores the volume");
   } else if (sourceId === "count") {
     ui.setHint(
       countVol && isDenseCount(countVol)
-        ? "Dense cube — gold cuts are a slab through the volume · Play walks that window on X, Y, or Z · enclosed voxels stay hidden"
+        ? "Dense cube — gold clips are the AABB crop · Play walks the active playhead · enclosed voxels stay hidden"
         : playing
           ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
-          : "Count stack — cyan plane · gold cuts · Play scrubs time · Load another .npy in Source",
+          : "Count stack — three cyan planes · gold clips crop the AABB · Play scrubs the active axis · Load another .npy in Source",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
-      `Inspect — still for ${DEFAULTS.stableHold} gens · cyan plane · gold cuts · Play is live`,
+      `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · three planes · Play is live`,
     );
   } else if (tapeMode) {
-    ui.setHint("Inspect — cyan plane · gold rings are the cuts · Fit frames the slab · Play returns to live");
+    ui.setHint("Inspect — three cyan planes · gold clips crop the AABB · hold a handle to peek · Play returns to live");
   } else if (editing && atNow) {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
@@ -1459,10 +1569,15 @@ function updateHint() {
   } else if (playing) {
     ui.setHint("Live — Pause to inspect the cache · orbit · Shift-drag moves the light");
   } else {
-    ui.setHint("Inspect — cyan plane · gold rings are the cuts · Fit frames the slab · Play returns to live");
+    ui.setHint("Inspect — three cyan planes · gold clips crop the AABB · hold a handle to peek · Play returns to live");
   }
   applyGridLook();
-  playfield.setEditing(editing);
+  playfields.z.setEditing(editing);
+}
+
+function rememberGrid(grid) {
+  gridHistory.unshift(Uint8Array.from(grid));
+  while (gridHistory.length > MAX_OSC_PERIOD) gridHistory.pop();
 }
 
 function maybeStopStable() {
@@ -1471,39 +1586,34 @@ function maybeStopStable() {
   if (stableStreak < DEFAULTS.stableHold) return;
   stoppedStable = true;
   enterInspect();
-  applyFocus(sliceAxis === "z" ? 0 : focusBack);
+  applySlab("z", { ...slabs.z, focus: 0 }, "focus");
 }
 
 function stepOnce() {
   if (sourceId === "count") return;
-  if (prevGrid.length !== world.grid.length) prevGrid = new Uint8Array(world.grid.length);
-  prevGrid.set(world.grid);
   world.step();
-  const changed = !gridsEqual(prevGrid, world.grid);
+  const period = gridCyclePeriod(world.grid, gridHistory, MAX_OSC_PERIOD);
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
   tape.pushGrid(world.grid, world.width, world.height, world.generation);
-  applyFocus(focusBack);
-  if (changed) {
-    stableStreak = 0;
-    stoppedStable = false;
-  } else {
+  applySlab("z", slabs.z, "focus");
+  if (period > 0) {
     stableStreak += 1;
     maybeStopStable();
+  } else {
+    stableStreak = 0;
+    stoppedStable = false;
   }
+  rememberGrid(world.grid);
   markGps();
   dirtySource = true;
 }
 
 function fillVolume() {
   const store = viewStore();
-  const max = maxSliceBack();
-  const band = slabIndices(clipNearBack, clipFarBack, max);
-  const span =
-    inspectMode() || arPillar()
-      ? sliceAxis !== "z"
-        ? { tLo: store.oldestT(), tHi: viewNow() }
-        : volumeSpan()
-      : null;
+  const span = inspectMode() || arPillar() ? volumeSpan() : null;
+  const aabb = inspectMode() ? cropAabb() : null;
+  const foci = cropFoci();
+  const shade = inspectShade() || "hull";
   store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
     tFocus: tFocus(),
     stabMode: stabForFill(),
@@ -1512,9 +1622,10 @@ function fillVolume() {
     dynamics: dynamicsOn,
     neighborhoodRadius,
     stabScale: stabScaleOn,
-    sliceAxis,
-    sliceLo: band.lo,
-    sliceHi: band.hi,
+    aabb,
+    foci,
+    shade,
+    activeAxis,
     ...(span ? { tLo: span.tLo, tHi: span.tHi } : {}),
   });
 }
@@ -1524,12 +1635,6 @@ function fadeSpan() {
 }
 
 function uploadInstances() {
-  const max = maxSliceBack();
-  const span = slabIndices(clipNearBack, clipFarBack, max);
-  const cam = activeCamera();
-  const aligned =
-    !parallax &&
-    lookAlignedWithAxis(cam.position, controls.target, sliceAxis);
   cubes.setEvents(soa, {
     tFocus: tFocus(),
     decay: arPresenting() ? false : decay,
@@ -1541,12 +1646,11 @@ function uploadInstances() {
     stabMode: stabForFill(),
     cellSize: DEFAULTS.cellSize,
     isolate: null,
-    sliceAxis,
-    sliceLo: span.lo,
-    sliceHi: span.hi,
-    sliceFocus: sliceAxis === "z" ? tFocus() : axisIndexFromBack(focusBack, max),
-    sliceOnly: aligned,
-    sliceStackGhost: sourceId === "count" && isDenseCount(countVol),
+    activeAxis,
+    aabb: inspectMode() ? cropAabb() : null,
+    foci: cropFoci(),
+    shade: inspectShade(),
+    sliceOnly: sliceOnlyFromPlaneLock(planeLock),
     encodingMinimal,
   });
 }
@@ -1563,9 +1667,9 @@ function fillAndUpload() {
 
 function spanKey() {
   const span = volumeSpan();
-  const max = maxSliceBack();
-  const spatial = slabIndices(clipNearBack, clipFarBack, max);
-  return `${span.tLo}:${span.tHi}:${sliceAxis}:${spatial.lo}:${spatial.hi}:${focusBack}`;
+  const box = cropAabb();
+  const s = slabs[activeAxis];
+  return `${span.tLo}:${span.tHi}:${activeAxis}:${shadeMode}:${shadeHeld}:${s.near}:${s.focus}:${s.far}:${box ? `${box.xLo}:${box.xHi}:${box.yLo}:${box.yHi}` : "live"}`;
 }
 
 function syncVolume() {
@@ -1594,12 +1698,13 @@ function syncVolume() {
 }
 
 function hitCell(event, cubesToo = false) {
-  if (!focusSurface || sliceAxis !== "z") return null;
+  const surf = focusSurfaces.z;
+  if (!surf) return null;
   const rect = canvas.getBoundingClientRect();
   ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(ndc, activeCamera());
-  const objs = cubesToo ? [cubes.solid, cubes.ghost, focusSurface] : [focusSurface];
+  const objs = cubesToo ? [cubes.solid, cubes.ghost, surf] : [surf];
   const hits = raycaster.intersectObjects(objs, false);
   if (!hits.length) return null;
   _hitLocal.copy(hits[0].point);
@@ -1613,13 +1718,83 @@ function hitCell(event, cubesToo = false) {
   );
 }
 
+function hitFocusPlane(event) {
+  const meshes = ["x", "y", "z"].map((a) => focusSurfaces[a]).filter(Boolean);
+  if (!meshes.length) return null;
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, activeCamera());
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (!hits.length) return null;
+  const axis = hits[0].object.userData.axis || "z";
+  return { axis, point: hits[0].point.clone() };
+}
+
+function worldAxisDir(axis) {
+  if (axis === "x") return new THREE.Vector3(1, 0, 0);
+  if (axis === "y") return new THREE.Vector3(0, 0, 1);
+  return new THREE.Vector3(0, 1, 0);
+}
+
+function beginPlaneDrag(event, axis, grabPoint) {
+  setActiveAxis(axis);
+  if (inspectMode()) setShadeHeld(true);
+  const cam = activeCamera();
+  const axisDir = worldAxisDir(axis);
+  const toCam = cam.position.clone().sub(grabPoint);
+  const n = new THREE.Vector3().crossVectors(toCam, axisDir).cross(axisDir);
+  if (n.lengthSq() < 1e-10) n.set(0, 0, 1);
+  n.normalize();
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, grabPoint);
+  planeDrag = {
+    pointerId: event.pointerId,
+    axis,
+    plane,
+    grab: grabPoint.clone(),
+    axisDir,
+    focus0: slabs[axis].focus,
+  };
+  controls.enabled = false;
+  try {
+    canvas.setPointerCapture(event.pointerId);
+  } catch {
+    /* already captured */
+  }
+}
+
+function movePlaneDrag(event) {
+  if (!planeDrag || event.pointerId !== planeDrag.pointerId) return;
+  const rect = canvas.getBoundingClientRect();
+  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, activeCamera());
+  const hit = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(planeDrag.plane, hit)) return;
+  const delta = hit.clone().sub(planeDrag.grab).dot(planeDrag.axisDir);
+  const scale = planeDrag.axis === "z" ? DEFAULTS.timeScale : DEFAULTS.cellSize;
+  const step = Math.round(delta / Math.max(1e-6, scale));
+  const next = planeDrag.focus0 - step;
+  applySlab(planeDrag.axis, { ...slabs[planeDrag.axis], focus: next }, "focus");
+}
+
+function endPlaneDrag(event) {
+  if (!planeDrag) return;
+  if (event && event.pointerId !== planeDrag.pointerId) return;
+  planeDrag = null;
+  setShadeHeld(false);
+  if (!arPresenting()) controls.enabled = true;
+}
+
 function paintAt(event) {
-  if (sourceId === "count" || !editing || focusBack !== 0) return;
+  if (sourceId === "count" || !editing || slabs.z.focus !== 0) return;
   const cell = hitCell(event);
   if (!cell) return;
   if (world.toggle(cell.x, cell.y)) {
     ring.replaceGrid(world.grid, world.width, world.height, world.generation);
     tape.replaceGrid(world.grid, world.width, world.height, world.generation);
+    if (gridHistory.length) gridHistory[0] = Uint8Array.from(world.grid);
+    else rememberGrid(world.grid);
     stableStreak = 0;
     stoppedStable = false;
     dirtySource = true;
@@ -1652,10 +1827,7 @@ function syncHover() {
 }
 
 function updateHover(event) {
-  if (sliceAxis !== "z") {
-    clearHover();
-    return;
-  }
+  if (planeDrag) return;
   const cell = hitCell(event);
   hoverCell = cell;
   hairlines.setCell(cell, world.width, world.height, DEFAULTS.cellSize);
@@ -1724,7 +1896,7 @@ if (gizmoHit) {
       e.preventDefault();
       e.stopPropagation();
       const view = gizmo.hit(e.clientX, e.clientY, canvas);
-      if (view) snapToProductView(view.axis, view.sign);
+      if (view) enterPlaneLock(view.axis, view.sign);
     },
     { passive: false },
   );
@@ -1743,7 +1915,7 @@ canvas.addEventListener(
       const view = gizmo.hit(e.clientX, e.clientY, canvas);
       if (view) {
         e.stopImmediatePropagation();
-        snapToProductView(view.axis, view.sign);
+        enterPlaneLock(view.axis, view.sign);
         pointerDown = null;
         return;
       }
@@ -1758,12 +1930,28 @@ canvas.addEventListener(
       return;
     }
     pointerDown = { x: e.clientX, y: e.clientY };
+    if (!arPresenting() && inspectMode()) {
+      const hit = hitFocusPlane(e);
+      if (hit) {
+        const paintZ = editing && slabs.z.focus === 0 && hit.axis === "z";
+        if (!paintZ) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          pointerDown = null;
+          beginPlaneDrag(e, hit.axis, hit.point);
+        }
+      }
+    }
   },
   { capture: true },
 );
 canvas.addEventListener("pointermove", (e) => {
   if (yawDrag) {
     moveYawDrag(e);
+    return;
+  }
+  if (planeDrag) {
+    movePlaneDrag(e);
     return;
   }
   if (showGizmo()) {
@@ -1774,10 +1962,15 @@ canvas.addEventListener("pointermove", (e) => {
 });
 window.addEventListener("pointermove", (e) => {
   if (yawDrag) moveYawDrag(e);
+  else if (planeDrag) movePlaneDrag(e);
 });
 window.addEventListener("pointerup", (e) => {
   if (yawDrag) {
     endYawDrag(e);
+    return;
+  }
+  if (planeDrag) {
+    endPlaneDrag(e);
     return;
   }
   if (!pointerDown) return;
@@ -1788,7 +1981,10 @@ window.addEventListener("pointerup", (e) => {
   if (e.target !== canvas) return;
   paintAt(e);
 });
-window.addEventListener("pointercancel", endYawDrag);
+window.addEventListener("pointercancel", (e) => {
+  endYawDrag(e);
+  endPlaneDrag(e);
+});
 canvas.addEventListener("pointerleave", () => {
   gizmo.clearHover();
   canvas.style.cursor = "";
@@ -1803,8 +1999,8 @@ canvas.addEventListener(
     e.stopPropagation();
     e.stopImmediatePropagation();
     const dir = Math.sign(e.deltaY) || 1;
-    if (sliceAxis === "z") enterInspect();
-    applyFocus(focusBack + dir);
+    enterInspect();
+    applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus + dir }, "focus");
   },
   { capture: true, passive: false },
 );
@@ -1836,16 +2032,16 @@ window.addEventListener("keydown", (e) => {
     stepOnce();
     updateHint();
   } else if (e.code === "BracketLeft" || e.code === "ArrowDown") {
-    if (sliceAxis === "z") enterInspect();
-    applyFocus(focusBack + 1);
+    enterInspect();
+    applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus + 1 }, "focus");
   } else if (e.code === "BracketRight" || e.code === "ArrowUp") {
-    if (sliceAxis === "z") enterInspect();
-    applyFocus(focusBack - 1);
+    enterInspect();
+    applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus - 1 }, "focus");
   } else if (e.code === "Home") {
     if (sourceId === "count") resetCountView();
     else {
-      if (sliceAxis === "z") clipNearBack = 0;
-      applyFocus(0);
+      slabs.z.near = 0;
+      applySlab("z", { ...slabs.z, focus: 0 }, "focus");
     }
   } else if (e.code === "KeyR") {
     if (sourceId === "count") resetCountView();
@@ -1884,8 +2080,9 @@ function frame(now, xrFrame) {
     }
     if (arPlaced) applyArStagePose();
   } else {
-    pinOrbitPivot();
+    if (!planeLock) pinOrbitPivot();
     controls.update();
+    maybeExitPlaneLock();
   }
   paths.measure("rend", () => {
     if (arPresenting()) {
@@ -1941,7 +2138,7 @@ function frame(now, xrFrame) {
         events: tape.eventCount,
         full: tape.stopped,
         inspect: tapeMode,
-        atNow: sliceAxis === "z" ? focusBack === 0 : true,
+        atNow: slabs.z.focus === 0,
         tick: sourceId === "count" ? "t" : "gen",
         source: sourceId,
       });

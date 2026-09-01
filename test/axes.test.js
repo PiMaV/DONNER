@@ -2,15 +2,23 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  aabbFromSlabs,
   clampSlab,
+  effectiveShade,
+  fociFromSlabs,
   formatZTick,
+  inAabb,
+  onAxisPlane,
   productToWorld,
   relativeTimeTicks,
+  shouldEmitVoxel,
   slabGenerations,
   spatialTicks,
   stackThumbFrac,
   stackTickMarks,
+  stepFocusBack,
   visibleTimeRange,
+  voxelShadeClass,
   worldToProduct,
 } from "../src/axes.js";
 
@@ -109,5 +117,86 @@ describe("Z slab", () => {
   it("maps back-offsets to absolute generations", () => {
     assert.deepEqual(slabGenerations(100, 0, 40), { tLo: 60, tHi: 100 });
     assert.deepEqual(slabGenerations(100, 10, 10), { tLo: 90, tHi: 90 });
+  });
+});
+
+describe("AABB crop and shade", () => {
+  it("tests inclusive bounds", () => {
+    const box = { xLo: 1, xHi: 3, yLo: 0, yHi: 2, tLo: 4, tHi: 8 };
+    assert.equal(inAabb(1, 0, 4, box), true);
+    assert.equal(inAabb(3, 2, 8, box), true);
+    assert.equal(inAabb(0, 0, 4, box), false);
+    assert.equal(inAabb(1, 3, 4, box), false);
+    assert.equal(inAabb(1, 0, 9, box), false);
+    assert.equal(inAabb(2, 1, 5, null), true);
+  });
+
+  it("maps three slabs onto product indices", () => {
+    const box = aabbFromSlabs(
+      {
+        x: { near: 0, far: 3 },
+        y: { near: 1, far: 5 },
+        z: { near: 0, far: 10 },
+      },
+      8,
+      8,
+      20,
+    );
+    assert.deepEqual(box, { xLo: 4, xHi: 7, yLo: 2, yHi: 6, tLo: 10, tHi: 20 });
+    assert.deepEqual(
+      fociFromSlabs(
+        {
+          x: { focus: 0 },
+          y: { focus: 1 },
+          z: { focus: 4 },
+        },
+        8,
+        8,
+        20,
+      ),
+      { x: 7, y: 6, z: 16 },
+    );
+  });
+
+  it("turns Hull + hold into a ghost peek", () => {
+    assert.equal(effectiveShade("hull", false), "hull");
+    assert.equal(effectiveShade("hull", true), "ghost");
+    assert.equal(effectiveShade("ghost", true), "ghost");
+    assert.equal(effectiveShade("triple", true), "triple");
+  });
+
+  it("classifies hull, ghost, and triple voxels", () => {
+    const aabb = { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 };
+    const foci = { x: 1, y: 1, z: 1 };
+    const opts = { aabb, foci, activeAxis: "z" };
+    assert.equal(voxelShadeClass(0, 0, 0, { ...opts, shade: "hull", isHull: true }), "solid");
+    assert.equal(voxelShadeClass(1, 1, 1, { ...opts, shade: "hull", isHull: false }), "skip");
+    assert.equal(voxelShadeClass(1, 1, 1, { ...opts, shade: "ghost", isHull: false }), "solid");
+    assert.equal(voxelShadeClass(0, 0, 0, { ...opts, shade: "ghost", isHull: true }), "ghost");
+    assert.equal(voxelShadeClass(1, 0, 0, { ...opts, shade: "triple", isHull: false }), "solid");
+    assert.equal(onAxisPlane(1, 0, 0, "x", 1), true);
+  });
+
+  it("emits dense interiors only for ghost/triple on a plane", () => {
+    const aabb = { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 };
+    const foci = { x: 1, y: 1, z: 1 };
+    assert.equal(shouldEmitVoxel(1, 1, 1, { aabb, foci, shade: "hull", isHull: false }), false);
+    assert.equal(
+      shouldEmitVoxel(1, 1, 1, { aabb, foci, shade: "ghost", activeAxis: "z", isHull: false }),
+      true,
+    );
+    assert.equal(
+      shouldEmitVoxel(0, 0, 0, { aabb, foci, shade: "ghost", activeAxis: "z", isHull: false }),
+      false,
+    );
+    assert.equal(shouldEmitVoxel(1, 0, 0, { aabb, foci, shade: "triple", isHull: false }), true);
+    assert.equal(shouldEmitVoxel(0, 0, 0, { aabb, foci, shade: "triple", isHull: false }), false);
+  });
+
+  it("wraps the playhead at both ends", () => {
+    assert.equal(stepFocusBack(0, 10, -1), 10);
+    assert.equal(stepFocusBack(10, 10, 1), 0);
+    assert.equal(stepFocusBack(4, 10, -1), 3);
+    assert.equal(stepFocusBack(0, 0, -1), 0);
   });
 });

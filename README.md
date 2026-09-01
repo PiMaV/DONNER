@@ -185,7 +185,7 @@ If the LAN IP changes, `npm run cert` again.
 - Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
-- CAD viewcube, rail slot left of the View card (desktop orbit only): tap a face to snap that product axis
+- CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a 2D ortho cut on that axis; orbit restores the volume
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
 - **Light** (desktop): View slider or Shift-drag walks the key light around Z; the volume stays put.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
@@ -193,7 +193,7 @@ If the LAN IP changes, `npm run cert` again.
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
 - Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
-- **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses a still or empty board after five identical grids (not a wrapping glider).
+- **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
 - Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks (including the local MRI preview `../datasets/MRT/mni152_stack.npy`). **Stream** connects to the EVT sidecar / WOLKE (`http://127.0.0.1:5055`, token `evt`); cube bytes arrive via same-origin `/stream-npy`.

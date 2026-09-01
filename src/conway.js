@@ -213,6 +213,19 @@ export function gridsEqual(a, b) {
   return true;
 }
 
+/**
+ * Smallest p in 1..maxP such that `current` equals the grid from p gens ago.
+ * `pastGrids[0]` is t-1, `[1]` is t-2, …. 0 if no short cycle.
+ */
+export function gridCyclePeriod(current, pastGrids, maxP) {
+  if (!current || !pastGrids || !pastGrids.length) return 0;
+  const n = Math.min(maxP | 0, pastGrids.length);
+  for (let p = 1; p <= n; p++) {
+    if (gridsEqual(current, pastGrids[p - 1])) return p;
+  }
+  return 0;
+}
+
 export function countLive(grid) {
   let n = 0;
   for (let i = 0; i < grid.length; i++) n += grid[i];

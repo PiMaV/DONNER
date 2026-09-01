@@ -12,7 +12,8 @@
  */
 
 import { collectLive } from "./conway.js";
-import { KIND_TRANSIT, kindAt, kindOptsRadius, stabilityAge } from "./dynamics.js";
+import { inAabb } from "./axes.js";
+import { KIND_MOVING, kindAt, kindOptsRadius, stabilityAge } from "./dynamics.js";
 
 export class EventSoA {
   constructor(capacity) {
@@ -215,7 +216,7 @@ export class GenerationRing {
 
   /**
    * Newest-first fill so the present is never dropped when SoA capacity hits.
-   * `width` is needed to classify (x, y) worldlines; omit to skip (k = transit).
+   * `width` is needed to classify (x, y) worldlines; omit to skip (k = moving).
    * @param {number} [width]
    * @param {{
    *   tFocus?: number,
@@ -228,6 +229,7 @@ export class GenerationRing {
    *   stabScale?: boolean,
    *   tLo?: number,
    *   tHi?: number,
+   *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number },
    * }} [opts]
    */
   fillSoA(soa, tRef, window, width = 0, opts = {}) {
@@ -280,14 +282,15 @@ export class GenerationRing {
       if (sl.t > tHi) continue;
       if (sl.t < tLo) break;
       for (let c = 0; c < sl.count; c++) {
+        const x = sl.x[c];
+        const y = sl.y[c];
+        if (opts.aabb && !inAabb(x, y, sl.t, opts.aabb)) continue;
         if (n >= soa.capacity) {
           truncated = true;
           soa.count = n;
           soa.truncated = true;
           return soa;
         }
-        const x = sl.x[c];
-        const y = sl.y[c];
         soa.x[n] = x;
         soa.y[n] = y;
         soa.t[n] = sl.t;
@@ -297,7 +300,7 @@ export class GenerationRing {
           soa.k[n] = kindAt(sl.t, packed, isLive, bounds, kindOpts);
           soa.s[n] = useStab ? stabAt(sl.t, packed) : 0;
         } else {
-          soa.k[n] = KIND_TRANSIT;
+          soa.k[n] = KIND_MOVING;
           soa.s[n] = 0;
         }
         n += 1;

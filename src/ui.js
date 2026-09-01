@@ -16,10 +16,10 @@ const PATTERN_HINT = {
   Toad: "Toad: period-2 oscillator, two rows. Watch cyan occupancy flip along Z (time), not XY motion.",
   Beacon: "Beacon: period-2. Two blocks trade a corner; gold cores, cyan flicker.",
   Glider:
-    "Glider: occupancy-only looks gold/cyan on cells the ship crosses. Set Neighborhood 3×3 or 5×5 for the coral transit tube.",
-  "R-pentomino": "R-pentomino: long chaotic transit, then stills/oscillators appear in place.",
-  "Gosper gun": "Gosper gun needs grid ≥ 48. Gliders peel off as coral trails.",
-  Random: "Random soup: occupancy until islands lock. Neighborhood 3×3/5×5 for transit tubes.",
+    "Glider: occupancy-only looks gold/cyan on cells the ship crosses. Set Neighborhood 3×3 or 5×5 for the coral moving tube.",
+  "R-pentomino": "R-pentomino: long chaotic unsettled, then stills/oscillators lock in place.",
+  "Gosper gun": "Gosper gun needs grid ≥ 48. Gliders peel off as coral moving trails.",
+  Random: "Random soup: violet unsettled until islands lock. Neighborhood 3×3/5×5 for coral moving tubes.",
 };
 
 function $(id) {
@@ -37,6 +37,231 @@ function fillSelect(el, values, selected) {
   }
 }
 
+function bindAxisRail(axis, { on, narrow }) {
+  const stack = $(`stack-slider-${axis}`);
+  const stackTrack = $(`stack-track-${axis}`);
+  const stackSlab = $(`stack-slab-${axis}`);
+  const zFocus = $(`z-focus-${axis}`);
+  const zClipNear = $(`z-clip-near-${axis}`);
+  const zClipFar = $(`z-clip-far-${axis}`);
+  const stackBot = $(`stack-bot-${axis}`);
+  const stackTicks = $(`stack-ticks-${axis}`);
+  const stackThumbTime = $(`stack-thumb-time-${axis}`);
+  const axisEl = $(`stack-axis-${axis}`);
+  if (!stack || !stackTrack) return null;
+  let tickMax = -1;
+  let clipNearBack = 0;
+  let clipFarBack = 0;
+  let stackDrag = null;
+
+  const goldOn = () => document.body.classList.contains("is-inspect");
+
+  const layoutStack = () => {
+    const max = Number(stack.max) || 0;
+    const foc = Number(stack.value) || 0;
+    const nf = stackThumbFrac(clipNearBack, max);
+    const ff = stackThumbFrac(clipFarBack, max);
+    const pf = stackThumbFrac(foc, max);
+    zClipNear.style.setProperty("--frac", nf.toFixed(4));
+    zClipFar.style.setProperty("--frac", ff.toFixed(4));
+    zFocus.style.setProperty("--frac", pf.toFixed(4));
+    stackSlab.style.setProperty("--near", nf.toFixed(4));
+    stackSlab.style.setProperty("--far", ff.toFixed(4));
+    stackThumbTime.style.setProperty("--frac", pf.toFixed(4));
+  };
+
+  const commitSlab = (top, foc, bot, dragged = "focus") => {
+    const max = Number(stack.max) || 0;
+    const slab = clampSlab(top, foc, bot, max, dragged);
+    clipNearBack = slab.topBack;
+    clipFarBack = slab.botBack;
+    stack.value = String(slab.focusBack);
+    layoutStack();
+    on.slab?.({
+      axis,
+      near: clipNearBack,
+      focus: slab.focusBack,
+      far: clipFarBack,
+      dragged,
+    });
+  };
+
+  const backFromPointer = (e) => {
+    const r = stackTrack.getBoundingClientRect();
+    const max = Number(stack.max) || 0;
+    const frac = narrow.matches
+      ? 1 - (e.clientX - r.left) / Math.max(1, r.width)
+      : (e.clientY - r.top) / Math.max(1, r.height);
+    return Math.round(Math.min(1, Math.max(0, frac)) * max);
+  };
+
+  const handlePad = window.matchMedia("(pointer: coarse)").matches ? 22 : 12;
+  const handleKindAt = (e) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    const hits = [];
+    const consider = (el, kind) => {
+      if (!el || el.disabled) return;
+      if (kind !== "focus" && !goldOn()) return;
+      const r = el.getBoundingClientRect();
+      if (
+        x < r.left - handlePad ||
+        x > r.right + handlePad ||
+        y < r.top - handlePad ||
+        y > r.bottom + handlePad
+      ) {
+        return;
+      }
+      const cx = r.left + r.width * 0.5;
+      const cy = r.top + r.height * 0.5;
+      hits.push({ kind, d: (x - cx) ** 2 + (y - cy) ** 2 });
+    };
+    consider(zFocus, "focus");
+    if (goldOn()) {
+      consider(zClipNear, "near");
+      consider(zClipFar, "far");
+    }
+    if (!hits.length) return null;
+    hits.sort((a, b) => a.d - b.d);
+    return hits[0].kind;
+  };
+
+  const kindFromPointer = (e) => {
+    if (stack.disabled) return null;
+    const fromHandle = handleKindAt(e);
+    if (fromHandle) return fromHandle;
+    if (!goldOn()) return "focus";
+    const back = backFromPointer(e);
+    const foc = Number(stack.value) || 0;
+    const dN = Math.abs(back - clipNearBack);
+    const dF = Math.abs(back - foc);
+    const dB = Math.abs(back - clipFarBack);
+    const nearest = Math.min(dN, dF, dB);
+    if (nearest === dF) return "focus";
+    if (nearest === dN) return "near";
+    return "far";
+  };
+
+  const applyDrag = (kind, back) => {
+    const foc = Number(stack.value) || 0;
+    if (kind === "near") commitSlab(back, foc, clipFarBack, "near");
+    else if (kind === "far") commitSlab(clipNearBack, foc, back, "far");
+    else commitSlab(clipNearBack, back, clipFarBack, "focus");
+  };
+
+  stackTrack.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    const kind = kindFromPointer(e);
+    if (!kind) return;
+    e.preventDefault();
+    stackDrag = kind;
+    on.activeAxis?.(axis);
+    on.slabHold?.(true);
+    stackTrack.setPointerCapture(e.pointerId);
+    applyDrag(kind, backFromPointer(e));
+  });
+  stackTrack.addEventListener("pointermove", (e) => {
+    if (!stackDrag) return;
+    applyDrag(stackDrag, backFromPointer(e));
+  });
+  const endDrag = () => {
+    if (!stackDrag) return;
+    stackDrag = null;
+    on.slabHold?.(false);
+  };
+  stackTrack.addEventListener("pointerup", endDrag);
+  stackTrack.addEventListener("pointercancel", endDrag);
+  stackTrack.addEventListener("lostpointercapture", endDrag);
+  stackTrack.addEventListener(
+    "wheel",
+    (e) => {
+      if (stack.disabled) return;
+      e.preventDefault();
+      on.activeAxis?.(axis);
+      const dir = Math.sign(e.deltaY) || 1;
+      applyDrag("focus", (Number(stack.value) || 0) + dir);
+    },
+    { passive: false },
+  );
+  const nudgeHandle = (kind, dir) => {
+    const foc = Number(stack.value) || 0;
+    on.activeAxis?.(axis);
+    if (kind === "near") applyDrag("near", clipNearBack + dir);
+    else if (kind === "far") applyDrag("far", clipFarBack + dir);
+    else applyDrag("focus", foc + dir);
+  };
+  const bindHandleKeys = (el, kind) => {
+    el.addEventListener("keydown", (e) => {
+      let dir = 0;
+      if (e.key === "ArrowDown" || e.key === "ArrowLeft") dir = 1;
+      else if (e.key === "ArrowUp" || e.key === "ArrowRight") dir = -1;
+      if (!dir) return;
+      e.preventDefault();
+      nudgeHandle(kind, dir);
+    });
+  };
+  bindHandleKeys(zFocus, "focus");
+  bindHandleKeys(zClipNear, "near");
+  bindHandleKeys(zClipFar, "far");
+
+  const syncOrient = () => {
+    const horizontal = narrow.matches;
+    stack.setAttribute("aria-orientation", horizontal ? "horizontal" : "vertical");
+    if (horizontal) stack.removeAttribute("orient");
+    else stack.setAttribute("orient", "vertical");
+  };
+  syncOrient();
+  narrow.addEventListener("change", syncOrient);
+
+  return {
+    get() {
+      return {
+        focusBack: Number.parseInt(stack.value, 10) || 0,
+        clipNearBack,
+        clipFarBack,
+      };
+    },
+    set({
+      back = 0,
+      maxBack = 0,
+      label = 0,
+      oldest = 0,
+      live = false,
+      near = 0,
+      far = maxBack,
+      active = false,
+    }) {
+      const max = live ? 0 : Math.max(0, maxBack);
+      stack.max = String(max);
+      stack.disabled = Boolean(live);
+      zFocus.disabled = Boolean(live);
+      zClipNear.disabled = Boolean(live);
+      zClipFar.disabled = Boolean(live);
+      const slab = live
+        ? { topBack: 0, focusBack: 0, botBack: 0 }
+        : clampSlab(near, back, far, max);
+      clipNearBack = slab.topBack;
+      clipFarBack = slab.botBack;
+      stack.value = String(live ? 0 : slab.focusBack);
+      stackBot.textContent = live ? "LIVE" : String(oldest);
+      if (max !== tickMax) {
+        tickMax = max;
+        const frag = document.createDocumentFragment();
+        for (const mark of stackTickMarks(max)) {
+          const el = document.createElement("span");
+          el.className = mark.major ? "stack-tick is-major" : "stack-tick";
+          el.style.setProperty("--frac", mark.frac.toFixed(4));
+          frag.appendChild(el);
+        }
+        stackTicks.replaceChildren(frag);
+      }
+      stackThumbTime.textContent = String(label);
+      if (axisEl) axisEl.classList.toggle("is-active", Boolean(active));
+      layoutStack();
+    },
+  };
+}
+
 export function bindUI(on) {
   const playBtn = $("btn-play");
   const arBtn = $("btn-ar");
@@ -52,9 +277,9 @@ export function bindUI(on) {
   const viewLight = $("view-light");
   const arYaw = $("ar-yaw");
   const lightVal = $("light-val");
-  const sliceX = $("slice-x");
-  const sliceY = $("slice-y");
-  const sliceZ = $("slice-z");
+  const shadeHull = $("shade-hull");
+  const shadeGhost = $("shade-ghost");
+  const shadeTriple = $("shade-triple");
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
   const hudViewFold = $("btn-hud-view");
@@ -64,24 +289,15 @@ export function bindUI(on) {
   const speedVal = $("speed-val");
   const decay = $("decay");
   const cacheStatus = $("cache-status");
-  const gridBright = $("grid-bright");
-  const gridBrightVal = $("grid-bright-val");
   const history = $("history");
   const historyVal = $("history-val");
-  const stack = $("stack-slider");
-  const stackTrack = $("stack-track");
-  const stackSlab = $("stack-slab");
-  const zFocus = $("z-focus");
-  const zClipNear = $("z-clip-near");
-  const zClipFar = $("z-clip-far");
   const stackNow = $("btn-stack-now");
-  const stackBot = $("stack-bot");
-  const stackTicks = $("stack-ticks");
-  const stackThumbTime = $("stack-thumb-time");
-  let tickMax = -1;
-  let clipNearBack = 0;
-  let clipFarBack = 0;
-  let stackDrag = null;
+  const narrow = window.matchMedia("(max-width: 720px)");
+  const rails = {
+    x: bindAxisRail("x", { on, narrow }),
+    y: bindAxisRail("y", { on, narrow }),
+    z: bindAxisRail("z", { on, narrow }),
+  };
   let arSupported = false;
   const grid = $("grid");
   const wrap = $("wrap");
@@ -137,7 +353,6 @@ export function bindUI(on) {
   seed.value = String(DEFAULTS.seed);
   speed.value = String(DEFAULTS.gensPerSec);
   decay.checked = DEFAULTS.decay;
-  gridBright.value = String(DEFAULTS.gridBrightness);
   history.value = String(DEFAULTS.history);
   wrap.checked = DEFAULTS.wrap;
   if (stopStable) stopStable.checked = DEFAULTS.stopWhenStable;
@@ -173,7 +388,6 @@ export function bindUI(on) {
 
   const syncLabels = () => {
     speedVal.textContent = `${speed.value}/s`;
-    gridBrightVal.textContent = Number(gridBright.value).toFixed(2);
     historyVal.textContent = history.value;
     if (lightVal) {
       const deg = viewLight ? Number(viewLight.value) || 0 : 0;
@@ -200,10 +414,24 @@ export function bindUI(on) {
     if (applying) return;
     on.yaw?.(Number(e.target.value) || 0);
   });
-  const onSlice = (axis) => () => on.sliceAxis?.(axis);
-  sliceX?.addEventListener("click", onSlice("x"));
-  sliceY?.addEventListener("click", onSlice("y"));
-  sliceZ?.addEventListener("click", onSlice("z"));
+  const syncShadeButtons = (mode) => {
+    const m = mode === "ghost" || mode === "triple" ? mode : "hull";
+    const map = [
+      [shadeHull, "hull"],
+      [shadeGhost, "ghost"],
+      [shadeTriple, "triple"],
+    ];
+    for (const [el, id] of map) {
+      if (!el) continue;
+      const onBtn = id === m;
+      el.classList.toggle("is-on", onBtn);
+      el.setAttribute("aria-pressed", onBtn ? "true" : "false");
+    }
+  };
+  shadeHull?.addEventListener("click", () => on.shade?.("hull"));
+  shadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
+  shadeTriple?.addEventListener("click", () => on.shade?.("triple"));
+  syncShadeButtons(DEFAULTS.shadeMode);
   cubeCap?.addEventListener("change", () => {
     if (applying) return;
     cubeCap.value = String(clampCubeCap(cubeCap.value));
@@ -241,10 +469,6 @@ export function bindUI(on) {
   decay.addEventListener("change", () => {
     on.decay();
   });
-  gridBright.addEventListener("input", () => {
-    syncLabels();
-    on.gridBrightness();
-  });
   history.addEventListener("input", () => {
     syncLabels();
     on.history();
@@ -277,165 +501,7 @@ export function bindUI(on) {
     on.countSize?.();
   });
   wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
-  const layoutStack = () => {
-    const max = Number(stack.max) || 0;
-    const foc = Number(stack.value) || 0;
-    const nf = stackThumbFrac(clipNearBack, max);
-    const ff = stackThumbFrac(clipFarBack, max);
-    const pf = stackThumbFrac(foc, max);
-    zClipNear.style.setProperty("--frac", nf.toFixed(4));
-    zClipFar.style.setProperty("--frac", ff.toFixed(4));
-    zFocus.style.setProperty("--frac", pf.toFixed(4));
-    stackSlab.style.setProperty("--near", nf.toFixed(4));
-    stackSlab.style.setProperty("--far", ff.toFixed(4));
-    stackThumbTime.style.setProperty("--frac", pf.toFixed(4));
-  };
-
-  const commitSlab = (top, foc, bot, dragged = "focus") => {
-    const max = Number(stack.max) || 0;
-    const slab = clampSlab(top, foc, bot, max, dragged);
-    clipNearBack = slab.topBack;
-    clipFarBack = slab.botBack;
-    stack.value = String(slab.focusBack);
-    layoutStack();
-    on.focus();
-  };
-
-  const backFromPointer = (e) => {
-    const r = stackTrack.getBoundingClientRect();
-    const max = Number(stack.max) || 0;
-    const frac = narrow.matches
-      ? 1 - (e.clientX - r.left) / Math.max(1, r.width)
-      : (e.clientY - r.top) / Math.max(1, r.height);
-    return Math.round(Math.min(1, Math.max(0, frac)) * max);
-  };
-
-  const handlePad = window.matchMedia("(pointer: coarse)").matches ? 22 : 12;
-  const handleKindAt = (e) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    const hits = [];
-      const consider = (el, kind) => {
-        if (!el || el.disabled) return;
-        if (
-          kind !== "focus" &&
-          !document.body.classList.contains("is-inspect") &&
-          !document.body.classList.contains("has-slab")
-        ) {
-          return;
-        }
-      const r = el.getBoundingClientRect();
-      if (
-        x < r.left - handlePad ||
-        x > r.right + handlePad ||
-        y < r.top - handlePad ||
-        y > r.bottom + handlePad
-      ) {
-        return;
-      }
-      const cx = r.left + r.width * 0.5;
-      const cy = r.top + r.height * 0.5;
-      hits.push({ kind, d: (x - cx) ** 2 + (y - cy) ** 2 });
-    };
-    consider(zFocus, "focus");
-    if (
-      document.body.classList.contains("is-inspect") ||
-      document.body.classList.contains("has-slab")
-    ) {
-      consider(zClipNear, "near");
-      consider(zClipFar, "far");
-    }
-    if (!hits.length) return null;
-    hits.sort((a, b) => a.d - b.d);
-    return hits[0].kind;
-  };
-
-  const kindFromPointer = (e) => {
-    if (stack.disabled) return null;
-    const fromHandle = handleKindAt(e);
-    if (fromHandle) return fromHandle;
-    if (
-      !document.body.classList.contains("is-inspect") &&
-      !document.body.classList.contains("has-slab")
-    ) {
-      return "focus";
-    }
-    const back = backFromPointer(e);
-    const foc = Number(stack.value) || 0;
-    const dN = Math.abs(back - clipNearBack);
-    const dF = Math.abs(back - foc);
-    const dB = Math.abs(back - clipFarBack);
-    const nearest = Math.min(dN, dF, dB);
-    if (nearest === dF) return "focus";
-    if (nearest === dN) return "near";
-    return "far";
-  };
-
-  const applyDrag = (kind, back) => {
-    const foc = Number(stack.value) || 0;
-    if (kind === "near") commitSlab(back, foc, clipFarBack, "near");
-    else if (kind === "far") commitSlab(clipNearBack, foc, back, "far");
-    else commitSlab(clipNearBack, back, clipFarBack, "focus");
-  };
-
-  stackTrack.addEventListener("pointerdown", (e) => {
-    if (e.button != null && e.button !== 0) return;
-    const kind = kindFromPointer(e);
-    if (!kind) return;
-    e.preventDefault();
-    stackDrag = kind;
-    stackTrack.setPointerCapture(e.pointerId);
-    applyDrag(kind, backFromPointer(e));
-  });
-  stackTrack.addEventListener("pointermove", (e) => {
-    if (!stackDrag) return;
-    applyDrag(stackDrag, backFromPointer(e));
-  });
-  const endDrag = () => {
-    stackDrag = null;
-  };
-  stackTrack.addEventListener("pointerup", endDrag);
-  stackTrack.addEventListener("pointercancel", endDrag);
-  stackTrack.addEventListener("lostpointercapture", endDrag);
-  stackTrack.addEventListener(
-    "wheel",
-    (e) => {
-      if (stack.disabled) return;
-      e.preventDefault();
-      const dir = Math.sign(e.deltaY) || 1;
-      applyDrag("focus", (Number(stack.value) || 0) + dir);
-    },
-    { passive: false },
-  );
-  const nudgeHandle = (kind, dir) => {
-    const foc = Number(stack.value) || 0;
-    if (kind === "near") applyDrag("near", clipNearBack + dir);
-    else if (kind === "far") applyDrag("far", clipFarBack + dir);
-    else applyDrag("focus", foc + dir);
-  };
-  const bindHandleKeys = (el, kind) => {
-    el.addEventListener("keydown", (e) => {
-      let dir = 0;
-      if (e.key === "ArrowDown" || e.key === "ArrowLeft") dir = 1;
-      else if (e.key === "ArrowUp" || e.key === "ArrowRight") dir = -1;
-      if (!dir) return;
-      e.preventDefault();
-      nudgeHandle(kind, dir);
-    });
-  };
-  bindHandleKeys(zFocus, "focus");
-  bindHandleKeys(zClipNear, "near");
-  bindHandleKeys(zClipFar, "far");
-  stackNow.addEventListener("click", () => on.focusNow());
-  const narrow = window.matchMedia("(max-width: 720px)");
-  const syncStackOrient = () => {
-    const horizontal = narrow.matches;
-    stack.setAttribute("aria-orientation", horizontal ? "horizontal" : "vertical");
-    if (horizontal) stack.removeAttribute("orient");
-    else stack.setAttribute("orient", "vertical");
-  };
-  syncStackOrient();
-  narrow.addEventListener("change", syncStackOrient);
+  stackNow?.addEventListener("click", () => on.focusNow());
   const setFold = (which) => {
     const viewOpen = which === "view";
     const sourceOpen = which === "source";
@@ -478,11 +544,17 @@ export function bindUI(on) {
         seed: Number.parseInt(seed.value, 10) || 0,
         gensPerSec: Number(speed.value) || DEFAULTS.gensPerSec,
         decay: decay.checked,
-        gridBrightness: Number(gridBright.value),
         history: Number.parseInt(history.value, 10) || DEFAULTS.history,
-        focusBack: Number.parseInt(stack.value, 10) || 0,
-        clipNearBack: clipNearBack,
-        clipFarBack: clipFarBack,
+        shadeMode: shadeGhost?.classList.contains("is-on")
+          ? "ghost"
+          : shadeTriple?.classList.contains("is-on")
+            ? "triple"
+            : "hull",
+        slabs: {
+          x: rails.x?.get() || { focusBack: 0, clipNearBack: 0, clipFarBack: 0 },
+          y: rails.y?.get() || { focusBack: 0, clipNearBack: 0, clipFarBack: 0 },
+          z: rails.z?.get() || { focusBack: 0, clipNearBack: 0, clipFarBack: 0 },
+        },
         width: g,
         height: g,
         wrap: wrap.checked,
@@ -571,54 +643,28 @@ export function bindUI(on) {
       parallaxBtn.classList.toggle("is-on", on);
       parallaxBtn.setAttribute("aria-pressed", on ? "true" : "false");
     },
-    setSliceAxis(axis) {
+    setShade(mode) {
+      syncShadeButtons(mode);
+    },
+    setActiveAxis(axis) {
       const a = axis === "x" || axis === "y" ? axis : "z";
-      const buttons = [
-        [sliceX, "x"],
-        [sliceY, "y"],
-        [sliceZ, "z"],
-      ];
-      for (const [el, id] of buttons) {
-        if (!el) continue;
-        const on = id === a;
-        el.classList.toggle("is-on", on);
-        el.setAttribute("aria-pressed", on ? "true" : "false");
+      for (const id of ["x", "y", "z"]) {
+        const el = $(`stack-axis-${id}`);
+        el?.classList.toggle("is-active", id === a);
       }
-      document.body.classList.toggle("has-slab", a !== "z");
     },
     setFps(fps) {
       fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
     },
-    setFocus(back, maxBack, tFocus = 0, oldest = 0, live = false, nearBack = 0, farBack = maxBack) {
-      const max = live ? 0 : Math.max(0, maxBack);
-      stack.max = String(max);
-      stack.value = String(live ? 0 : back);
-      stack.disabled = Boolean(live);
-      zFocus.disabled = Boolean(live);
-      zClipNear.disabled = Boolean(live);
-      zClipFar.disabled = Boolean(live);
-      const slab = live
-        ? { topBack: 0, focusBack: 0, botBack: 0 }
-        : clampSlab(nearBack, back, farBack, max);
-      clipNearBack = slab.topBack;
-      clipFarBack = slab.botBack;
-      stack.value = String(live ? 0 : slab.focusBack);
-      stackNow.classList.toggle("is-on", live || slab.focusBack === 0);
-      stackNow.setAttribute("aria-pressed", live || slab.focusBack === 0 ? "true" : "false");
-      stackBot.textContent = live ? "LIVE" : String(oldest);
-      if (max !== tickMax) {
-        tickMax = max;
-        const frag = document.createDocumentFragment();
-        for (const mark of stackTickMarks(max)) {
-          const el = document.createElement("span");
-          el.className = mark.major ? "stack-tick is-major" : "stack-tick";
-          el.style.setProperty("--frac", mark.frac.toFixed(4));
-          frag.appendChild(el);
-        }
-        stackTicks.replaceChildren(frag);
-      }
-      stackThumbTime.textContent = String(tFocus);
-      layoutStack();
+    setSlabs({ activeAxis = "z", x, y, z }) {
+      const a = activeAxis === "x" || activeAxis === "y" ? activeAxis : "z";
+      if (x) rails.x?.set({ ...x, active: a === "x" });
+      if (y) rails.y?.set({ ...y, active: a === "y" });
+      if (z) rails.z?.set({ ...z, active: a === "z" });
+      const zLive = Boolean(z?.live);
+      const zNow = zLive || (z && (z.back | 0) === 0);
+      stackNow?.classList.toggle("is-on", zNow);
+      stackNow?.setAttribute("aria-pressed", zNow ? "true" : "false");
     },
     setCache({ gens, events, full, inspect, atNow = true, tick = "gen", source = "conway" }) {
       cacheStatus.textContent = formatCacheStatus({
@@ -629,8 +675,7 @@ export function bindUI(on) {
         tick,
       });
       const count = source === "count";
-      const spatial = document.body.classList.contains("has-slab");
-      editBtn.disabled = count || spatial || (Boolean(inspect) && !atNow);
+      editBtn.disabled = count || (Boolean(inspect) && !atNow);
       stepBtn.disabled = count ? false : Boolean(inspect);
       document.body.classList.toggle("is-inspect", Boolean(inspect));
     },

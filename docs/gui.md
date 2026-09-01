@@ -12,20 +12,20 @@ flowchart LR
   play[Play Pause] --> scene
   step[Step] --> sim[Conway]
   sim --> scene
-  scrub[Slice stack / Shift+wheel] --> plane[Focus plane]
+  scrub[Three rails / Shift+wheel] --> plane[Active plane]
   plane --> scene
   edit[Edit mode] --> paint[Tap cell inside frame]
   paint --> sim
-  gizmo[CAD viewcube] --> scene
+  gizmo[CAD viewcube] --> cut[Ortho cut]
+  cut --> scene
   para[Parallax] --> scene
 ```
 
 Play is a **display** transport outside the sheets. Conway loads **paused**
 (R-pentomino). **Play** = Live View (generator runs, Z locked at Now);
-for a count stack it scrubs the **active stack axis** (dense MRI: the 8-slice
-window; sparse EVT: Z time). **Pause** = Inspect
+for a count stack it scrubs the **active playhead**. **Pause** = Inspect
 the RAM tape (Z from 0). **Pause** lights the brick (fog off, camera far
-fits the tape). Two extra Z handles clip a **slab** (outside not drawn).
+fits the tape). Three rails clip an **AABB** crop (outside not drawn).
 Conway Play from Inspect jumps to live Now.
 
 In an **AR session** the same Play and Z stack stay; brand, View/Source
@@ -147,8 +147,8 @@ rectangle select on the playfield).
 | Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan when **Parallax** is off, or when **Align to Z** is off. Align to Z (default) rotates around the time axis at the brick center. |
-| Shift+wheel | Scrub the current slice axis |
-| **Slice stack** | X / Y / Z (default Z = time). Cyan playhead plus two gold **slab** handles (Inspect, and always on X/Y). Sparse Conway/EVT: cubes ghost away from the cyan plane and vanish at the gold grips. Dense count (MRI): same mid-volume slab as Z — tissue on the cut, enclosed cubes hidden. After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now/max at top. Phone: bottom timeline. Wheel over it steps the playhead. |
+| Shift+wheel | Scrub the **active** axis |
+| **Slice stack** | Three rails (X / Y / Z). Cyan playhead plus two gold clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent gold, hull cull against the AABB. After **Fit**, the brick stays put and the cyan plane moves. Desktop: three vertical rails, Now on Z at top. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. AR: Z only. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
@@ -168,24 +168,24 @@ rectangle select on the playfield).
 | Control | Meaning |
 |---------|---------|
 | Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. |
-| Parallax | Default on = perspective. Off = orthographic at the current look. Key `B`. |
-| Align to Z | Default on = orbit around the time axis. Off = free pan. |
+| Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
+| Align to Z | Default on = orbit around the time axis. Off = free pan. Off while a viewcube cut is locked. |
 | Light | Desktop: azimuth of the key/fill around product Z. Volume stays put (Lambert changes). View slider or Shift-drag. Off in AR. |
 | Yaw | AR overlay only: turn the pillar on the table after place, then walk. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
-| Decay | On/off. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Sparse X/Y uses ghost-to-gold on its own. Dense count reuses this one-sided fade along the active stack axis (Decay stays off). |
-| Grid light | Brightness of the cell grid and focus-plane fill |
+| Decay | Default **off**. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Ghost hull uses proximity along the active plane, not Decay. |
+| Shade | Inspect: **Hull** (default, outer AABB solid; hold a handle/plane to peek as ghost), **Ghost** (volume ghost, active plane solid), **Triple** (three cuts solid, hull ghost). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | Bench instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
-| **Slice stack** | Live Z: locked, label **LIVE**. Inspect or X/Y: cyan **playhead** plus two gold **slab** handles. Dragging a gold handle past the playhead pushes it. **Now** snaps to the high end of the rail. |
+| **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, cyan playheads, gold AABB clips. Dragging a gold handle past the playhead pushes it. **Now** snaps Z to the high end of the rail. |
 
 ## Source
 
 | Control | Meaning |
 |---------|---------|
 | Source | **Conway** or **Count stack** |
-| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs the stack (dense: the slab window) |
+| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs the **active** axis |
 
 ### Conway addon
 
@@ -198,14 +198,24 @@ rectangle select on the playfield).
 | Pattern | BLITZ seeds; Gosper gun needs grid ≥ 48 |
 | Grid | 16…64; rebuilds the world |
 | Wrap | Torus vs hard edges |
-| Stop when stable | Pause into Inspect after 5 identical grids (still / empty). Oscillators and wrapping gliders keep running. A glider on a hard edge dies, then the empty board pauses — leave Wrap on. Default on. |
+| Stop when stable | Pause into Inspect after 5 generations in a short cycle (period 1–15): stills and oscillators. Wrapping gliders keep running. A glider on a hard edge dies, then the empty board pauses — leave Wrap on. Default on. |
+
+```mermaid
+flowchart LR
+  step[Conway step]
+  step --> cyc{Grid equals a stored grid p 1 to 15}
+  cyc -->|no| reset[Reset streak]
+  cyc -->|yes| hold[Streak plus 1]
+  hold --> five{Streak is 5}
+  five -->|yes| inspect[Pause into Inspect]
+```
 
 ### Count stack (EVT)
 
 | Control | Meaning |
 |---------|---------|
 | Ignition demo | Load `data/ignition_stack.npy` (local symlink into `datasets/EVT/`) |
-| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Local MRI preview: `../datasets/MRT/mni152_stack.npy` (dense; auto 8-slice slab on Z/X/Y + hidden enclosed cubes; see architecture *MRI volume*) |
+| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Local MRI preview: `../datasets/MRT/mni152_stack.npy` (dense; full-extent AABB hull + hidden enclosed cubes; see architecture *MRI volume*) |
 | Stream | WOLKE contract. Default `http://127.0.0.1:5055` / token `evt` (EVT sidecar). Connect listens for `send_file_message`; the cube GET is same-origin `/stream-npy` (DONNER’s static server pulls the sidecar). Send as **counts**. Restart `npm start` / `start:lan` so the proxy exists. `https://lab.ole.icu` works when Caddy reverse-proxies that laptop server. |
 | Token | Sidecar / WOLKE token (sidecar default `evt`) |
 | Connect | Toggle the Socket.IO viewer. A new send replaces the cube. 2D/RGB is rejected with a hint; the previous volume stays. |
@@ -218,7 +228,7 @@ max = coral. Empty pixels (count 0) are not cubes.
 ## Encoding (slot)
 
 Color and cube fill are display slots. Conway supplies still / osc /
-transit / warmup and Stability **None / Time / Focus**. A count stack
+moving / unsettled / warmup and Stability **None / Time / Focus**. A count stack
 supplies integer rungs (cyan → gold → coral) and optional size-by-count.
 Polarity is later. The sheet **Encoding** block is that slot; source
 stats stay in **Source**.
@@ -227,20 +237,56 @@ stats stay in **Source**.
 |---------|---------|
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-The **cyan frame** is the current slice plane. Numbered **X/Y** sit on the
-**right** (gold). Inspect also draws **gold rings** at the slab cuts.
-The stack slider beside the HUD (Now/max at the top) is Z time by
-default, or X / Y. Sparse X/Y: cyan plane solid, cubes toward the gold
-grips ghost and then vanish. Dense count X/Y matches Z (slab + cut faces).
-**Decay** stays a Z/time fade on sparse stacks. The CAD
-viewcube (desktop, left of the View card) is navigation, not a grabber.
+The **cyan frames** are the three slice planes. The **active** plane is
+full (fill + cell grid); the other two are hinted. Inspect also draws
+**gold rings** on the active axis at the AABB cuts. Three HUD rails
+(Now/max at the top of Z). Crop is the intersection of the three gold
+windows. **Hull** (default) draws the outer hull solid; grab a handle or
+plane to peek as ghost. **Ghost** / **Triple** persist in the View sheet.
+**Decay** stays a Z/time fade on sparse stacks. The CAD viewcube
+(desktop, left of the View card) is navigation, not a grabber.
+
+```mermaid
+flowchart TB
+  subgraph idle [Inspect idle]
+    aabb[AABB from three gold windows]
+    hull[Outer hull solid]
+    planes[Three cyan planes]
+    aabb --> hull
+    aabb --> planes
+  end
+  subgraph drag [Hold handle or plane]
+    ghost[AABB as ghost]
+    cut[Active plane solid]
+    ghost --> cut
+  end
+  idle -->|grab Hull| drag
+  drag -->|release| idle
+```
+
 Hovering the Z plane draws two thin lines to X and Y,
 a gold square on the cell, and a pale cage around the cube on that
-slice when the cell is live. Slices newer than the focus sit **above**
+slice when the cell is live. Live: slices newer than the focus sit **above**
 the plane, translucent.
 
-**Parallax** off is orthographic at the current look (no vanishing point).
-Click a **face** of the viewcube (desktop; hover lights the frame) to look from +X / +Y / +Z. Worldline **isolation** is
+**Parallax** off is orthographic at the current look (no vanishing point)
+and still shows the slab. Click a **face** of the viewcube (desktop; hover
+lights the frame) to enter a 2D **cut** on that axis: ortho, one plane,
+stack slider walks it. Orbit off the axis (or `B`) restores the volume.
+
+```mermaid
+flowchart TB
+  face[Viewcube face]
+  lock[planeLock]
+  ortho[Parallax off]
+  one[one playhead plane]
+  orbit[Orbit off axis]
+  volume[3D slab]
+  face --> lock --> ortho --> one
+  orbit --> volume
+```
+
+Worldline **isolation** is
 deferred (later: rectangle select). Edit stays on the Z playfield at Now.
 
 Inspect **Z slab** (3D-slicer):
@@ -304,10 +350,10 @@ to expand the View card. Source stats live in the Source sheet. No viewcube.
 | COUNT | Source — count stack is active |
 | EDIT | Source Conway — present in edit mode |
 
-**Slice stack:** thin rail — **Now**, a tick per stored step, label
-beside the handle. Desktop: Now/max at the top. Phone: Now/max at the right.
-Phone: Now at the right, past at the left. Wheel over the stack (or
-Shift+wheel on the canvas) still scrubs.
+**Slice stack:** three rails — **Now** on Z, a tick per stored step, label
+beside the handle. Desktop: Now/max at the top. Phone: three tracks,
+Now/max at the right. Wheel over a rail (or Shift+wheel on the canvas)
+scrubs the **active** axis.
 
 If INST hits the cap (`trunc`), live: lower Depth or Grid; inspect: the
 tape is denser than the 200 000-cube envelope (newest slices kept). RATE is
@@ -325,9 +371,24 @@ fight the class colors.
 | Kind | Color | Typical Conway |
 |------|-------|----------------|
 | Still | gold | block, beehive, blinker core (always on) — activity stays put |
-| Oscillator | cyan | blinker tips, toad, beacon — **only when live**, in place |
-| Transit | BLITZ coral | glider tube, births/deaths, soup — the space-time **curve** |
+| Oscillator | cyan | blinker tips, toad, beacon, longer-period occupancy — **only when live**, in place |
+| Moving | BLITZ coral | glider tube — Neighborhood 3×3/5×5; translating activity |
+| Unsettled | violet | soup, births/deaths that are not yet still or periodic |
 | Warmup | gray | generations 0 and 1 — too little history to class |
+
+```mermaid
+flowchart TD
+  live[Live cell at t]
+  live --> wu{t less than 2}
+  wu -->|yes| warmup[Warmup gray]
+  wu -->|no| mot{Neighborhood centroid translated}
+  mot -->|yes| moving[Moving coral]
+  mot -->|no| prev{Live at t-1}
+  prev -->|yes| still[Still gold]
+  prev -->|no| per{Occupancy period 2 to 15}
+  per -->|yes| osc[Oscillator cyan]
+  per -->|no| unset[Unsettled violet]
+```
 
 Default pattern is **R-pentomino**, started **paused** (Play to run).
 Teaching order if you switch seeds: Blinker → Toad/Beacon → Glider.
@@ -342,15 +403,15 @@ Decay only darkens older **Z** slices; it does not change hue or cube size.
 - **Time** (default) — duration already reached at that generation (taper)
 - **Focus** — duration on the focus plane, whole `(x, y)` column
 
-Cap is 16 generations. Transit stays smaller in Time/Focus. Warmup cubes
+Cap is 16 generations. Moving and Unsettled stay smaller in Time/Focus. Warmup cubes
 stay full size so the first slices are not a false “shrink”.
 
 These classes fill the **encoding slot** for the Conway demonstrator. A
 count stack uses a different LUT: integer rungs cyan → gold → coral.
-Polarity (and occupancy / states) will not reuse still/osc/transit.
+Polarity (and occupancy / states) will not reuse still/osc/moving/unsettled.
 
-The gold **frame** is the playfield edge. **Grid light** sets how bright the
-cell lattice is.
+The gold **frame** is the playfield edge. The cell lattice sits on the
+**active** cyan plane.
 
 ## Bench
 

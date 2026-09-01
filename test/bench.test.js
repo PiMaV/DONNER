@@ -9,7 +9,7 @@ import {
   inferBound,
   isSoftwareRenderer,
 } from "../src/bench.js";
-import { KIND_TRANSIT, KIND_STILL } from "../src/dynamics.js";
+import { KIND_MOVING, KIND_STILL } from "../src/dynamics.js";
 import { seedPattern, stepClassic } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
 import { EventSoA, GenerationRing, drawnWindow, fadePastSpan, formatCacheStatus, visibleTimeSpan } from "../src/spacetime.js";
@@ -253,7 +253,7 @@ describe("fillSoA bench flags", () => {
     ring.fillSoA(soa, 2, 8, 9, { dynamics: false });
     assert.ok(soa.count >= 3);
     for (let i = 0; i < soa.count; i++) {
-      assert.equal(soa.k[i], KIND_TRANSIT);
+      assert.equal(soa.k[i], KIND_MOVING);
       assert.equal(soa.s[i], 0);
     }
   });

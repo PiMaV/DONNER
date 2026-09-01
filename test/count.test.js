@@ -8,9 +8,7 @@ import {
   countVolumeFromDense,
   countVolumeFromNpy,
   DENSE_OCCUPANCY,
-  denseSlabBacks,
   isDenseCount,
-  slideDenseSlabBacks,
 } from "../src/count.js";
 import { parseNpy, serializeNpy } from "../src/npy.js";
 import { EventSoA } from "../src/spacetime.js";
@@ -104,7 +102,7 @@ describe("count volume", () => {
     assert.equal(soa.count, 9);
   });
 
-  it("culls an X slab the same way as a Z slab", () => {
+  it("culls an X crop the same way as a Z crop", () => {
     const dense = new Uint16Array(27);
     dense.fill(1);
     const vol = countVolumeFromDense(dense, [3, 3, 3]);
@@ -114,9 +112,7 @@ describe("count volume", () => {
       tHi: 2,
       tFocus: 1,
       stabScale: false,
-      sliceAxis: "x",
-      sliceLo: 0,
-      sliceHi: 2,
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
     });
     assert.equal(soa.count, 26);
     vol.fillSoA(soa, 2, 8, 3, {
@@ -124,15 +120,13 @@ describe("count volume", () => {
       tHi: 2,
       tFocus: 1,
       stabScale: false,
-      sliceAxis: "x",
-      sliceLo: 1,
-      sliceHi: 1,
+      aabb: { xLo: 1, xHi: 1, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
     });
     assert.equal(soa.count, 9);
     for (let i = 0; i < soa.count; i++) assert.equal(soa.x[i], 1);
   });
 
-  it("culls a Y slab the same way as a Z slab", () => {
+  it("culls a Y crop the same way as a Z crop", () => {
     const dense = new Uint16Array(27);
     dense.fill(1);
     const vol = countVolumeFromDense(dense, [3, 3, 3]);
@@ -142,15 +136,13 @@ describe("count volume", () => {
       tHi: 2,
       tFocus: 1,
       stabScale: false,
-      sliceAxis: "y",
-      sliceLo: 1,
-      sliceHi: 1,
+      aabb: { xLo: 0, xHi: 2, yLo: 1, yHi: 1, tLo: 0, tHi: 2 },
     });
     assert.equal(soa.count, 9);
     for (let i = 0; i < soa.count; i++) assert.equal(soa.y[i], 1);
   });
 
-  it("keeps an 8-slice X window as cut faces, not the full hull", () => {
+  it("keeps an X window as AABB hull faces, not interior voxels", () => {
     const dense = new Uint16Array(10 * 10 * 10);
     dense.fill(1);
     const vol = countVolumeFromDense(dense, [10, 10, 10]);
@@ -160,14 +152,30 @@ describe("count volume", () => {
       tHi: 9,
       tFocus: 5,
       stabScale: false,
-      sliceAxis: "x",
-      sliceLo: 2,
-      sliceHi: 9,
+      aabb: { xLo: 2, xHi: 9, yLo: 0, yHi: 9, tLo: 0, tHi: 9 },
     });
     assert.equal(soa.count, 416);
     for (let i = 0; i < soa.count; i++) {
       assert.ok(soa.x[i] >= 2 && soa.x[i] <= 9);
     }
+  });
+
+  it("Ghost shade emits the enclosed center on the active plane", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      shade: "ghost",
+      activeAxis: "z",
+      foci: { x: 1, y: 1, z: 1 },
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 27);
   });
 });
 
@@ -182,20 +190,4 @@ describe("dense count slab", () => {
     assert.ok(countOccupancy(solid) > DENSE_OCCUPANCY);
   });
 
-  it("opens an 8-slice window around mid T", () => {
-    const vol = countVolumeFromDense(new Uint16Array(54 * 2 * 2).fill(1), [54, 2, 2]);
-    const s = denseSlabBacks(vol, 8);
-    assert.equal(s.farBack - s.nearBack, 7);
-    assert.ok(s.focusBack >= s.nearBack && s.focusBack <= s.farBack);
-    assert.equal(s.farBack - s.nearBack + 1, 8);
-  });
-
-  it("slides the window toward Now and wraps to the oldest end", () => {
-    const a = slideDenseSlabBacks(4, 6, 11, 53, -1);
-    assert.deepEqual(a, { nearBack: 3, focusBack: 5, farBack: 10 });
-    const wrap = slideDenseSlabBacks(0, 2, 7, 53, -1);
-    assert.equal(wrap.farBack, 53);
-    assert.equal(wrap.farBack - wrap.nearBack, 7);
-    assert.equal(wrap.focusBack - wrap.nearBack, 2);
-  });
 });

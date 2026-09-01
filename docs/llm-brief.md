@@ -14,7 +14,7 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   from file, ignition demo, or a WOLKE-contract stream;
   MRI later via the same count `.npy`, not a third kind yet),
   **encoding slot**
-  (color `k` + fill `s`; Conway fills still/osc/transit + Stability;
+  (color `k` + fill `s`; Conway fills still/osc/moving/unsettled + Stability;
   count fills integer rungs + optional size-by-count).
   `src/dynamics.js` is Conway classification; `src/encoding.js` is the
   LUT the renderer actually indexes. Do not assume the Life legend for
@@ -30,17 +30,17 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   Product axes: **X, Y = playfield**, **Z = time**. `tFocus` is Z = 0
   (engine Y = 0 internally; Three.js is Y-up). `t > tFocus` is a
   transparent ghost, not extra geometry. Color is an encoding index
-  (`k`): Conway uses still / osc / transit, plus warmup for `t < 2`.
+  (`k`): Conway uses still / osc / moving / unsettled, plus warmup for `t < 2`.
   Count uses integer rungs (cyan → gold → coral).
   Default Neighborhood is **none** (occupancy). 3×3 or 5×5 is the motion
-  gate so gliders become transit tubes (5×5 is the CPU cliff). Cube scale
+  gate so gliders become moving tubes (5×5 is the CPU cliff). Cube scale
   follows Stability mode (`none` / `time` / `focus`)
   via `s`, not decay. Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino, started paused; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) snaps the camera; hover lights a face; omit it on phone and in AR. Desktop **Light** (View slider / Shift-drag) walks the key/fill around Z; the volume stays put. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) **face click** is a 2D cut: that axis, ortho, one plane. Orbit off-axis or `B` restores the 3D slab. Hover lights a face; omit the cube on phone and in AR. Desktop **Light** (View slider / Shift-drag) walks the key/fill around Z; the volume stays put. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   cyan playhead and gold slab grips onto that product axis.
@@ -49,15 +49,16 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   slab + enclosed cull + one-sided stack ghost as Z; Play walks that
   window on X, Y, or Z. Inspect
   has two extra **slab** handles; outside the band is not drawn.
-  **Decay** is Z/time only on sparse stacks. Gold
+  **Decay** defaults off (Z/time fade when on; sparse stacks only). Gold
   handles push the cyan playhead when dragged past it. The focus plane
   ring is cyan; slab cuts are gold rings in the volume. **Depth**
   is cube volume height (live wake). The RAM tape keeps the run from gen
   0 until cap; **Pause** inspects it (fog off, zoom-out stays lit). **Play** returns to
   live Now. Play is a display transport outside
   the sheets; live Conway also steps the generator.
-  Source **Stop when stable** (default on) pauses after five bitwise-identical
-  grids (still life or empty). Oscillators and wrapping gliders keep running;
+  Source **Stop when stable** (default on) pauses after five generations
+  in a short cycle (period 1–15: stills and oscillators). Wrapping gliders
+  keep running;
   a glider that walks off a hard edge becomes empty and then pauses (Wrap on
   for a perpetual ship). **Fit** (`F`) frames the camera to the drawn slab;
   Inspect Z scrub then moves only the cyan plane (brick stays put). **Align to Z**

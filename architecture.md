@@ -70,9 +70,9 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Light azimuth, CAD gizmo, slice stack (X/Y/Z), Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
+| **Display** | Orbit, Parallax, Align to Z, Light azimuth, CAD gizmo, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
 | **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/warmup + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
 
 **Play** is one display button, always visible outside the sheets.
@@ -81,8 +81,8 @@ at Now, the Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer
 opens its RAM tape, Z is gen 0 … cached Now, and **every cached slice is
 drawn**. Play from Inspect jumps to live Now (no tape replay). A **count
 stack** loads already-complete, so it opens in Inspect; **Play** scrubs
-the active stack axis (sparse EVT: Z time; dense count: the slab window).
-**Depth** is live-only GPU wake (hidden
+the **active** playhead (X, Y, or Z). Dense MRI gold starts at full
+extent. **Depth** is live-only GPU wake (hidden
 in Inspect). **Decay** and the cache are viewer-owned. Decay is on/off:
 fade toward the oldest drawn slice (live: back of Depth; inspect: tape start).
 
@@ -97,7 +97,7 @@ flowchart TB
     bird[Parallax]
     align[Align to Z]
     light[Light azimuth]
-    win[Depth live Decay GridLight Cache]
+    win[Depth live Decay shade Hull Ghost Triple Cache]
     enc[Encoding]
     bench[Bench]
   end
@@ -188,13 +188,15 @@ flowchart TB
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
 Bird-eye is gone: **Parallax** off is orthographic at the current look.
-A CAD viewcube snaps product-axis views. Worldline
+A CAD viewcube **face** is a 2D cut (ortho, that product axis, one plane).
+Orbit away from the axis restores the 3D slab. Worldline
 isolation is deferred (later: rectangle select). Scrub the **stack**
 (desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
 along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
 handles: samples outside the band are not drawn. On X/Y, cells inside the
-band fade from the cyan plane (ghost) and vanish at the gold grips. **Decay**
-is only along Z (time); it does not drive that spatial fade.
+band fade from the cyan plane (ghost) and vanish at the gold grips unless
+the viewcube cut is on. **Decay** defaults off; when on it is only along
+Z (time) and does not drive that spatial fade.
 
 ## Mapping
 
@@ -214,13 +216,13 @@ flowchart LR
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
 | Time | generation | bin index (Δt slice) | Z (plane at 0; past below, newer above) | world Y |
 | Value | alive = 1 | integer count | — | `v` |
-| Dynamics | still / osc / transit / warmup | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
+| Dynamics | still / osc / moving / unsettled / warmup | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
 not the destination. The first event-camera path is an EVT **count** cube
 (`(T, H, W)` uint16, events per pixel per Δt) unpacked into the same SoA.
 Polarity / occupancy / states encodings and live streams attach later.
-Still / oscillator / transit and the 5×5 motion gate live in
+Still / oscillator / moving / unsettled and the 5×5 motion gate live in
 `src/dynamics.js` as a **Conway adapter**. Do not treat that legend as the
 event-camera product. The renderer only consumes packed events
 (`x, y, t, v, k, s`).
@@ -247,18 +249,33 @@ This split matches the later event-camera design:
   position on the tape. Count **Play** auto-scrubs that playhead.
 - **Decay** — on: fade to 0 at the oldest drawn slice. Off: even brick.
 - **Encoding** — color and fill from the source adapter (Conway: worldline
-  class still / oscillator / transit / warmup; count: integer rungs)
+  class still / oscillator / moving / unsettled / warmup; count: integer rungs)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
-color. A still life is a gold pillar. A glider is a BLITZ-red **transit
-tube** — the curve through XY+Z. Occupancy of one pixel is not enough:
-a spaceship overlapping a cell for a few gens looks still/osc on that
-worldline. Occupancy-only (Neighborhood **None**, the default) is enough
-for Blinker/Toad. Still/osc vs glider tubes need a 3×3 or 5×5 centroid
-that stays put (net shift over two generations). Translating activity is
-then transit. Generations `t = 0, 1` are **warmup** (gray). Cube **scale**
-follows Stability **None / Time / Focus**. Decay is brightness only.
+color. A still life is a gold pillar. A glider is a BLITZ-red **moving
+tube** — the curve through XY+Z. Soup and one-shot births are violet
+**unsettled**. Occupancy of one pixel is not enough: a spaceship overlapping
+a cell for a few gens looks still/osc on that worldline. Occupancy-only
+(Neighborhood **None**, the default) is enough for Blinker/Toad. Still/osc vs
+glider tubes need a 3×3 or 5×5 centroid that stays put (net shift over two
+generations). Translating activity is then **moving**. Generations `t = 0, 1`
+are **warmup** (gray). Cube **scale** follows Stability **None / Time / Focus**.
+Decay is brightness only.
+
+```mermaid
+flowchart TD
+  live[Live cell at t]
+  live --> wu{t less than 2}
+  wu -->|yes| warmup[Warmup gray]
+  wu -->|no| mot{Neighborhood centroid translated}
+  mot -->|yes| moving[Moving coral]
+  mot -->|no| prev{Live at t-1}
+  prev -->|yes| still[Still gold]
+  prev -->|no| per{Occupancy period 2 to 15}
+  per -->|yes| osc[Oscillator cyan]
+  per -->|no| unset[Unsettled violet]
+```
 
 Default seed is **R-pentomino**, started **paused**. Stability **Time**.
 Oscillator lesson if you pick it: Blinker → Toad / Beacon → Glider.
@@ -296,55 +313,71 @@ then slides the plane through that brick; the volume does not jump.
 
 ## Slice stack
 
-The HUD slider is a **3D slicer** through the chosen product axis —
-Z (time) by default, or X / Y. **Now** is `focusBack = 0` (high end of
-the rail: live head on Z, max index on X/Y). The far end is the other
-bound. The thumb is the cyan plane. Inspect (and X/Y always) has gold
-slab grips. Wheel over the stack (or Shift+wheel on the canvas) still
-scrubs. X/Y numbers stay on the playfield frame. A CAD viewcube (desktop,
-left of the View card) is navigation only, not a time grabber.
+The HUD has **three** rails (X, Y, Z). Each rail is its own
+`clampSlab(near, focus, far)`. Crop is the **AABB** intersection of the
+three gold windows. A voxel is drawn only when
+`x ∈ [xLo,xHi] ∧ y ∈ [yLo,yHi] ∧ t ∈ [tLo,tHi]`. **Now** stays on Z.
+Live (Conway Play) is still Z-locked: one rail, gold off.
 
-When the slice axis is X or Y, the time brick is the live wake or the
-whole inspect tape; Play still advances time and does not move the stack.
-Inside the gold slab, cubes are solid on the cyan plane, ghost away from
-it, and vanish at the grips. **Decay** still darkens older Z slices only.
+The **active** rail (last HUD touch or in-scene drag) is the highlighted
+cyan plane; the other two are hinted. Gold rings in the scene are only
+on the active axis.
 
-```mermaid
-flowchart TB
-  cyan[Cyan playhead on X or Y]
-  ghost[Off plane: ghost fade toward gold]
-  gone[At gold grips: not drawn]
-  decay[Decay still along Z time]
-  cyan --> ghost --> gone
-  cyan --> decay
-```
-
-Desktop: vertical rail on the right, **Now at the top**, past at the
-bottom. Phone: horizontal timeline at the bottom, **Now at the right**,
-past at the left (the same stack, rotated).
+Inspect shade:
 
 ```mermaid
 flowchart TB
-  now[Now at top]
-  hi[Gold slab clip]
-  thumb[Cyan playhead tFocus]
-  lo[Gold slab clip]
-  past[Deepest past at bottom]
-  now --> hi
-  hi --> thumb
-  thumb --> lo
-  lo --> past
-  thumb --> plane[Cyan focus ring]
-  hi --> cutHi[Gold cut ring]
-  lo --> cutLo[Gold cut ring]
+  subgraph idle [Inspect idle]
+    aabb[AABB from three gold windows]
+    hull[Outer hull solid]
+    planes[Three cyan planes]
+    active[Active plane highlighted]
+    aabb --> hull
+    aabb --> planes
+    planes --> active
+  end
+  subgraph drag [Pointer down on handle or plane]
+    ghost[AABB as ghost]
+    cut[Active plane solid]
+    ghost --> cut
+  end
+  idle -->|grab Hull| drag
+  drag -->|release| idle
 ```
 
-Inspect: generations outside the gold clips are **not drawn** (slicer
-window). The focus plane is a **cyan** rectangle; the slab cuts are
-**gold** rings (hidden when a cut sits on the playhead). **Fit** (View,
-`F`) puts the camera between those cuts. Z scrub then moves only the
-cyan plane; the brick stays put because the orbit target rides the
-brick center. Live: only the cyan playhead exists (locked at Now). Fog
+| Mode | Idle | While dragging |
+|------|------|----------------|
+| **Hull** (default) | AABB outer hull solid | Temporary ghost peek; release restores Hull |
+| **Ghost** | AABB ghost, active plane solid | unchanged |
+| **Triple** | Three cut planes solid, hull ghost | unchanged |
+
+Hold-to-Ghost applies only in Hull. Dense MRI never instantiates interior
+voxels (6-neighbor cull against the AABB). Ghost/Triple emit interiors
+only if they sit on a cyan plane.
+
+```mermaid
+flowchart LR
+  subgraph emit [What enters SoA]
+    inAabb[Inside AABB]
+    hullVox[Hull voxel not 6-enclosed]
+    onPlane[On any cyan plane]
+    inAabb --> hullVox
+    inAabb --> onPlane
+  end
+  subgraph draw [Solid vs ghost]
+    hullMode[Hull: hull solid]
+    ghostMode[Ghost: hull ghost, active plane solid]
+    tripleMode[Triple: three planes solid, hull ghost]
+  end
+  emit --> draw
+```
+
+Desktop: three vertical rails on the right, **Now at the top of Z**.
+Phone: three horizontal tracks (Z with Now at the right). AR overlay
+stays Z-only.
+
+Inspect generations outside the AABB are **not drawn**. **Fit** frames
+that box. Live: only the cyan Z playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
 
@@ -352,14 +385,16 @@ distance fog.
 
 **Parallax** (default on, keyboard `B`) is perspective. Off copies the
 current pose onto an orthographic camera so you can look from the side
-without a vanishing point. Escape turns parallax back on. When the look
-sits within ~15° of the slice axis, ortho draws only the playhead plane
-so cells do not stack.
+without a vanishing point. Escape turns parallax back on. `B` alone does
+**not** hide the slab (technical drawing). A viewcube **face** sets
+`planeLock`: that product axis, ortho, and only the playhead plane.
 
 A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
 HUD card (desktop orbit only). Six axis-colored **face frames**, a rim, and
-X/Y/Z labels on the + faces. Hover lights the face; click snaps that
-view. The cube is omitted on phone / coarse pointer (orbit + the slice
+X/Y/Z labels on the + faces. Hover lights the face; click enters the 2D
+cut. Orbit more than ~15° off the axis (or `B`) restores perspective and
+the drawn slab. Shift-drag Light and the stack slider stay in the cut.
+The cube is omitted on phone / coarse pointer (orbit + the slice
 stack stay) and in AR. The desktop View card heading collapses the
 telemetry (`View ▾` / `View ▸`).
 
@@ -393,19 +428,37 @@ flowchart TB
 ```
 
 ```mermaid
+flowchart TB
+  face[Viewcube face]
+  lock[planeLock]
+  ortho[Parallax off]
+  axis[activeAxis]
+  one[one playhead plane]
+  orbit[Orbit off axis]
+  volume[planeLock off Parallax on slab]
+  face --> lock --> ortho
+  face --> axis
+  lock --> one
+  orbit --> volume
+```
+
+```mermaid
 flowchart LR
-  gizmo[CAD gizmo snap]
+  gizmo[CAD gizmo face]
   para[Parallax on off]
   align[Align to Z]
   light[Light azimuth]
-  slice[Slice axis XYZ]
+  slice[Three rails XYZ]
+  shade[Hull Ghost Triple]
   cam[Orbit or ortho camera]
-  vol[Drawn slab]
+  vol[Drawn slab or cut]
   gizmo --> cam
+  gizmo --> slice
   para --> cam
   align --> cam
   light --> vol
   slice --> vol
+  shade --> vol
   cam --> vol
 ```
 
@@ -417,9 +470,9 @@ are unchanged.
 
 ## Display HUD vs source HUD
 
-Desktop: two telemetry cards plus a thin Z stack to their right, Play
-under the stack. The View card heading collapses the display stats.
-Phone: FPS chip (tap expands the View card); Z timeline
+Desktop: two telemetry cards plus **three** slice rails to their right, Play
+under the rails. The View card heading collapses the display stats.
+Phone: FPS chip (tap expands the View card); three horizontal tracks
 and Play at the bottom; source stats in the Source sheet. No viewcube.
 
 ```mermaid
@@ -428,15 +481,15 @@ flowchart TB
     sheetD[View sheet plus Source sheet]
     volD[Volume]
     hudD[View plus Source HUD]
-    zD[Z vertical Now at top]
-    playD[Play under Z rail]
+    zD[X Y Z vertical rails]
+    playD[Play under rails]
     sheetD --> volD
     hudD --> zD
     zD --> playD
   end
   subgraph phone [Phone]
     volP[Volume]
-    zP[Z horizontal Now at right]
+    zP[Three horizontal tracks Z Now at right]
     barP[View and Source folds plus Play center]
     chipP[FPS chip]
     volP --> zP
@@ -449,7 +502,7 @@ flowchart TB
   window), FR, INST (`trunc` if capped), FOC, PLAY/PAUSE, ORTHO. Frame
   times are raw; the 100 ms clamp is simulation catch-up only, so FPS is
   not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
-  Cliff-finder: scale Depth / Grid until FPS and 1% low hold. A clear
+  Cliff-finder: scale Depth until FPS and 1% low hold. A clear
   software rasterizer adds **SOFTWARE**. Path timers and GPU strings live
   in the control-sheet **Bench** block, not this card.
 - **Source** — Conway: GEN, LIVE, RATE (generations/s, not frame rate),
@@ -466,14 +519,14 @@ grow the DOM.
 | File | Role |
 |------|------|
 | `src/conway.js` | B3/S23, seeds, wrap — port of BLITZ `blitz/data/conway.py` |
-| `src/dynamics.js` | Worldline class still / oscillator / transit |
+| `src/dynamics.js` | Worldline class still / oscillator / moving / unsettled / warmup |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
 | `src/axes.js` | Product X/Y/Z vs engine; slice stack; tick labels |
 | `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
-| `src/fade.js` | Decay along Z (time); X/Y slice proximity fade |
+| `src/fade.js` | Decay along Z (time); ghost-hull fade along the active plane |
 | `src/orbit.js` | Fit / pin orbit around the brick |
 | `src/turntable.js` | AR object yaw around product Z; desktop light-rig azimuth |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
@@ -502,7 +555,7 @@ The cube renderer is the first implementation, not the only one. A later
 points / shader path should keep:
 
 ```text
-setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, isolate, sliceAxis, sliceLo, sliceHi, sliceFocus, sliceOnly, stabMode })
+setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, isolate, activeAxis, aabb, foci, shade, sliceOnly, stabMode })
 ```
 
 Color `k` and fill `s` are encoding fields. The renderer indexes
@@ -581,8 +634,19 @@ the viewer opens its RAM tape (proto-file). Z is gen 0 … cached Now;
 which generations are instantiated (cyan playhead, gold cut rings in the
 volume). Fog is off; zoom out to see the brick. Play jumps back to live
 Now — it does not replay the tape. Source **Stop when stable** (default
-on) pauses Live into Inspect after five unchanged Conway generations so
-a still life does not record forever.
+on) pauses Live into Inspect after five Conway generations whose grid
+repeats with period 1…15 (still life, blinker, pulsar ash). Wrapping
+gliders have a much longer period and keep running.
+
+```mermaid
+flowchart LR
+  step[Conway step]
+  step --> cyc{Grid equals a stored grid p 1 to 15}
+  cyc -->|no| reset[Reset streak]
+  cyc -->|yes| hold[Streak plus 1]
+  hold --> five{Streak is 5}
+  five -->|yes| inspect[Pause into Inspect]
+```
 
 ```mermaid
 flowchart LR
@@ -730,18 +794,18 @@ not enough.
 There is **no** MRI source kind and **no** NIfTI parser in the browser.
 The public demo is a one-shot convert to the count interchange
 `(T, H, W)` uint16. Load it with Source → Count stack → **Load .npy**.
-Until a dedicated kind exists, Count **Play** walks the 8-slice window
-on the **active** stack axis (Z, X, or Y). Decay is off on dense stacks
-(a time-fade on anatomy is wrong).
+Until a dedicated kind exists, Count **Play** walks the **active**
+playhead (X, Y, or Z). Gold starts at **full extent**, focus in the
+middle. Decay is off on dense stacks (a time-fade on anatomy is wrong).
 
 ```mermaid
 flowchart TB
   dense[Dense mni152_stack npy]
-  slab[Stack-axis slab window]
-  cull[Emit if 6-neighbor air or slab boundary]
+  aabb[AABB crop from three gold windows]
+  cull[Emit if 6-neighbor air or AABB hull]
   soa[EventSoA]
   cubes[Instanced cubes]
-  dense --> slab --> cull --> soa --> cubes
+  dense --> aabb --> cull --> soa --> cubes
 ```
 
 **Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
@@ -759,11 +823,10 @@ masks into DONNER git.
 fill — a sparse cloud. A 4× MNI brick is ~84k at **47 %**: ~75k interiors
 overdraw if every voxel is a Lambert cube (`bound GPU fill`, ~200 ms).
 `CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
-**and** inside the current slab on the **active stack axis** (Z time, or
-X / Y). A full-tape slab is an outer hull; an **8-slice** mid-volume
-window (auto when occupancy > 15 %) shows tissue on the cut. Play
-translates that window on X, Y, or Z. Affine / RAS is ignored — the
-gizmo is array X/Y/Z.
+**and** inside the AABB. Idle Hull is an outer hull of the crop. Ghost
+and Triple also emit voxels that sit on a cyan plane (never a full
+interior brick). Play steps the **active** playhead; it does not slide
+an 8-slice window. Affine / RAS is ignored — the gizmo is array X/Y/Z.
 
 Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
 root:

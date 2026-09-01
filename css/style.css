@@ -21,6 +21,7 @@
   --donner: #ffc53d;
   --dampf: #00fff2;
   --blitz: #ff5a4f;
+  --unsettled: #b388ff;
   --radius: 16px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
@@ -192,10 +193,10 @@ body.is-ar .gizmo-hit {
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   flex: 0 0 auto;
-  width: 4.8rem;
-  min-width: 4.1rem;
+  width: 9.2rem;
+  min-width: 8.4rem;
   min-height: 0;
   gap: 8px;
 }
@@ -280,10 +281,10 @@ body.hud-view-collapsed .hud-engine {
   pointer-events: auto;
   flex: 1 1 auto;
   min-height: 140px;
-  width: 4.8rem;
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: stretch;
   gap: 4px;
   margin: 0;
   padding: 2px 0 4px;
@@ -291,11 +292,49 @@ body.hud-view-collapsed .hud-engine {
   background: none;
 }
 
+.stack-axis {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 2.5rem;
+  gap: 4px;
+}
+
+.stack-axis.is-z {
+  flex: 1.25 1 0;
+  min-width: 3.1rem;
+}
+
+.stack-axis-label {
+  font-family: Orbitron, sans-serif;
+  font-size: 0.54rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.stack-axis.is-active .stack-axis-label,
+.stack-axis.is-z.is-active .btn-stack-now {
+  color: var(--dampf);
+}
+
+.stack-axis.is-active .stack-rail {
+  background: rgba(0, 255, 242, 0.35);
+}
+
+body:not(.is-inspect) .stack-axis:not(.is-z) {
+  display: none;
+}
+
+body.is-ar .stack-axis:not(.is-z) {
+  display: none !important;
+}
+
 .transport {
   position: static;
   pointer-events: auto;
   flex: 0 0 auto;
-  width: 4.8rem;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -330,10 +369,14 @@ body.hud-view-collapsed .hud-engine {
   cursor: pointer;
 }
 
-.btn-slice.is-on {
+.btn-shade.is-on {
   border-color: rgba(0, 255, 242, 0.55);
   color: var(--dampf);
   box-shadow: 0 0 8px rgba(0, 255, 242, 0.25);
+}
+
+.shade-modes {
+  margin: 6px 0 2px;
 }
 
 .stack-cap {
@@ -405,8 +448,8 @@ body.hud-view-collapsed .hud-engine {
   pointer-events: none;
 }
 
-body:not(.is-inspect):not(.has-slab) .stack-slab,
-body:not(.is-inspect):not(.has-slab) .z-clip {
+body:not(.is-inspect) .stack-slab,
+body:not(.is-inspect) .z-clip {
   display: none;
 }
 
@@ -768,7 +811,7 @@ body.is-ar .ar-yaw {
   pointer-events: auto;
 }
 
-body.is-ar .slice-axes {
+body.is-ar .stack-axis:not(.is-z) {
   display: none !important;
 }
 
@@ -947,6 +990,10 @@ body.source-count .encoding-conway {
   background: var(--blitz);
 }
 
+.swatch.unsettled {
+  background: var(--unsettled);
+}
+
 .swatch.warmup {
   background: #8a9aa8;
 }
@@ -1075,18 +1122,30 @@ body.source-count .encoding-conway {
   }
 
   .stack {
-    flex-direction: row;
+    flex-direction: column;
     width: 100%;
     min-height: 0;
-    height: 56px;
+    height: auto;
     padding: 0 4px;
-    gap: 8px;
+    gap: 2px;
   }
 
-  .slice-axes {
-    display: flex;
+  .stack-axis {
+    flex-direction: row;
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    gap: 6px;
+  }
+
+  .stack-axis.is-z {
+    min-width: 0;
+  }
+
+  .stack-axis-label {
     order: 0;
     flex: 0 0 auto;
+    width: 0.9rem;
   }
 
   .stack-name {

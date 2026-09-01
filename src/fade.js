@@ -3,9 +3,8 @@
  * instantiated slice). Live that back edge is Depth; Inspect it is the
  * tape start. Cache length is not a second fade control.
  *
- * Decay is a Z/time fade for sparse stacks. Dense count slabs reuse the
- * same one-sided falloff along X or Y (`sliceStackGhost`); do not mix that
- * with `sliceDistanceFade` (sparse X/Y ghost-to-gold).
+ * Decay is a Z/time fade for sparse stacks. Ghost-hull proximity uses
+ * `sliceDistanceFade` along the active plane, not a second Decay.
  */
 
 /**
@@ -22,9 +21,8 @@ export function depthFade(age, span, decayOn) {
 }
 
 /**
- * Spatial fade along a sparse X/Y slice. 1 on the cyan playhead, 0 at the
- * gold grips (each side independently). Not used for Z or dense count
- * slabs — those use depthFade along the stack axis.
+ * Fade of a ghost hull voxel along the active plane. 1 on the cyan
+ * playhead, 0 at the AABB face on that axis.
  */
 export function sliceDistanceFade(value, focus, lo, hi) {
   const v = Number(value);

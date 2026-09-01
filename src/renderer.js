@@ -6,14 +6,19 @@
  * `setEvents(soa, view)` surface.
  *
  * Product Z = 0 is the focus plane (`tFocus`). Engine Y-up stores that as
- * world Y = 0. Slices with t > tFocus sit above as a transparent ghost.
- * Dense count X/Y uses the same one-sided rule along the slice axis
- * (`sliceStackGhost`); sparse X/Y still fades both ways to the gold grips.
+ * world Y = 0. Live: slices with t > tFocus sit above as a transparent ghost.
+ * Inspect: Hull / Ghost / Triple from `voxelShadeClass`. Ghost hull fades
+ * toward the AABB faces along the active plane (`sliceDistanceFade`).
+ * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
  */
 
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
-import { eventOnSlice, normalizeSliceAxis, sliceViewMode } from "./axes.js";
+import {
+  normalizeSliceAxis,
+  onAxisPlane,
+  voxelShadeClass,
+} from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
 import { depthFade, sliceDistanceFade } from "./fade.js";
@@ -89,11 +94,10 @@ export class CubeRenderer {
    *   cellSize?: number,
    *   isolate?: { x: number, y: number } | null,
    *   sliceOnly?: boolean,
-   *   sliceAxis?: "x" | "y" | "z",
-   *   sliceLo?: number,
-   *   sliceHi?: number,
-   *   sliceFocus?: number,
-   *   sliceStackGhost?: boolean,
+   *   activeAxis?: "x" | "y" | "z",
+   *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number } | null,
+   *   foci?: { x: number, y: number, z: number },
+   *   shade?: "hull" | "ghost" | "triple" | null,
    *   encodingMinimal?: boolean,
    * }} view
    */
@@ -107,77 +111,84 @@ export class CubeRenderer {
     const tFocus = view.tFocus;
     const isolate = view.isolate || null;
     const sliceOnly = Boolean(view.sliceOnly);
-    const sliceAxis = normalizeSliceAxis(view.sliceAxis);
-    const sliceLo = view.sliceLo;
-    const sliceHi = view.sliceHi;
-    const sliceFocus = view.sliceFocus ?? (sliceAxis === "z" ? tFocus : 0);
-    const { stackGhost, spatialFade } = sliceViewMode(sliceAxis, {
-      sliceOnly,
-      sliceStackGhost: view.sliceStackGhost,
-    });
+    const activeAxis = normalizeSliceAxis(view.activeAxis);
+    const aabb = view.aabb || null;
+    const foci = view.foci || { x: -1, y: -1, z: tFocus };
+    const shade = view.shade || null;
+    const inspectShade = shade === "hull" || shade === "ghost" || shade === "triple";
     const minimal = Boolean(view.encodingMinimal);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
     const color = this._color;
     const kinds = this._kindColor;
     const uniformKind = kinds[0];
+    const alongLo =
+      activeAxis === "x" ? aabb?.xLo : activeAxis === "y" ? aabb?.yLo : aabb?.tLo;
+    const alongHi =
+      activeAxis === "x" ? aabb?.xHi : activeAxis === "y" ? aabb?.yHi : aabb?.tHi;
+    const alongFocus = foci[activeAxis];
 
     let iSolid = 0;
     let iGhost = 0;
 
     for (let i = 0; i < n; i++) {
       const t = soa.t[i];
-      const along = sliceAxis === "x" ? soa.x[i] : sliceAxis === "y" ? soa.y[i] : t;
+      const x = soa.x[i];
+      const y = soa.y[i];
       const dt = t - tFocus;
-      const dGhost = stackGhost ? along - sliceFocus : dt;
-      if (
-        !eventOnSlice(sliceAxis, soa.x[i], soa.y[i], t, {
-          lo: sliceLo,
-          hi: sliceHi,
-          focus: sliceFocus,
-          sliceOnly,
-        })
-      ) {
-        continue;
-      }
+      if (sliceOnly && !onAxisPlane(x, y, t, activeAxis, alongFocus)) continue;
+
+      let cls = "solid";
       let spatialW = 1;
-      if (spatialFade) {
-        const along = sliceAxis === "x" ? soa.x[i] : soa.y[i];
-        spatialW = sliceDistanceFade(along, sliceFocus, sliceLo, sliceHi);
-        if (spatialW <= 0) continue;
+      if (inspectShade && !sliceOnly) {
+        cls = voxelShadeClass(x, y, t, {
+          aabb,
+          foci,
+          activeAxis,
+          shade,
+          isHull: true,
+        });
+        if (cls === "skip") continue;
+        if (cls === "ghost") {
+          const along = activeAxis === "x" ? x : activeAxis === "y" ? y : t;
+          spatialW = sliceDistanceFade(along, alongFocus, alongLo, alongHi);
+          if (spatialW <= 0) continue;
+        }
       }
-      dummy.position.set(
-        (soa.x[i] - ox) * cell,
-        dt * timeScale,
-        (soa.y[i] - oz) * cell,
-      );
+
+      dummy.position.set((x - ox) * cell, dt * timeScale, (y - oz) * cell);
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
       const fill = minimal
         ? SCALE_UNIFORM
         : encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
-      const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
-      const offPlane = spatialW < 1;
+      const field = isolationWeight(isolate, x, y);
+      const asGhost = cls === "ghost" || field < 1 || spatialW < 1;
+      const dGhost = inspectShade ? 0 : dt;
 
-      if (field < 1 || offPlane) {
+      if (asGhost) {
         const ageFade =
-          dGhost > 0
+          !inspectShade && dGhost > 0
             ? Math.exp(-GHOST_FALLOFF * dGhost)
-            : depthFade(Math.max(0, -dGhost), fadeSpan, decayOn);
+            : inspectShade
+              ? spatialW
+              : depthFade(Math.max(0, -dGhost), fadeSpan, decayOn);
         dummy.scale.setScalar(cell * fill * 0.88);
         dummy.updateMatrix();
         this.ghost.setMatrixAt(iGhost, dummy.matrix);
         const tone =
           field < 1
             ? field * (0.45 + 0.55 * ageFade) * spatialW
-            : (0.35 + 0.5 * ageFade) * spatialW;
+            : inspectShade
+              ? 0.35 + 0.5 * spatialW
+              : 0.35 + 0.5 * ageFade;
         color.copy(kind).multiplyScalar(tone);
         this.ghost.setColorAt(iGhost, color);
         iGhost += 1;
         continue;
       }
 
-      if (dGhost > 0) {
+      if (!inspectShade && dGhost > 0) {
         const fade = Math.exp(-GHOST_FALLOFF * dGhost);
         dummy.scale.setScalar(cell * fill * (0.7 + 0.2 * fade));
         dummy.updateMatrix();
@@ -186,9 +197,9 @@ export class CubeRenderer {
         this.ghost.setColorAt(iGhost, color);
         iGhost += 1;
       } else {
-        const age = -dGhost;
+        const age = inspectShade ? Math.max(0, -dt) : -dGhost;
         const w = depthFade(age, fadeSpan, decayOn);
-        const onFocus = age < 0.5;
+        const onFocus = Math.abs(dt) < 0.5;
         dummy.scale.setScalar(cell * fill);
         dummy.updateMatrix();
         this.solid.setMatrixAt(iSolid, dummy.matrix);
@@ -258,40 +269,59 @@ export function orientSlicePlane(mesh, axis, width, height, cellSize, yMin, yMax
 }
 
 export function createNowGrid(width, height, cellSize) {
-  if (width === height) {
-    const span = width * cellSize;
-    const grid = new THREE.GridHelper(span, width, COLOR.grid, COLOR.gridDiv);
-    grid.position.y = 0.01;
-    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
-    for (const m of mats) {
-      m.transparent = true;
-      m.opacity = 0.35;
-      m.fog = false;
-    }
-    return grid;
+  return createSliceGrid(width, height, cellSize, "z", 0, 0);
+}
+
+/** Cell grid in the slice plane (local XY), then the same orientation as the fill. */
+export function createSliceGrid(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
+  const a = normalizeSliceAxis(axis);
+  const cs = cellSize;
+  const timeH = Math.max(cs, Math.abs(yMax - yMin) || cs);
+  let gw;
+  let gh;
+  let nx;
+  let ny;
+  if (a === "x") {
+    gw = height * cs;
+    gh = timeH;
+    nx = height;
+    ny = Math.max(1, Math.round(timeH / cs));
+  } else if (a === "y") {
+    gw = width * cs;
+    gh = timeH;
+    nx = width;
+    ny = Math.max(1, Math.round(timeH / cs));
+  } else {
+    gw = width * cs;
+    gh = height * cs;
+    nx = width;
+    ny = height;
   }
-  const hw = (width * cellSize) / 2;
-  const hd = (height * cellSize) / 2;
   const pos = [];
-  for (let i = 0; i <= width; i++) {
-    const x = -hw + i * cellSize;
-    pos.push(x, 0, -hd, x, 0, hd);
+  const hx = gw / 2;
+  const hy = gh / 2;
+  const dx = nx > 0 ? gw / nx : gw;
+  const dy = ny > 0 ? gh / ny : gh;
+  for (let i = 0; i <= nx; i++) {
+    const x = -hx + i * dx;
+    pos.push(x, -hy, 0.01, x, hy, 0.01);
   }
-  for (let j = 0; j <= height; j++) {
-    const z = -hd + j * cellSize;
-    pos.push(-hw, 0, z, hw, 0, z);
+  for (let j = 0; j <= ny; j++) {
+    const y = -hy + j * dy;
+    pos.push(-hx, y, 0.01, hx, y, 0.01);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
   const mat = new THREE.LineBasicMaterial({
     color: COLOR.grid,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.4,
     depthWrite: false,
     fog: false,
   });
   const grid = new THREE.LineSegments(geo, mat);
-  grid.position.y = 0.01;
+  grid.userData.axis = a;
+  orientSlicePlane(grid, a, width, height, cs, yMin, yMax, 0);
   return grid;
 }
 
@@ -310,6 +340,7 @@ export class FocusFrame {
     });
     this._parts = [];
     this._axis = "z";
+    this._emphasis = "active";
     scene.add(this.group);
   }
 
@@ -368,8 +399,14 @@ export class FocusFrame {
   }
 
   setEditing(on) {
-    this._mat.opacity = on ? 1 : 0.78;
+    this._mat.opacity = on ? 1 : this._emphasis === "idle" ? 0.32 : 0.78;
     this._mat.color.setHex(this._hex);
+  }
+
+  setEmphasis(level) {
+    this._emphasis = level === "idle" ? "idle" : "active";
+    if (this._emphasis === "idle") this._mat.opacity = 0.32;
+    else this._mat.opacity = 0.92;
   }
 
   dispose() {

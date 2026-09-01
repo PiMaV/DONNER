@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Conway **Unsettled** (violet): chaos and one-shot births, separate from coral **Moving** glider tubes.
+- Inspect **AABB crop**: three HUD rails (X / Y / Z) and three cyan planes. Gold clips are the intersection. **Hull** (default) draws the outer hull; hold a handle or plane to peek as ghost. **Ghost** and **Triple** persist in View. Dense MRI gold starts at full extent; Play steps the active playhead.
+
+### Changed
+
+- **Stop when stable** pauses after five generations in a short board cycle (period 1–15): stills **and** oscillators. Wrapping gliders keep running. Transit is gone; the legend is Still / Oscillator / Moving / Unsettled / Warmup. Oscillators along Z may have period 2–15, not only blinkers.
+- **Decay** defaults off. The checkbox stays for the old Z fade.
+- Viewcube **face** enters an ortho **cut** on that product axis (one playhead plane, no ghosts). **Orbit** past ~15° (or **B**) restores perspective and the slab. Shift-drag Light and the stack sliders do not leave the cut.
+- The Grid light slider is gone. The cell lattice sits on the active cyan plane.
+
 ## [0.5.0] - 2026-09-01
 
 ### Added

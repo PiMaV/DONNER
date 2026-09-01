@@ -66,25 +66,54 @@
           aria-label="Turntable yaw" disabled />
       </label>
       <aside class="stack" aria-label="Slice stack">
-        <div class="slice-axes" role="radiogroup" aria-label="Slice axis">
-          <button type="button" id="slice-x" class="btn-slice" data-axis="x" aria-pressed="false">X</button>
-          <button type="button" id="slice-y" class="btn-slice" data-axis="y" aria-pressed="false">Y</button>
-          <button type="button" id="slice-z" class="btn-slice is-on" data-axis="z" aria-pressed="true">Z</button>
+        <div class="stack-axis" data-axis="x" id="stack-axis-x">
+          <span class="stack-axis-label">X</span>
+          <div id="stack-track-x" class="stack-track">
+            <div id="stack-ticks-x" class="stack-ticks" aria-hidden="true"></div>
+            <div class="stack-rail" aria-hidden="true"></div>
+            <div id="stack-slab-x" class="stack-slab" aria-hidden="true"></div>
+            <button type="button" id="z-clip-near-x" class="z-handle z-clip" aria-label="X slab toward max"></button>
+            <button type="button" id="z-clip-far-x" class="z-handle z-clip" aria-label="X slab toward min"></button>
+            <button type="button" id="z-focus-x" class="z-handle z-focus" aria-label="X focus plane"></button>
+            <input id="stack-slider-x" class="stack-range" type="range" min="0" max="31" step="1" value="0"
+              orient="vertical" aria-orientation="vertical"
+              aria-label="Scrub the X plane" />
+            <span id="stack-thumb-time-x" class="stack-thumb-time">0</span>
+          </div>
+          <span id="stack-bot-x" class="stack-cap">0</span>
         </div>
-        <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
-        <div id="stack-track" class="stack-track">
-          <div id="stack-ticks" class="stack-ticks" aria-hidden="true"></div>
-          <div class="stack-rail" aria-hidden="true"></div>
-          <div id="stack-slab" class="stack-slab" aria-hidden="true"></div>
-          <button type="button" id="z-clip-near" class="z-handle z-clip" aria-label="Slab toward Now"></button>
-          <button type="button" id="z-clip-far" class="z-handle z-clip" aria-label="Slab toward past"></button>
-          <button type="button" id="z-focus" class="z-handle z-focus" aria-label="Focus plane"></button>
-          <input id="stack-slider" class="stack-range" type="range" min="0" max="48" step="1" value="0"
-            orient="vertical" aria-orientation="vertical"
-            aria-label="Scrub the slice plane" />
-          <span id="stack-thumb-time" class="stack-thumb-time">0</span>
+        <div class="stack-axis" data-axis="y" id="stack-axis-y">
+          <span class="stack-axis-label">Y</span>
+          <div id="stack-track-y" class="stack-track">
+            <div id="stack-ticks-y" class="stack-ticks" aria-hidden="true"></div>
+            <div class="stack-rail" aria-hidden="true"></div>
+            <div id="stack-slab-y" class="stack-slab" aria-hidden="true"></div>
+            <button type="button" id="z-clip-near-y" class="z-handle z-clip" aria-label="Y slab toward max"></button>
+            <button type="button" id="z-clip-far-y" class="z-handle z-clip" aria-label="Y slab toward min"></button>
+            <button type="button" id="z-focus-y" class="z-handle z-focus" aria-label="Y focus plane"></button>
+            <input id="stack-slider-y" class="stack-range" type="range" min="0" max="31" step="1" value="0"
+              orient="vertical" aria-orientation="vertical"
+              aria-label="Scrub the Y plane" />
+            <span id="stack-thumb-time-y" class="stack-thumb-time">0</span>
+          </div>
+          <span id="stack-bot-y" class="stack-cap">0</span>
         </div>
-        <span id="stack-bot" class="stack-cap">−0</span>
+        <div class="stack-axis is-z is-active" data-axis="z" id="stack-axis-z">
+          <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
+          <div id="stack-track-z" class="stack-track">
+            <div id="stack-ticks-z" class="stack-ticks" aria-hidden="true"></div>
+            <div class="stack-rail" aria-hidden="true"></div>
+            <div id="stack-slab-z" class="stack-slab" aria-hidden="true"></div>
+            <button type="button" id="z-clip-near-z" class="z-handle z-clip" aria-label="Slab toward Now"></button>
+            <button type="button" id="z-clip-far-z" class="z-handle z-clip" aria-label="Slab toward past"></button>
+            <button type="button" id="z-focus-z" class="z-handle z-focus" aria-label="Focus plane"></button>
+            <input id="stack-slider-z" class="stack-range" type="range" min="0" max="48" step="1" value="0"
+              orient="vertical" aria-orientation="vertical"
+              aria-label="Scrub the Z plane" />
+            <span id="stack-thumb-time-z" class="stack-thumb-time">0</span>
+          </div>
+          <span id="stack-bot-z" class="stack-cap">−0</span>
+        </div>
       </aside>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
@@ -120,18 +149,19 @@
           aria-label="Key light azimuth" />
       </label>
       <label class="check" title="Fade older time slices toward the back of the drawn Z window. Does not fade the X/Y slice.">
-        <input id="decay" type="checkbox" checked />
+        <input id="decay" type="checkbox" />
         <span>Decay (fade along Z toward oldest drawn)</span>
       </label>
-      <label class="field">
-        <span>Grid light <em id="grid-bright-val"></em></span>
-        <input id="grid-bright" type="range" min="0" max="1" step="0.01" />
-      </label>
+      <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
+        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a handle or plane to peek.">Hull</button>
+        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Volume is ghost; the active plane stays solid.">Ghost</button>
+        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three cut planes are solid; the hull is ghost.">Triple</button>
+      </div>
       <label id="depth-field" class="field">
         <span>Depth <em id="history-val"></em></span>
         <input id="history" type="range" min="8" max="128" step="1" />
       </label>
-      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Cyan handle is the plane; gold handles clip a slab. Fit frames the camera to that slab.</p>
+      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Three cyan planes; gold clips are the AABB crop. Fit frames that box. Hold a handle to peek as ghost.</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
     </section>
 
@@ -158,7 +188,8 @@
       <ul class="legend encoding-conway" aria-label="Color encoding">
         <li><i class="swatch still"></i> Still</li>
         <li><i class="swatch osc"></i> Oscillator</li>
-        <li><i class="swatch flow"></i> Transit</li>
+        <li><i class="swatch flow"></i> Moving</li>
+        <li><i class="swatch unsettled"></i> Unsettled</li>
         <li><i class="swatch warmup"></i> Warmup</li>
       </ul>
       <label class="check encoding-count" title="Cube size follows the integer count. Off: occupancy only, color carries the count.">
@@ -252,7 +283,7 @@
         <input id="wrap" type="checkbox" />
         <span>Wrap edges (torus)</span>
       </label>
-      <label class="check" title="Pause after 5 generations with the same grid. Still life or empty. Oscillators and gliders keep running (leave Wrap on).">
+      <label class="check" title="Pause into Inspect after 5 generations in a short cycle (period 1–15): stills and oscillators. Wrapping gliders keep running (leave Wrap on).">
         <input id="stop-stable" type="checkbox" />
         <span>Stop when stable</span>
       </label>

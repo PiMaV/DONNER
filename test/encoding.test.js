@@ -13,8 +13,8 @@ import {
 } from "../src/encoding.js";
 
 describe("encoding adapter", () => {
-  it("exposes a Conway LUT of four kind colors", () => {
-    assert.equal(CONWAY_KIND_HEX.length, 4);
+  it("exposes a Conway LUT of five kind colors", () => {
+    assert.equal(CONWAY_KIND_HEX.length, 5);
     assert.equal(CONWAY_WARMUP_K, KIND_WARMUP);
   });
 
