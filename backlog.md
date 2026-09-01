@@ -9,9 +9,10 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 Do not rewrite DONNER. Do not merge it into BLITZ. Do not start a
 Dataset Contract or PointRenderer before a public preview.
 
-**Phase 1 — finish current milestone.** Quest / XR-C baseline (C-0 is in
-this tree; C-1 hands later). Fix obvious UX and rendering issues. Freeze
-the Unreleased XR/MNI slice.
+**Phase 1 — finish current milestone.** Quest session works again (no
+DOM overlay, `local` tracking, `XRWebGLLayer`). The in-world Play/stand/Exit
+plate is retired — confirm the four device follow-ups below on hardware
+(WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
 **Phase 2 — public preview.** Thin View; Bench off the primary workflow
 (see Chrome notes below). Curated Conway + EVT + volume demos. Deploy
@@ -145,15 +146,13 @@ flowchart TB
   place[Hit-test place and lock]
   volume[stage then stand then turntable]
   overlay[XR-A DOM overlay screen]
-  hud[XR-C-0 parked Play stand Exit]
-  frames[Bounding frames plus poke]
+  frames[Grab frame to slide volume]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
   enter --> place --> volume
   volume --> overlay
-  volume --> hud
   volume --> frames
-  hud --> hands
+  frames --> hands
   place -.-> marker
 ```
 
@@ -180,19 +179,45 @@ flowchart TB
    blocker for XR-C.
 
 3. **XR-C — Quest passthrough (parallel chrome fork).** Same
-   `immersive-ar` session and placement as XR-A. Quest Browser typically
-   does not composite the DOM overlay. **XR-C-0** (in this tree) parks a
-   **Play / stand X·Y·Z / Exit** plate at eye height after lock. It does
-   **not** follow the growing pillar or Size. **Yaw** is the thumbstick
-   (no tilt). **Size** is both grips, then hands apart/together.
-   Bounding frames stay on; poke a cube to isolate the standing plane
-   (Ghost). Headset-only: `dom-overlay` type `screen` keeps the phone
-   overlay and hides the 3D panel. **XR-C-1 later:** hand tracking, grip
-   or wrist attach. XR-A is the window demo.
+   `immersive-ar` session and placement as XR-A. Quest Browser must not
+   request `dom-overlay` (a fullscreen root covers passthrough). The
+   parked Play/stand/Exit **plate is retired** — it was unreadable and
+   out of reach. **Yaw** is the thumbstick. **Size** is both grips, then
+   hands apart/together. **Grab a bounding frame** and drag: the whole
+   volume follows the hand (this is not a clip/playhead scrub). Poke a
+   cube to isolate the standing plane (Ghost). Phone `screen` overlay
+   (Play / Stand / Size / Yaw / Exit) is unchanged. Exit on Quest is the
+   headset / browser system gesture. **XR-C-1 later:** hand tracking,
+   grip or wrist attach. XR-A is the window demo.
 
 Out of this ladder: projection mapping, Unreal, Vision Pro as a first
 target. Count-stack `.npy` is in; polarity encodings and EVT3-in-browser
 stay later.
+
+## Device follow-ups (Quest / phone)
+
+Confirm on hardware after the session-fix (WWM). In this tree:
+
+1. **Headset sharpness.** The first Quest-AR recovery used
+   `framebufferScaleFactor` 0.5 and 2D pixel ratio 1, which made the
+   panel and passthrough look blocky. Use the native XR layer scale.
+   2D Quest still skips the viewcube scissor; cap DPR at 1.5 (not 1).
+   Keep `XRWebGLLayer` (no projection layer) and skip DOM overlay.
+
+2. **Phone orbit vs sliders.** On touch, one finger rotates and pinch
+   zooms. Playhead and clip planes move only on the stack sliders. In-scene
+   frame grab stays mouse / desktop. (Phone AR overlay sliders are
+   unchanged.)
+
+3. **No world HUD plate.** The XR-C-0 Play / stand X·Y·Z / Exit panel
+   stays off. Do not bring it back without a readable, reachable layout
+   (XR-C-1 wrist / hand). Stick yaw and grip-pinch size stay.
+
+4. **XR frame grab moves the room.** Select a bounding-frame edge; the
+   stage translates with the controller (1:1 with the hand). Ray pick
+   rim is ~8 cm, not a 3 cm thread. Clip/playhead in XR is not this
+   grab — phone sliders still crop; Quest crop-by-frame is later if
+   needed.
 
 ## QR door (later)
 

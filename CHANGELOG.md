@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Phone orbit: one finger rotates and pinch zooms; playhead and clips move only on the stack sliders. Mouse still grabs a frame edge.
+- Quest AR no longer shows the in-world Play / stand / Exit plate (unreadable and out of reach). Thumbstick still yaws; both grips still pinch size. Grab a bounding frame to slide the volume in the room.
+
+### Fixed
+
+- Quest Browser: do not request a fullscreen DOM overlay (it covers passthrough), fall back to `local` tracking if `local-floor` is missing, and use `XRWebGLLayer` instead of projection layers. The 2D panel skips the viewcube scissor and ignores a 0×0 first layout.
+- Quest XR layer is full resolution again. The first recovery pass had halved the framebuffer and pinned pixel ratio to 1, which made the panel and passthrough look blocky.
+
 ## [0.8.0] - 2026-09-01
 
 ### Added

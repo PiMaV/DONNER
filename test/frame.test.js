@@ -12,6 +12,7 @@ import {
   frameHandleInset,
   frameRingBox,
   pickOverlappingFrameHit,
+  pointerGrabsFrames,
   SCREEN_AXIS_MIN_PX,
   screenAxisDragMap,
   screenAxisDragStep,
@@ -147,6 +148,14 @@ describe("screen-axis plane drag", () => {
   });
 });
 
+describe("pointerGrabsFrames", () => {
+  it("lets a mouse grab a ring and leaves touch for orbit", () => {
+    assert.equal(pointerGrabsFrames("mouse"), true);
+    assert.equal(pointerGrabsFrames("pen"), true);
+    assert.equal(pointerGrabsFrames("touch"), false);
+  });
+});
+
 describe("XR frame pick", () => {
   it("measures a world-meter gap from a ray to a segment", () => {
     const hit = distRayToSegment3(0, 0, 0, 1, 0, 0, 2, -1, 0, 2, 1, 0);
@@ -154,8 +163,8 @@ describe("XR frame pick", () => {
     assert.ok(Math.abs(hit.t - 2) < 1e-9);
   });
 
-  it("keeps a 3 cm rim for controller rays", () => {
-    assert.equal(FRAME_PICK_M, 0.03);
+  it("keeps an 8 cm rim for controller rays", () => {
+    assert.equal(FRAME_PICK_M, 0.08);
   });
 
   it("projects a turntable ray onto a product axis", () => {

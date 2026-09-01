@@ -74,6 +74,24 @@ export function translationFromMatrix4(m) {
   return { x: m[12], y: m[13], z: m[14] };
 }
 
+/** Hand-to-anchor offset when grabbing a frame to slide the volume. */
+export function spaceDragOffset(anchor, controller) {
+  return {
+    x: (Number(anchor?.x) || 0) - (Number(controller?.x) || 0),
+    y: (Number(anchor?.y) || 0) - (Number(controller?.y) || 0),
+    z: (Number(anchor?.z) || 0) - (Number(controller?.z) || 0),
+  };
+}
+
+/** New table anchor so the grabbed offset stays on the hand. */
+export function spaceDragAnchor(controller, offset) {
+  return {
+    x: (Number(controller?.x) || 0) + (Number(offset?.x) || 0),
+    y: (Number(controller?.y) || 0) + (Number(offset?.y) || 0),
+    z: (Number(controller?.z) || 0) + (Number(offset?.z) || 0),
+  };
+}
+
 export function immersiveArSessionInit(overlayRoot) {
   const optional = ["local-floor", XR_HIT_TEST];
   const init = {
@@ -84,6 +102,52 @@ export function immersiveArSessionInit(overlayRoot) {
     init.domOverlay = { root: overlayRoot };
   }
   return init;
+}
+
+/** Quest / Pico / Wolvic in-headset browsers (2D panel or immersive). */
+export function isHeadsetBrowser(userAgent = "") {
+  return /OculusBrowser|\bQuest\b|PicoBrowser|Wolvic|Meta Quest/i.test(String(userAgent || ""));
+}
+
+/**
+ * Phone AR needs the HUD overlay. A fullscreen overlay on Quest covers
+ * passthrough even when CSS is transparent — never `document.body`.
+ */
+export function overlayRootForAr(overlayEl, userAgent = "") {
+  if (isHeadsetBrowser(userAgent)) return null;
+  return overlayEl || null;
+}
+
+/** Three.js defaults to local-floor; Quest AR often only grants local. */
+export async function preferredReferenceSpaceType(session) {
+  if (!session || typeof session.requestReferenceSpace !== "function") return "local";
+  for (const type of ["local-floor", "local", "viewer"]) {
+    try {
+      await session.requestReferenceSpace(type);
+      return type;
+    } catch {
+      /* next */
+    }
+  }
+  return "local";
+}
+
+/**
+ * Quest immersive-ar + XRProjectionLayer often composites opaque and
+ * hides passthrough. Force the classic XRWebGLLayer for that setSession.
+ */
+export async function withXrWebGLLayerOnly(run) {
+  const Ctor = globalThis.XRWebGLBinding;
+  const proto = Ctor && Ctor.prototype;
+  if (!proto || !("createProjectionLayer" in proto)) return run();
+  const prev = proto.createProjectionLayer;
+  try {
+    delete proto.createProjectionLayer;
+    if ("createProjectionLayer" in proto) return run();
+    return await run();
+  } finally {
+    if (typeof prev === "function") proto.createProjectionLayer = prev;
+  }
 }
 
 export async function isImmersiveArSupported(xr = globalThis.navigator?.xr) {

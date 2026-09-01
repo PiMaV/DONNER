@@ -1031,11 +1031,14 @@ flowchart LR
    frames stay visible so you can walk the box; poke a cube to Ghost-isolate
    the standing plane. Phone chrome is the DOM
    overlay `#xr-overlay` (Play / Stand / Size / Yaw / Exit), not
-   `document.body`. **XR-C-0 is in:** Quest uses the same session; after
-   lock a **Play / stand X·Y·Z / Exit** plate parks at eye height (it does
-   not follow the growing pillar). Thumbstick yaws; both grips pinch size.
-   Headset-only — phone `screen` overlay is unchanged. XR-B marker, hand
-   tracking, and wrist attach are later and do not gate C0. Detail in
+   `document.body`. **Quest must not request `dom-overlay`:** a fullscreen
+   overlay root covers passthrough even when CSS is transparent. Three.js
+   is told `local` if `local-floor` is missing, and `XRWebGLLayer` instead
+   of projection layers. **XR-C-0:** no in-world Play/stand/Exit plate
+   (unreadable). Thumbstick yaws; both grips pinch size; grab a bounding
+   frame to slide the volume in the room. Headset-only — phone
+   `screen` overlay is unchanged. XR-B marker, hand tracking, and wrist
+   attach are later and do not gate C0. Detail in
    [backlog.md](backlog.md).
    Do not start a new renderer in the same slice as XR.
 4. **Integration** — WOLKE-contract stream is in (sidecar / WOLKE →
@@ -1074,15 +1077,13 @@ flowchart TB
   place[Hit-test place and lock]
   volume[stage then stand then turntable]
   overlay[XR-A DOM overlay screen]
-  hud[XR-C-0 parked Play stand Exit]
-  frames[Bounding frames plus poke]
+  frames[Grab frame to slide volume]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
   enter --> place --> volume
   volume --> overlay
-  volume --> hud
   volume --> frames
-  hud --> hands
+  frames --> hands
   place -.-> marker
 ```
 
@@ -1090,7 +1091,7 @@ flowchart TB
 |-------|-----------|--------|
 | **XR-A** | Viewer-front preview immediately; plane hit-test re-places (gold reticle); lock after tap or if no plane; yaw on the table; stand X/Y/Z; bounding frames; voxel poke isolates the standing plane. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Later; same phone AR; marker reused on Quest. Not a gate for C0. |
-| **XR-C-0** | Same hit-test / viewer-front as XR-A | Quest: parked Play/stand/Exit plate; stick yaw; grip-pinch size; frames + poke |
+| **XR-C-0** | Same hit-test / viewer-front as XR-A | Quest: no world HUD; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
 
 ## WETTER context

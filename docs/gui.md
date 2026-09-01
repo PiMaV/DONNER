@@ -36,16 +36,19 @@ the origin. **Yaw** then turns
 the volume on the table (swipe on passthrough or the overlay
 slider). **Stand X / Y / Z** chooses which product plane is the table
 (default Z, time up). Walk with the phone after that. Bounding
-**frames** stay visible so you can navigate the box; grab an edge to
-move that plane. Point at a **cube** to isolate the standing plane
+**frames** stay visible so you can navigate the box. On a **phone** in
+orbit, fingers rotate and pinch-zoom; the stack **sliders** move planes.
+On a **headset**, grab a frame edge to slide the whole volume in the
+room. Point at a **cube** to isolate the standing plane
 (Ghost); **Play** returns to the live volume. **Size** scales the whole
 stack. **Exit** (or Escape) returns to orbit. On a **phone** the WebXR
 DOM overlay is `#xr-overlay` (HUD only), not `document.body`, so the
 camera passthrough and the volume stay visible. On a **headset** (Quest)
-that overlay is usually missing; after lock a **Play / stand X·Y·Z /
-Exit** plate parks at eye height beside the table (it does not grow with
-the pillar). Thumbstick yaws; squeeze both grips and move the hands
-apart or together to **Size**.
+do **not** request that overlay — a fullscreen root covers passthrough.
+There is **no** in-world Play/stand/Exit plate. Thumbstick yaws; squeeze
+both grips and move the hands apart or together to **Size**. Exit with the
+headset / browser system gesture. Headset 2D Browser skips the viewcube
+scissor; XR uses the native layer scale.
 
 ```mermaid
 flowchart TB
@@ -140,11 +143,11 @@ flowchart TB
     ret[Gold square on table]
     volA[Tap to place volume]
     phoneChrome[Phone DOM overlay]
-    questHud[Quest parked Play Exit]
+    questGrab[Quest grab frame slides volume]
     pass --> ret
     ret --> volA
     volA --> phoneChrome
-    volA --> questHud
+    volA --> questGrab
   end
 ```
 
@@ -155,7 +158,7 @@ rectangle select on the playfield).
 
 | Input | Action |
 |-------|--------|
-| Drag / one-finger | Orbit |
+| Drag / one-finger | Orbit. On a phone this does **not** grab playhead/clip frames — those move on the stack sliders. |
 | Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
 | Wheel / pinch | Zoom. **Shift+wheel** pages the **active** axis (3D and viewcube cut). |
 | Right-drag / two-finger | Pan. **Align to Z** keeps XY on the time axis and still slides along Z. Off = free XY pan. In a viewcube cut, pan stays in that plane. |
@@ -166,7 +169,7 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves. **Planes** under the cube (default on) shows or hides 3D frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone and in AR. |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Look at a table; tap the gold square to place. Pose locks. **Stand** X/Y/Z chooses the table plane. Bounding frames stay on; poke a cube to isolate the standing plane. Phone: overlay Stand / **Yaw** / **Size** / Play. Quest: parked Play/stand/Exit plate; stick yaws; both grips pinch size. Not shown on desktop orbit. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Look at a table; tap the gold square to place. Pose locks. **Stand** X/Y/Z chooses the table plane (phone overlay). Bounding frames stay on; poke a cube to isolate the standing plane. Phone: overlay Stand / **Yaw** / **Size** / Play. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -484,9 +487,10 @@ Bench stays in the sheet, not on the FPS chip.
   is `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
   After a Chrome update, check site **Augmented reality** (not blocked)
   and that the response has `Permissions-Policy: xr-spatial-tracking=(self)`.
-- **XR-C-0 is in:** Quest uses the same session; after lock a **Play /
-  stand X·Y·Z / Exit** plate parks at eye height. Stick yaws; both grips
-  pinch size. Bounding frames stay on; poke a cube to isolate the
+- **XR-C-0 is in:** Quest uses the same session but **without** `dom-overlay`
+  and **without** the in-world Play/stand/Exit plate. Stick yaws; both grips
+  pinch size. Grab a bounding frame to slide the volume in the room.
+  Bounding frames stay on; poke a cube to isolate the
   standing plane. XR-B marker, XR-C-1 hands / wrist attach, and a QR door
   (`https://lab.ole.icu/` plus optional `?src=conway&pattern=Blinker` /
   `?src=count&demo=ignition`) are later. Do not start a points renderer

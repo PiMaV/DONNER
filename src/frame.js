@@ -11,6 +11,14 @@ export const FRAME_PICK_PX = 28;
 /** Hits this close in pixels count as the same edge (stacked rings). */
 export const FRAME_PICK_SLACK_PX = 8;
 
+/**
+ * Touch orbit: fingers rotate and pinch-zoom. Stack sliders move planes.
+ * Mouse still grabs a frame edge.
+ */
+export function pointerGrabsFrames(pointerType) {
+  return pointerType !== "touch";
+}
+
 /** Playhead is the true plane size. Clips sit clearly inside that rectangle. */
 export function frameHandleInset(cellSize, handle, width = 16, height = 16, yMin = 0, yMax = 0) {
   const cs = Math.max(1e-6, Number(cellSize) || 1);
@@ -241,7 +249,7 @@ export function screenAxisDragStep(dx, dy, mapped) {
 }
 
 /** World-meter rim around a ring edge for XR controller rays. */
-export const FRAME_PICK_M = 0.03;
+export const FRAME_PICK_M = 0.08;
 
 /**
  * Closest approach of a ray to a segment. `t` is along the ray (>= 0).

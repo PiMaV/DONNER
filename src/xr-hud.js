@@ -1,6 +1,7 @@
 /**
- * XR-C-0 world HUD math. Layout is meters in panel-local space so Node
- * tests do not need Three.js or a headset.
+ * XR-C-0 headset input math (stick yaw, grip pinch, optional HUD layout).
+ * The in-world Play/stand/Exit plate is retired; keep the layout helpers
+ * for a later readable wrist/hand chrome (XR-C-1).
  */
 
 import { AXIS_COLOR, COLOR } from "./config.js";

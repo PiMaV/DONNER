@@ -7,6 +7,10 @@ import {
   XR_HIT_TEST,
   XR_MODE,
   immersiveArSessionInit,
+  isHeadsetBrowser,
+  overlayRootForAr,
+  preferredReferenceSpaceType,
+  withXrWebGLLayerOnly,
   isImmersiveArSupported,
   arBottomLift,
   arStandLift,
@@ -18,6 +22,8 @@ import {
   requestViewerHitTestSource,
   shouldFallbackArPlace,
   translationFromMatrix4,
+  spaceDragAnchor,
+  spaceDragOffset,
   viewerFrontPosition,
   xrStageScale,
 } from "../src/xr.js";
@@ -154,6 +160,54 @@ describe("immersiveArSessionInit", () => {
   });
 });
 
+describe("headset AR session options", () => {
+  it("treats Quest Browser as a headset", () => {
+    assert.equal(isHeadsetBrowser("Mozilla/5.0 OculusBrowser/36.0 Quest 3"), true);
+    assert.equal(isHeadsetBrowser("Mozilla/5.0 Wolvic/1.0"), true);
+    assert.equal(isHeadsetBrowser("Mozilla/5.0 (Linux; Android 14) Chrome/140.0.0.0"), false);
+  });
+
+  it("does not attach a DOM overlay on Quest", () => {
+    const root = { id: "xr-overlay" };
+    assert.equal(overlayRootForAr(root, "OculusBrowser/36 Quest"), null);
+    assert.equal(overlayRootForAr(root, "Mozilla/5.0 Chrome/140"), root);
+    assert.equal(overlayRootForAr(null, "Mozilla/5.0 Chrome/140"), null);
+  });
+
+  it("picks local when local-floor is missing", async () => {
+    const session = {
+      async requestReferenceSpace(type) {
+        if (type === "local-floor") throw new Error("no floor");
+        if (type === "local") return { type };
+        throw new Error(type);
+      },
+    };
+    assert.equal(await preferredReferenceSpaceType(session), "local");
+  });
+
+  it("falls back to local when no space type is granted", async () => {
+    const session = {
+      async requestReferenceSpace() {
+        throw new Error("none");
+      },
+    };
+    assert.equal(await preferredReferenceSpaceType(session), "local");
+  });
+
+  it("hides projection layers so Three.js uses XRWebGLLayer", async () => {
+    const proto = { createProjectionLayer() {} };
+    globalThis.XRWebGLBinding = function Binding() {};
+    globalThis.XRWebGLBinding.prototype = proto;
+    let seen = false;
+    await withXrWebGLLayerOnly(async () => {
+      seen = !("createProjectionLayer" in proto);
+    });
+    assert.equal(seen, true);
+    assert.equal(typeof proto.createProjectionLayer, "function");
+    delete globalThis.XRWebGLBinding;
+  });
+});
+
 describe("translationFromMatrix4", () => {
   it("reads the translation column of a column-major 4×4", () => {
     const m = [
@@ -167,6 +221,18 @@ describe("translationFromMatrix4", () => {
 
   it("returns origin when the matrix is missing", () => {
     assert.deepEqual(translationFromMatrix4(null), { x: 0, y: 0, z: 0 });
+  });
+});
+
+describe("space drag", () => {
+  it("keeps the grabbed offset on the hand", () => {
+    const offset = spaceDragOffset({ x: 1, y: 2, z: 3 }, { x: 0.2, y: 0.5, z: 1 });
+    assert.deepEqual(offset, { x: 0.8, y: 1.5, z: 2 });
+    assert.deepEqual(spaceDragAnchor({ x: 0.5, y: 0, z: 1.2 }, offset), {
+      x: 1.3,
+      y: 1.5,
+      z: 3.2,
+    });
   });
 });
 

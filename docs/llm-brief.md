@@ -124,10 +124,11 @@ advantage, not a deployment convenience.
   Decay is off in AR. Size (0.4×–2.5×) and Yaw (0°–360°) are on the overlay.
   AR chrome on a phone is Play, Stand X/Y/Z, Size, Yaw, Exit on `#xr-overlay` (not
   `document.body` — that paints the page over passthrough). On a headset,
-  after lock, a **Play / stand X·Y·Z / Exit** plate parks at eye height (`src/xr-hud.js`);
-  hide it when `dom-overlay` type is `screen`. Thumbstick yaws; both
-  grips pinch Size. Grab a bounding frame to move that plane; poke a cube
-  to isolate the standing plane. XR-B marker, hand tracking, and wrist
+  do not request `dom-overlay` (fullscreen overlay covers passthrough).
+  There is no in-world Play/stand/Exit plate. Thumbstick yaws; both
+  grips pinch Size. Grab a bounding frame to slide the volume in the room;
+  poke a cube to isolate the standing plane. Phone orbit: fingers rotate
+  and pinch-zoom; stack sliders move planes. XR-B marker, hand tracking, and wrist
   attach are later. Phone HTTPS is
   `https://lab.ole.icu/` after `start:lan`.
   Three.js is the engine, not the product name. Do not propose a
@@ -151,9 +152,9 @@ advantage, not a deployment convenience.
 - Packed WOLKE `__selection__.npy` / `viewer_index` table sync / BLITZ widget sync
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
-  hit-test and XR-C-0 parked Play/stand/Exit + stick yaw + grip-pinch size,
-  bounding frames, and standing-plane poke are
-  in; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
+  hit-test, stick yaw, grip-pinch size, grab-frame room slide, and
+  standing-plane poke are
+  in; the XR-C-0 world plate is retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
   do not start a points renderer in the same slice)
 - Source-off-rail / thin View (chrome later in [`backlog.md`](../backlog.md);

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, hexCss } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
 import {
   BENCH_PRESETS,
   PathTimer,
@@ -36,7 +36,6 @@ import {
 import {
   aabbFromSlabs,
   axisIndexFromBack,
-  backFromWorldCoord,
   clampSlab,
   denseGhostToSlice,
   effectiveShade,
@@ -57,11 +56,11 @@ import {
 import {
   FRAME_PICK_M,
   FRAME_PICK_PX,
-  closestAxisCoord,
   closestTOnSegment2,
   distPointToSegment2,
   distRayToSegment3,
   pickOverlappingFrameHit,
+  pointerGrabsFrames,
   screenAxisDragMap,
   screenAxisDragStep,
 } from "./frame.js";
@@ -96,34 +95,31 @@ import {
   arStandLift,
   clampArMag,
   isImmersiveArSupported,
+  isHeadsetBrowser,
   normalizeStandAxis,
+  overlayRootForAr,
+  preferredReferenceSpaceType,
   requestImmersiveAr,
   requestViewerHitTestSource,
   shouldFallbackArPlace,
+  spaceDragAnchor,
+  spaceDragOffset,
   standQuatFromAxis,
   viewerFrontPosition,
   volumeLocalAabb,
+  withXrWebGLLayerOnly,
   xrStageScale,
 } from "./xr.js";
 import {
-  HUD_BACK,
-  HUD_WIDGETS,
   XR_PINCH_MIN_M,
   distance3,
   gripPressed,
-  hudActionFromHit,
-  hudWidgetColor,
   isHeadsetArSession,
   magFromPinch,
-  parkHudPose,
-  pickHudWidget,
   rayFromPose,
   strongestStickX,
   thumbstickXFromAxes,
   trackedInputSources,
-  widgetCenter,
-  widgetSize,
-  worldRayToLocal,
   yawDeltaFromStick,
 } from "./xr-hud.js";
 
@@ -137,12 +133,13 @@ const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
 
 const coarse = window.matchMedia("(pointer: coarse)").matches;
+const headsetBrowser = isHeadsetBrowser(navigator.userAgent || "");
 const gizmoNarrowMq = window.matchMedia("(max-width: 720px)");
 function showGizmo() {
   return gizmoOnScreen({
     coarse,
     narrow: gizmoNarrowMq.matches,
-    ar: arPresenting(),
+    ar: arPresenting() || headsetBrowser,
   });
 }
 
@@ -156,7 +153,9 @@ renderer.setClearColor(COLOR.bg, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
+renderer.setPixelRatio(
+  Math.min(window.devicePixelRatio || 1, headsetBrowser || coarse ? 1.5 : 2),
+);
 renderer.xr.enabled = true;
 renderer.autoClear = true;
 
@@ -182,7 +181,6 @@ try {
   xrHud = new THREE.Group();
   xrHud.name = "xr-hud";
   xrHud.visible = false;
-  xrHud.userData.widgetMeshes = {};
 }
 scene.add(xrHud);
 const xrControllers = [0, 1].map((i) => {
@@ -204,9 +202,7 @@ const _xrQuat = new THREE.Quaternion();
 const _xrScale = new THREE.Vector3();
 const _xrUp = new THREE.Vector3();
 const _xrDir = new THREE.Vector3();
-const _arTip = new THREE.Vector3();
 const _hudWorldPos = new THREE.Vector3();
-const _hudWorldQuat = new THREE.Quaternion();
 const _gripB = new THREE.Vector3();
 const arAnchorPos = new THREE.Vector3();
 const arAnchorQuat = new THREE.Quaternion();
@@ -357,7 +353,6 @@ let arUseHitTest = false;
 let arAnchored = false;
 let arLocked = false;
 let arHeadsetHud = false;
-let arHudParked = false;
 let arPinch = null;
 let arMag = XR_MAG_DEFAULT;
 let arStandAxis = "z";
@@ -425,16 +420,25 @@ const ui = bindUI({
   },
   stabMode: () => {
     stabMode = ui.getConfig().stabMode;
-    dirtyEncoding = true;
+    dirtyView = true;
   },
   benchFlags: () => {
     const cfg = ui.getConfig();
+    const neighChanged = cfg.neighborhoodRadius !== neighborhoodRadius;
+    const dynChanged = cfg.dynamics !== dynamicsOn;
     dynamicsOn = cfg.dynamics;
     neighborhoodRadius = cfg.neighborhoodRadius;
     stabScaleOn = cfg.stabScale;
     encodingMinimal = cfg.encodingMinimal;
     forceFullRebuild = cfg.forceFullRebuild;
-    dirtyEncoding = true;
+    if (neighChanged) {
+      restampConway();
+      dirtySource = true;
+    } else if (dynChanged || forceFullRebuild) {
+      dirtySource = true;
+    } else {
+      dirtyView = true;
+    }
   },
   preset: () => {
     const id = ui.getConfig().preset;
@@ -456,7 +460,7 @@ const ui = bindUI({
   },
   countSize: () => {
     countSizeByCount = ui.getConfig().countSize;
-    dirtyEncoding = true;
+    dirtyView = true;
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -574,9 +578,8 @@ function cropFoci() {
 
 function inspectShade() {
   if (!inspectMode()) return null;
-  if (arPresenting() && !arPlanePoke && !arFrameDrag) return null;
+  if (arPresenting() && !arPlanePoke) return null;
   if (planeDrag && planeDrag.handle !== "focus") return "hull";
-  if (arFrameDrag && arFrameDrag.handle !== "focus") return "hull";
   const dense = sourceId === "count" && isDenseCount(countVol);
   if (arPlanePoke) return denseGhostToSlice("ghost", dense);
   return denseGhostToSlice(effectiveShade(shadeMode, shadeHeld), dense);
@@ -670,85 +673,10 @@ function createXrRay() {
   return line;
 }
 
-function createHudLabels() {
-  const cnv = document.createElement("canvas");
-  cnv.width = 256;
-  cnv.height = 320;
-  const ctx = cnv.getContext("2d");
-  if (!ctx) return null;
-  ctx.clearRect(0, 0, 256, 320);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "700 32px Orbitron, sans-serif";
-  ctx.fillStyle = hexCss(COLOR.gold);
-  ctx.fillText("PLAY", 128, 52);
-  ctx.font = "700 28px Orbitron, sans-serif";
-  ctx.fillStyle = hexCss(AXIS_COLOR.x);
-  ctx.fillText("X", 56, 145);
-  ctx.fillStyle = hexCss(AXIS_COLOR.y);
-  ctx.fillText("Y", 128, 145);
-  ctx.fillStyle = hexCss(AXIS_COLOR.z);
-  ctx.fillText("Z", 200, 145);
-  ctx.font = "700 32px Orbitron, sans-serif";
-  ctx.fillStyle = hexCss(COLOR.blitz);
-  ctx.fillText("EXIT", 128, 268);
-  const tex = new THREE.CanvasTexture(cnv);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const back = widgetSize(HUD_BACK);
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(Math.max(0.01, back.x), Math.max(0.01, back.y)),
-    new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    }),
-  );
-  mesh.position.z = 0.016;
-  mesh.renderOrder = 13;
-  mesh.frustumCulled = false;
-  return mesh;
-}
-
 function createXrHud() {
   const group = new THREE.Group();
   group.name = "xr-hud";
   group.visible = false;
-  const backSize = widgetSize(HUD_BACK);
-  const backCenter = widgetCenter(HUD_BACK);
-  const back = new THREE.Mesh(
-    new THREE.BoxGeometry(backSize.x, backSize.y, backSize.z),
-    new THREE.MeshBasicMaterial({
-      color: 0x0b0f14,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
-    }),
-  );
-  back.position.set(backCenter.x, backCenter.y, backCenter.z);
-  back.renderOrder = 11;
-  group.add(back);
-  const widgetMeshes = {};
-  for (const w of HUD_WIDGETS) {
-    const size = widgetSize(w);
-    const c = widgetCenter(w);
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(size.x, size.y, size.z),
-      new THREE.MeshBasicMaterial({
-        color: hudWidgetColor(w.id),
-        transparent: true,
-        opacity: 0.9,
-        depthWrite: false,
-      }),
-    );
-    mesh.position.set(c.x, c.y, c.z);
-    mesh.renderOrder = 12;
-    mesh.userData.hudId = w.id;
-    group.add(mesh);
-    widgetMeshes[w.id] = mesh;
-  }
-  group.add(createHudLabels() || new THREE.Group());
-  group.userData.widgetMeshes = widgetMeshes;
   return group;
 }
 
@@ -834,13 +762,11 @@ function setArStandAxis(next) {
   const a = normalizeStandAxis(next);
   if (a === arStandAxis) {
     applyArStagePose();
-    syncXrHudChrome();
     ui.setArStandAxis?.(a);
     return;
   }
   arStandAxis = a;
   applyArStagePose();
-  syncXrHudChrome();
   ui.setArStandAxis?.(a);
   applyGridLook();
   updateHint();
@@ -933,39 +859,6 @@ function refreshHeadsetHud() {
   );
 }
 
-function hudRayLocal(ctrl) {
-  ctrl.updateMatrixWorld(true);
-  xrHud.updateMatrixWorld(true);
-  ctrl.getWorldPosition(_xrPos);
-  ctrl.getWorldQuaternion(_xrQuat);
-  xrHud.getWorldPosition(_hudWorldPos);
-  xrHud.getWorldQuaternion(_hudWorldQuat);
-  const ray = rayFromPose(
-    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
-    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
-  );
-  return worldRayToLocal(
-    ray.origin,
-    ray.dir,
-    { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
-    { x: _hudWorldQuat.x, y: _hudWorldQuat.y, z: _hudWorldQuat.z, w: _hudWorldQuat.w },
-  );
-}
-
-function pickHudFromController(ctrl) {
-  const local = hudRayLocal(ctrl);
-  return pickHudWidget(local.origin, local.dir);
-}
-
-function applyXrHudHit(hit) {
-  const action = hudActionFromHit(hit);
-  if (!action) return true;
-  if (action.type === "play") togglePlay();
-  else if (action.type === "exit") exitAr();
-  else if (action.type === "stand") setArStandAxis(action.axis);
-  return true;
-}
-
 function controllerWorldRay(ctrl) {
   ctrl.updateMatrixWorld(true);
   ctrl.getWorldPosition(_xrPos);
@@ -974,22 +867,6 @@ function controllerWorldRay(ctrl) {
     { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
     { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
   );
-}
-
-function worldRayToTurntable(origin, dir) {
-  turntable.updateMatrixWorld(true);
-  _xrPos.set(origin.x, origin.y, origin.z);
-  _arTip.set(origin.x + dir.x, origin.y + dir.y, origin.z + dir.z);
-  turntable.worldToLocal(_xrPos);
-  turntable.worldToLocal(_arTip);
-  return {
-    origin: { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
-    dir: {
-      x: _arTip.x - _xrPos.x,
-      y: _arTip.y - _xrPos.y,
-      z: _arTip.z - _xrPos.z,
-    },
-  };
 }
 
 function collectArFramePick(frame, origin, dir, into) {
@@ -1032,40 +909,30 @@ function hitArFrame(origin, dir) {
   return { axis: best.axis, handle: best.handle };
 }
 
-function beginArFrameDrag(ctrl, hit) {
-  enterInspect();
-  setActiveAxis(hit.axis);
-  const handle = hit.handle === "near" || hit.handle === "far" ? hit.handle : "focus";
-  if (handle === "focus") setShadeHeld(true);
-  arFrameDrag = { ctrl, axis: hit.axis, handle };
-  setFrameHover({ axis: hit.axis, handle });
+function beginArSpaceDrag(ctrl, hit) {
+  ctrl.updateMatrixWorld(true);
+  ctrl.getWorldPosition(_xrPos);
+  arFrameDrag = {
+    kind: "space",
+    ctrl,
+    offset: spaceDragOffset(arAnchorPos, _xrPos),
+  };
+  setFrameHover({ axis: hit.axis, handle: hit.handle });
 }
 
 function updateArFrameDrag() {
-  if (!arFrameDrag || !world) return;
-  const ray = controllerWorldRay(arFrameDrag.ctrl);
-  const local = worldRayToTurntable(ray.origin, ray.dir);
-  const coord = closestAxisCoord(local.origin, local.dir, arFrameDrag.axis);
-  const back = backFromWorldCoord(
-    arFrameDrag.axis,
-    coord,
-    world.width,
-    world.height,
-    DEFAULTS.cellSize,
-    DEFAULTS.timeScale,
-  );
-  applySlab(
-    arFrameDrag.axis,
-    { ...slabs[arFrameDrag.axis], [arFrameDrag.handle]: back },
-    arFrameDrag.handle,
-  );
+  if (!arFrameDrag || arFrameDrag.kind !== "space") return;
+  arFrameDrag.ctrl.updateMatrixWorld(true);
+  arFrameDrag.ctrl.getWorldPosition(_xrPos);
+  const next = spaceDragAnchor(_xrPos, arFrameDrag.offset);
+  arAnchorPos.set(next.x, next.y, next.z);
+  applyArStagePose();
 }
 
 function endArFrameDrag(ctrl) {
   if (!arFrameDrag) return;
   if (ctrl && arFrameDrag.ctrl !== ctrl) return;
   arFrameDrag = null;
-  setShadeHeld(false);
   setFrameHover(null);
 }
 
@@ -1112,17 +979,10 @@ function pokeArVoxel(origin, dir) {
 function onArSelectStart(event) {
   if (!arPresenting() || !arLocked) return;
   const ctrl = event.target;
-  if (arHeadsetHud && xrHud.visible) {
-    const hudHit = pickHudFromController(ctrl);
-    if (hudHit) {
-      applyXrHudHit(hudHit);
-      return;
-    }
-  }
   const ray = controllerWorldRay(ctrl);
   const frameHit = hitArFrame(ray.origin, ray.dir);
   if (frameHit) {
-    beginArFrameDrag(ctrl, frameHit);
+    beginArSpaceDrag(ctrl, frameHit);
     return;
   }
   pokeArVoxel(ray.origin, ray.dir);
@@ -1139,40 +999,18 @@ function setArMag(next) {
   applyArStagePose();
 }
 
-function parkXrHud() {
-  const cam = renderer.xr.getCamera();
-  cam.updateMatrixWorld();
-  cam.getWorldPosition(_xrPos);
-  const pose = parkHudPose(
-    { x: arAnchorPos.x, y: arAnchorPos.y, z: arAnchorPos.z },
-    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
-  );
-  xrHud.position.set(pose.x, pose.y, pose.z);
-  const lx = pose.lookX - pose.x;
-  const ly = pose.lookY - pose.y;
-  const lz = pose.lookZ - pose.z;
-  if (lx * lx + ly * ly + lz * lz > 1e-8) {
-    xrHud.lookAt(pose.lookX, pose.lookY, pose.lookZ);
-  }
-  arHudParked = true;
-}
-
-function syncXrHudChrome() {
-  const meshes = xrHud.userData.widgetMeshes || {};
-  for (const w of HUD_WIDGETS) {
-    const mesh = meshes[w.id];
-    if (mesh?.material) mesh.material.color.setHex(hudWidgetColor(w.id, playing, arStandAxis));
-  }
-}
-
 function updateXrControllerPose(dt) {
-  if (!arPresenting() || !arLocked || !arHeadsetHud) {
+  if (!arPresenting() || !arLocked) {
     arPinch = null;
     if (arFrameDrag) updateArFrameDrag();
     return;
   }
   if (arFrameDrag) {
     updateArFrameDrag();
+    return;
+  }
+  if (!arHeadsetHud) {
+    arPinch = null;
     return;
   }
   const sources = trackedInputSources(renderer.xr.getSession());
@@ -1199,18 +1037,8 @@ function updateXrControllerPose(dt) {
 
 function updateXrHud() {
   refreshHeadsetHud();
-  const show = arPresenting() && arLocked && arHeadsetHud;
-  const became = show && !xrHud.visible;
-  xrHud.visible = show;
-  setXrRaysVisible(show);
-  if (!show) {
-    arHudParked = false;
-    arPinch = null;
-    return;
-  }
-  if (!arHudParked) parkXrHud();
-  if (became) updateHint();
-  syncXrHudChrome();
+  xrHud.visible = false;
+  setXrRaysVisible(arPresenting() && arLocked && arHeadsetHud);
 }
 
 function updateReticle(xrFrame) {
@@ -1253,10 +1081,20 @@ async function enterAr() {
   if (activeAxis !== "z") setActiveAxis("z");
   const xr = navigator.xr;
   if (!(await isImmersiveArSupported(xr))) return;
-  const overlay = document.getElementById("xr-overlay") || document.body;
+  const overlay = overlayRootForAr(
+    document.getElementById("xr-overlay"),
+    navigator.userAgent || "",
+  );
   try {
     const session = await requestImmersiveAr(xr, overlay);
-    await renderer.xr.setSession(session);
+    const space = await preferredReferenceSpaceType(session);
+    renderer.xr.setReferenceSpaceType(space);
+    const attach = () => renderer.xr.setSession(session);
+    if (headsetBrowser) {
+      await withXrWebGLLayerOnly(attach);
+    } else {
+      await attach();
+    }
   } catch (err) {
     console.warn("WebXR session failed", err);
   }
@@ -1290,7 +1128,6 @@ async function onArSessionStart() {
     stage.visible = true;
     reticle.visible = false;
     arHeadsetHud = false;
-    arHudParked = false;
     arPinch = null;
     arFrameDrag = null;
     arPlanePoke = false;
@@ -1332,7 +1169,6 @@ function onArSessionEnd() {
   arPlacePending = false;
   arHitStartedAt = 0;
   arHeadsetHud = false;
-  arHudParked = false;
   arPinch = null;
   arFrameDrag = null;
   arPlanePoke = false;
@@ -1495,8 +1331,7 @@ function applySlab(axis, next, dragged = "focus") {
     dragged === "focus" &&
     !decay &&
     !planeLock;
-  dirtyView = !hullFocus;
-  if (stabScaleOn && stabMode === "focus") dirtyEncoding = true;
+  dirtyView = !hullFocus || (sourceId !== "count" && stabScaleOn && stabMode === "focus");
 }
 
 function enterInspect() {
@@ -1612,6 +1447,19 @@ function countWorld(vol) {
 function stabForFill() {
   if (sourceId === "count") return countSizeByCount ? "time" : "none";
   return stabScaleOn ? stabMode : "none";
+}
+
+function restampConway() {
+  if (sourceId !== "conway" || !world) return;
+  const opts = { wrap: world.wrap, neighborhoodRadius };
+  if (ring && typeof ring.setClassify === "function") {
+    ring.setClassify(opts);
+    ring.stampAll(world.width, world.height);
+  }
+  if (tape && typeof tape.setClassify === "function") {
+    tape.setClassify(opts);
+    tape.stampAll(world.width, world.height);
+  }
 }
 
 function encodingBaseK() {
@@ -1863,6 +1711,9 @@ function bootWorld(resizeGrid) {
     maxCapacity: DEFAULTS.maxTapeSlices,
     maxEvents: DEFAULTS.maxTapeEvents,
   });
+  const classify = { wrap: world.wrap, neighborhoodRadius };
+  ring.setClassify(classify);
+  tape.setClassify(classify);
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
   tape.pushGrid(world.grid, world.width, world.height, world.generation);
   layoutPlayfield(cfg.width, cfg.height);
@@ -2221,8 +2072,8 @@ function updateHint() {
     } else if (arUseHitTest) {
       ui.setHint(
         arHeadsetHud
-          ? "AR — Play, stand X/Y/Z, Exit · grab a frame · poke a cube to isolate the standing plane · stick yaws · both grips pinch size"
-          : "AR — Stand X/Y/Z on the overlay · grab a frame · tap a cube to isolate the standing plane · yaw · Exit to orbit",
+          ? "AR — grab a frame to slide the volume · poke a cube to isolate the standing plane · stick yaws · both grips pinch size"
+          : "AR — Stand X/Y/Z on the overlay · grab a frame to slide the volume · tap a cube to isolate the standing plane · yaw · Exit to orbit",
       );
     } else {
       ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
@@ -2232,17 +2083,25 @@ function updateHint() {
   } else if (sourceId === "count") {
     ui.setHint(
       countVol && isDenseCount(countVol)
-        ? "Dense cube — hover a frame edge to grab it · Play walks the playhead"
+        ? "Dense cube — sliders move planes · Play walks the playhead"
         : playing
           ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
-          : "Count stack — grab a frame edge to move that plane · Play scrubs the active axis",
+          : coarse
+            ? "Count stack — sliders move planes · drag to orbit · pinch zoom"
+            : "Count stack — grab a frame edge to move that plane · Play scrubs the active axis",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
-      `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · grab a frame edge · Play is live`,
+      coarse
+        ? `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · sliders move planes · Play is live`
+        : `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · grab a frame edge · Play is live`,
     );
   } else if (tapeMode) {
-    ui.setHint("Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live");
+    ui.setHint(
+      coarse
+        ? "Inspect — sliders move planes · drag to orbit · pinch zoom · Play returns to live"
+        : "Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live",
+    );
   } else if (editing && atNow) {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
@@ -2256,7 +2115,11 @@ function updateHint() {
   } else if (playing) {
     ui.setHint("Live — Pause to inspect the cache · orbit · pinch zoom");
   } else {
-    ui.setHint("Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live");
+    ui.setHint(
+      coarse
+        ? "Inspect — sliders move planes · drag to orbit · pinch zoom · Play returns to live"
+        : "Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live",
+    );
   }
   applyGridLook();
   playfields.z.setEditing(editing);
@@ -2586,6 +2449,7 @@ function resize() {
   if (arPresenting()) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
+  if (w < 2 || h < 2) return;
   renderer.setSize(w, h, false);
   const aspect = w / Math.max(1, h);
   camera.aspect = aspect;
@@ -2684,7 +2548,7 @@ canvas.addEventListener(
     }
     pointerDown = { x: e.clientX, y: e.clientY };
     if (planeLock) return;
-    if (canGrabFrames()) {
+    if (canGrabFrames() && pointerGrabsFrames(e.pointerType)) {
       const hit = hitWorkPlane(e);
       if (hit) {
         const paintZ =
@@ -2711,7 +2575,8 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
   const face = showGizmo() ? gizmo.hover(e.clientX, e.clientY, canvas) : null;
-  const hit = canGrabFrames() ? hitWorkPlane(e) : null;
+  const hit =
+    canGrabFrames() && pointerGrabsFrames(e.pointerType) ? hitWorkPlane(e) : null;
   setFrameHover(hit);
   if (face) setViewCursor("pointer");
   else if (hit) setViewCursor("frame");
@@ -2806,6 +2671,9 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("resize", resize);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", resize);
+}
 
 function frame(now, xrFrame) {
   try {
@@ -2954,6 +2822,7 @@ function frame(now, xrFrame) {
 }
 
 resize();
+requestAnimationFrame(resize);
 try {
   bootWorld(true);
 } catch (err) {
