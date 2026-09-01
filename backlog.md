@@ -4,14 +4,47 @@ Shipped work is in [`CHANGELOG.md`](CHANGELOG.md). Remaining product
 stages live under **Later** in [`architecture.md`](architecture.md) and
 [`docs/gui.md`](docs/gui.md).
 
-**Later:** polarity / occupancy / states encodings on the same `EventSoA`,
-packed WOLKE selection / `viewer_index`, then the XR ladder below.
-Count-stack `.npy` and the WOLKE-contract stream (EVT sidecar) are in.
-P1 instrumentation and P2 dirty-state / visible window are in this tree.
-NPZ loaders, a points renderer, slice-append SoA updates, and an MRI
-source kind are also later. Dense count cubes (occupancy > 15 %) already
-open on a mid-volume slab with enclosed voxels culled; the public T1 is
-`datasets/MRT/mni152_stack.npy`. Do not embed NiiVue.
+## Product roadmap
+
+Do not rewrite DONNER. Do not merge it into BLITZ. Do not start a
+Dataset Contract or PointRenderer before a public preview.
+
+**Phase 1 — finish current milestone.** Quest / XR-C baseline (C-0 is in
+this tree; C-1 hands later). Fix obvious UX and rendering issues. Freeze
+the Unreleased XR/MNI slice.
+
+**Phase 2 — public preview.** Thin View; Bench off the primary workflow
+(see Chrome notes below). Curated Conway + EVT + volume demos. Deploy
+`https://donner.mess.engineering` (GitHub Pages + custom domain). Add
+DONNER to the WETTER landing page (sibling repo `WETTER/`). Retire the
+old M.E.S.S. Java/browser point-cloud showcase from the active site
+(archive OK). Connected / sidecar mode stays off that static host.
+
+**Phase 3 — feedback.** Usability, slicing, mobile, AR, Quest,
+performance, own-data loading. Do not decide every later feature first.
+
+**Phase 4 — Dataset Contract.** Source adapter → Dataset Contract → core
+→ renderer. Axis role / unit / spacing / affine. Keep `CountVolume` for
+counts; add `ScalarVolume` for generic volumes. Formalize WETTER Viewer
+Contract (packed `__selection__.npy`, `viewer_index`). NPZ + optional
+`dataset.json`. Demo shell vs product core. See
+[`architecture.md`](architecture.md#later-dataset-contract).
+
+**Phase 5 — renderers.** PointRenderer vs CubeRenderer (benchmarks
+first). VolumeTextureRenderer only if dense volumes justify it.
+
+**Phase 6 — integration.** XR-B AprilTag (dataset id + spatial origin;
+no secrets in the marker). Quest interaction. WOLKE. Domain adapters
+(CT/MRI) only when needed.
+
+**Later detail:** polarity / occupancy / states encodings on the same
+`EventSoA`, packed WOLKE selection / `viewer_index`, then the XR ladder
+below. Count-stack `.npy` and the WOLKE-contract stream (EVT sidecar)
+are in. P1 instrumentation and P2 dirty-state / visible window are in
+this tree. Dense count cubes (occupancy > 15 %) already open at full
+AABB with enclosed voxels culled. Source → **MNI 152** is the public T1
+(`datasets/MRT/mni152_stack.npy`, native grid, local symlink). Do not
+embed NiiVue.
 
 ## MRI volume (later)
 
@@ -19,15 +52,16 @@ Anatomical MRI is not a NIfTI viewer. Same cube engine, later source
 addon. Until a dedicated kind exists, the public MNI stack is a count
 cube.
 
-- **Now:** dense `datasets/MRT/mni152_stack.npy` (4×, `(T, H, W)` uint16,
-  intensity 1…32). Occupancy > 15 % → Inspect opens ~8 slices on the
-  active stack axis (Z, X, or Y), Decay off, `fillSoA` skips 6-enclosed
-  voxels, Play walks the window. Local only, not git.
+- **Now:** Source → **MNI 152** loads `data/mni152_stack.npy` (symlink to
+  `datasets/MRT/`, native `(215, 256, 207)` uint16, intensity 1…32).
+  Occupancy > 15 % → Inspect, Decay off, `fillSoA` skips 6-enclosed
+  voxels (~140k hull). Play/Loop walks the active playhead. Local
+  symlink, not a git blob. Check ICBM before redistributing the `.npy`.
   Recipe in [`architecture.md`](architecture.md#mri-volume-later).
-  Source → Count stack → **Load .npy**.
-- **Next:** MRI source kind / intensity encoding, or a volume-texture
-  pass if the slab is not enough. Not NiiVue, not a NIfTI-in-browser
-  parser first.
+- **Next:** Dataset Contract + `ScalarVolume` (intensity, spacing,
+  affine) — not NiiVue, not a NIfTI-in-browser parser, not a DICOM
+  workstation. Volume-texture pass only if the cube slab is not enough.
+  See [`architecture.md`](architecture.md#later-dataset-contract).
 - **Not git:** SHIP MPR and nose masks under `datasets/MRT/`. Do not
   commit subject NIfTIs. ICBM terms before shipping a derived `.npy`.
 
@@ -49,6 +83,14 @@ würde eigentlich sehr gut passen
 wir könnten beim einladen der daten einen schwellwert oder filter einstelllen; unterhabl wird kein cube dargestellt
 
 empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meinem sehr performanten Laptop)
+
+## Conway encoding cost
+
+**Stability scaling** (`stabScale` / Time / Focus) is a real `fillSoA`
+hit: every live cell in the AABB runs `stabilityAge`, including Inspect
+Triple/Ghost rebuilds on playhead moves. For Conway that is teaching
+fill only — **nice-to-have, not required**. Later: default off, or skip
+it on those rebuilds. Do not treat it as a display essential.
 
 ## Chrome (desktop / phone orbit — not XR-A)
 
@@ -94,51 +136,83 @@ once. Re-issue if the LAN IP changes.
 
 Tech demo, same Three.js scene — not a Unity fork, not a projector, not a
 native iOS wrapper. P1/P2 baseline is in; **XR-A session is opened**.
-Do not start a new renderer (points / million-event) in the same slice
-as XR-B/C.
+XR-B is **not** a gate for Quest chrome. Do not start a new renderer
+(points / million-event) in the same slice as further XR work.
 
 ```mermaid
-flowchart LR
-  xra[XR-A session]
-  xrb[XR-B marker origin]
-  xrc[XR-C Quest 3 passthrough]
-  xra --> xrb --> xrc
+flowchart TB
+  enter[enterAr immersive-ar]
+  place[Hit-test place and lock]
+  volume[stage then stand then turntable]
+  overlay[XR-A DOM overlay screen]
+  hud[XR-C-0 parked Play stand Exit]
+  frames[Bounding frames plus poke]
+  hands[XR-C-1 hand or grip later]
+  marker[XR-B marker origin later]
+  enter --> place --> volume
+  volume --> overlay
+  volume --> hud
+  volume --> frames
+  hud --> hands
+  place -.-> marker
 ```
 
-1. **XR-A — phone tabletop.** WebXR `immersive-ar` on **Android Chrome**.
-   **Opened:** passthrough, plane **hit-test** (gold square reticle, tap
-   to place, then lock for the session), tabletop scale (32 cells ≈ 40 cm).
-   The volume is a pillar: gen 0 on the table, **Play** grows the tape
-   up, Z clips a segment in place.
-   If hit-test is missing, the volume sits ~0.8 m in front of the viewer.
-   Feature detect; no AR button if `immersive-ar` is missing. Orbit is
-   the fallback. After place, **Yaw** orients the pillar on the table
-   (product Z; overlay slider or swipe). Then walk with the phone.
-   **HTTPS** is `https://lab.ole.icu/` (`start:lan`
-   upstream); mkcert is fallback. AR chrome is Play, Z, Size, Yaw, Exit. Pause
-   `OrbitControls` in session. `setEvents(...)` stays. Teaching 32 is
-   enough; no extra Depth/Grid cap this stage. iPhone only if
-   `navigator.xr` actually supports AR. No 8th Wall, no ARKit shell.
-   **Next:** XR-B marker origin.
+1. **XR-A — phone tabletop (shipped ceiling).** WebXR `immersive-ar` on
+   **Android Chrome**. Passthrough, plane **hit-test** (gold square
+   reticle, tap to place, then lock), tabletop scale (32 cells ≈ 40 cm).
+   The volume **stands** on the chosen product plane (default Z: gen 0 on
+   the table, time up). **Play** grows the tape along time. Bounding
+   frames stay visible after lock. If hit-test is missing, the volume
+   sits ~0.8 m in front of the viewer. Feature detect; no AR button if
+   `immersive-ar` is missing. Orbit is the fallback. After place, **Yaw**
+   orients the volume (overlay slider or swipe). Then walk with the phone
+   as an IMU window — that is the phone product, not a stepping stone to
+   more phone chrome. **HTTPS** is `https://lab.ole.icu/` (`start:lan`
+   upstream); mkcert is fallback. AR chrome is Play, Stand X/Y/Z, Size, Yaw, Exit
+   on `#xr-overlay` (`dom-overlay` type `screen`). Pause `OrbitControls`
+   in session. `setEvents(...)` stays. iPhone only if `navigator.xr`
+   actually supports AR. No 8th Wall, no ARKit shell.
 
-2. **XR-B — marker origin.** AprilTag or a printed gold playfield frame
-   for a repeatable origin and metric scale. Optional gag: the print *is*
-   the Conway seed (Blinker on paper → the stack grows along product Z).
-   Same phone AR session; the marker also serves Quest later.
+2. **XR-B — marker origin (later).** AprilTag or a printed gold playfield
+   frame for a repeatable origin and metric scale. Optional gag: the print
+   *is* the Conway seed (Blinker on paper → the stack grows along product
+   Z). Same phone AR session; the marker also serves Quest later. Not a
+   blocker for XR-C.
 
-3. **XR-C — Quest 3 passthrough.** Same scene as mixed reality on the
-   table (`immersive-ar` / alpha-blend). Walk the stack; hand input and
-   in-world Z scrub come after placement works. This is the exploratory
-   capture feel; XR-A is only the window demo.
+3. **XR-C — Quest passthrough (parallel chrome fork).** Same
+   `immersive-ar` session and placement as XR-A. Quest Browser typically
+   does not composite the DOM overlay. **XR-C-0** (in this tree) parks a
+   **Play / stand X·Y·Z / Exit** plate at eye height after lock. It does
+   **not** follow the growing pillar or Size. **Yaw** is the thumbstick
+   (no tilt). **Size** is both grips, then hands apart/together.
+   Bounding frames stay on; poke a cube to isolate the standing plane
+   (Ghost). Headset-only: `dom-overlay` type `screen` keeps the phone
+   overlay and hides the 3D panel. **XR-C-1 later:** hand tracking, grip
+   or wrist attach. XR-A is the window demo.
 
 Out of this ladder: projection mapping, Unreal, Vision Pro as a first
 target. Count-stack `.npy` is in; polarity encodings and EVT3-in-browser
 stay later.
 
+## QR door (later)
+
+Print or HUD-share a QR that opens the lab door **`https://lab.ole.icu/`**
+(after `npm run start:lan`). Scan loads the viewer; **AR** stays the
+existing button when `immersive-ar` is supported.
+
+Optional spawn suffix (query or hash) picks a **known** source, e.g.
+`?src=conway&pattern=Blinker` or `?src=count&demo=ignition`. Arbitrary
+local `.npy` paths and WOLKE URLs come after that (they are not public
+behind the lab door). A Share control that draws the current door+query
+as a QR waits on the URL parser. Not this slice: auto-enter AR, marker
+prints (XR-B), a QR library.
+
 ## Isolation (later)
 
 Worldline isolation is **deferred**. Double-click on a cube is off; the
 viewer no longer hover-picks cubes or draws an isolate beacon.
+AR **poke** is a different gimmick: it Ghost-isolates the **standing**
+plane (time if Z is up), not a worldline.
 Later: **rectangle selection** on the playfield, not a cube double-click.
 `src/observe.js` pick math can stay; the shell does not call it.
 

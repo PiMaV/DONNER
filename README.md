@@ -5,20 +5,32 @@ analysis of large experimental imaging datasets.
 
 **Live overview:** [wetter.mess.engineering](https://wetter.mess.engineering)
 
-**This repository** is **DONNER** — the space-time explorer beside **BLITZ**.
-BLITZ inspects scientific matrices in 2D. DONNER explores the same class of
-structured data as a 3D volume, with time as the third axis.
+**This repository** is **DONNER** — browser-native scientific 3D/XR
+exploration for structured data, beside **BLITZ**.
 
-The core WETTER pipeline is unchanged:
+> Explore in DONNER. Analyze in BLITZ.
+
+> WOLKE finds it. DONNER explores it. BLITZ analyzes it.
+
+DONNER and BLITZ may consume the same datasets or sidecars. They do not
+share a GUI and stay separate applications. DONNER is a parallel app, not
+a pipeline stage:
 
 ```text
-Raw Data → DAMPF → KEIM → WOLKE → BLITZ
+Raw / Sensor Data
+        |
+        v
+DAMPF → KEIM → WOLKE
+                  |
+           +------+------+
+           |             |
+           v             v
+        DONNER          BLITZ
+       Explore          Analyze
+       3D / XR        2D / Stats
 ```
 
-DONNER is a parallel app, not a pipeline stage: **BLITZ & DONNER**.
-Explore in DONNER; analyze in BLITZ. They share a data source, not a GUI.
-
-The HTML+JS scene **is** the product window (demo, phone, later WebXR).
+The HTML+JS scene **is** the product window (demo, phone, AR, XR).
 Three.js is the current engine, not the name. A compiled desktop wrap
 comes only when local files or a sidecar exist — not as an empty EXE
 around `index.html`. Do not fold DONNER into BLITZ/PyQtGraph.
@@ -27,40 +39,48 @@ around `index.html`. Do not fold DONNER into BLITZ/PyQtGraph.
 
 ## What it is
 
-**DONNER** (Dynamic Observation and Navigation of Nonuniform Event
-Representations) renders sparse space-time events in the browser.
+**DONNER** (Dimensional Observation & Navigation: N-dimensional
+Exploration & Rendering) is a browser-native scientific 3D/XR explorer
+for structured data. It is not primarily an event-camera viewer.
 
-| Source | Event |
-|--------|--------|
-| Conway (v1) | `x, y, generation, state` |
+| Source | Shape today |
+|--------|-------------|
+| Conway (demo shell) | `x, y, generation, state` |
 | Count stack | `x, y, t, count` (EVT `.npy`) |
+| MNI 152 | dense `x, y, z` intensity (count-cube path) |
 
-MRI as a dedicated source is **later**. A public T1 is a dense
-count-shaped cube at `../datasets/MRT/mni152_stack.npy` — use **Load .npy**.
-Occupancy above ~15 % opens a mid-volume slab (~8 slices) on Z, X, or Y
-and skips enclosed voxels (cut faces stay). Do not embed NiiVue. Do not add a
-NIfTI parser in the browser. SHIP volumes under `datasets/MRT/` stay
-local working data (not git).
+MRI as a dedicated source kind / `ScalarVolume` is **later**. The public
+T1 is still a dense count cube: Source → **MNI 152**
+(`data/mni152_stack.npy`, symlink into `datasets/MRT/`). Native grid,
+occupancy ~47 %, enclosed voxels culled so INST stays a hull (~140k).
+Do not embed NiiVue. Do not add a NIfTI parser in the browser. SHIP
+volumes under `datasets/MRT/` stay local working data (not git). ICBM
+terms still apply — do not vendor the `.npy` on GitHub.
 
-Conway is the first demonstrator — deterministic, in-browser, no files.
-A count stack is the first event-camera path: the same cubes, a different
-source. The renderer does not know whether a point came from a cellular
-automaton or a sensor.
+Conway is a teaching dataset, deterministic source, visual demo, and
+performance benchmark — not the product identity. A count stack is the
+first event-camera path. The renderer does not know whether a point came
+from a cellular automaton, a sensor, or a volume file.
 
 > Images aren't just pixels — they are structured data.
 
-DONNER extends that idea: **matrix → time series → space-time volume →
-explorative 3D (XR-A tabletop in; marker next)**.
+DONNER extends that idea: **matrix → volume / time series → explorative
+3D (XR-A tabletop in; marker next)**.
 
 ## Axes (X, Y, Z)
 
-DONNER labels axes the scientific way. **X and Y are the playfield** (cell
-or sensor). **Z is time** — the vertical stack. **Now** is **Z = 0**:
-past below, newer slices (ghost) above. The playhead (`tFocus`) walks
-that stack; it does not move the volume.
+For Conway and event-camera XYT cubes, **X and Y are the playfield**
+(cell or sensor) and **Z is time** — the vertical stack. **Now** is
+**Z = 0**: past below, newer slices (ghost) above. The playhead
+(`tFocus`) walks that stack; it does not move the volume.
 
-| Axis | Meaning | On screen |
-|------|---------|-----------|
+That mapping is a **source default**, not a core invariant. MRI/CT
+volumes are spatial on all three axes. A later Dataset Contract will
+carry axis role, unit, and spacing so the renderer does not hardcode
+Z = time. Today the playhead can already walk **X, Y, or Z**.
+
+| Axis | XYT default | On screen |
+|------|-------------|-----------|
 | **X** | playfield column | on the focus plane |
 | **Y** | playfield row | on the focus plane |
 | **Z** | time | vertical stack; **Z slider** (desktop: right, Now at top; phone: bottom, Now at the right) |
@@ -86,19 +106,19 @@ npm start
 # python3 scripts/serve-http.py --bind 127.0.0.1  (also GET /stream-npy)
 ```
 
-Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Count stack**
-loads `data/ignition_stack.npy` (symlink to `../datasets/EVT/` in the
-WETTER-Suite layout). Or use **Load .npy**.
+Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Ignition**
+loads `data/ignition_stack.npy`; **MNI 152** loads the native-grid T1 hull
+(`data/mni152_stack.npy`). Both are symlinks into `datasets/` in the
+WETTER-Suite layout. **Count file / stream** is Load .npy or the sidecar.
 
 ```bash
-# from DONNER/, if the demo file is missing:
+# from DONNER/, if a demo file is missing:
 mkdir -p data
 ln -sfn ../datasets/EVT/ignition_stack.npy data/ignition_stack.npy
+ln -sfn ../datasets/MRT/mni152_stack.npy data/mni152_stack.npy
 ```
 
-Local MRI preview (not in git, not a second demo URL): Source → Count
-stack → **Load .npy** → `../datasets/MRT/mni152_stack.npy`. Re-convert
-from `mni152.nii.gz` with the recipe in
+Re-convert the T1 from `mni152.nii.gz` (native stride) with the recipe in
 [`architecture.md`](architecture.md#mri-volume-later).
 
 ```bash
@@ -185,7 +205,7 @@ If the LAN IP changes, `npm run cert` again.
 - Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
 - Axis-colored playfield frames (inset playhead, smaller clips); grab an **edge** to move that plane (no numbered overlay, no hover hairlines)
-- CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
+- CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; the same face pages the stack; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z pins XY and still pans along Z.
 - Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
@@ -196,18 +216,17 @@ If the LAN IP changes, `npm run cert` again.
 - **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; axis-colored planes and clips). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
-- Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks (including the local MRI preview `../datasets/MRT/mni152_stack.npy`). **Stream** connects to the EVT sidecar / WOLKE (`http://127.0.0.1:5055`, token `evt`); cube bytes arrive via same-origin `/stream-npy`.
+- Source switch: Conway, **Ignition**, **MNI 152**, or Count file/stream. Demos are `data/*.npy` symlinks. **Load .npy** and **Stream** stay on Count file / stream.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
-- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; **Yaw** orients the pillar on the table; gen 0 stays on the table; Z clips a segment in place. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing.
+- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; **Yaw** orients it on the table; **Stand** chooses which product plane sits on the table (default Z / time up). Bounding frames stay visible; poke a cube to isolate the standing plane. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing. Phone chrome is the DOM overlay (IMU window). Quest (XR-C-0): parked Play/stand/Exit plate at eye height; thumbstick yaws; both grips pinch size.
 
-**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, MRI source kind / NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B/C, points renderer.
+**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, Dataset Contract / ScalarVolume, NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B marker, XR-C-1 hands, QR door+spawn, points renderer. Public preview host `donner.mess.engineering` is later.
 
 ## Architecture
 
 See [`architecture.md`](architecture.md), [`docs/gui.md`](docs/gui.md),
-and [`docs/related.md`](docs/related.md) (Conway is the demonstrator;
-DONNER is the event viewer. Links found while looking around, not
-influences).
+and [`docs/related.md`](docs/related.md) (Conway is the demonstrator,
+not the product. Links found while looking around, not influences).
 
 Three.js r180 is vendored under `vendor/three/` (MIT). socket.io-client
 v4.8.1 is vendored under `vendor/socket.io/` (MIT) for the WOLKE

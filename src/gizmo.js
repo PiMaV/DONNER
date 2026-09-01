@@ -70,6 +70,7 @@ function makeLabel(text, cssColor) {
   canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext("2d");
+  if (!ctx) return new THREE.Group();
   ctx.clearRect(0, 0, 128, 128);
   ctx.font = "700 72px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";

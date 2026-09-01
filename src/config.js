@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -8,6 +8,7 @@ export const COLOR = {
   cyan: 0x00fff2,
   blitz: 0xff5a4f,
   unsettled: 0xb388ff,
+  base: 0x8a9aa8,
   warmup: 0x8a9aa8,
   grid: 0x3a4a58,
   gridDiv: 0x1a242e,
@@ -68,6 +69,16 @@ export const DEFAULTS = {
   wolkeUrl: "http://127.0.0.1:5055",
   wolkeToken: "evt",
 };
+
+/** Count-cube demos in Source (local symlinks under `data/`). */
+export const COUNT_DEMOS = {
+  ignition: { url: "data/ignition_stack.npy", name: "ignition_stack", label: "Ignition" },
+  mni152: { url: "data/mni152_stack.npy", name: "mni152_stack", label: "MNI 152" },
+};
+
+export function isCountSourceKind(kind) {
+  return kind === "count" || Boolean(COUNT_DEMOS[kind]);
+}
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];
 

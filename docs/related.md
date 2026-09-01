@@ -1,10 +1,10 @@
 # Related work
 
-**DONNER is an event viewer.** The product is a space-time explorer for
-sparse `(x, y, t, v)` events — later from an event camera. Conway’s Game
-of Life is **not** what DONNER is about. It is the v1 demonstrator: a
-deterministic in-browser generator of the same event shape, so the
-renderer can be built before files, decode, or a sidecar exist.
+**DONNER is a scientific 3D/XR explorer.** Event-camera streams are one
+source, not the product identity. Conway’s Game of Life is **not** what
+DONNER is about. It is the v1 demonstrator: a deterministic in-browser
+generator of sparse `(x, y, t, v)` so the renderer can be built before
+files, decode, or a sidecar exist.
 
 Keep that split in mind. Life links below are things found while looking
 around — not a literature review, not a claim of novelty, and **not a
@@ -126,8 +126,8 @@ only a **dataset pointer**.
 - **NiiVue demo images** — [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
   (BSD-2-Clause). Low-res `mni152.nii.gz` for browser/phone tests. Local
   copy: `datasets/MRT/mni152.nii.gz`. Converted count cube:
-  `datasets/MRT/mni152_stack.npy` (dense; DONNER culls enclosed voxels
-  at the current slab). NiiVue itself is unrelated to DONNER’s event
+  `datasets/MRT/mni152_stack.npy` (native grid `(215, 256, 207)` uint16;
+  DONNER culls enclosed voxels). NiiVue itself is unrelated to DONNER’s event
   viewer — do not embed it.
 - **ICBM 152 Nonlinear atlases version 2009** — McGill BIC
   ([atlas page](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).

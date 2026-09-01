@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>DONNER | Space-Time Explorer</title>
+  <title>DONNER | 3D & XR Explore</title>
   <meta name="description"
-    content="DONNER is a browser space-time explorer for structured scientific data. Conway's Game of Life and event-camera count stacks share the same volume." />
+    content="DONNER is a browser-native scientific 3D/XR explorer for structured data. Conway, event-camera count stacks, and volumes share the same scene." />
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -26,13 +26,13 @@
 </head>
 
 <body>
-  <canvas id="view" aria-label="Space-time volume"></canvas>
+  <canvas id="view" aria-label="3D volume"></canvas>
 
   <header class="brand">
     <div class="brand-mark" aria-hidden="true">D</div>
     <div>
       <h1>DONNER</h1>
-      <p class="tagline">Space-Time Explorer · M.E.S.S.</p>
+      <p class="tagline">Explore structured data in 3D & XR · M.E.S.S.</p>
     </div>
   </header>
 
@@ -68,6 +68,12 @@
         <input id="ar-yaw" type="range" min="0" max="360" step="1" value="0"
           aria-label="Turntable yaw" disabled />
       </label>
+      <div class="ar-stand" role="group" aria-label="AR stand axis">
+        <span>Stand</span>
+        <button type="button" id="ar-stand-x" class="btn-stand" data-axis="x">X</button>
+        <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
+        <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
+      </div>
       <aside class="stack" aria-label="Slice stack">
         <div class="stack-axis" data-axis="x" id="stack-axis-x">
           <span class="stack-axis-label">X</span>
@@ -141,6 +147,7 @@
       <div class="btn-row">
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
         <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
+        <button type="button" id="btn-extent" class="btn" title="Reset the three clip planes to the full volume. Playhead stays.">Full</button>
       </div>
       <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
         <input id="align-z" type="checkbox" checked />
@@ -151,15 +158,15 @@
         <span>Decay (fade along Z toward oldest drawn)</span>
       </label>
       <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
-        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek as ghost. Clip edges keep the hull.">Hull</button>
-        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Volume is ghost; the active plane stays solid.">Ghost</button>
-        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three cut planes are solid; the hull is ghost.">Triple</button>
+        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
+        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid. Sparse volumes keep a ghost hull; dense cubes show the cut only.">Ghost</button>
+        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three cut planes only. No hull.">Triple</button>
       </div>
       <label id="depth-field" class="field">
         <span>Depth <em id="history-val"></em></span>
         <input id="history" type="range" min="8" max="128" step="1" />
       </label>
-      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Hold a playhead edge to peek as ghost; clip edges keep the hull.</p>
+      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Full opens the clips again. Hold a playhead edge to peek the cut; clip edges keep the hull. Triple is three slices only.</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
     </section>
 
@@ -188,7 +195,7 @@
         <li><i class="swatch osc"></i> Oscillator</li>
         <li><i class="swatch flow"></i> Moving</li>
         <li><i class="swatch unsettled"></i> Unsettled</li>
-        <li><i class="swatch warmup"></i> Warmup</li>
+        <li><i class="swatch base"></i> Base</li>
       </ul>
       <label class="check encoding-count" title="Cube size follows the integer count. Off: occupancy only, color carries the count.">
         <input id="count-size" type="checkbox" />
@@ -250,7 +257,9 @@
         <span>Source</span>
         <select id="source-kind">
           <option value="conway" selected>Conway</option>
-          <option value="count">Count stack</option>
+          <option value="ignition">Ignition</option>
+          <option value="mni152">MNI 152</option>
+          <option value="count">Count file / stream</option>
         </select>
       </label>
       <label class="field">
@@ -289,7 +298,6 @@
       <div id="source-count">
         <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt. Stream from the EVT sidecar or WOLKE (Send as counts).</p>
         <div class="btn-row">
-          <button type="button" id="btn-count-demo" class="btn">Ignition demo</button>
           <label class="btn file-btn">Load .npy
             <input id="count-file" type="file" accept=".npy,application/octet-stream" />
           </label>

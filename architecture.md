@@ -1,13 +1,17 @@
 # DONNER architecture
 
-DONNER is a static browser app: **data source → events → space-time renderer**.
-It is an **event viewer**. Conway is the v1 demonstrator — a cheap generator
-of `(x, y, t, v)` — not the product. The later source is an event camera.
-The renderer must not know which source produced a point.
+DONNER (Dimensional Observation & Navigation: N-dimensional Exploration
+& Rendering) is a static browser app: **source adapter → volume →
+renderer**. It is a **scientific 3D/XR explorer** for structured data,
+not primarily an event-camera viewer. Conway is the demo-shell generator
+of `(x, y, t, v)` — not the product. Event-camera stacks, dense volumes,
+and later streams share the same display. The renderer must not know
+which source produced a point.
 
-**Explore in DONNER. Analyze in BLITZ.** DONNER is a parallel app, not a
-pipeline stage and not a 3D mode of BLITZ. Both consume the same structured
-dataset; they do not share a GUI.
+**Explore in DONNER. Analyze in BLITZ.**
+**WOLKE finds it. DONNER explores it. BLITZ analyzes it.**
+DONNER is a parallel app, not a pipeline stage and not a 3D mode of
+BLITZ. Both consume the same structured dataset; they do not share a GUI.
 
 ```mermaid
 flowchart TB
@@ -27,15 +31,33 @@ flowchart LR
     conway[Conway simulation]
     count[EVT count stack npy]
     stream[WOLKE contract]
-    mri[MRI npy later]
+    mri[MNI 152 npy]
   end
   conway --> soa[Event SoA x y t v]
   count --> soa
   stream --> count
   mri --> soa
-  soa --> rend[Space-time renderer]
+  soa --> rend[Cube renderer]
   rend --> view[Three.js scene]
 ```
+
+## Now vs later
+
+**Now (runtime):** source addon → encoding adapter → `EventSoA` → cube
+renderer. `CountVolume` keeps event-count semantics (non-negative
+integers, occupancy). Conway / count / MNI still unpack into the same
+SoA. The demo shell may offer Conway, Load `.npy`, Stream, and AR/XR;
+that showcase UI is not the internal architecture.
+
+**Later (after a public preview):** a Dataset Contract so axis roles,
+units, spacing, affine, and value semantics are not hardcoded.
+`ScalarVolume` for generic scientific volumes (MRI/CT, including
+negative Hounsfield units). Point renderer for large sparse clouds.
+WETTER Viewer Contract (packed selection / `viewer_index`). See
+[Later: Dataset Contract](#later-dataset-contract).
+
+Do not start that contract, `ScalarVolume`, or a PointRenderer in the
+same slice as finishing XR-C or shipping a public preview.
 
 ## Layers
 
@@ -71,8 +93,8 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, **Planes** toggle, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
-| **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/warmup + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
+| **Source** | Kind switch. Conway / Ignition / MNI 152 / Count file-stream. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/base + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
 
 **Play** is one display button, always visible outside the sheets.
@@ -158,14 +180,13 @@ flowchart LR
   countLoad[Count source Load npy]
   soaMri[EventSoA]
   cubesMri[Cubes]
-  nii -->|"one-shot 4x dense"| mniNpy --> countLoad --> soaMri --> cubesMri
+  nii -->|"native dense uint16"| mniNpy --> countLoad --> soaMri --> cubesMri
 ```
 
-MRI is a **later** source addon, not a second product. A public low-res T1
-is already converted to a count-shaped `.npy` (see
+MRI is a **later** source addon, not a second product. A public T1
+is converted to a count-shaped `.npy` (see
 [MRI volume (later)](#mri-volume-later)). There is no NIfTI parser in the
-browser and no MRI source kind yet. Load it today with Source → Count
-stack → **Load .npy**.
+browser. Source → **MNI 152** loads the native-grid hull.
 
 ```mermaid
 flowchart TB
@@ -202,9 +223,15 @@ Z (time) and does not drive that spatial fade.
 
 ## Mapping
 
-Product axes are **X, Y = playfield**, **Z = time**. Three.js is Y-up, so
-the engine stores product `(X, Y, Z)` as world `(X, Z, Y)`. UI copy always
-uses product names. See README *Axes*.
+Product axes **default for Conway and EVT count stacks** are **X, Y =
+playfield**, **Z = time**. Three.js is Y-up, so the engine stores product
+`(X, Y, Z)` as world `(X, Z, Y)`. UI copy always uses product names. See
+README *Axes*.
+
+This is an XYT **source default**, not a core invariant. Dense MRI is
+spatial on X, Y, and Z; the playhead can already walk any axis. Do not
+bake “Z is time” into a future core. Axis role belongs on a later
+Dataset Contract.
 
 ```mermaid
 flowchart LR
@@ -220,7 +247,7 @@ flowchart LR
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
 | Time | generation | bin index (Δt slice) | Z (Now at 0; playhead walks the stack) | world Y |
 | Value | alive = 1 | integer count | — | `v` |
-| Dynamics | still / osc / moving / unsettled / warmup | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
+| Dynamics | still / osc / moving / unsettled / base | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
 not the destination. The first event-camera path is an EVT **count** cube
@@ -254,7 +281,7 @@ This split matches the later event-camera design:
   position on the tape. Count **Play** auto-scrubs that playhead.
 - **Decay** — on: fade to 0 at the oldest drawn slice. Off: even brick.
 - **Encoding** — color and fill from the source adapter (Conway: worldline
-  class still / oscillator / moving / unsettled / warmup; count: integer rungs)
+  class still / oscillator / moving / unsettled / base; count: integer rungs)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
@@ -264,15 +291,16 @@ tube** — the curve through XY+Z. Soup and one-shot births are violet
 a cell for a few gens looks still/osc on that worldline. Occupancy-only
 (Neighborhood **None**, the default) is enough for Blinker/Toad. Still/osc vs
 glider tubes need a 3×3 or 5×5 centroid that stays put (net shift over two
-generations). Translating activity is then **moving**. Generations `t = 0, 1`
-are **warmup** (gray). Cube **scale** follows Stability **None / Time / Focus**.
+generations). Translating activity is then **moving**. **Base** (gray) is
+generations `t = 0, 1` and the first cube of each `(x, y)` worldline.
+Cube **scale** follows Stability **None / Time / Focus**.
 Decay is brightness only.
 
 ```mermaid
 flowchart TD
   live[Live cell at t]
-  live --> wu{t less than 2}
-  wu -->|yes| warmup[Warmup gray]
+  live --> wu{t less than 2 or first live on this xy}
+  wu -->|yes| base[Base gray]
   wu -->|no| mot{Neighborhood centroid translated}
   mot -->|yes| moving[Moving coral]
   mot -->|no| prev{Live at t-1}
@@ -377,14 +405,15 @@ flowchart TB
 
 | Mode | Idle | Playhead drag | Clip drag |
 |------|------|---------------|-----------|
-| **Hull** (default) | AABB outer hull solid | Temporary ghost peek | Stays hull (stake the box) |
-| **Ghost** | AABB ghost, active plane solid | unchanged | Hull while dragging |
-| **Triple** | Three cut planes solid, hull ghost | unchanged | Hull while dragging |
+| **Hull** (default) | AABB outer hull solid | Temporary peek (Ghost, or Slice on dense count) | Stays hull (stake the box) |
+| **Ghost** | Sparse: AABB ghost, active plane solid. Dense: the cut only | unchanged | Hull while dragging |
+| **Triple** | Three cut planes solid, no hull | unchanged | Hull while dragging |
 
 Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
 shows the hull so the crop is readable. Dense MRI never instantiates interior
 voxels (6-neighbor cull against the AABB). Ghost/Triple emit interiors
-only if they sit on a playhead plane.
+only if they sit on a playhead plane. Triple never emits the hull; dense Ghost
+is that one plane only.
 
 ```mermaid
 flowchart LR
@@ -397,8 +426,9 @@ flowchart LR
   end
   subgraph draw [Solid vs ghost]
     hullMode[Hull: hull solid]
-    ghostMode[Ghost: hull ghost, active plane solid]
-    tripleMode[Triple: three planes solid, hull ghost]
+    ghostMode[Ghost sparse: hull ghost, active plane solid]
+    sliceMode[Ghost dense / Slice: active plane only]
+    tripleMode[Triple: three planes solid, no hull]
   end
   emit --> draw
 ```
@@ -408,7 +438,8 @@ Phone: three horizontal tracks (Z with Now at the right). AR overlay
 stays Z-only.
 
 Inspect generations outside the AABB are **not drawn**. **Fit** frames
-that box. Live: only the Z playhead exists (locked at Now). Fog
+that box. **Full** opens the three clip windows again (playhead stays).
+Live: only the Z playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
 
@@ -420,12 +451,14 @@ without a vanishing point. Escape turns parallax back on. `B` alone does
 **not** hide the slab (technical drawing). A viewcube **face** sets
 `planeLock`: that product axis, ortho fitted to the slice rectangle,
 that plane's frame and cell grid only. Wheel zooms; Shift+wheel pages;
-right-drag pans. A click on the cut does nothing. `B` leaves the cut.
+clicking the **same face** pages the stack (does not refit). Right-drag
+pans. A click on the cut does nothing. `B` leaves the cut.
 
 A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
 HUD card (desktop orbit only). Six axis-colored **face frames** (X
 cornflower, Y maize, Z mint), a rim, and X/Y/Z labels on the + faces.
-Hover lights the face; click enters the 2D cut. **Planes** under the cube
+Hover lights the face; click enters the 2D cut. Clicking the **same face**
+pages like Shift+wheel (zoom/pan stay). **Planes** under the cube
 toggles the 3D playhead/clip frames (default on). Wheel zooms, right-drag
 pans, Shift+wheel pages. `B` restores perspective and the drawn slab.
 The stack
@@ -555,7 +588,7 @@ grow the DOM.
 | File | Role |
 |------|------|
 | `src/conway.js` | B3/S23, seeds, wrap — port of BLITZ `blitz/data/conway.py` |
-| `src/dynamics.js` | Worldline class still / oscillator / moving / unsettled / warmup |
+| `src/dynamics.js` | Worldline class still / oscillator / moving / unsettled / base |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
 | `src/frame.js` | Playhead/clip insets, screen-space edge pick (~28 px rim) |
@@ -624,12 +657,75 @@ monolithic NPZ is still a transport container — do not teach the renderer
 to read NPZ. Polarity / occupancy / states views of the same ON/OFF
 planes are later encodings, not extra parsers.
 
+Keep `CountVolume` for event-count semantics. Do not stretch it into a
+generic scientific volume (CT Hounsfield units can be negative; MRI is
+float intensity). A later **ScalarVolume** owns that path.
+
+## Later: Dataset Contract
+
+Not this slice. Public preview first. Then, before many more sources:
+
+```mermaid
+flowchart TB
+  src[Source]
+  adapter[Source adapter in DONNER]
+  contract[Dataset Contract]
+  core[DONNER core]
+  rend[Renderer]
+  src --> adapter --> contract --> core --> rend
+  rend --> desk[Desktop]
+  rend --> mob[Mobile]
+  rend --> ar[AR]
+  rend --> xr[XR]
+```
+
+A dataset describes at least: id, name, kind, shape, axes (label, role,
+unit, spacing), transform / affine, value semantics (dtype, unit, range),
+and payload. Examples: event camera `Z → temporal, µs`; CT
+`X/Y/Z → spatial, mm`, value Hounsfield; MRI value intensity.
+
+**Source adapter** (in DONNER): Conway, NPY, event count, later scalar
+volume, WOLKE. **Sidecar / bridge** (outside): EVT3, DICOM, NIfTI,
+screening, stream. DONNER does not decode every proprietary format in
+the browser.
+
+```text
+NPY / NPZ / WOLKE / sidecar / stream
+        → adapter → Dataset Contract → DONNER
+```
+
+NPY stays a WETTER interchange. NPZ and an optional `dataset.json`
+manifest are later transport, not the runtime. The demo shell can keep
+several adapters; a productive deploy can expose one source and a
+thinner UI.
+
+WOLKE’s current viewer protocol (`send_file_message`, `file_name`,
+`index`, later `__selection__.npy` / `viewer_index`) should become a
+**WETTER Viewer Contract** shared with BLITZ — not a BLITZ-only API.
+
+```mermaid
+flowchart TB
+  wolke[WOLKE]
+  contract[WETTER Viewer Contract]
+  donner[DONNER Explore]
+  blitz[BLITZ Analyze]
+  wolke --> contract
+  contract --> donner
+  contract --> blitz
+```
+
+XR-B AprilTag comes after this contract exists. A marker may carry
+dataset identity (resolved via WOLKE / sidecar — never secrets in the
+tag) and a spatial origin (pose, metric scale).
+
 ## Delivery (product / renderer / shells)
 
-**DONNER** is the product: EventSoA, focus plane, isolation, later XR.
+**DONNER** is the product: structured volume, focus plane, isolation, XR.
 **Three.js cubes** are the current engine, not the name. A later points /
 shader path — or a native GPU backend if WebGL/WebGPU is *measured* to
-fail — keeps `setEvents(...)`. Do not port DONNER into BLITZ/PyQtGraph.
+fail — keeps `setEvents(...)`. A volume-texture pass is only if dense
+scalar volumes justify it. Do not port DONNER into BLITZ/PyQtGraph.
+Do not start a second renderer before a public preview is usable.
 
 Three shells around the same core, in order, not in parallel:
 
@@ -646,7 +742,7 @@ flowchart TB
   subgraph shells [Shells]
     demo[Static demo URL]
     desk[Desktop wrap later]
-    xr[WebXR Quest later]
+    xr[WebXR immersive-ar]
   end
   src --> soa
   soa --> three
@@ -748,8 +844,8 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Decay, slice axis, Inspect playhead | `setEvents` (decay/focus still CPU-baked) |
-| source | Conway step, paint, live wake moved, enter Inspect, **Z slab** | `fillSoA` of **Depth** (live) or the **slab** (inspect), then `setEvents` |
+| view | Decay, slice axis, Inspect **Hull** playhead | `setEvents` when instances change; Hull + Decay off skips even that (clip meshes only) |
+| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Triple** | `fillSoA` of **Depth** (live) or the **slab** (inspect), then `setEvents` |
 | encoding | Stability, Bench flags | same as source |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
 | ring | Depth | wake `GenerationRing.resize` (keep newest slices) |
@@ -825,46 +921,52 @@ not copy these Node numbers as frame rate.
 
 Anatomical MRI is a dense `(x, y, z)` cube. DONNER still consumes
 `EventSoA` cubes — **not** a NIfTI viewer. Do **not** embed NiiVue (different
-camera, chrome, and contract). A 3D-texture / raymarch “glass brain” is a
-later renderer behind the same stage, only if a measured slab of cubes is
-not enough.
+camera, chrome, and contract). Do not build a DICOM/PACS workstation.
+A 3D-texture / raymarch “glass brain” is a later renderer behind the same
+stage, only if a measured slab of cubes is not enough. Affine, spacing,
+and a `ScalarVolume` (not `CountVolume`) are the next MRI/CT path — after
+the Dataset Contract, not as a medical-imaging product.
 
-There is **no** MRI source kind and **no** NIfTI parser in the browser.
-The public demo is a one-shot convert to the count interchange
-`(T, H, W)` uint16. Load it with Source → Count stack → **Load .npy**.
-Until a dedicated kind exists, Count **Play** walks the **active**
-playhead (X, Y, or Z). Clips start at **full extent**, focus in the
+There is **no** NIfTI parser in the browser. The public T1 is a one-shot
+convert to the count interchange `(T, H, W)` uint16. Source → **MNI 152**
+loads it. Count **Play** walks the **active** playhead (X, Y, or Z).
+Clips start at **full extent**, focus in the
 middle. Decay is off on dense stacks (a time-fade on anatomy is wrong).
 
 ```mermaid
 flowchart TB
   dense[Dense mni152_stack npy]
-  aabb[AABB crop from three clip windows]
-  cull[Emit if 6-neighbor air or AABB hull]
+  hull[Hull index cache at load]
+  aabb[AABB crop]
   soa[EventSoA]
   cubes[Instanced cubes]
-  dense --> aabb --> cull --> soa --> cubes
+  dense --> hull --> soa --> cubes
+  aabb -->|clip window| faces[Hull cache plus AABB faces]
+  faces --> soa
 ```
+
+Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. Sparse Ghost copies that hull plus the active plane. Dense Ghost / Triple emit only the cut plane(s).
 
 **Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
 [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
 (BSD-2-Clause wrapper; derived from [ICBM 152 NLin 2009](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
-Converted file: `datasets/MRT/mni152_stack.npy` — **dense** 4× stack
-`(54, 64, 52)`, intensity 1…32. Do not vendor either file in this repo.
-Check ICBM terms before shipping a derived `.npy`.
+Converted file: `datasets/MRT/mni152_stack.npy` — **dense** native grid
+`(215, 256, 207)` uint16, intensity 1…32 (~23 MB). Do not vendor the
+binary in this repo (symlink `data/mni152_stack.npy`). Check ICBM terms
+before shipping a derived `.npy`.
 
 **SHIP working data** under `datasets/MRT/raw image/` and
 `Segmentierungen/` stays on disk only. Do not copy subject NIfTIs or
 masks into DONNER git.
 
 **Cube budget** is occupancy, not INST. Ignition is ~70k cubes at **3 %**
-fill — a sparse cloud. A 4× MNI brick is ~84k at **47 %**: ~75k interiors
-overdraw if every voxel is a Lambert cube (`bound GPU fill`, ~200 ms).
+fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
 `CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
-**and** inside the AABB. Idle Hull is an outer hull of the crop. Ghost
-and Triple also emit voxels that sit on a playhead plane (never a full
-interior brick). Play steps the **active** playhead; it does not slide
-an 8-slice window. Affine / RAS is ignored — the gizmo is array X/Y/Z.
+**and** inside the AABB, so idle Hull is ~140k surface cubes (under the
+200k default cap). Those hull indices are cached at load; a full-brick
+Hull fill copies the cache instead of walking 5.4M occupied cells.
+Dense **Ghost** is the active plane only; **Triple** is the three planes
+(no hull). Sparse Ghost still adds the hull as glass. Play/Loop steps the **active** playhead. Affine / RAS is ignored — the gizmo is array X/Y/Z.
 
 Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
 root:
@@ -883,7 +985,7 @@ nx, ny, nz = int(dim[1]), int(dim[2]), int(dim[3])
 vol = np.frombuffer(raw[off:off + nx * ny * nz], dtype=np.uint8).reshape(
     (nx, ny, nz), order="F"
 )
-stack = np.ascontiguousarray(np.transpose(vol[::4, ::4, ::4], (2, 1, 0)))
+stack = np.ascontiguousarray(np.transpose(vol, (2, 1, 0)))
 mx = int(stack.max())
 out = np.zeros(stack.shape, dtype=np.uint16)
 if mx > 0:
@@ -919,24 +1021,31 @@ flowchart LR
    `viewer_index`, and EVT3-in-browser are later. An anatomical MRI cube
    is also later: same `.npy` interchange, not a NIfTI parser — see
    [MRI volume (later)](#mri-volume-later).
-3. **XR** — same scene, WebXR only. **XR-A is opened:** passthrough,
-   plane hit-test (tap a table to place, then lock the session origin),
-   viewer-front fallback. After lock, **Yaw** turns the pillar on the
-   table (product Z; gen 0 stays put). Then walk with the phone.
-   The volume is a pillar: gen 0 on the table,
-   **Play** grows the tape up, Z clips a segment in place. The DOM overlay is `#xr-overlay`
-   (Play / Z / Size / Yaw / Exit), not `document.body`. Next
-   is XR-B marker origin, then XR-C Quest 3 passthrough. Detail in
-   [backlog.md](backlog.md). Do not start a new renderer in the same
-   slice as XR.
+3. **XR** — same scene, WebXR only. **XR-A is opened** (phone ceiling):
+   passthrough, plane hit-test (gold reticle tap re-places on a table),
+   viewer-front preview from the first frame (locks after a short wait if
+   no plane). After lock, **Yaw** turns the volume on the
+   table. Then walk with the phone as an IMU window. Default **stand** is
+   product Z (time up, gen 0 on the table); HUD **X / Y / Z** chooses which
+   product plane is the table. **Play** grows the tape along time; bounding
+   frames stay visible so you can walk the box; poke a cube to Ghost-isolate
+   the standing plane. Phone chrome is the DOM
+   overlay `#xr-overlay` (Play / Stand / Size / Yaw / Exit), not
+   `document.body`. **XR-C-0 is in:** Quest uses the same session; after
+   lock a **Play / stand X·Y·Z / Exit** plate parks at eye height (it does
+   not follow the growing pillar). Thumbstick yaws; both grips pinch size.
+   Headset-only — phone `screen` overlay is unchanged. XR-B marker, hand
+   tracking, and wrist attach are later and do not gate C0. Detail in
+   [backlog.md](backlog.md).
+   Do not start a new renderer in the same slice as XR.
 4. **Integration** — WOLKE-contract stream is in (sidecar / WOLKE →
    DONNER count cube). Later: Open in DONNER / send space-time ROI back
    to BLITZ. No shared widgets.
 
 Product **Z** (time) already stands on the playfield plane, so a table
-is a natural origin. In AR the **oldest slice** (gen 0 / tape start)
-sits on the table and **Play** grows the tape up as a pillar; Z clips a
-segment in place (it does not slide that chunk onto the table). Phone
+is a natural origin. In AR the **chosen stand plane** sits on the table
+(default Z: oldest slice / gen 0). **Play** grows the tape along time;
+clips crop in place. Phone
 orbit is still the non-AR fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
@@ -961,69 +1070,67 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  subgraph phone [Phone tabletop AR]
-    sess[Session: passthrough]
-    hit[Hit-test: tap table, lock pillar at 0]
-    yaw[Yaw around table Z]
-    walk[Walk around with phone as window]
-    sess --> hit --> yaw --> walk
-  end
-  subgraph marker [Marker origin]
-    tag[AprilTag or printed playfield frame]
-    seed[Optional: print is Conway seed]
-    tag --> seed
-  end
-  subgraph quest [Quest 3 passthrough MR]
-    table[Volume sits on real table]
-    explore[Walk through stack; hands later]
-    table --> explore
-  end
-  phone --> marker
-  marker --> quest
+  enter[enterAr immersive-ar]
+  place[Hit-test place and lock]
+  volume[stage then stand then turntable]
+  overlay[XR-A DOM overlay screen]
+  hud[XR-C-0 parked Play stand Exit]
+  frames[Bounding frames plus poke]
+  hands[XR-C-1 hand or grip later]
+  marker[XR-B marker origin later]
+  enter --> place --> volume
+  volume --> overlay
+  volume --> hud
+  volume --> frames
+  hud --> hands
+  place -.-> marker
 ```
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Plane hit-test (gold reticle, tap to place then lock); yaw on the table; pillar at gen 0; Z clips in place; viewer-front if hit-test is missing | Android Chrome; iPhone only if WebXR AR exists |
-| **XR-B** | AprilTag or printed playfield (optional Conway seed) | Same phone AR; marker reused on Quest |
-| **XR-C** | Hit-test and/or marker | Quest 3 passthrough; hands / Z scrub later |
+| **XR-A** | Viewer-front preview immediately; plane hit-test re-places (gold reticle); lock after tap or if no plane; yaw on the table; stand X/Y/Z; bounding frames; voxel poke isolates the standing plane. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-B** | AprilTag or printed playfield (optional Conway seed) | Later; same phone AR; marker reused on Quest. Not a gate for C0. |
+| **XR-C-0** | Same hit-test / viewer-front as XR-A | Quest: parked Play/stand/Exit plate; stick yaw; grip-pinch size; frames + poke |
+| **XR-C-1** | Same | Later: hands, wrist attach |
 
 ## WETTER context
 
 ```text
-                  LARGE DATA SPACE
-                         |
-                         v
-                DAMPF / KEIM / WOLKE
-                         |
-                  structured data
-                         |
-              +----------+----------+
-              |                     |
-              v                     v
-           DONNER                 BLITZ
-        Explore 3D/XR          Analyze 2D
-              |                     |
-              +----------+----------+
-                         |
-                     Insight
-                         |
-                  new selection
+                  DATA SPACE
+                      |
+                      v
+         DAMPF → KEIM → WOLKE
+                      |
+            +---------+---------+
+            |                   |
+            v                   v
+         DONNER               BLITZ
+       3D / XR Explore      2D / Analyze
+            |                   |
+            +---------+---------+
+                      |
+                   Insight
+                      |
+                new selection
 ```
+
+DONNER: **Explore structured data in 3D & XR.**
+BLITZ: **Analyze scientific image and matrix data.**
 
 ```text
 Image → matrix
 Matrix → dynamic state
 Time series → space-time volume
 Event stream → sparse space-time point cloud
+Scalar volume → spatial XYZ (MRI/CT)
 Browser / XR → explore that structure
 ```
 
 ## Related work
 
-DONNER is an event viewer. Conway is only the v1 generator of sparse
-events. Stacking Life along a time axis is not a new picture, and it is
-not the product. See [`docs/related.md`](docs/related.md) — things found
+DONNER is a scientific 3D/XR explorer. Conway is only the v1 generator of
+sparse events. Stacking Life along a time axis is not a new picture, and
+it is not the product. Event-camera data is one source, not the identity. See [`docs/related.md`](docs/related.md) — things found
 while looking around, not influences. The internal Life reference while
 the demonstrator is in the tree is Wolfram 2025 (same page); it is not a
 spec for DONNER.

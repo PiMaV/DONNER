@@ -2,7 +2,7 @@
  * Worldline dynamics class for a live cell at generation t.
  *
  * Time stays on Z; color encodes still / oscillator / moving / unsettled /
- * warmup. Oscillation is occupancy along Z (cubes appear / vanish), not extra
+ * base. Oscillation is occupancy along Z (cubes appear / vanish), not extra
  * hues.
  *
  * Occupancy alone is not enough: a glider crawls over the same cell for
@@ -14,16 +14,19 @@
  * Conway-only. Event-camera color is a later adapter; do not assume this
  * legend for polarity streams.
  *
- * Generations 0 .. CLASSIFY_AFTER-1 are warmup (too little past).
+ * Gray **base**: generations 0 .. CLASSIFY_AFTER-1, and the first live cube
+ * of each (x, y) worldline.
  */
 
 export const KIND_STILL = 0;
 export const KIND_OSC = 1;
 export const KIND_MOVING = 2;
-export const KIND_WARMUP = 3;
+export const KIND_BASE = 3;
 export const KIND_UNSETTLED = 4;
+/** @deprecated Use KIND_BASE. */
+export const KIND_WARMUP = KIND_BASE;
 
-/** Generations 0 .. CLASSIFY_AFTER-1 are unclassified. */
+/** Generations 0 .. CLASSIFY_AFTER-1 are unclassified (base gray). */
 export const CLASSIFY_AFTER = 2;
 
 /** Occupancy oscillator and board-ash cycle cap (pulsar / pentadecathlon). */
@@ -51,7 +54,7 @@ export function classifyWorldline(alive1, alive2, alive3) {
  * Smallest occupancy period p in 2..maxP for a live cell at t.
  * Period 1 (always on) is Still — not returned here.
  * p=2 uses the short teaching window (from gen 2). p>=3 needs 2p samples.
- * Too little history returns 0 (unsettled), not warmup.
+ * Too little history returns 0 (unsettled), not base.
  */
 export function occupancyPeriod(t, packed, isLive, maxP = MAX_OSC_PERIOD) {
   const live = (g) => !!isLive(g, packed);
@@ -136,11 +139,21 @@ export function neighborhoodTranslated(t, packed, isLive, bounds, radius = MOTIO
   return Math.hypot(dx, dy) > MOTION_THRESH;
 }
 
+/** True when this live cell is the first cube on its (x, y) worldline. */
+export function isWorldlineOrigin(t, packed, isLive) {
+  const tt = t | 0;
+  if (tt <= 0) return true;
+  for (let g = 0; g < tt; g++) {
+    if (isLive(g, packed)) return false;
+  }
+  return true;
+}
+
 /**
  * @param {{ neighborhood?: boolean, neighborhoodRadius?: number }} [opts]
  */
 export function kindAt(t, packed, isLive, bounds, opts = {}) {
-  if (t < CLASSIFY_AFTER) return KIND_WARMUP;
+  if (t < CLASSIFY_AFTER || isWorldlineOrigin(t, packed, isLive)) return KIND_BASE;
   const radius = kindOptsRadius(opts);
   if (radius > 0 && neighborhoodTranslated(t, packed, isLive, bounds, radius)) {
     return KIND_MOVING;
@@ -154,7 +167,7 @@ export function kindAt(t, packed, isLive, bounds, opts = {}) {
 export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS, bounds, kindOpts = {}) {
   if (!isLive(t, packed)) return 0;
   const k0 = kindAt(t, packed, isLive, bounds, kindOpts);
-  if (k0 === KIND_MOVING || k0 === KIND_UNSETTLED || k0 === KIND_WARMUP) return 0;
+  if (k0 === KIND_MOVING || k0 === KIND_UNSETTLED || k0 === KIND_BASE) return 0;
   let n = 1;
   while (n < cap) {
     const tp = t - n;
@@ -174,6 +187,6 @@ export function stabilityScale(stab, cap = MAX_STAB_GENS) {
 /** Cube fill on the focus slice; 0 if there is no event. */
 export function cubeFill(event, stabMode) {
   if (!event) return 0;
-  if (stabMode === "none" || (event.k | 0) === KIND_WARMUP) return SCALE_UNIFORM;
+  if (stabMode === "none" || (event.k | 0) === KIND_BASE) return SCALE_UNIFORM;
   return stabilityScale(event.s);
 }

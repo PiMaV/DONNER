@@ -9,9 +9,14 @@ import {
   immersiveArSessionInit,
   isImmersiveArSupported,
   arBottomLift,
+  arStandLift,
   clampArMag,
-  requestViewerHitTestSource,
+  quatFromTo,
   rotateVecByQuat,
+  standQuatFromAxis,
+  volumeLocalAabb,
+  requestViewerHitTestSource,
+  shouldFallbackArPlace,
   translationFromMatrix4,
   viewerFrontPosition,
   xrStageScale,
@@ -38,6 +43,29 @@ describe("arBottomLift", () => {
   it("raises the stage so the oldest drawn Y sits on the table", () => {
     assert.equal(arBottomLift(-48, 0.0125), 48 * 0.0125);
     assert.equal(arBottomLift(0, 0.0125), 0);
+  });
+});
+
+describe("stand axis", () => {
+  it("is identity when product Z already stands on the table", () => {
+    const q = standQuatFromAxis("z");
+    assert.equal(q.x, 0);
+    assert.equal(q.y, 0);
+    assert.equal(q.z, 0);
+    assert.equal(q.w, 1);
+  });
+
+  it("rotates product X onto world +Y", () => {
+    const q = quatFromTo({ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+    const v = rotateVecByQuat({ x: 1, y: 0, z: 0 }, q);
+    assert.ok(Math.abs(v.x) < 1e-6);
+    assert.ok(Math.abs(v.y - 1) < 1e-6);
+    assert.ok(Math.abs(v.z) < 1e-6);
+  });
+
+  it("matches arBottomLift when the pillar still stands on Z", () => {
+    const box = volumeLocalAabb(32, 32, -48, 0, 1);
+    assert.equal(arStandLift("z", box, 0.0125), arBottomLift(-48, 0.0125));
   });
 });
 
@@ -139,6 +167,22 @@ describe("translationFromMatrix4", () => {
 
   it("returns origin when the matrix is missing", () => {
     assert.deepEqual(translationFromMatrix4(null), { x: 0, y: 0, z: 0 });
+  });
+});
+
+describe("shouldFallbackArPlace", () => {
+  it("waits a moment when hit-test was not granted", () => {
+    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: false, waitedMs: 0 }), false);
+    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: false, waitedMs: 400 }), true);
+  });
+
+  it("waits longer when hit-test is granted but finds no plane", () => {
+    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: true, waitedMs: 400 }), false);
+    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: true, waitedMs: 1600 }), true);
+  });
+
+  it("does not move a locked volume", () => {
+    assert.equal(shouldFallbackArPlace({ locked: true, hasHitTest: false, waitedMs: 8000 }), false);
   });
 });
 

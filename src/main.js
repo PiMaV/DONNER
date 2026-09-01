@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, hexCss } from "./config.js";
 import {
   BENCH_PRESETS,
   PathTimer,
@@ -13,10 +13,10 @@ import {
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
 import { countVolumeFromNpy, isDenseCount } from "./count.js";
-import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex } from "./encoding.js";
+import { CONWAY_KIND_HEX, CONWAY_BASE_K, countKindHex } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
-import { cellFromWorldXZ } from "./observe.js";
+import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import { io } from "../vendor/socket.io/socket.io.esm.min.js";
 import { WolkeViewer } from "./wolke.js";
@@ -36,11 +36,18 @@ import {
 import {
   aabbFromSlabs,
   axisIndexFromBack,
+  backFromWorldCoord,
   clampSlab,
+  denseGhostToSlice,
   effectiveShade,
   fociFromSlabs,
+  inspectRebuildKey,
+  focusBackFromVoxel,
   normalizeSliceAxis,
   productViewDir,
+  resetSlabClips,
+  lockedFaceAction,
+  lockedFacePageStep,
   slabGenerations,
   sliceMaxBack,
   sliceOnlyFromPlaneLock,
@@ -48,9 +55,12 @@ import {
   zBackWorldY,
 } from "./axes.js";
 import {
+  FRAME_PICK_M,
   FRAME_PICK_PX,
+  closestAxisCoord,
   closestTOnSegment2,
   distPointToSegment2,
+  distRayToSegment3,
   pickOverlappingFrameHit,
   screenAxisDragMap,
   screenAxisDragStep,
@@ -83,14 +93,39 @@ import { ViewGizmo, gizmoOnScreen } from "./gizmo.js";
 import {
   XR_BOARD_METERS,
   XR_MAG_DEFAULT,
-  arBottomLift,
+  arStandLift,
   clampArMag,
   isImmersiveArSupported,
+  normalizeStandAxis,
   requestImmersiveAr,
   requestViewerHitTestSource,
+  shouldFallbackArPlace,
+  standQuatFromAxis,
   viewerFrontPosition,
+  volumeLocalAabb,
   xrStageScale,
 } from "./xr.js";
+import {
+  HUD_BACK,
+  HUD_WIDGETS,
+  XR_PINCH_MIN_M,
+  distance3,
+  gripPressed,
+  hudActionFromHit,
+  hudWidgetColor,
+  isHeadsetArSession,
+  magFromPinch,
+  parkHudPose,
+  pickHudWidget,
+  rayFromPose,
+  strongestStickX,
+  thumbstickXFromAxes,
+  trackedInputSources,
+  widgetCenter,
+  widgetSize,
+  worldRayToLocal,
+  yawDeltaFromStick,
+} from "./xr-hud.js";
 
 const canvas = document.getElementById("view");
 const hudViewEl = document.getElementById("hud-view");
@@ -131,18 +166,48 @@ scene.fog = fog;
 const stage = new THREE.Group();
 stage.name = "stage";
 scene.add(stage);
+const stand = new THREE.Group();
+stand.name = "stand";
+stage.add(stand);
 const turntable = new THREE.Group();
 turntable.name = "turntable";
-stage.add(turntable);
+stand.add(turntable);
 const reticle = createArReticle();
 scene.add(reticle);
-const xrSelect = renderer.xr.getController(0);
-xrSelect.addEventListener("select", onArSelect);
-scene.add(xrSelect);
+let xrHud;
+try {
+  xrHud = createXrHud();
+} catch (err) {
+  console.warn("XR HUD init failed", err);
+  xrHud = new THREE.Group();
+  xrHud.name = "xr-hud";
+  xrHud.visible = false;
+  xrHud.userData.widgetMeshes = {};
+}
+scene.add(xrHud);
+const xrControllers = [0, 1].map((i) => {
+  const ctrl = renderer.xr.getController(i);
+  ctrl.addEventListener("select", onArSelect);
+  ctrl.addEventListener("selectstart", onArSelectStart);
+  ctrl.addEventListener("selectend", onArSelectEnd);
+  scene.add(ctrl);
+  ctrl.add(createXrRay());
+  return ctrl;
+});
+const xrGrips = [0, 1].map((i) => {
+  const grip = renderer.xr.getControllerGrip(i);
+  scene.add(grip);
+  return grip;
+});
 const _xrPos = new THREE.Vector3();
 const _xrQuat = new THREE.Quaternion();
 const _xrScale = new THREE.Vector3();
 const _xrUp = new THREE.Vector3();
+const _xrDir = new THREE.Vector3();
+const _arTip = new THREE.Vector3();
+const _hudWorldPos = new THREE.Vector3();
+const _hudWorldQuat = new THREE.Quaternion();
+const _gripB = new THREE.Vector3();
 const arAnchorPos = new THREE.Vector3();
 const arAnchorQuat = new THREE.Quaternion();
 const _hitLocal = new THREE.Vector3();
@@ -251,6 +316,7 @@ let activeAxis = DEFAULTS.sliceAxis;
 let shadeMode = DEFAULTS.shadeMode;
 let shadeHeld = false;
 let planeLock = false;
+let planeLockSign = 1;
 let showPlanes = true;
 let slabs = {
   x: { near: 0, focus: 0, far: 0 },
@@ -284,12 +350,19 @@ let stoppedStable = false;
 /** Newest-first copies of recent grids (`[0]` = t-1) for ash cycle detection. */
 const gridHistory = [];
 let arPlacePending = false;
+let arHitStartedAt = 0;
 let arHitTestSource = null;
 let arPlaced = false;
 let arUseHitTest = false;
 let arAnchored = false;
 let arLocked = false;
+let arHeadsetHud = false;
+let arHudParked = false;
+let arPinch = null;
 let arMag = XR_MAG_DEFAULT;
+let arStandAxis = "z";
+let arFrameDrag = null;
+let arPlanePoke = false;
 let turntableYaw = 0;
 let yawDrag = null;
 
@@ -304,6 +377,7 @@ const ui = bindUI({
   toggleEdit,
   toggleParallax,
   fitVolume,
+  resetClips: resetClipExtent,
   alignZ: () => {
     alignZ = ui.getConfig().alignZ;
     syncOrbitPan();
@@ -377,9 +451,6 @@ const ui = bindUI({
   sourceKind: () => {
     switchSource(ui.getConfig().sourceKind);
   },
-  countDemo: () => {
-    loadCountDemo();
-  },
   countFile: (file) => {
     loadCountFromFile(file);
   },
@@ -397,6 +468,7 @@ const ui = bindUI({
     arMag = clampArMag(ui.getArMag());
     applyArStagePose();
   },
+  arStand: (axis) => setArStandAxis(axis),
 });
 
 function activeCamera() {
@@ -501,9 +573,13 @@ function cropFoci() {
 }
 
 function inspectShade() {
-  if (!inspectMode() || arPresenting()) return null;
+  if (!inspectMode()) return null;
+  if (arPresenting() && !arPlanePoke && !arFrameDrag) return null;
   if (planeDrag && planeDrag.handle !== "focus") return "hull";
-  return effectiveShade(shadeMode, shadeHeld);
+  if (arFrameDrag && arFrameDrag.handle !== "focus") return "hull";
+  const dense = sourceId === "count" && isDenseCount(countVol);
+  if (arPlanePoke) return denseGhostToSlice("ghost", dense);
+  return denseGhostToSlice(effectiveShade(shadeMode, shadeHeld), dense);
 }
 
 function railUi(axis) {
@@ -573,6 +649,109 @@ function createArReticle() {
   return group;
 }
 
+function createXrRay() {
+  const geom = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, -0.7),
+  ]);
+  const line = new THREE.Line(
+    geom,
+    new THREE.LineBasicMaterial({
+      color: COLOR.cyan,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.65,
+    }),
+  );
+  line.name = "xr-ray";
+  line.visible = false;
+  line.frustumCulled = false;
+  line.renderOrder = 12;
+  return line;
+}
+
+function createHudLabels() {
+  const cnv = document.createElement("canvas");
+  cnv.width = 256;
+  cnv.height = 320;
+  const ctx = cnv.getContext("2d");
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, 256, 320);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 32px Orbitron, sans-serif";
+  ctx.fillStyle = hexCss(COLOR.gold);
+  ctx.fillText("PLAY", 128, 52);
+  ctx.font = "700 28px Orbitron, sans-serif";
+  ctx.fillStyle = hexCss(AXIS_COLOR.x);
+  ctx.fillText("X", 56, 145);
+  ctx.fillStyle = hexCss(AXIS_COLOR.y);
+  ctx.fillText("Y", 128, 145);
+  ctx.fillStyle = hexCss(AXIS_COLOR.z);
+  ctx.fillText("Z", 200, 145);
+  ctx.font = "700 32px Orbitron, sans-serif";
+  ctx.fillStyle = hexCss(COLOR.blitz);
+  ctx.fillText("EXIT", 128, 268);
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const back = widgetSize(HUD_BACK);
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.max(0.01, back.x), Math.max(0.01, back.y)),
+    new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  mesh.position.z = 0.016;
+  mesh.renderOrder = 13;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+function createXrHud() {
+  const group = new THREE.Group();
+  group.name = "xr-hud";
+  group.visible = false;
+  const backSize = widgetSize(HUD_BACK);
+  const backCenter = widgetCenter(HUD_BACK);
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(backSize.x, backSize.y, backSize.z),
+    new THREE.MeshBasicMaterial({
+      color: 0x0b0f14,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    }),
+  );
+  back.position.set(backCenter.x, backCenter.y, backCenter.z);
+  back.renderOrder = 11;
+  group.add(back);
+  const widgetMeshes = {};
+  for (const w of HUD_WIDGETS) {
+    const size = widgetSize(w);
+    const c = widgetCenter(w);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(size.x, size.y, size.z),
+      new THREE.MeshBasicMaterial({
+        color: hudWidgetColor(w.id),
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      }),
+    );
+    mesh.position.set(c.x, c.y, c.z);
+    mesh.renderOrder = 12;
+    mesh.userData.hudId = w.id;
+    group.add(mesh);
+    widgetMeshes[w.id] = mesh;
+  }
+  group.add(createHudLabels() || new THREE.Group());
+  group.userData.widgetMeshes = widgetMeshes;
+  return group;
+}
+
 function arPresenting() {
   return renderer.xr.isPresenting;
 }
@@ -582,6 +761,7 @@ function resetStageOrbit() {
   stage.quaternion.identity();
   stage.scale.setScalar(1);
   stage.visible = true;
+  stand.quaternion.identity();
 }
 
 function syncTurntableVisual() {
@@ -630,29 +810,72 @@ function stopHitTest() {
   reticle.visible = false;
 }
 
-/** Oldest slice of the full pillar, not the live wake or a clipped slab. */
-function arPillarYMin() {
+function arLockedChrome() {
+  return arPresenting() && arLocked;
+}
+
+function arVolumeBox() {
   const store = viewStore();
-  if (!store) return 0;
-  return slabYRange(viewNow(), store.oldestT(), viewNow(), DEFAULTS.timeScale).yMin;
+  if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, DEFAULTS.cellSize);
+  const y = slabYRange(viewNow(), store.oldestT(), viewNow(), DEFAULTS.timeScale);
+  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, DEFAULTS.cellSize);
+}
+
+function applyStandQuat() {
+  if (!arPresenting()) {
+    stand.quaternion.identity();
+    return;
+  }
+  const q = standQuatFromAxis(arStandAxis);
+  stand.quaternion.set(q.x, q.y, q.z, q.w);
+}
+
+function setArStandAxis(next) {
+  const a = normalizeStandAxis(next);
+  if (a === arStandAxis) {
+    applyArStagePose();
+    syncXrHudChrome();
+    ui.setArStandAxis?.(a);
+    return;
+  }
+  arStandAxis = a;
+  applyArStagePose();
+  syncXrHudChrome();
+  ui.setArStandAxis?.(a);
+  applyGridLook();
+  updateHint();
 }
 
 function applyArStagePose() {
   if (!arPresenting() || !arAnchored || !world) return;
   const s = xrStageScale(DEFAULTS.cellSize, arMag);
+  if (!(s > 0)) return;
   stage.quaternion.copy(arAnchorQuat);
   stage.scale.setScalar(s);
-  const lift = arBottomLift(arPillarYMin(), s);
+  applyStandQuat();
+  const lift = arStandLift(arStandAxis, arVolumeBox(), s);
+  const dy = Number.isFinite(lift) ? lift : 0;
   _xrUp.set(0, 1, 0).applyQuaternion(arAnchorQuat);
-  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, lift);
+  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, dy);
+  if (!Number.isFinite(stage.position.x)) {
+    stage.position.copy(arAnchorPos);
+  }
   stage.visible = true;
 }
 
-function placeStageInFrontOfViewer() {
+function captureViewerAnchor() {
   const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
   cam.updateMatrixWorld();
   cam.getWorldPosition(_xrPos);
   cam.getWorldQuaternion(_xrQuat);
+  if (
+    !Number.isFinite(_xrPos.x) ||
+    !Number.isFinite(_xrPos.y) ||
+    !Number.isFinite(_xrPos.z) ||
+    !Number.isFinite(_xrQuat.w)
+  ) {
+    return;
+  }
   const front = viewerFrontPosition(
     { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
     { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
@@ -661,9 +884,24 @@ function placeStageInFrontOfViewer() {
   arAnchorQuat.identity();
   arAnchored = true;
   arPlaced = true;
+  applyArStagePose();
+}
+
+function lockArPlacement() {
+  if (arLocked) return;
+  if (!arAnchored) captureViewerAnchor();
   arLocked = true;
+  arPlaced = true;
+  arPlacePending = false;
   applyArStagePose();
   ui.setArYawEnabled(true);
+  syncClipPlanes();
+  updateHint();
+}
+
+function placeStageInFrontOfViewer() {
+  captureViewerAnchor();
+  lockArPlacement();
 }
 
 function placeStageFromReticle() {
@@ -671,16 +909,308 @@ function placeStageFromReticle() {
   reticle.matrix.decompose(arAnchorPos, arAnchorQuat, _xrScale);
   arAnchored = true;
   arPlaced = true;
-  arLocked = true;
+  lockArPlacement();
   reticle.visible = false;
-  applyArStagePose();
-  ui.setArYawEnabled(true);
-  updateHint();
 }
 
 function onArSelect() {
-  if (!arPresenting() || !arUseHitTest || arLocked) return;
-  placeStageFromReticle();
+  if (!arPresenting() || arLocked) return;
+  if (arUseHitTest && reticle.visible) placeStageFromReticle();
+  else lockArPlacement();
+}
+
+function setXrRaysVisible(on) {
+  for (const ctrl of xrControllers) {
+    const ray = ctrl.getObjectByName("xr-ray");
+    if (ray) ray.visible = Boolean(on);
+  }
+}
+
+function refreshHeadsetHud() {
+  const session = renderer.xr.getSession();
+  arHeadsetHud = Boolean(
+    session && isHeadsetArSession(session, globalThis.navigator?.userAgent || ""),
+  );
+}
+
+function hudRayLocal(ctrl) {
+  ctrl.updateMatrixWorld(true);
+  xrHud.updateMatrixWorld(true);
+  ctrl.getWorldPosition(_xrPos);
+  ctrl.getWorldQuaternion(_xrQuat);
+  xrHud.getWorldPosition(_hudWorldPos);
+  xrHud.getWorldQuaternion(_hudWorldQuat);
+  const ray = rayFromPose(
+    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
+    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
+  );
+  return worldRayToLocal(
+    ray.origin,
+    ray.dir,
+    { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
+    { x: _hudWorldQuat.x, y: _hudWorldQuat.y, z: _hudWorldQuat.z, w: _hudWorldQuat.w },
+  );
+}
+
+function pickHudFromController(ctrl) {
+  const local = hudRayLocal(ctrl);
+  return pickHudWidget(local.origin, local.dir);
+}
+
+function applyXrHudHit(hit) {
+  const action = hudActionFromHit(hit);
+  if (!action) return true;
+  if (action.type === "play") togglePlay();
+  else if (action.type === "exit") exitAr();
+  else if (action.type === "stand") setArStandAxis(action.axis);
+  return true;
+}
+
+function controllerWorldRay(ctrl) {
+  ctrl.updateMatrixWorld(true);
+  ctrl.getWorldPosition(_xrPos);
+  ctrl.getWorldQuaternion(_xrQuat);
+  return rayFromPose(
+    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
+    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
+  );
+}
+
+function worldRayToTurntable(origin, dir) {
+  turntable.updateMatrixWorld(true);
+  _xrPos.set(origin.x, origin.y, origin.z);
+  _arTip.set(origin.x + dir.x, origin.y + dir.y, origin.z + dir.z);
+  turntable.worldToLocal(_xrPos);
+  turntable.worldToLocal(_arTip);
+  return {
+    origin: { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
+    dir: {
+      x: _arTip.x - _xrPos.x,
+      y: _arTip.y - _xrPos.y,
+      z: _arTip.z - _xrPos.z,
+    },
+  };
+}
+
+function collectArFramePick(frame, origin, dir, into) {
+  if (!frame.group.visible) return;
+  const { axis, handle } = frame.pickMeta();
+  for (const seg of frame.edgeWorldSegments()) {
+    const hit = distRayToSegment3(
+      origin.x,
+      origin.y,
+      origin.z,
+      dir.x,
+      dir.y,
+      dir.z,
+      seg.ax,
+      seg.ay,
+      seg.az,
+      seg.bx,
+      seg.by,
+      seg.bz,
+    );
+    if (hit.dist > FRAME_PICK_M) continue;
+    if (into && into.dist != null && hit.dist > into.dist) continue;
+    if (into && into.dist === hit.dist && hit.t >= into.t) continue;
+    into.axis = axis;
+    into.handle = handle;
+    into.dist = hit.dist;
+    into.t = hit.t;
+  }
+}
+
+function hitArFrame(origin, dir) {
+  if (!arLockedChrome() || !showPlanes) return null;
+  const best = {};
+  for (const a of ["x", "y", "z"]) {
+    collectArFramePick(playfields[a], origin, dir, best);
+    collectArFramePick(clipFrames[a].near, origin, dir, best);
+    collectArFramePick(clipFrames[a].far, origin, dir, best);
+  }
+  if (!best.axis) return null;
+  return { axis: best.axis, handle: best.handle };
+}
+
+function beginArFrameDrag(ctrl, hit) {
+  enterInspect();
+  setActiveAxis(hit.axis);
+  const handle = hit.handle === "near" || hit.handle === "far" ? hit.handle : "focus";
+  if (handle === "focus") setShadeHeld(true);
+  arFrameDrag = { ctrl, axis: hit.axis, handle };
+  setFrameHover({ axis: hit.axis, handle });
+}
+
+function updateArFrameDrag() {
+  if (!arFrameDrag || !world) return;
+  const ray = controllerWorldRay(arFrameDrag.ctrl);
+  const local = worldRayToTurntable(ray.origin, ray.dir);
+  const coord = closestAxisCoord(local.origin, local.dir, arFrameDrag.axis);
+  const back = backFromWorldCoord(
+    arFrameDrag.axis,
+    coord,
+    world.width,
+    world.height,
+    DEFAULTS.cellSize,
+    DEFAULTS.timeScale,
+  );
+  applySlab(
+    arFrameDrag.axis,
+    { ...slabs[arFrameDrag.axis], [arFrameDrag.handle]: back },
+    arFrameDrag.handle,
+  );
+}
+
+function endArFrameDrag(ctrl) {
+  if (!arFrameDrag) return;
+  if (ctrl && arFrameDrag.ctrl !== ctrl) return;
+  arFrameDrag = null;
+  setShadeHeld(false);
+  setFrameHover(null);
+}
+
+function pokeArVoxel(origin, dir) {
+  if (!world) return false;
+  raycaster.far = 12;
+  raycaster.ray.origin.set(origin.x, origin.y, origin.z);
+  _xrDir.set(dir.x, dir.y, dir.z);
+  if (_xrDir.lengthSq() < 1e-12) return false;
+  _xrDir.normalize();
+  raycaster.ray.direction.copy(_xrDir);
+  const hits = raycaster.intersectObjects([cubes.solid, cubes.ghost], false);
+  if (!hits.length) return false;
+  _hitLocal.copy(hits[0].point);
+  turntable.worldToLocal(_hitLocal);
+  const voxel = voxelFromLocal(
+    _hitLocal.x,
+    _hitLocal.y,
+    _hitLocal.z,
+    world.width,
+    world.height,
+    DEFAULTS.cellSize,
+    viewNow(),
+    DEFAULTS.timeScale,
+  );
+  if (!voxel) return false;
+  const axis = arStandAxis;
+  const back = focusBackFromVoxel(
+    axis,
+    voxel.x,
+    voxel.y,
+    voxel.t,
+    world.width,
+    world.height,
+    viewNow(),
+  );
+  arPlanePoke = true;
+  enterInspect();
+  setActiveAxis(axis);
+  applySlab(axis, { ...slabs[axis], focus: back }, "focus");
+  return true;
+}
+
+function onArSelectStart(event) {
+  if (!arPresenting() || !arLocked) return;
+  const ctrl = event.target;
+  if (arHeadsetHud && xrHud.visible) {
+    const hudHit = pickHudFromController(ctrl);
+    if (hudHit) {
+      applyXrHudHit(hudHit);
+      return;
+    }
+  }
+  const ray = controllerWorldRay(ctrl);
+  const frameHit = hitArFrame(ray.origin, ray.dir);
+  if (frameHit) {
+    beginArFrameDrag(ctrl, frameHit);
+    return;
+  }
+  pokeArVoxel(ray.origin, ray.dir);
+}
+
+function onArSelectEnd(event) {
+  endArFrameDrag(event.target);
+}
+
+function setArMag(next) {
+  arMag = clampArMag(next);
+  const el = document.getElementById("ar-mag");
+  if (el) el.value = String(arMag);
+  applyArStagePose();
+}
+
+function parkXrHud() {
+  const cam = renderer.xr.getCamera();
+  cam.updateMatrixWorld();
+  cam.getWorldPosition(_xrPos);
+  const pose = parkHudPose(
+    { x: arAnchorPos.x, y: arAnchorPos.y, z: arAnchorPos.z },
+    { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z },
+  );
+  xrHud.position.set(pose.x, pose.y, pose.z);
+  const lx = pose.lookX - pose.x;
+  const ly = pose.lookY - pose.y;
+  const lz = pose.lookZ - pose.z;
+  if (lx * lx + ly * ly + lz * lz > 1e-8) {
+    xrHud.lookAt(pose.lookX, pose.lookY, pose.lookZ);
+  }
+  arHudParked = true;
+}
+
+function syncXrHudChrome() {
+  const meshes = xrHud.userData.widgetMeshes || {};
+  for (const w of HUD_WIDGETS) {
+    const mesh = meshes[w.id];
+    if (mesh?.material) mesh.material.color.setHex(hudWidgetColor(w.id, playing, arStandAxis));
+  }
+}
+
+function updateXrControllerPose(dt) {
+  if (!arPresenting() || !arLocked || !arHeadsetHud) {
+    arPinch = null;
+    if (arFrameDrag) updateArFrameDrag();
+    return;
+  }
+  if (arFrameDrag) {
+    updateArFrameDrag();
+    return;
+  }
+  const sources = trackedInputSources(renderer.xr.getSession());
+  const gripping = sources.filter((s) => gripPressed(s.gamepad));
+  if (gripping.length >= 2) {
+    xrGrips[0].updateMatrixWorld(true);
+    xrGrips[1].updateMatrixWorld(true);
+    xrGrips[0].getWorldPosition(_hudWorldPos);
+    xrGrips[1].getWorldPosition(_gripB);
+    const dist = distance3(
+      { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
+      { x: _gripB.x, y: _gripB.y, z: _gripB.z },
+    );
+    if (!(dist >= XR_PINCH_MIN_M)) return;
+    if (!arPinch) arPinch = { dist, mag: arMag };
+    else setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
+    return;
+  }
+  arPinch = null;
+  const x = strongestStickX(sources.map((s) => thumbstickXFromAxes(s.gamepad?.axes)));
+  const dYaw = yawDeltaFromStick(x, dt);
+  if (dYaw) setTurntableYaw(turntableYaw + dYaw);
+}
+
+function updateXrHud() {
+  refreshHeadsetHud();
+  const show = arPresenting() && arLocked && arHeadsetHud;
+  const became = show && !xrHud.visible;
+  xrHud.visible = show;
+  setXrRaysVisible(show);
+  if (!show) {
+    arHudParked = false;
+    arPinch = null;
+    return;
+  }
+  if (!arHudParked) parkXrHud();
+  if (became) updateHint();
+  syncXrHudChrome();
 }
 
 function updateReticle(xrFrame) {
@@ -693,7 +1223,13 @@ function updateReticle(xrFrame) {
     reticle.visible = false;
     return;
   }
-  const hits = xrFrame.getHitTestResults(arHitTestSource);
+  let hits;
+  try {
+    hits = xrFrame.getHitTestResults(arHitTestSource);
+  } catch {
+    reticle.visible = false;
+    return;
+  }
   if (!hits.length) {
     reticle.visible = false;
     return;
@@ -732,33 +1268,60 @@ function exitAr() {
 }
 
 async function onArSessionStart() {
-  document.documentElement.classList.add("is-ar");
-  document.body.classList.add("is-ar");
-  gizmo.clearHover();
-  setViewCursor("");
-  syncGizmoChrome();
-  renderer.setClearAlpha(0);
-  controls.enabled = false;
-  arPlacePending = false;
-  arPlaced = false;
-  arLocked = false;
-  arUseHitTest = false;
-  stage.visible = false;
-  reticle.visible = false;
-  const session = renderer.xr.getSession();
-  arHitTestSource = await requestViewerHitTestSource(session);
-  arUseHitTest = Boolean(arHitTestSource);
-  if (!arUseHitTest) {
-    arPlacePending = true;
+  try {
+    document.documentElement.classList.add("is-ar");
+    document.body.classList.add("is-ar");
+    gizmo.clearHover();
+    setViewCursor("");
+    syncGizmoChrome();
+    renderer.setClearAlpha(0);
+    renderer.setScissorTest(false);
+    controls.enabled = false;
+    arPlacePending = false;
+    arHitStartedAt = performance.now();
+    arPlaced = false;
+    arAnchored = false;
+    arLocked = false;
+    arUseHitTest = false;
+    if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
+      arHitTestSource.cancel();
+    }
+    arHitTestSource = null;
     stage.visible = true;
+    reticle.visible = false;
+    arHeadsetHud = false;
+    arHudParked = false;
+    arPinch = null;
+    arFrameDrag = null;
+    arPlanePoke = false;
+    arStandAxis = "z";
+    stand.quaternion.identity();
+    ui.setArYawEnabled(true);
+    ui.setArStandAxis?.("z");
+    captureViewerAnchor();
+    const session = renderer.xr.getSession();
+    requestViewerHitTestSource(session).then((src) => {
+      if (!arPresenting() || arLocked) return;
+      arHitTestSource = src;
+      arUseHitTest = Boolean(src);
+      ui.setArYawEnabled(!arUseHitTest);
+      updateHint();
+    });
+    syncTurntableVisual();
+    xrHud.visible = false;
+    setXrRaysVisible(false);
+    dirtySource = true;
+    dirtyView = true;
+    syncFog();
+    ui.setArActive(true);
+    updateHint();
+  } catch (err) {
+    console.warn("DONNER AR session start", err);
+    if (arPresenting() && !arLocked) {
+      stage.visible = true;
+      captureViewerAnchor();
+    }
   }
-  ui.setArYawEnabled(!arUseHitTest);
-  syncTurntableVisual();
-  dirtySource = true;
-  dirtyView = true;
-  syncFog();
-  ui.setArActive(true);
-  updateHint();
 }
 
 function onArSessionEnd() {
@@ -767,6 +1330,16 @@ function onArSessionEnd() {
   renderer.setClearAlpha(1);
   controls.enabled = true;
   arPlacePending = false;
+  arHitStartedAt = 0;
+  arHeadsetHud = false;
+  arHudParked = false;
+  arPinch = null;
+  arFrameDrag = null;
+  arPlanePoke = false;
+  arStandAxis = "z";
+  ui.setArStandAxis?.("z");
+  xrHud.visible = false;
+  setXrRaysVisible(false);
   stopHitTest();
   resetStageOrbit();
   syncTurntableVisual();
@@ -778,6 +1351,7 @@ function onArSessionEnd() {
   ui.setArYawEnabled(true);
   syncGizmoChrome();
   updateHint();
+  resize();
 }
 
 function syncFog() {
@@ -878,6 +1452,20 @@ function fitVolume() {
   controls.update();
 }
 
+function resetClipExtent() {
+  if (!world) return;
+  slabs = resetSlabClips(
+    slabs,
+    Math.max(0, world.width - 1),
+    Math.max(0, world.height - 1),
+    maxTimeBack(),
+  );
+  syncStackUi();
+  syncClipPlanes();
+  updateHint();
+  dirtyView = true;
+}
+
 function applySlab(axis, next, dragged = "focus") {
   const a = normalizeSliceAxis(axis);
   const live = a === "z" && stackLiveLocked();
@@ -900,8 +1488,14 @@ function applySlab(axis, next, dragged = "focus") {
   syncStackUi();
   syncClipPlanes();
   updateHint();
-  dirtyView = true;
-  if (inspectMode()) dirtySource = true;
+  const shade = inspectShade();
+  const hullFocus =
+    inspectMode() &&
+    shade === "hull" &&
+    dragged === "focus" &&
+    !decay &&
+    !planeLock;
+  dirtyView = !hullFocus;
   if (stabScaleOn && stabMode === "focus") dirtyEncoding = true;
 }
 
@@ -922,6 +1516,7 @@ function enterInspect() {
 }
 
 function enterLive() {
+  arPlanePoke = false;
   tapeMode = false;
   playing = true;
   editing = false;
@@ -954,6 +1549,7 @@ function syncCacheUi() {
 function setLineOpacity(obj, opacity) {
   const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
   for (const m of mats) {
+    if (!m) continue;
     m.transparent = true;
     m.opacity = opacity;
   }
@@ -1018,8 +1614,8 @@ function stabForFill() {
   return stabScaleOn ? stabMode : "none";
 }
 
-function encodingWarmupK() {
-  return sourceId === "count" ? -1 : CONWAY_WARMUP_K;
+function encodingBaseK() {
+  return sourceId === "count" ? -1 : CONWAY_BASE_K;
 }
 
 function markGps() {
@@ -1097,7 +1693,7 @@ function bootCount(vol) {
   tape = vol;
   layoutPlayfield(vol.width, vol.height);
   cubes.setKindHex(countKindHex(vol.ceiling), -1);
-  ui.setSourceKind("count");
+  ui.setSourceKind(countKindForVolume(vol));
   ui.setCountLegend(vol.ceiling);
   ui.setCountMeta(
     `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.ceiling} · ${vol.count} voxels`,
@@ -1138,8 +1734,16 @@ function bootCount(vol) {
   updateHint();
 }
 
-async function loadCountFromUrl(url, name) {
-  ui.setSourceKind("count");
+function countKindForVolume(vol) {
+  const name = vol && vol.name;
+  for (const [id, demo] of Object.entries(COUNT_DEMOS)) {
+    if (demo.name === name) return id;
+  }
+  return "count";
+}
+
+async function loadCountFromUrl(url, name, kind = "count") {
+  ui.setSourceKind(kind);
   ui.setCountHint(`Loading ${name}…`);
   try {
     const res = await fetch(url);
@@ -1158,8 +1762,25 @@ async function loadCountFromUrl(url, name) {
   }
 }
 
-function loadCountDemo() {
-  return loadCountFromUrl(DEFAULTS.countDemoUrl, DEFAULTS.countDemoName);
+function switchSource(kind) {
+  if (kind === "conway") {
+    disconnectWolke();
+    bootWorld(true);
+    return;
+  }
+  const demo = COUNT_DEMOS[kind];
+  if (demo) {
+    loadCountFromUrl(demo.url, demo.name, kind);
+    return;
+  }
+  if (countVol) {
+    ui.setSourceKind("count");
+    bootCount(countVol);
+    return;
+  }
+  ui.setSourceKind("count");
+  ui.setCountHint("Load a .npy cube or Connect to the sidecar.");
+  updateHint();
 }
 
 async function loadCountFromFile(file) {
@@ -1214,16 +1835,6 @@ function disconnectWolke() {
   ui.setWolkeStatus("disconnected");
 }
 
-function switchSource(kind) {
-  if (kind === "count") {
-    if (countVol) bootCount(countVol);
-    else loadCountDemo();
-    return;
-  }
-  disconnectWolke();
-  bootWorld(true);
-}
-
 function bootWorld(resizeGrid) {
   const cfg = ui.getConfig();
   sourceId = "conway";
@@ -1255,7 +1866,7 @@ function bootWorld(resizeGrid) {
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
   tape.pushGrid(world.grid, world.width, world.height, world.generation);
   layoutPlayfield(cfg.width, cfg.height);
-  cubes.setKindHex(CONWAY_KIND_HEX, CONWAY_WARMUP_K);
+  cubes.setKindHex(CONWAY_KIND_HEX, CONWAY_BASE_K);
   ui.setSourceKind("conway");
 
   acc = 0;
@@ -1405,6 +2016,11 @@ function exitPlaneLock() {
   updateHint();
 }
 
+function pageActiveFocus(dir) {
+  if (!inspectMode()) enterInspect();
+  applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus + dir }, "focus");
+}
+
 function planeRectSize(axis) {
   const box = cropAabb();
   const cs = DEFAULTS.cellSize;
@@ -1426,13 +2042,20 @@ function planeRectSize(axis) {
 
 function enterPlaneLock(axis, sign) {
   if (arPresenting() || !world) return;
-  setActiveAxis(axis, { keepPlaneLock: true });
+  const a = normalizeSliceAxis(axis);
+  const s = sign >= 0 ? 1 : -1;
+  if (lockedFaceAction(planeLock, activeAxis, planeLockSign, a, s) === "page") {
+    pageActiveFocus(lockedFacePageStep(s));
+    updateHint();
+    return;
+  }
+  setActiveAxis(a, { keepPlaneLock: true });
   applyParallax(false);
   planeLock = true;
+  planeLockSign = s;
   syncOrbitPan();
   syncClipPlanes();
   clearFrameHover();
-  const a = normalizeSliceAxis(axis);
   const coord = sliceWorldCoord(slabs[a].focus, a);
   const { yMid } = currentSlabY();
   if (a === "x") controls.target.set(coord, yMid, 0);
@@ -1444,7 +2067,7 @@ function enterPlaneLock(axis, sign) {
   const cam = activeCamera();
   const radius = Math.hypot(width, height) / 2;
   const dist = Math.max(16, radius * 2.4);
-  const pos = snapPose(controls.target, productViewDir(a, sign), dist);
+  const pos = snapPose(controls.target, productViewDir(a, s), dist);
   cam.position.set(pos.x, pos.y, pos.z);
   cam.lookAt(controls.target);
   setOrthoFrustum(orthoCam, halfH, aspect, 0.1, Math.max(400, dist + radius * 4));
@@ -1475,7 +2098,7 @@ function setShadeHeld(held) {
 
 function setActiveAxis(next, opts = {}) {
   const a = normalizeSliceAxis(next);
-  if (planeLock && !opts.keepPlaneLock) {
+  if (planeLock && !opts.keepPlaneLock && a !== activeAxis) {
     planeLock = false;
     applyParallax(true);
   }
@@ -1489,7 +2112,6 @@ function setActiveAxis(next, opts = {}) {
   if (changed) rebuildSliceVisuals();
   else syncClipPlanes();
   dirtyView = true;
-  if (inspectMode()) dirtySource = true;
 }
 
 function applyCubeCap() {
@@ -1501,24 +2123,27 @@ function applyCubeCap() {
     maxCount: cap,
     cellSize: DEFAULTS.cellSize,
     kindHex: sourceId === "count" && countVol ? countKindHex(countVol.ceiling) : CONWAY_KIND_HEX,
-    warmupK: encodingWarmupK(),
+    warmupK: encodingBaseK(),
   });
   dirtySource = true;
 }
 
 function applyGridLook() {
   const inspect = inspectMode();
-  const chrome = !planeLock && !arPresenting();
+  const arChrome = arLockedChrome();
+  const chrome = (!planeLock && !arPresenting()) || arChrome;
   const cut = planeLock && !arPresenting();
   if (nowGrid) {
-    nowGrid.visible = (chrome && showPlanes) || cut;
+    nowGrid.visible = (!arPresenting() && chrome && showPlanes) || cut;
     setLineOpacity(nowGrid, inspect || cut ? 0.42 : 0.18);
   }
   for (const a of ["x", "y", "z"]) {
     const surf = focusSurfaces[a];
-    const showFrame = cut ? a === activeAxis : chrome && showPlanes && (a === "z" || inspect);
+    const showFrame = cut
+      ? a === activeAxis
+      : chrome && showPlanes && (arChrome || a === "z" || inspect);
     if (surf) {
-      const pickEdit = editing && a === "z" && chrome;
+      const pickEdit = editing && a === "z" && chrome && !arPresenting();
       const pickCut = cut && a === activeAxis;
       surf.visible = pickEdit || pickCut;
       surf.material.opacity = 0;
@@ -1528,21 +2153,32 @@ function applyGridLook() {
       clipFrames[a].near.setVisible(false);
       clipFrames[a].far.setVisible(false);
     }
-    playfields[a].setEmphasis(inspect && a === activeAxis ? "active" : a === "z" ? "active" : "idle");
+    playfields[a].setEmphasis(
+      arChrome
+        ? a === arStandAxis
+          ? "active"
+          : "idle"
+        : inspect && a === activeAxis
+          ? "active"
+          : a === "z"
+            ? "active"
+            : "idle",
+    );
   }
 }
 
 function syncClipPlanes() {
   if (!world) return;
   const { yMin, yMax } = brickYRange();
-  const chrome = !planeLock && !arPresenting();
+  const arChrome = arLockedChrome();
+  const chrome = (!planeLock && !arPresenting()) || arChrome;
   const showClips = chrome && showPlanes && inspectMode() && !stackLiveLocked();
   const cs = DEFAULTS.cellSize;
   const w = world.width;
   const h = world.height;
   for (const a of ["x", "y", "z"]) {
     const s = slabs[a];
-    const show = chrome && showPlanes && (a === "z" || inspectMode());
+    const show = chrome && showPlanes && (arChrome || a === "z" || inspectMode());
     const coord = sliceWorldCoord(s.focus, a);
     playfields[a].setSize(w, h, cs, a, yMin, yMax);
     playfields[a].setOffset(a, coord);
@@ -1583,12 +2219,16 @@ function updateHint() {
     if (arUseHitTest && !arPlaced) {
       ui.setHint("AR — point at a table until the gold square appears, then tap");
     } else if (arUseHitTest) {
-      ui.setHint("AR — yaw the pillar on the table · Play grows up · swipe or Yaw · Exit to orbit");
+      ui.setHint(
+        arHeadsetHud
+          ? "AR — Play, stand X/Y/Z, Exit · grab a frame · poke a cube to isolate the standing plane · stick yaws · both grips pinch size"
+          : "AR — Stand X/Y/Z on the overlay · grab a frame · tap a cube to isolate the standing plane · yaw · Exit to orbit",
+      );
     } else {
       ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
     }
   } else if (planeLock) {
-    ui.setHint("Slice — wheel zooms · right-drag pans · left-drag leaves · Shift+wheel pages · B restores 3D");
+    ui.setHint("Slice — wheel zooms · same-face click pages · right-drag pans · left-drag leaves · Shift+wheel pages · B restores 3D");
   } else if (sourceId === "count") {
     ui.setHint(
       countVol && isDenseCount(countVol)
@@ -1657,6 +2297,7 @@ function stepOnce() {
 
 function fillVolume() {
   const store = viewStore();
+  if (!store || !world) return;
   const span = inspectMode() || arPillar() ? volumeSpan() : null;
   const aabb = inspectMode() ? cropAabb() : null;
   const foci = cropFoci();
@@ -1682,6 +2323,7 @@ function fadeSpan() {
 }
 
 function uploadInstances() {
+  if (!world) return;
   cubes.setEvents(soa, {
     tFocus: tFocus(),
     tNow: viewNow(),
@@ -1715,8 +2357,17 @@ function fillAndUpload() {
 function spanKey() {
   const span = volumeSpan();
   const box = cropAabb();
-  const s = slabs[activeAxis];
-  return `${span.tLo}:${span.tHi}:${activeAxis}:${inspectShade()}:${s.near}:${s.focus}:${s.far}:${box ? `${box.xLo}:${box.xHi}:${box.yLo}:${box.yHi}` : "live"}`;
+  const shade = inspectShade();
+  if (!shade) {
+    const s = slabs[activeAxis];
+    return `${span.tLo}:${span.tHi}:${activeAxis}:live:${s.near}:${s.focus}:${s.far}:${box ? `${box.xLo}:${box.xHi}:${box.yLo}:${box.yHi}` : "nobox"}`;
+  }
+  return inspectRebuildKey({
+    shade,
+    aabb: box,
+    foci: cropFoci(),
+    activeAxis,
+  });
 }
 
 function syncVolume() {
@@ -2105,8 +2756,7 @@ canvas.addEventListener(
     e.stopPropagation();
     e.stopImmediatePropagation();
     const dir = Math.sign(e.deltaY) || 1;
-    if (!inspectMode()) enterInspect();
-    applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus + dir }, "focus");
+    pageActiveFocus(dir);
   },
   { capture: true, passive: false },
 );
@@ -2158,113 +2808,157 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("resize", resize);
 
 function frame(now, xrFrame) {
-  const dt = clock.tick(now);
-  if (playing) {
-    acc += dt * gensPerSec;
-    let steps = 0;
-    paths.measure("sim", () => {
-      while (playing && acc >= 1 && steps < DEFAULTS.maxStepCatchUp) {
-        acc -= 1;
-        if (sourceId === "count") stepCountPlayhead();
-        else stepOnce();
-        steps += 1;
+  try {
+    const dt = clock.tick(now);
+    if (playing) {
+      acc += dt * gensPerSec;
+      let steps = 0;
+      paths.measure("sim", () => {
+        while (playing && acc >= 1 && steps < DEFAULTS.maxStepCatchUp) {
+          acc -= 1;
+          if (sourceId === "count") stepCountPlayhead();
+          else stepOnce();
+          steps += 1;
+        }
+      });
+      if (acc > 1) acc = 1;
+    } else {
+      lastStepAt = 0;
+      paths.record("sim", 0);
+    }
+
+    syncVolume();
+    paths.record("hover", 0);
+    if (arPresenting()) {
+      updateReticle(xrFrame);
+      if (!arLocked) {
+        if (reticle.visible) {
+          reticle.matrix.decompose(arAnchorPos, arAnchorQuat, _xrScale);
+          arAnchored = true;
+          arPlaced = true;
+          applyArStagePose();
+        } else {
+          captureViewerAnchor();
+        }
+        if (
+          shouldFallbackArPlace({
+            locked: arLocked,
+            hasHitTest: arUseHitTest,
+            waitedMs: performance.now() - arHitStartedAt,
+          })
+        ) {
+          lockArPlacement();
+        }
+      } else if (arPlaced) {
+        applyArStagePose();
+      }
+      updateXrHud();
+      updateXrControllerPose(dt);
+    } else {
+      if (xrHud.visible) {
+        xrHud.visible = false;
+        setXrRaysVisible(false);
+      }
+      controls.update();
+      if (!planeLock) pinOrbitPivot();
+    }
+    syncHeadlamp();
+  } catch (err) {
+    console.warn("DONNER frame update", err);
+  }
+
+  try {
+    paths.measure("rend", () => {
+      if (arPresenting()) {
+        renderer.autoClear = true;
+        renderer.setScissorTest(false);
+        renderer.render(scene, activeCamera());
+        return;
+      }
+      renderer.autoClear = false;
+      renderer.clear();
+      const cam = activeCamera();
+      renderer.render(scene, cam);
+      syncGizmoChrome();
+      if (showGizmo()) {
+        gizmo.sync(cam);
+        gizmo.render(renderer, gizmoHit);
+      } else {
+        gizmo.clearHover();
       }
     });
-    if (acc > 1) acc = 1;
-  } else {
-    lastStepAt = 0;
-    paths.record("sim", 0);
+  } catch (err) {
+    console.warn("DONNER render", err);
   }
 
-  syncVolume();
-  paths.record("hover", 0);
-  if (arPresenting()) {
-    updateReticle(xrFrame);
-    if (arPlacePending) {
-      placeStageInFrontOfViewer();
-      arPlacePending = false;
-    }
-    if (arPlaced) applyArStagePose();
-  } else {
-    controls.update();
-    if (!planeLock) pinOrbitPivot();
+  try {
+    paths.measure("hud", () => {
+      const foc = tFocus();
+      const store = viewStore();
+      const fps = clock.displayFps || 1000 / clock.emaMs;
+      const ms = clock.displayMs || clock.emaMs;
+      if (hudViewEl) {
+        hudViewEl.textContent = formatViewHud({
+          fps,
+          avgFps: clock.avgFps,
+          low1Fps: clock.displayLow1 || clock.low1Fps,
+          low01Fps: clock.displayLow01 || clock.low01Fps,
+          ms,
+          instances: cubes.count,
+          truncated: soa.truncated,
+          focus: foc,
+          playing,
+          ortho: !parallax,
+          software: Boolean(gpuInfo && gpuInfo.software),
+        });
+      }
+      ui.setFps(fps);
+      if (hudSrcEl && store && world) {
+        hudSrcEl.textContent = formatSourceHud({
+          generation: tapeMode ? foc : world.generation,
+          live: store.liveAt(foc),
+          gps: playing ? measuredGps || gensPerSec : 0,
+          editing,
+          tape: tapeMode,
+          kind: sourceId,
+          sum: sourceId === "count" && countVol ? countVol.sumAt(foc) : 0,
+          ceiling: sourceId === "count" && countVol ? countVol.ceiling : 0,
+        });
+      }
+      if (tape) {
+        ui.setCache({
+          gens: tape.size,
+          events: tape.eventCount,
+          full: tape.stopped,
+          inspect: tapeMode,
+          atNow: slabs.z.focus === 0,
+          tick: sourceId === "count" ? "t" : "gen",
+          source: sourceId,
+        });
+      }
+      if (hudSparkEl) drawSparkline(hudSparkEl, clock);
+      if (hudBenchEl) {
+        const rows = paths.snapshot();
+        hudBenchEl.textContent = formatBenchHud({
+          rows,
+          work: lastWork,
+          forceFull: forceFullRebuild,
+          frameMs: ms,
+          bound: inferBound(rows, ms, lastWork),
+        });
+      }
+    });
+  } catch (err) {
+    console.warn("DONNER hud", err);
   }
-  syncHeadlamp();
-  paths.measure("rend", () => {
-    if (arPresenting()) {
-      renderer.autoClear = true;
-      renderer.render(scene, activeCamera());
-      return;
-    }
-    renderer.autoClear = false;
-    renderer.clear();
-    const cam = activeCamera();
-    renderer.render(scene, cam);
-    syncGizmoChrome();
-    if (showGizmo()) {
-      gizmo.sync(cam);
-      gizmo.render(renderer, gizmoHit);
-    } else {
-      gizmo.clearHover();
-    }
-  });
-
-  paths.measure("hud", () => {
-    const foc = tFocus();
-    const store = viewStore();
-    const fps = clock.displayFps || 1000 / clock.emaMs;
-    const ms = clock.displayMs || clock.emaMs;
-    hudViewEl.textContent = formatViewHud({
-      fps,
-      avgFps: clock.avgFps,
-      low1Fps: clock.displayLow1 || clock.low1Fps,
-      low01Fps: clock.displayLow01 || clock.low01Fps,
-      ms,
-      instances: cubes.count,
-      truncated: soa.truncated,
-      focus: foc,
-      playing,
-      ortho: !parallax,
-      software: Boolean(gpuInfo && gpuInfo.software),
-    });
-    ui.setFps(fps);
-    hudSrcEl.textContent = formatSourceHud({
-      generation: tapeMode ? foc : world.generation,
-      live: store.liveAt(foc),
-      gps: playing ? measuredGps || gensPerSec : 0,
-      editing,
-      tape: tapeMode,
-      kind: sourceId,
-      sum: sourceId === "count" && countVol ? countVol.sumAt(foc) : 0,
-      ceiling: sourceId === "count" && countVol ? countVol.ceiling : 0,
-    });
-    if (tape) {
-      ui.setCache({
-        gens: tape.size,
-        events: tape.eventCount,
-        full: tape.stopped,
-        inspect: tapeMode,
-        atNow: slabs.z.focus === 0,
-        tick: sourceId === "count" ? "t" : "gen",
-        source: sourceId,
-      });
-    }
-    drawSparkline(hudSparkEl, clock);
-    if (hudBenchEl) {
-      const rows = paths.snapshot();
-      hudBenchEl.textContent = formatBenchHud({
-        rows,
-        work: lastWork,
-        forceFull: forceFullRebuild,
-        frameMs: ms,
-        bound: inferBound(rows, ms, lastWork),
-      });
-    }
-  });
 }
 
 resize();
-bootWorld(true);
+try {
+  bootWorld(true);
+} catch (err) {
+  console.warn("DONNER boot", err);
+}
 ui.setPlaying(playing);
 renderer.xr.addEventListener("sessionstart", onArSessionStart);
 renderer.xr.addEventListener("sessionend", onArSessionEnd);

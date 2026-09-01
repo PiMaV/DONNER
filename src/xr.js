@@ -3,6 +3,8 @@
  * do not need a WebXR device.
  */
 
+import { productViewDir, normalizeSliceAxis } from "./axes.js";
+
 export const XR_MODE = "immersive-ar";
 export const XR_BOARD_CELLS = 32;
 export const XR_BOARD_METERS = 0.4;
@@ -111,4 +113,104 @@ export async function requestViewerHitTestSource(session) {
   } catch {
     return null;
   }
+}
+
+/** Place in front of the viewer if hit-test never arrives. */
+export const AR_NO_HITTEST_MS = 400;
+/** Place in front if a hit-test source never finds a plane. */
+export const AR_HIT_FALLBACK_MS = 1600;
+
+/**
+ * True when AR should stop waiting for a table hit and lock in front
+ * of the viewer. A granted hit-test that never returns planes used to
+ * leave the stage hidden for the whole session.
+ */
+export function shouldFallbackArPlace({ locked = false, hasHitTest = false, waitedMs = 0 } = {}) {
+  if (locked) return false;
+  const t = Number(waitedMs);
+  const waited = Number.isFinite(t) && t > 0 ? t : 0;
+  if (!hasHitTest) return waited >= AR_NO_HITTEST_MS;
+  return waited >= AR_HIT_FALLBACK_MS;
+}
+
+/** Unit quaternion taking direction `from` onto `to`. */
+export function quatFromTo(from, to) {
+  const ax = Number(from?.x) || 0;
+  const ay = Number(from?.y) || 0;
+  const az = Number(from?.z) || 0;
+  const bx = Number(to?.x) || 0;
+  const by = Number(to?.y) || 0;
+  const bz = Number(to?.z) || 0;
+  const al = Math.hypot(ax, ay, az) || 1;
+  const bl = Math.hypot(bx, by, bz) || 1;
+  const fx = ax / al;
+  const fy = ay / al;
+  const fz = az / al;
+  const tx = bx / bl;
+  const ty = by / bl;
+  const tz = bz / bl;
+  const dot = fx * tx + fy * ty + fz * tz;
+  if (dot > 0.999999) return { x: 0, y: 0, z: 0, w: 1 };
+  if (dot < -0.999999) {
+    const ux = Math.abs(fx) < 0.9 ? 0 : fy;
+    const uy = Math.abs(fx) < 0.9 ? fz : 0;
+    const uz = Math.abs(fx) < 0.9 ? -fy : -fx;
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    return { x: ux / ul, y: uy / ul, z: uz / ul, w: 0 };
+  }
+  const cx = fy * tz - fz * ty;
+  const cy = fz * tx - fx * tz;
+  const cz = fx * ty - fy * tx;
+  const w = 1 + dot;
+  const n = Math.hypot(cx, cy, cz, w) || 1;
+  return { x: cx / n, y: cy / n, z: cz / n, w: w / n };
+}
+
+/** Rotate the volume so product `axis` stands on the table (world +Y). */
+export function standQuatFromAxis(axis) {
+  return quatFromTo(productViewDir(axis, 1), { x: 0, y: 1, z: 0 });
+}
+
+export function volumeLocalAabb(width, height, yMin, yMax, cellSize = 1) {
+  const cs = Number(cellSize);
+  const size = Number.isFinite(cs) && cs > 0 ? cs : 1;
+  const hx = Math.max(0, (width | 0) - 1) * 0.5 * size;
+  const hz = Math.max(0, (height | 0) - 1) * 0.5 * size;
+  const y0 = Number(yMin);
+  const y1 = Number(yMax);
+  return {
+    min: { x: -hx, y: Number.isFinite(y0) ? y0 : 0, z: -hz },
+    max: { x: hx, y: Number.isFinite(y1) ? y1 : 0, z: hz },
+  };
+}
+
+export function aabbCorners(box) {
+  const min = box?.min || { x: 0, y: 0, z: 0 };
+  const max = box?.max || { x: 0, y: 0, z: 0 };
+  const out = [];
+  for (const x of [min.x, max.x]) {
+    for (const y of [min.y, max.y]) {
+      for (const z of [min.z, max.z]) out.push({ x, y, z });
+    }
+  }
+  return out;
+}
+
+/** World meters along the table normal so the standing AABB sits on the anchor. */
+export function arStandLift(axis, box, scale) {
+  const q = standQuatFromAxis(axis);
+  const s = Number(scale);
+  if (!Number.isFinite(s)) return 0;
+  let minY = Infinity;
+  for (const p of aabbCorners(box)) {
+    const r = rotateVecByQuat(p, q);
+    if (r.y < minY) minY = r.y;
+  }
+  if (!Number.isFinite(minY)) return 0;
+  const lift = -minY * s;
+  return lift === 0 ? 0 : lift;
+}
+
+export function normalizeStandAxis(axis) {
+  return normalizeSliceAxis(axis);
 }

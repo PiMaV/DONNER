@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, clampCubeCap } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, clampCubeCap, isCountSourceKind } from "./config.js";
 import { BENCH_PRESETS } from "./bench.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, stackThumbFrac, stackTickMarks } from "./axes.js";
@@ -273,8 +273,10 @@ export function bindUI(on) {
   const editBtn = $("btn-edit");
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
+  const extentBtn = $("btn-extent");
   const alignZ = $("align-z");
   const arYaw = $("ar-yaw");
+  const arStandBtns = ["x", "y", "z"].map((axis) => $(`ar-stand-${axis}`));
   const shadeHull = $("shade-hull");
   const shadeGhost = $("shade-ghost");
   const shadeTriple = $("shade-triple");
@@ -310,7 +312,6 @@ export function bindUI(on) {
   const hint = $("hint");
   const sourceKind = $("source-kind");
   const countFile = $("count-file");
-  const countDemo = $("btn-count-demo");
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
   const wolkeUrl = $("wolke-url");
@@ -366,7 +367,7 @@ export function bindUI(on) {
   if (countSize) countSize.checked = false;
   if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
   if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
-  document.body.classList.toggle("source-count", DEFAULTS.sourceKind === "count");
+  document.body.classList.toggle("source-count", isCountSourceKind(DEFAULTS.sourceKind));
   const syncStabHint = () => {
     const key = stabMode.value;
     stabHint.textContent = STAB_HINT[key] || STAB_HINT.none;
@@ -399,11 +400,15 @@ export function bindUI(on) {
   editBtn.addEventListener("click", () => on.toggleEdit());
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
+  extentBtn?.addEventListener("click", () => on.resetClips?.());
   alignZ?.addEventListener("change", () => on.alignZ?.());
   arYaw?.addEventListener("input", (e) => {
     if (applying) return;
     on.yaw?.(Number(e.target.value) || 0);
   });
+  for (const btn of arStandBtns) {
+    btn?.addEventListener("click", () => on.arStand?.(btn.dataset.axis));
+  }
   const syncShadeButtons = (mode) => {
     const m = mode === "ghost" || mode === "triple" ? mode : "hull";
     const map = [
@@ -480,7 +485,6 @@ export function bindUI(on) {
     if (applying) return;
     on.sourceKind?.();
   });
-  countDemo?.addEventListener("click", () => on.countDemo?.());
   countFile?.addEventListener("change", () => {
     const file = countFile.files && countFile.files[0];
     countFile.value = "";
@@ -508,7 +512,7 @@ export function bindUI(on) {
   foldSource.addEventListener("click", () => {
     setFold(panelSource.classList.contains("is-open") ? "" : "source");
   });
-  fpsChip.addEventListener("click", () => {
+  fpsChip?.addEventListener("click", () => {
     const open = document.body.classList.toggle("hud-view-open");
     fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
   });
@@ -614,6 +618,15 @@ export function bindUI(on) {
     setArYawEnabled(on) {
       if (arYaw) arYaw.disabled = !on;
     },
+    setArStandAxis(axis) {
+      const a = axis === "x" || axis === "y" ? axis : "z";
+      for (const btn of arStandBtns) {
+        if (!btn) continue;
+        const onBtn = btn.dataset.axis === a;
+        btn.classList.toggle("is-on", onBtn);
+        btn.setAttribute("aria-pressed", onBtn ? "true" : "false");
+      }
+    },
     setEditing(editing) {
       editBtn.classList.toggle("is-on", editing);
       editBtn.setAttribute("aria-pressed", editing ? "true" : "false");
@@ -634,6 +647,7 @@ export function bindUI(on) {
       }
     },
     setFps(fps) {
+      if (!fpsChip) return;
       fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
     },
     setSlabs({ activeAxis = "z", x, y, z }) {
@@ -660,9 +674,9 @@ export function bindUI(on) {
       document.body.classList.toggle("is-inspect", Boolean(inspect));
     },
     setSourceKind(kind) {
-      const count = kind === "count";
-      if (sourceKind) sourceKind.value = count ? "count" : "conway";
-      document.body.classList.toggle("source-count", count);
+      const k = isCountSourceKind(kind) ? kind : "conway";
+      if (sourceKind) sourceKind.value = k;
+      document.body.classList.toggle("source-count", isCountSourceKind(k));
     },
     setCountMeta(text) {
       if (countMeta) countMeta.textContent = text || "";
@@ -687,7 +701,7 @@ export function bindUI(on) {
       if (countLegHi) countLegHi.textContent = String(hi);
     },
     setHint(text) {
-      hint.textContent = text;
+      if (hint) hint.textContent = text;
     },
   };
 }

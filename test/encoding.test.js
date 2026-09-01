@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { KIND_WARMUP, SCALE_UNIFORM, cubeFill } from "../src/dynamics.js";
+import { KIND_BASE, SCALE_UNIFORM, cubeFill } from "../src/dynamics.js";
 import {
   CONWAY_KIND_HEX,
-  CONWAY_WARMUP_K,
+  CONWAY_BASE_K,
   COUNT_RAMP_HEX,
   countKindHex,
   encodingCubeFill,
@@ -15,14 +15,14 @@ import {
 describe("encoding adapter", () => {
   it("exposes a Conway LUT of five kind colors", () => {
     assert.equal(CONWAY_KIND_HEX.length, 5);
-    assert.equal(CONWAY_WARMUP_K, KIND_WARMUP);
+    assert.equal(CONWAY_BASE_K, KIND_BASE);
   });
 
   it("matches dynamics cubeFill for Conway events", () => {
     const event = { k: 0, s: 8 };
     assert.equal(encodingCubeFill(event, "time"), cubeFill(event, "time"));
     assert.equal(encodingCubeFill(event, "none"), SCALE_UNIFORM);
-    assert.equal(encodingFill(KIND_WARMUP, 16, "time"), SCALE_UNIFORM);
+    assert.equal(encodingFill(KIND_BASE, 16, "time"), SCALE_UNIFORM);
     assert.equal(encodingCubeFill(null, "time"), 0);
   });
 

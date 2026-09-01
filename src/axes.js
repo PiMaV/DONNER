@@ -91,16 +91,45 @@ export function planeLockShouldExit(planeLock, cam, target, axis) {
   return Boolean(planeLock) && !lookAlignedWithAxis(cam, target, axis, Math.cos((2 * Math.PI) / 180));
 }
 
-/** Inspect display: outer hull, peek (ghost), or three solid cuts. */
+/**
+ * Same viewcube face again pages the cut (Shift+wheel). A new face enters.
+ * Does not reset zoom/pan on the face you are already looking at.
+ */
+export function lockedFaceAction(planeLock, lockAxis, lockSign, hitAxis, hitSign) {
+  if (!planeLock) return "enter";
+  const a = normalizeSliceAxis(lockAxis);
+  const b = normalizeSliceAxis(hitAxis);
+  const s = lockSign >= 0 ? 1 : -1;
+  const h = hitSign >= 0 ? 1 : -1;
+  if (a === b && s === h) return "page";
+  return "enter";
+}
+
+/** Page into the volume from the face you clicked. */
+export function lockedFacePageStep(sign) {
+  return sign >= 0 ? 1 : -1;
+}
+
+/** Inspect display: outer hull, ghost brick, three cuts, or one dense cut. */
 export function normalizeShadeMode(mode) {
   const m = String(mode || "hull").toLowerCase();
-  return m === "ghost" || m === "triple" ? m : "hull";
+  return m === "ghost" || m === "triple" || m === "slice" ? m : "hull";
 }
 
 /** Hull + pointer-down on a handle/plane becomes a temporary ghost peek. */
 export function effectiveShade(mode, held = false) {
   const m = normalizeShadeMode(mode);
   if (m === "hull" && held) return "ghost";
+  return m;
+}
+
+/**
+ * Dense count Ghost is the active cut only (no 140k ghost hull).
+ * Sparse Conway / Ignition keep the glass brick.
+ */
+export function denseGhostToSlice(mode, dense = false) {
+  const m = normalizeShadeMode(mode);
+  if (dense && m === "ghost") return "slice";
   return m;
 }
 
@@ -122,6 +151,35 @@ export function onAxisPlane(x, y, t, axis, focus) {
   const a = normalizeSliceAxis(axis);
   const value = a === "x" ? x : a === "y" ? y : t;
   return Math.abs(value - focus) < 0.5;
+}
+
+/** Rail back index for a voxel on the standing / active axis. */
+export function focusBackFromVoxel(axis, x, y, t, width, height, tNow) {
+  const a = normalizeSliceAxis(axis);
+  if (a === "x") return Math.max(0, (width | 0) - 1 - (x | 0));
+  if (a === "y") return Math.max(0, (height | 0) - 1 - (y | 0));
+  return Math.max(0, (tNow | 0) - (t | 0));
+}
+
+/**
+ * Inverse of the engine mapping: turntable-local axis coord → rail back.
+ * X is world X, Y is world Z, Z/time is world Y.
+ */
+export function backFromWorldCoord(axis, coord, width, height, cellSize, timeScale) {
+  const a = normalizeSliceAxis(axis);
+  const c = Number(coord);
+  if (!Number.isFinite(c)) return 0;
+  if (a === "z") {
+    const ts = Number(timeScale);
+    const scale = Number.isFinite(ts) && ts > 0 ? ts : 1;
+    return Math.max(0, Math.round(-c / scale));
+  }
+  const cs = Number(cellSize);
+  const size = Number.isFinite(cs) && cs > 0 ? cs : 1;
+  const max = a === "x" ? Math.max(0, (width | 0) - 1) : Math.max(0, (height | 0) - 1);
+  const idx = Math.round(c / size + max * 0.5);
+  const clamped = Math.min(max, Math.max(0, idx));
+  return Math.max(0, max - clamped);
 }
 
 export function onAnyPlane(x, y, t, foci) {
@@ -165,6 +223,30 @@ export function fociFromSlabs(slabs, width, height, tNow) {
   };
 }
 
+/**
+ * SoA invalidation key for Inspect. Hull cubes do not depend on the
+ * playhead — only the AABB crop and shade mode do. Ghost/Triple include
+ * the plane(s) that must be solid.
+ */
+export function inspectRebuildKey({
+  shade,
+  aabb,
+  foci,
+  activeAxis = "z",
+} = {}) {
+  const mode = normalizeShadeMode(shade);
+  const box = aabb
+    ? `${aabb.xLo | 0}:${aabb.xHi | 0}:${aabb.yLo | 0}:${aabb.yHi | 0}:${aabb.tLo | 0}:${aabb.tHi | 0}`
+    : "live";
+  if (mode === "hull") return `${box}:hull`;
+  const f = foci || {};
+  if (mode === "ghost" || mode === "slice") {
+    const axis = normalizeSliceAxis(activeAxis);
+    return `${box}:${mode}:${axis}:${f[axis] | 0}`;
+  }
+  return `${box}:triple:${f.x | 0}:${f.y | 0}:${f.z | 0}`;
+}
+
 export function shouldEmitVoxel(
   x,
   y,
@@ -172,11 +254,15 @@ export function shouldEmitVoxel(
   { aabb, foci, shade, activeAxis = "z", isHull = true } = {},
 ) {
   if (!inAabb(x, y, t, aabb)) return false;
-  if (isHull) return true;
   const mode = normalizeShadeMode(shade);
-  if (mode === "hull") return false;
   const f = foci || {};
+  if (mode === "hull") return Boolean(isHull);
   if (mode === "ghost") {
+    if (isHull) return true;
+    const axis = normalizeSliceAxis(activeAxis);
+    return onAxisPlane(x, y, t, axis, f[axis]);
+  }
+  if (mode === "slice") {
     const axis = normalizeSliceAxis(activeAxis);
     return onAxisPlane(x, y, t, axis, f[axis]);
   }
@@ -201,8 +287,8 @@ export function voxelShadeClass(
     if (isHull) return "ghost";
     return "skip";
   }
+  if (mode === "slice") return onActive ? "solid" : "skip";
   if (onAny) return "solid";
-  if (isHull) return "ghost";
   return "skip";
 }
 
@@ -288,6 +374,21 @@ export function clampSlab(topBack, focusBack, botBack, maxBack, dragged = "focus
     if (foc > bot) bot = foc;
   }
   return { topBack: top, focusBack: foc, botBack: bot };
+}
+
+/** Open all three clip windows to the brick; keep each playhead. */
+export function resetSlabClips(slabs, xMax, yMax, zMax) {
+  const axis = (s, max) => {
+    const m = Math.max(0, max | 0);
+    const cur = s || { near: 0, focus: 0, far: m };
+    const c = clampSlab(0, cur.focus, m, m, "near");
+    return { near: c.topBack, focus: c.focusBack, far: c.botBack };
+  };
+  return {
+    x: axis(slabs?.x, xMax),
+    y: axis(slabs?.y, yMax),
+    z: axis(slabs?.z, zMax),
+  };
 }
 
 /** Absolute generations for a slab given Now and back-offsets. */

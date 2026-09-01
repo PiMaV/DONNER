@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 
 import {
   lookAlignedWithAxis,
+  lockedFaceAction,
+  lockedFacePageStep,
   planeLockShouldExit,
   sliceOnlyFromPlaneLock,
 } from "../src/axes.js";
@@ -53,5 +55,14 @@ describe("plane lock", () => {
       planeLockShouldExit(true, { x: 0, y: 50, z: 0 }, { x: 0, y: 0, z: 0 }, "x"),
       true,
     );
+  });
+
+  it("pages the cut when the same face is clicked again", () => {
+    assert.equal(lockedFaceAction(true, "z", 1, "z", 1), "page");
+    assert.equal(lockedFaceAction(true, "z", 1, "z", -1), "enter");
+    assert.equal(lockedFaceAction(true, "z", 1, "x", 1), "enter");
+    assert.equal(lockedFaceAction(false, "z", 1, "z", 1), "enter");
+    assert.equal(lockedFacePageStep(1), 1);
+    assert.equal(lockedFacePageStep(-1), -1);
   });
 });

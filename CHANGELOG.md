@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-01
+
+### Added
+
+- **XR-C-0** Quest: after the volume locks, a **Play / stand X·Y·Z / Exit** plate parks at eye height (it does not follow the growing pillar). Thumbstick yaws; squeeze both grips and move the hands apart or together to scale. Phone AR still uses the DOM overlay (including **Stand**); the 3D plate stays off when `dom-overlay` is `screen`.
+- AR **stand axis**: the chosen product plane is the table. Default is Z (time up). X or Y tips the volume so that face sits on the table; the AABB still rests on the anchor.
+- AR **bounding frames**: after lock, the three playhead rings stay visible so you can walk the volume. Controller (or phone tap) grab moves that plane; clips appear once you are inspecting.
+- AR **voxel poke**: pointing at a cube isolates the **standing** plane (Ghost). Play returns to the live pillar. This is not worldline isolation.
+- Source dropdown: **Ignition** and **MNI 152** (native-grid T1 hull) sit next to Conway. The MNI cube is a local symlink, not a git blob.
+- **Full** (next to Fit) resets the three clip planes to the full volume. The playhead stays.
+
+### Changed
+
+- Brand expansion is **Dimensional Observation & Navigation: N-dimensional Exploration & Rendering**. Positioning: browser-native scientific 3D/XR explorer for structured data, not primarily an event viewer. Conway stays the demo-shell generator.
+- Viewcube: clicking the **same face** you are already looking at pages the cut like Shift+wheel. It does not refit to the default ortho or jump back to 3D.
+- Conway encoding: gray is **Base** (gens 0–1 and the first cube of each worldline), not Warmup.
+- Inspect **Triple** is three cut planes only (no ghost hull). **Ghost** on a dense count cube (MNI) is the active cut only; sparse Conway / Ignition still draw a ghost hull.
+- Playhead and clip rings scale with the brick span, not the cell size, so MNI and Ignition frames stay readable.
+
+### Fixed
+
+- AR (phone and Quest): the volume appears in front of the viewer immediately. A table hit still re-places; if no plane shows up, the pose locks after a short wait. A thrown HUD or pose update no longer kills the WebXR animation loop. The viewcube scissor is cleared before an XR render.
+- Inspect **Hull** playhead no longer rebuilds EventSoA. Dense count volumes cache hull indices at load; a clip crop uses that cache plus the AABB faces instead of scanning ~5.4M occupied voxels.
+
 ## [0.7.0] - 2026-09-01
 
 ### Added

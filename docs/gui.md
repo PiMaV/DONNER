@@ -29,15 +29,23 @@ Conway Play from Inspect jumps to live Now.
 
 In an **AR session** the same Play and Z stack stay; brand, View/Source
 sheets, and the FPS chip hide. The viewcube and Parallax are not offered. Point at a table
-until a gold square appears, then **tap** to place. The pose **locks**
-for the session (Z and Size do not move the origin). **Yaw** then turns
-the pillar on the table (product Z; swipe on passthrough or the overlay
-slider). Walk with the phone after that. The volume is a
-**pillar**: gen 0 stays on the table; **Play** grows the tape upward;
-Z clips a segment in place; **Size** scales the whole stack. **Exit**
-(or Escape) returns to orbit. The WebXR DOM
-overlay is `#xr-overlay` (HUD only), not `document.body`, so the camera
-passthrough and the volume stay visible.
+until a gold square appears, then **tap** to place (the volume is already
+in front of you so the WebGL layer is never empty). If no plane appears,
+that pose locks after a short wait. Once locked, Z and Size do not move
+the origin. **Yaw** then turns
+the volume on the table (swipe on passthrough or the overlay
+slider). **Stand X / Y / Z** chooses which product plane is the table
+(default Z, time up). Walk with the phone after that. Bounding
+**frames** stay visible so you can navigate the box; grab an edge to
+move that plane. Point at a **cube** to isolate the standing plane
+(Ghost); **Play** returns to the live volume. **Size** scales the whole
+stack. **Exit** (or Escape) returns to orbit. On a **phone** the WebXR
+DOM overlay is `#xr-overlay` (HUD only), not `document.body`, so the
+camera passthrough and the volume stay visible. On a **headset** (Quest)
+that overlay is usually missing; after lock a **Play / stand X·Y·Z /
+Exit** plate parks at eye height beside the table (it does not grow with
+the pillar). Thumbstick yaws; squeeze both grips and move the hands
+apart or together to **Size**.
 
 ```mermaid
 flowchart TB
@@ -62,12 +70,16 @@ flowchart TB
 flowchart LR
   look[Look at table]
   tap2[Tap gold square]
-  lock2[Pose locked at 0]
+  lock2[Pose locked]
+  stand[Stand X Y or Z]
   yaw2[Yaw on the table]
-  play[Play grows the tape up]
-  clip[Z clips a segment in place]
+  play[Play grows time]
+  frames[Grab a bounding frame]
+  poke[Poke a cube: standing plane]
   look --> tap2 --> lock2 --> yaw2 --> play
-  lock2 --> clip
+  lock2 --> stand
+  lock2 --> frames
+  lock2 --> poke
 ```
 
 The left chrome is two sheets — **View** (Parallax, Align to Z, Light, Decay, Depth live-only,
@@ -127,10 +139,12 @@ flowchart TB
     pass[Passthrough]
     ret[Gold square on table]
     volA[Tap to place volume]
-    chrome[Play Z Exit]
+    phoneChrome[Phone DOM overlay]
+    questHud[Quest parked Play Exit]
     pass --> ret
     ret --> volA
-    volA --> chrome
+    volA --> phoneChrome
+    volA --> questHud
   end
 ```
 
@@ -151,8 +165,8 @@ rectangle select on the playfield).
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
-| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. **Left-drag** orbits out to 3D. **B** also leaves. **Planes** under the cube (default on) shows or hides 3D frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone and in AR. |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Yaw** orients the pillar; then walk. **Play** grows from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
+| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves. **Planes** under the cube (default on) shows or hides 3D frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone and in AR. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Look at a table; tap the gold square to place. Pose locks. **Stand** X/Y/Z chooses the table plane. Bounding frames stay on; poke a cube to isolate the standing plane. Phone: overlay Stand / **Yaw** / **Size** / Play. Quest: parked Play/stand/Exit plate; stick yaws; both grips pinch size. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -170,8 +184,9 @@ rectangle select on the playfield).
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
 | Yaw | AR overlay only: turn the pillar on the table after place, then walk. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
+| Full | Reset the three clip planes to the full volume. Playhead stays. |
 | Decay | Default **off**. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Ghost hull uses proximity along the active plane, not Decay. |
-| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead edge to peek as ghost; clip edges stay hull), **Ghost** (volume ghost, active plane solid), **Triple** (three cuts solid, hull ghost). |
+| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; clip edges stay hull), **Ghost** (sparse: volume ghost + active plane; dense: the cut only), **Triple** (three cuts only, no hull). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | Bench instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
@@ -181,7 +196,7 @@ rectangle select on the playfield).
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Conway** or **Count stack** |
+| Source | **Conway**, **Ignition**, **MNI 152**, or Count file / stream |
 | Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs the **active** axis |
 
 ### Conway addon
@@ -211,8 +226,8 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Ignition demo | Load `data/ignition_stack.npy` (local symlink into `datasets/EVT/`) |
-| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Local MRI preview: `../datasets/MRT/mni152_stack.npy` (dense; full-extent AABB hull + hidden enclosed cubes; see architecture *MRI volume*) |
+| Source | Conway, **Ignition**, **MNI 152**, or Count file / stream |
+| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Shown under Count file / stream. |
 | Stream | WOLKE contract. Default `http://127.0.0.1:5055` / token `evt` (EVT sidecar). Connect listens for `send_file_message`; the cube GET is same-origin `/stream-npy` (DONNER’s static server pulls the sidecar). Send as **counts**. Restart `npm start` / `start:lan` so the proxy exists. `https://lab.ole.icu` works when Caddy reverse-proxies that laptop server. |
 | Token | Sidecar / WOLKE token (sidecar default `evt`) |
 | Connect | Toggle the Socket.IO viewer. A new send replaces the cube. 2D/RGB is rejected with a hint; the previous volume stays. |
@@ -225,7 +240,7 @@ max = coral. Empty pixels (count 0) are not cubes.
 ## Encoding (slot)
 
 Color and cube fill are display slots. Conway supplies still / osc /
-moving / unsettled / warmup and Stability **None / Time / Focus**. A count stack
+moving / unsettled / base and Stability **None / Time / Focus**. A count stack
 supplies integer rungs (cyan → gold → coral) and optional size-by-count.
 Polarity is later. The sheet **Encoding** block is that slot; source
 stats stay in **Source**.
@@ -244,12 +259,14 @@ and drag it along the axis in screen space; the fill is not a hit target. Three
 HUD rails stay as a dimmer second path (Now/max at the top of Z). **Planes**
 under the viewcube hides the 3D frames (default on). Crop is
 the intersection of the three clip windows. **Hull** (default) draws the
-outer hull solid; grab a **playhead** edge to peek as ghost. Grab a **clip**
-edge and the volume stays hull so you can stake the crop. **Ghost** /
-**Triple** persist in the View sheet. **Decay** stays a Z/time fade on
+outer hull solid; grab a **playhead** edge to peek the cut (sparse volumes
+keep a ghost hull). Grab a **clip**
+edge and the volume stays hull so you can stake the crop. **Ghost** is
+the active plane (dense cubes: that cut only). **Triple** is three slices
+only, no hull. Both persist in the View sheet. **Decay** stays a Z/time fade on
 sparse stacks. The CAD viewcube (desktop, left of the View card) enters a
 fitted 2D cut with **that plane's frame and grid**; wheel zooms, right-drag
-pans, Shift+wheel pages; a click on
+pans, Shift+wheel pages; the **same face** pages the stack; a click on
 the cut does nothing; **B** restores the volume. Zoom and pan stay in the cut.
 
 ```mermaid
@@ -386,13 +403,13 @@ fight the class colors.
 | Oscillator | cyan | blinker tips, toad, beacon, longer-period occupancy — **only when live**, in place |
 | Moving | BLITZ coral | glider tube — Neighborhood 3×3/5×5; translating activity |
 | Unsettled | violet | soup, births/deaths that are not yet still or periodic |
-| Warmup | gray | generations 0 and 1 — too little history to class |
+| Base | gray | gens 0–1, and the first cube of each `(x, y)` worldline |
 
 ```mermaid
 flowchart TD
   live[Live cell at t]
-  live --> wu{t less than 2}
-  wu -->|yes| warmup[Warmup gray]
+  live --> wu{t less than 2 or first live on this xy}
+  wu -->|yes| base[Base gray]
   wu -->|no| mot{Neighborhood centroid translated}
   mot -->|yes| moving[Moving coral]
   mot -->|no| prev{Live at t-1}
@@ -415,7 +432,7 @@ Decay only darkens older **Z** slices; it does not change hue or cube size.
 - **Time** (default) — duration already reached at that generation (taper)
 - **Focus** — duration on the focus plane, whole `(x, y)` column
 
-Cap is 16 generations. Moving and Unsettled stay smaller in Time/Focus. Warmup cubes
+Cap is 16 generations. Moving and Unsettled stay smaller in Time/Focus. Base cubes
 stay full size so the first slices are not a false “shrink”.
 
 These classes fill the **encoding slot** for the Conway demonstrator. A
@@ -444,24 +461,33 @@ Bench stays in the sheet, not on the FPS chip.
 
 ## Later
 
+- **Public preview (Phase 2):** Thin View and Bench off the everyday
+  sheet before `donner.mess.engineering`. Do not start Dataset Contract
+  or a PointRenderer in that slice.
 - **Source off the rail:** Conway HUD (GEN / LIVE / RATE) and the left
   Source sheet leave the viewer chrome; generator is its own surface.
 - **Thin View:** teaching View keeps Parallax / Align to Z / Light / Decay / Depth (and maybe
   cache). Bench, GPU strings, Neighborhood, presets, and dense Encoding
   leave the everyday sheet.
-- **Isolation later:** rectangle select on the playfield (not cube double-click). Numbered axes with units come back later; the overlay is off.
+- **Isolation later:** rectangle select on the playfield (not cube double-click). AR poke already isolates the standing plane. Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, packed WOLKE selection / `viewer_index`, BLITZ widget sync, in-browser EVT3
-- **MRI source kind** (not in the Source sheet). Dense count `.npy`
-  (occupancy > 15 %) already opens a mid-volume slab with enclosed
-  voxels hidden. Do not embed NiiVue. Volume texture / raymarch later
-  if that slab is not enough. See [`architecture.md`](../architecture.md#mri-volume-later).
-- **XR-A is in:** WebXR `immersive-ar` passthrough and plane hit-test
-  (gold reticle, tap a table to place; pose locks; Z clips a segment in
-  the pillar). **AR** only if `navigator.xr` supports it. Chrome is
-  Play, Z, Size, Yaw, Exit. Phone HTTPS is
-  `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
+- **MRI / scalar volume later.** Dense count `.npy` (occupancy > 15 %)
+  already opens a mid-volume slab with enclosed voxels hidden. Dedicated
+  kind + `ScalarVolume` wait on the Dataset Contract. Do not embed
+  NiiVue. Volume texture / raymarch later if that slab is not enough.
+  See [`architecture.md`](../architecture.md#mri-volume-later).
+- **XR-A is in** (phone ceiling): WebXR `immersive-ar` passthrough and
+  plane hit-test (gold reticle, tap a table to place; pose locks; Z clips
+  a segment in the pillar). **AR** only if `navigator.xr` supports it.
+  Phone chrome is Play, Z, Size, Yaw, Exit on `#xr-overlay`. Phone HTTPS
+  is `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
   After a Chrome update, check site **Augmented reality** (not blocked)
   and that the response has `Permissions-Policy: xr-spatial-tracking=(self)`.
-  **Next:** XR-B marker, then XR-C Quest 3. Do not start a points
-  renderer in the same slice as further XR work.
+- **XR-C-0 is in:** Quest uses the same session; after lock a **Play /
+  stand X·Y·Z / Exit** plate parks at eye height. Stick yaws; both grips
+  pinch size. Bounding frames stay on; poke a cube to isolate the
+  standing plane. XR-B marker, XR-C-1 hands / wrist attach, and a QR door
+  (`https://lab.ole.icu/` plus optional `?src=conway&pattern=Blinker` /
+  `?src=count&demo=ignition`) are later. Do not start a points renderer
+  in the same slice as further XR work.

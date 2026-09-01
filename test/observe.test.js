@@ -8,6 +8,7 @@ import {
   dragFocusBack,
   isolationWeight,
   screenPxPerWorldY,
+  voxelFromLocal,
 } from "../src/observe.js";
 
 describe("cell pick from world XZ", () => {
@@ -48,5 +49,12 @@ describe("on-volume time drag", () => {
   it("uses a floor when the projected Y axis is tiny", () => {
     assert.equal(screenPxPerWorldY(0, 0, 800), 8);
     assert.ok(screenPxPerWorldY(0, 1, 800) > 8);
+  });
+});
+
+describe("voxel from turntable local", () => {
+  it("reads product XY and time from local XZY", () => {
+    const v = voxelFromLocal(0, -3, 0, 5, 5, 1, 10, 1);
+    assert.deepEqual(v, { x: 2, y: 2, t: 7 });
   });
 });

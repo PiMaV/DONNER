@@ -13,6 +13,15 @@ export function cellFromWorldXZ(px, pz, width, height, cellSize) {
   return { x, y };
 }
 
+/** Turntable-local hit → product voxel. `ly` is product Z (time). */
+export function voxelFromLocal(lx, ly, lz, width, height, cellSize, tNow, timeScale) {
+  const cell = cellFromWorldXZ(lx, lz, width, height, cellSize);
+  if (!cell) return null;
+  const ts = Number(timeScale);
+  const scale = Number.isFinite(ts) && ts > 0 ? ts : 1;
+  return { x: cell.x, y: cell.y, t: Math.round(ly / scale + (tNow | 0)) };
+}
+
 export function cellsEqual(a, b) {
   return Boolean(a && b && a.x === b.x && a.y === b.y);
 }

@@ -8,7 +8,7 @@
  * Product Z = 0 is Now (`tNow`). Engine Y-up stores that as world Y = 0.
  * The playhead (`tFocus`) is a plane that moves through that stack.
  * Live: slices with t > tFocus sit above as a transparent ghost.
- * Inspect: Hull / Ghost / Triple from `voxelShadeClass`. Ghost hull fades
+ * Inspect: Hull / Ghost / Triple / Slice from `voxelShadeClass`. Ghost hull fades
  * toward the AABB faces along the active plane (`sliceDistanceFade`).
  * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
  */
@@ -101,7 +101,7 @@ export class CubeRenderer {
    *   activeAxis?: "x" | "y" | "z",
    *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number } | null,
    *   foci?: { x: number, y: number, z: number },
-   *   shade?: "hull" | "ghost" | "triple" | null,
+   *   shade?: "hull" | "ghost" | "triple" | "slice" | null,
    *   encodingMinimal?: boolean,
    * }} view
    */
@@ -120,7 +120,7 @@ export class CubeRenderer {
     const aabb = view.aabb || null;
     const foci = view.foci || { x: -1, y: -1, z: tFocus };
     const shade = view.shade || null;
-    const inspectShade = shade === "hull" || shade === "ghost" || shade === "triple";
+    const inspectShade = shade === "hull" || shade === "ghost" || shade === "triple" || shade === "slice";
     const minimal = Boolean(view.encodingMinimal);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
@@ -402,7 +402,7 @@ export class FocusFrame {
     const inset = frameHandleInset(cellSize, this._handle, width, height, yMin, yMax);
     const box = frameRingBox(width, height, cellSize, this._axis, yMin, yMax, inset);
     this._box = box;
-    const { visual: t } = frameBarThickness(cellSize, this._handle);
+    const { visual: t } = frameBarThickness(cellSize, this._handle, width, height, yMin, yMax);
     const { hw, hd, yMin: y0, yMax: y1, yMid } = box;
     const hy = Math.max(cellSize * 0.25, Math.abs(y1 - y0) / 2);
 
@@ -468,7 +468,7 @@ export class FocusFrame {
   _applyLook() {
     let opacity;
     if (this._handle !== "focus") {
-      opacity = this._emphasis === "idle" ? 0.12 : 0.2;
+      opacity = this._emphasis === "idle" ? 0.24 : 0.42;
     } else if (this._emphasis === "idle") opacity = 0.42;
     else opacity = 0.72;
     if (this._editing) opacity = 0.85;

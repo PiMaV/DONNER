@@ -15,3 +15,4 @@ __pycache__/
 *.pyc
 data/*.npy
 !data/ignition_stack.npy
+!data/mni152_stack.npy

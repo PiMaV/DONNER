@@ -4,13 +4,16 @@ import { describe, it } from "node:test";
 import {
   aabbFromSlabs,
   clampSlab,
+  denseGhostToSlice,
   effectiveShade,
   fociFromSlabs,
   formatZTick,
   inAabb,
+  inspectRebuildKey,
   onAxisPlane,
   productToWorld,
   relativeTimeTicks,
+  resetSlabClips,
   shouldEmitVoxel,
   slabGenerations,
   spatialTicks,
@@ -22,6 +25,8 @@ import {
   worldToProduct,
   zBackWorldY,
   zWorldY,
+  backFromWorldCoord,
+  focusBackFromVoxel,
 } from "../src/axes.js";
 
 describe("product vs engine axes", () => {
@@ -127,6 +132,22 @@ describe("Z slab", () => {
     assert.deepEqual(slabGenerations(100, 0, 40), { tLo: 60, tHi: 100 });
     assert.deepEqual(slabGenerations(100, 10, 10), { tLo: 90, tHi: 90 });
   });
+
+  it("opens clip windows to the brick and keeps the playhead", () => {
+    const next = resetSlabClips(
+      {
+        x: { near: 4, focus: 8, far: 12 },
+        y: { near: 1, focus: 2, far: 3 },
+        z: { near: 10, focus: 20, far: 30 },
+      },
+      20,
+      15,
+      40,
+    );
+    assert.deepEqual(next.x, { near: 0, focus: 8, far: 20 });
+    assert.deepEqual(next.y, { near: 0, focus: 2, far: 15 });
+    assert.deepEqual(next.z, { near: 0, focus: 20, far: 40 });
+  });
 });
 
 describe("AABB crop and shade", () => {
@@ -172,6 +193,39 @@ describe("AABB crop and shade", () => {
     assert.equal(effectiveShade("hull", true), "ghost");
     assert.equal(effectiveShade("ghost", true), "ghost");
     assert.equal(effectiveShade("triple", true), "triple");
+    assert.equal(denseGhostToSlice("ghost", false), "ghost");
+    assert.equal(denseGhostToSlice("ghost", true), "slice");
+    assert.equal(denseGhostToSlice("triple", true), "triple");
+  });
+
+  it("Hull SoA key ignores the playhead; Ghost includes the active plane", () => {
+    const aabb = { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 8 };
+    const a = inspectRebuildKey({
+      shade: "hull",
+      aabb,
+      foci: { x: 1, y: 1, z: 2 },
+      activeAxis: "z",
+    });
+    const b = inspectRebuildKey({
+      shade: "hull",
+      aabb,
+      foci: { x: 0, y: 0, z: 7 },
+      activeAxis: "x",
+    });
+    assert.equal(a, b);
+    const g0 = inspectRebuildKey({
+      shade: "ghost",
+      aabb,
+      foci: { x: 1, y: 1, z: 2 },
+      activeAxis: "z",
+    });
+    const g1 = inspectRebuildKey({
+      shade: "ghost",
+      aabb,
+      foci: { x: 1, y: 1, z: 3 },
+      activeAxis: "z",
+    });
+    assert.notEqual(g0, g1);
   });
 
   it("classifies hull, ghost, and triple voxels", () => {
@@ -183,6 +237,9 @@ describe("AABB crop and shade", () => {
     assert.equal(voxelShadeClass(1, 1, 1, { ...opts, shade: "ghost", isHull: false }), "solid");
     assert.equal(voxelShadeClass(0, 0, 0, { ...opts, shade: "ghost", isHull: true }), "ghost");
     assert.equal(voxelShadeClass(1, 0, 0, { ...opts, shade: "triple", isHull: false }), "solid");
+    assert.equal(voxelShadeClass(0, 0, 0, { ...opts, shade: "triple", isHull: true }), "skip");
+    assert.equal(voxelShadeClass(1, 1, 1, { ...opts, shade: "slice", isHull: true }), "solid");
+    assert.equal(voxelShadeClass(0, 0, 0, { ...opts, shade: "slice", isHull: true }), "skip");
     assert.equal(onAxisPlane(1, 0, 0, "x", 1), true);
   });
 
@@ -200,6 +257,15 @@ describe("AABB crop and shade", () => {
     );
     assert.equal(shouldEmitVoxel(1, 0, 0, { aabb, foci, shade: "triple", isHull: false }), true);
     assert.equal(shouldEmitVoxel(0, 0, 0, { aabb, foci, shade: "triple", isHull: false }), false);
+    assert.equal(shouldEmitVoxel(0, 0, 0, { aabb, foci, shade: "triple", isHull: true }), false);
+    assert.equal(
+      shouldEmitVoxel(1, 1, 1, { aabb, foci, shade: "slice", activeAxis: "z", isHull: true }),
+      true,
+    );
+    assert.equal(
+      shouldEmitVoxel(0, 0, 0, { aabb, foci, shade: "slice", activeAxis: "z", isHull: true }),
+      false,
+    );
   });
 
   it("wraps the playhead at both ends", () => {
@@ -207,5 +273,19 @@ describe("AABB crop and shade", () => {
     assert.equal(stepFocusBack(10, 10, 1), 0);
     assert.equal(stepFocusBack(4, 10, -1), 3);
     assert.equal(stepFocusBack(0, 0, -1), 0);
+  });
+});
+
+describe("voxel and world rail back", () => {
+  it("maps a voxel onto the standing-axis playhead", () => {
+    assert.equal(focusBackFromVoxel("z", 2, 3, 7, 5, 5, 10), 3);
+    assert.equal(focusBackFromVoxel("x", 2, 3, 7, 5, 5, 10), 2);
+    assert.equal(focusBackFromVoxel("y", 2, 1, 7, 5, 5, 10), 3);
+  });
+
+  it("inverts the engine mapping for a rail coord", () => {
+    assert.equal(backFromWorldCoord("z", -20, 32, 32, 1, 1), 20);
+    assert.equal(backFromWorldCoord("x", 0, 5, 5, 1, 1), 2);
+    assert.equal(backFromWorldCoord("y", 2, 5, 5, 1, 1), 0);
   });
 });

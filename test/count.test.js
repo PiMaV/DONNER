@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  countAabbCoversVolume,
   countAxes,
   countCeiling,
   countOccupancy,
@@ -12,6 +13,10 @@ import {
 } from "../src/count.js";
 import { parseNpy, serializeNpy } from "../src/npy.js";
 import { EventSoA } from "../src/spacetime.js";
+import {
+  COUNT_DEMOS,
+  isCountSourceKind,
+} from "../src/config.js";
 
 describe("npy", () => {
   it("round-trips a little-endian uint16 cube", () => {
@@ -78,6 +83,28 @@ describe("count volume", () => {
     assert.deepEqual(countAxes([1, 2, 2, 1]), { t: 1, h: 2, w: 2, c: 1 });
     assert.equal(countCeiling(9), 9);
     assert.equal(countCeiling(99), 32);
+  });
+
+  it("treats a missing AABB as the whole brick", () => {
+    assert.equal(countAabbCoversVolume(null, 10, 8, 4), true);
+    assert.equal(
+      countAabbCoversVolume(
+        { xLo: 0, xHi: 9, yLo: 0, yHi: 7, tLo: 0, tHi: 3 },
+        10,
+        8,
+        4,
+      ),
+      true,
+    );
+    assert.equal(
+      countAabbCoversVolume(
+        { xLo: 1, xHi: 9, yLo: 0, yHi: 7, tLo: 0, tHi: 3 },
+        10,
+        8,
+        4,
+      ),
+      false,
+    );
   });
 
   it("drops a fully enclosed voxel on a full slab", () => {
@@ -160,6 +187,29 @@ describe("count volume", () => {
     }
   });
 
+  it("opening the clips again restores the full-brick hull count", () => {
+    const dense = new Uint16Array(10 * 10 * 10);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [10, 10, 10]);
+    const soa = new EventSoA(2048);
+    vol.fillSoA(soa, 9, 10, 10, {
+      tLo: 0,
+      tHi: 9,
+      tFocus: 5,
+      stabScale: false,
+      aabb: { xLo: 2, xHi: 9, yLo: 0, yHi: 9, tLo: 0, tHi: 9 },
+    });
+    assert.equal(soa.count, 416);
+    vol.fillSoA(soa, 9, 10, 10, {
+      tLo: 0,
+      tHi: 9,
+      tFocus: 5,
+      stabScale: false,
+      aabb: { xLo: 0, xHi: 9, yLo: 0, yHi: 9, tLo: 0, tHi: 9 },
+    });
+    assert.equal(soa.count, 488);
+  });
+
   it("Ghost shade emits the enclosed center on the active plane", () => {
     const dense = new Uint16Array(27);
     dense.fill(1);
@@ -177,6 +227,86 @@ describe("count volume", () => {
     });
     assert.equal(soa.count, 27);
   });
+
+  it("full-brick Hull fill ignores the playhead and matches the hull cache", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    assert.equal(vol._hull.length, 26);
+    assert.equal(vol.eventIndexAt(1, 1, 1), 1 * 9 + 1 * 3 + 1);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 0,
+      stabScale: false,
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    const n0 = soa.count;
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 2,
+      stabScale: false,
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(n0, 26);
+    assert.equal(soa.count, 26);
+  });
+
+  it("Ghost on X uses the hull cache plus the enclosed column", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      shade: "ghost",
+      activeAxis: "x",
+      foci: { x: 1, y: 1, z: 1 },
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 27);
+  });
+
+  it("Slice shade emits only the active plane", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      shade: "slice",
+      activeAxis: "z",
+      foci: { x: 1, y: 1, z: 1 },
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 9);
+    for (let i = 0; i < soa.count; i++) assert.equal(soa.t[i], 1);
+  });
+
+  it("Triple shade emits the three planes without the hull", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      shade: "triple",
+      foci: { x: 1, y: 1, z: 1 },
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 19);
+  });
 });
 
 describe("dense count slab", () => {
@@ -189,5 +319,15 @@ describe("dense count slab", () => {
     assert.equal(isDenseCount(solid), true);
     assert.ok(countOccupancy(solid) > DENSE_OCCUPANCY);
   });
+});
 
+describe("count source demos", () => {
+  it("treats Ignition and MNI 152 as count sources", () => {
+    assert.equal(isCountSourceKind("conway"), false);
+    assert.equal(isCountSourceKind("count"), true);
+    assert.equal(isCountSourceKind("ignition"), true);
+    assert.equal(isCountSourceKind("mni152"), true);
+    assert.equal(COUNT_DEMOS.mni152.url, "data/mni152_stack.npy");
+    assert.equal(COUNT_DEMOS.ignition.url, "data/ignition_stack.npy");
+  });
 });

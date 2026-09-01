@@ -22,13 +22,24 @@ export function frameHandleInset(cellSize, handle, width = 16, height = 16, yMin
   return Math.max(cs * 1.6, span * 0.22);
 }
 
-/** Playhead bar is thicker than a clip so the current plane reads first. */
-export function frameBarThickness(cellSize, handle = "focus") {
+/** Playhead bar is thicker than a clip. Thickness follows the brick span. */
+export function frameBarThickness(
+  cellSize,
+  handle = "focus",
+  width = 16,
+  height = 16,
+  yMin = 0,
+  yMax = 0,
+) {
   const cs = Math.max(1e-6, Number(cellSize) || 1);
-  if (handle === "near" || handle === "far") {
-    return { visual: Math.max(0.03, cs * 0.045) };
-  }
-  return { visual: Math.max(0.1, cs * 0.13) };
+  const hw = (Math.max(1, width) * cs) / 2;
+  const hd = (Math.max(1, height) * cs) / 2;
+  const hy = Math.max(cs, Math.abs((Number(yMax) || 0) - (Number(yMin) || 0)) / 2);
+  const span = Math.max(cs, Math.min(hw, hd, hy));
+  const clip = handle === "near" || handle === "far";
+  const frac = clip ? 0.007 : 0.014;
+  const floor = clip ? cs * 0.045 : cs * 0.13;
+  return { visual: Math.max(floor, Math.min(span * 0.05, span * frac)) };
 }
 
 /**
@@ -227,4 +238,62 @@ export function screenAxisDragMap(grab, axisDir, scale, project) {
 export function screenAxisDragStep(dx, dy, mapped) {
   if (!mapped || !(mapped.px > 0)) return 0;
   return Math.round((dx * mapped.ux + dy * mapped.uy) / mapped.px);
+}
+
+/** World-meter rim around a ring edge for XR controller rays. */
+export const FRAME_PICK_M = 0.03;
+
+/**
+ * Closest approach of a ray to a segment. `t` is along the ray (>= 0).
+ */
+export function distRayToSegment3(ox, oy, oz, dx, dy, dz, ax, ay, az, bx, by, bz) {
+  const ux = bx - ax;
+  const uy = by - ay;
+  const uz = bz - az;
+  const wx = ax - ox;
+  const wy = ay - oy;
+  const wz = az - oz;
+  const uu = ux * ux + uy * uy + uz * uz;
+  const vv = dx * dx + dy * dy + dz * dz;
+  const uv = ux * dx + uy * dy + uz * dz;
+  const uw = ux * wx + uy * wy + uz * wz;
+  const vw = dx * wx + dy * wy + dz * wz;
+  const denom = uu * vv - uv * uv;
+  let s = 0;
+  if (uu > 1e-12) {
+    if (Math.abs(denom) >= 1e-12) s = (uv * vw - vv * uw) / denom;
+    s = Math.min(1, Math.max(0, s));
+  }
+  const px = ax + s * ux;
+  const py = ay + s * uy;
+  const pz = az + s * uz;
+  const t = vv > 1e-12
+    ? Math.max(0, ((px - ox) * dx + (py - oy) * dy + (pz - oz) * dz) / vv)
+    : 0;
+  const qx = ox + t * dx;
+  const qy = oy + t * dy;
+  const qz = oz + t * dz;
+  return { dist: Math.hypot(qx - px, qy - py, qz - pz), t, s, x: px, y: py, z: pz };
+}
+
+/**
+ * Scalar along a turntable axis: X → x, Y → z, Z → y.
+ * Ray in the same local space, unit-ish direction.
+ */
+export function closestAxisCoord(origin, dir, axis) {
+  const a = normalizeSliceAxis(axis);
+  const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+  const dx = dir.x / len;
+  const dy = dir.y / len;
+  const dz = dir.z / len;
+  const ex = a === "x" ? 1 : 0;
+  const ey = a === "z" ? 1 : 0;
+  const ez = a === "y" ? 1 : 0;
+  const de = dx * ex + dy * ey + dz * ez;
+  const oe = origin.x * ex + origin.y * ey + origin.z * ez;
+  const od = origin.x * dx + origin.y * dy + origin.z * dz;
+  const denom = 1 - de * de;
+  if (Math.abs(denom) < 1e-8) return oe;
+  const t = Math.max(0, (oe * de - od) / denom);
+  return oe + t * de;
 }

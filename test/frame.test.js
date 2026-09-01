@@ -4,6 +4,9 @@ import { describe, it } from "node:test";
 import {
   closestTOnSegment2,
   distPointToSegment2,
+  distRayToSegment3,
+  closestAxisCoord,
+  FRAME_PICK_M,
   frameBarThickness,
   frameFaceOnScore,
   frameHandleInset,
@@ -36,6 +39,14 @@ describe("frame rings", () => {
     const play = frameBarThickness(1, "focus");
     const clip = frameBarThickness(1, "far");
     assert.ok(play.visual > clip.visual * 1.8);
+  });
+
+  it("scales bar thickness with the brick span, not only the cell", () => {
+    const small = frameBarThickness(1, "focus", 32, 32, 0, 32);
+    const large = frameBarThickness(1, "focus", 256, 256, 0, 215);
+    assert.ok(large.visual > small.visual * 4);
+    const clip = frameBarThickness(1, "far", 256, 256, 0, 215);
+    assert.ok(large.visual > clip.visual);
   });
 });
 
@@ -133,5 +144,22 @@ describe("screen-axis plane drag", () => {
     assert.equal(mapped.px, SCREEN_AXIS_MIN_PX);
     assert.equal(screenAxisDragStep(4, 0, mapped), 0);
     assert.equal(screenAxisDragStep(SCREEN_AXIS_MIN_PX, 0, mapped), 1);
+  });
+});
+
+describe("XR frame pick", () => {
+  it("measures a world-meter gap from a ray to a segment", () => {
+    const hit = distRayToSegment3(0, 0, 0, 1, 0, 0, 2, -1, 0, 2, 1, 0);
+    assert.ok(hit.dist < 1e-9);
+    assert.ok(Math.abs(hit.t - 2) < 1e-9);
+  });
+
+  it("keeps a 3 cm rim for controller rays", () => {
+    assert.equal(FRAME_PICK_M, 0.03);
+  });
+
+  it("projects a turntable ray onto a product axis", () => {
+    assert.equal(closestAxisCoord({ x: 0, y: 5, z: 0 }, { x: 1, y: 0, z: 0 }, "z"), 5);
+    assert.ok(Math.abs(closestAxisCoord({ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, "x") - 1) < 1e-9);
   });
 });

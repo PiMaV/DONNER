@@ -11,11 +11,11 @@ import {
 } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
 import {
+  KIND_BASE,
   KIND_MOVING,
   KIND_OSC,
   KIND_STILL,
   KIND_UNSETTLED,
-  KIND_WARMUP,
   MAX_OSC_PERIOD,
   MAX_STAB_GENS,
   SCALE_OPEN,
@@ -194,7 +194,7 @@ describe("worldline color class", () => {
     assert.equal(classifyWorldline(false, false, false), KIND_UNSETTLED);
   });
 
-  it("tags the first two generations as warmup, not unsettled", () => {
+  it("tags the first two generations as base, not unsettled", () => {
     const rng = mulberry32(0);
     let grid = seedPattern("Blinker", 9, 9, rng);
     const ring = new GenerationRing(8, 81);
@@ -203,8 +203,15 @@ describe("worldline color class", () => {
     ring.fillSoA(soa, 0, 8, 9);
     assert.ok(soa.count >= 3);
     for (let i = 0; i < soa.count; i++) {
-      assert.equal(soa.k[i], KIND_WARMUP);
+      assert.equal(soa.k[i], KIND_BASE);
     }
+  });
+
+  it("tags the first cube of a later worldline as base", () => {
+    const isLive = (t, packed) => packed === 0 && t === 4;
+    assert.equal(kindAt(4, 0, isLive), KIND_BASE);
+    const stay = (t, packed) => packed === 0 && t >= 4;
+    assert.equal(kindAt(5, 0, stay), KIND_STILL);
   });
 
   it("tags blinker tips as oscillators and the core as still", () => {
@@ -241,18 +248,15 @@ describe("worldline color class", () => {
     let still = 0;
     let osc = 0;
     let moving = 0;
-    let warmup = 0;
     for (let i = 0; i < soa.count; i++) {
       if (soa.t[i] < 8) continue;
       const k = soa.k[i];
       if (k === KIND_STILL) still += 1;
       else if (k === KIND_OSC) osc += 1;
       else if (k === KIND_MOVING) moving += 1;
-      else if (k === KIND_WARMUP) warmup += 1;
     }
     assert.equal(still, 0);
     assert.equal(osc, 0);
-    assert.equal(warmup, 0);
     assert.ok(moving > 0);
   });
 
@@ -365,7 +369,7 @@ describe("focus-slice hover lookup", () => {
 
   it("maps occupancy to cube fill", () => {
     assert.equal(cubeFill(null, "time"), 0);
-    assert.equal(cubeFill({ k: KIND_WARMUP, s: 0 }, "time"), SCALE_UNIFORM);
+    assert.equal(cubeFill({ k: KIND_BASE, s: 0 }, "time"), SCALE_UNIFORM);
     assert.equal(cubeFill({ k: KIND_STILL, s: 8 }, "none"), SCALE_UNIFORM);
     assert.equal(cubeFill({ k: KIND_MOVING, s: 0 }, "time"), SCALE_OPEN);
     assert.equal(cubeFill({ k: KIND_UNSETTLED, s: 0 }, "time"), SCALE_OPEN);
