@@ -70,7 +70,7 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
+| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, **Planes** toggle, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
 | **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/warmup + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
@@ -178,11 +178,14 @@ flowchart TB
 ```mermaid
 flowchart TB
   tNow[tNow simulation head]
+  origin[Product Z equals Now at world Y 0]
   tFocus[tFocus playhead]
-  tNow --> tFocus
-  tFocus --> plane[Focus plane product Z = 0]
-  plane --> below[Past: solid + decay]
-  plane --> above[Newer: transparent ghost]
+  plane[Playhead plane walks Z]
+  tNow --> origin
+  tFocus --> plane
+  plane --> origin
+  origin --> below[Past: solid + decay]
+  origin --> above[Newer: transparent ghost]
 ```
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
@@ -193,7 +196,7 @@ isolation is deferred (later: rectangle select). Scrub the **stack**
 (desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
 along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
 handles: samples outside the band are not drawn. On X/Y, cells inside the
-band fade from the cyan plane (ghost) and vanish at the gold grips unless
+band fade from the playhead plane (ghost) and vanish at the clip grips unless
 the viewcube cut is on. **Decay** defaults off; when on it is only along
 Z (time) and does not drive that spatial fade.
 
@@ -205,15 +208,17 @@ uses product names. See README *Axes*.
 
 ```mermaid
 flowchart LR
-  x[X playfield] --> plane[Focus plane Z = 0]
-  y[Y playfield] --> plane
-  z[Z time] --> stack[Past below / ghost above]
+  x[X playfield] --> origin[Now at product Z 0]
+  y[Y playfield] --> origin
+  z[Z time] --> origin
+  focus[Playhead tFocus] --> plane[Plane walks the stack]
+  origin --> stack[Past below / ghost above]
 ```
 
 | Concept | Conway | Count stack | Product axis | Engine (Three.js) |
 |---------|--------|-------------|--------------|-------------------|
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
-| Time | generation | bin index (Δt slice) | Z (plane at 0; past below, newer above) | world Y |
+| Time | generation | bin index (Δt slice) | Z (Now at 0; playhead walks the stack) | world Y |
 | Value | alive = 1 | integer count | — | `v` |
 | Dynamics | still / osc / moving / unsettled / warmup | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
@@ -231,11 +236,12 @@ volume. **Start with a blinker**, not a glider: the pattern sits still in
 XY and oscillates along Z. A glider is the later case — a trajectory
 through the volume (motion in XY plus time).
 
-Present sits at generation `tNow`. The **focus plane** is `tFocus`
-(`tNow` minus a scrub offset) and is always product **Z = 0** (engine Y = 0).
-Older slices sit below; newer slices sit **above as a transparent ghost**
-so the focused generation stays readable. Decay weights the past under the
-plane; **Depth** is the live wake (how many slices are cubes while the
+Present sits at generation `tNow` and is always product **Z = 0** (engine Y = 0).
+The **playhead** is `tFocus` (`tNow` minus a scrub offset): a plane that
+moves through that still stack, same contract as X/Y. Older slices sit
+below Now; newer slices sit **above as a transparent ghost**
+so the live generation stays readable. Decay weights the past under the
+playhead; **Depth** is the live wake (how many slices are cubes while the
 generator runs — the control formerly labeled History / Window). Older
 gens fall off the live volume when the run passes Depth. They stay on
 the RAM tape; **Pause** draws that whole tape.
@@ -300,66 +306,92 @@ flowchart LR
   gizmo --> ortho
   lamp --> volume
   slab --> volume
-  scrub --> plane[Cyan plane]
+  scrub --> plane[Playhead plane]
 ```
 
 Orbit (browser) rotates around the **time axis** through the playfield
-origin when **Align to Z** is on; the pivot sits at the mid-height of the
-drawn brick. Turn Align to Z off for free pan. **Parallax** off keeps the
+origin when **Align to Z** is on; the pivot height is whatever **Fit**
+(or boot) last set. Right-drag still **slides along Z** (XY stays pinned).
+Turn Align to Z off for free pan. **Parallax** off keeps the
 look and switches to an orthographic camera. **Fit**
-frames the camera between the gold cuts. Scrubbing the cyan playhead
-then slides the plane through that brick; the volume does not jump.
+frames the camera between the clip cuts. Scrubbing the Z playhead
+or the Z clips then slides those planes through the brick; the volume
+and the orbit height do not jump. X/Y already behaved that way.
 
 ## Slice stack
 
 The HUD has **three** rails (X, Y, Z). Each rail is its own
 `clampSlab(near, focus, far)`. Crop is the **AABB** intersection of the
-three gold windows. A voxel is drawn only when
+three clip windows. A voxel is drawn only when
 `x ∈ [xLo,xHi] ∧ y ∈ [yLo,yHi] ∧ t ∈ [tLo,tHi]`. **Now** stays on Z.
-Live (Conway Play) is still Z-locked: one rail, gold off.
+Live (Conway Play) is still Z-locked: one rail, clips off.
 
 The **active** rail (last HUD touch or in-scene drag) is the highlighted
-cyan plane; the other two are hinted. Gold rings in the scene are only
-on the active axis.
+playhead; the other two are hinted. Clip rings sit on **all three** axes
+in the matching axis color (X cornflower, Y maize, Z mint). Playhead
+rings are inset from the AABB so the three axes do not share one wire;
+clip rings sit well inside so they do not share a side with an X/Y/Z
+playhead. If a clip index equals the playhead, that
+clip is hidden. Playhead bars are thicker and brighter. Hover a **frame
+edge** (~28 px screen rim, **move** cursor) to light that ring and grab it; fills are not
+hit targets. Drag follows the axis in **screen space** (a grazing look cannot
+explode X/Y). **Planes** under the viewcube hides the 3D frames (default on);
+a viewcube cut still shows the current plane.
+The right-hand rails stay as a dimmer second path.
+
+A viewcube **face** is a true 2D cut: orthographic, fitted to that
+rectangle, one playhead plane with **that plane's frame and cell grid**
+(other axes and clips off). Wheel zooms; **Shift+wheel** pages the
+stack. Right-drag pans in the plane. A click on the cut does nothing.
+`B` or a left-drag orbit leaves to perspective and the slab immediately;
+zoom and pan stay in the cut.
 
 Inspect shade:
 
 ```mermaid
 flowchart TB
   subgraph idle [Inspect idle]
-    aabb[AABB from three gold windows]
+    aabb[AABB from three clip windows]
     hull[Outer hull solid]
-    planes[Three cyan planes]
+    planes[Three axis planes]
     active[Active plane highlighted]
     aabb --> hull
     aabb --> planes
     planes --> active
   end
-  subgraph drag [Pointer down on handle or plane]
+  subgraph play [Grab playhead]
     ghost[AABB as ghost]
     cut[Active plane solid]
     ghost --> cut
   end
-  idle -->|grab Hull| drag
-  drag -->|release| idle
+  subgraph clip [Grab clip]
+    full[Full hull]
+    stake[Stake the crop]
+    full --> stake
+  end
+  idle -->|playhead| play
+  idle -->|clip| clip
+  play -->|release| idle
+  clip -->|release| idle
 ```
 
-| Mode | Idle | While dragging |
-|------|------|----------------|
-| **Hull** (default) | AABB outer hull solid | Temporary ghost peek; release restores Hull |
-| **Ghost** | AABB ghost, active plane solid | unchanged |
-| **Triple** | Three cut planes solid, hull ghost | unchanged |
+| Mode | Idle | Playhead drag | Clip drag |
+|------|------|---------------|-----------|
+| **Hull** (default) | AABB outer hull solid | Temporary ghost peek | Stays hull (stake the box) |
+| **Ghost** | AABB ghost, active plane solid | unchanged | Hull while dragging |
+| **Triple** | Three cut planes solid, hull ghost | unchanged | Hull while dragging |
 
-Hold-to-Ghost applies only in Hull. Dense MRI never instantiates interior
+Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
+shows the hull so the crop is readable. Dense MRI never instantiates interior
 voxels (6-neighbor cull against the AABB). Ghost/Triple emit interiors
-only if they sit on a cyan plane.
+only if they sit on a playhead plane.
 
 ```mermaid
 flowchart LR
   subgraph emit [What enters SoA]
     inAabb[Inside AABB]
     hullVox[Hull voxel not 6-enclosed]
-    onPlane[On any cyan plane]
+    onPlane[On any playhead plane]
     inAabb --> hullVox
     inAabb --> onPlane
   end
@@ -376,7 +408,7 @@ Phone: three horizontal tracks (Z with Now at the right). AR overlay
 stays Z-only.
 
 Inspect generations outside the AABB are **not drawn**. **Fit** frames
-that box. Live: only the cyan Z playhead exists (locked at Now). Fog
+that box. Live: only the Z playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
 
@@ -386,19 +418,25 @@ distance fog.
 current pose onto an orthographic camera so you can look from the side
 without a vanishing point. Escape turns parallax back on. `B` alone does
 **not** hide the slab (technical drawing). A viewcube **face** sets
-`planeLock`: that product axis, ortho, and only the playhead plane.
+`planeLock`: that product axis, ortho fitted to the slice rectangle,
+that plane's frame and cell grid only. Wheel zooms; Shift+wheel pages;
+right-drag pans. A click on the cut does nothing. `B` leaves the cut.
 
 A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
-HUD card (desktop orbit only). Six axis-colored **face frames**, a rim, and
-X/Y/Z labels on the + faces. Hover lights the face; click enters the 2D
-cut. Orbit more than ~15° off the axis (or `B`) restores perspective and
-the drawn slab. The stack slider stays in the cut.
+HUD card (desktop orbit only). Six axis-colored **face frames** (X
+cornflower, Y maize, Z mint), a rim, and X/Y/Z labels on the + faces.
+Hover lights the face; click enters the 2D cut. **Planes** under the cube
+toggles the 3D playhead/clip frames (default on). Wheel zooms, right-drag
+pans, Shift+wheel pages. `B` restores perspective and the drawn slab.
+The stack
+slider stays in the cut.
 The cube is omitted on phone / coarse pointer (orbit + the slice
 stack stay) and in AR. The desktop View card heading collapses the
 telemetry (`View ▾` / `View ▸`).
 
-**Align to Z** (default on) pins orbit to the time axis through the brick
-center. Off allows screen-space pan. Ortho always pans.
+**Align to Z** (default on) pins orbit XY to the playfield origin; Fit
+sets the height. Right-drag still translates along Z. Off allows
+screen-space pan. Ortho always pans.
 
 **Yaw** is **AR-only**: after place, rotate the pillar on the table around
 product Z (overlay slider or swipe). Gen 0 stays put. Then walk with the
@@ -418,7 +456,7 @@ flowchart TB
   lights[key fill headlamp]
   stage[stage AR pose]
   turntable[turntable AR yaw]
-  vol[cubes frames axes]
+  vol[cubes frames]
   scene --> hemi
   scene --> lights
   scene --> stage
@@ -431,13 +469,13 @@ flowchart TB
   face[Viewcube face]
   lock[planeLock]
   ortho[Parallax off]
+  fit[Fit slice rectangle]
   axis[activeAxis]
   one[one playhead plane]
   orbit[Orbit off axis]
   volume[planeLock off Parallax on slab]
-  face --> lock --> ortho
+  face --> lock --> ortho --> fit --> one
   face --> axis
-  lock --> one
   orbit --> volume
 ```
 
@@ -462,8 +500,9 @@ flowchart LR
 ## Isolation / observation
 
 Deferred. Double-click isolation is off. Later: rectangle select on the
-playfield (see [backlog.md](backlog.md)). Hover hairlines and edit paint
-are unchanged.
+playfield (see [backlog.md](backlog.md)). Numbered axes with units also
+return later; the viewer does not draw the coordinate overlay, hairlines,
+or cube hover outlines. Edit paint on the Z playfield is unchanged.
 
 ## Display HUD vs source HUD
 
@@ -519,12 +558,13 @@ grow the DOM.
 | `src/dynamics.js` | Worldline class still / oscillator / moving / unsettled / warmup |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
-| `src/axes.js` | Product X/Y/Z vs engine; slice stack; tick labels |
-| `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
+| `src/frame.js` | Playhead/clip insets, screen-space edge pick (~28 px rim) |
+| `src/axes.js` | Product X/Y/Z vs engine; `zWorldY`; slice stack; tick labels |
+| `src/coords.js` | Unwired numbered X/Y frame and hairlines (units later) |
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
 | `src/fade.js` | Decay along Z (time); ghost-hull fade along the active plane |
-| `src/orbit.js` | Fit / pin orbit around the brick |
+| `src/orbit.js` | Fit / XY pin; world Y anchored at Now |
 | `src/turntable.js` | AR object yaw around product Z |
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
@@ -793,13 +833,13 @@ There is **no** MRI source kind and **no** NIfTI parser in the browser.
 The public demo is a one-shot convert to the count interchange
 `(T, H, W)` uint16. Load it with Source → Count stack → **Load .npy**.
 Until a dedicated kind exists, Count **Play** walks the **active**
-playhead (X, Y, or Z). Gold starts at **full extent**, focus in the
+playhead (X, Y, or Z). Clips start at **full extent**, focus in the
 middle. Decay is off on dense stacks (a time-fade on anatomy is wrong).
 
 ```mermaid
 flowchart TB
   dense[Dense mni152_stack npy]
-  aabb[AABB crop from three gold windows]
+  aabb[AABB crop from three clip windows]
   cull[Emit if 6-neighbor air or AABB hull]
   soa[EventSoA]
   cubes[Instanced cubes]
@@ -822,7 +862,7 @@ fill — a sparse cloud. A 4× MNI brick is ~84k at **47 %**: ~75k interiors
 overdraw if every voxel is a Lambert cube (`bound GPU fill`, ~200 ms).
 `CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
 **and** inside the AABB. Idle Hull is an outer hull of the crop. Ghost
-and Triple also emit voxels that sit on a cyan plane (never a full
+and Triple also emit voxels that sit on a playhead plane (never a full
 interior brick). Play steps the **active** playhead; it does not slide
 an 8-slice window. Affine / RAS is ignored — the gizmo is array X/Y/Z.
 

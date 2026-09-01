@@ -1,11 +1,11 @@
 /**
- * Corner CAD viewcube (desktop rail slot, left of the View HUD). Product axes: X gold,
- * Y muted, Z cyan (time). Six face frames, like a CAD viewcube: click a
- * face to snap that view. Hover / press light the face.
+ * Corner CAD viewcube (desktop rail slot, left of the View HUD). Product axes:
+ * X cornflower, Y maize, Z mint. Six face frames: click a face to enter a
+ * 2D cut. Hover / press light the face.
  */
 
 import * as THREE from "three";
-import { COLOR } from "./config.js";
+import { AXIS_COLOR, hexCss } from "./config.js";
 import { productViewDir } from "./axes.js";
 import {
   GIZMO_CSS,
@@ -28,8 +28,8 @@ export {
   viewFromLocalNormal,
 };
 
-const Y_MUTED = 0x8a9aa8;
-const AXIS_HEX = { x: COLOR.gold, y: Y_MUTED, z: COLOR.cyan };
+const AXIS_HEX = { x: AXIS_COLOR.x, y: AXIS_COLOR.y, z: AXIS_COLOR.z };
+const AXIS_CSS = { x: hexCss(AXIS_COLOR.x), y: hexCss(AXIS_COLOR.y), z: hexCss(AXIS_COLOR.z) };
 const RIM_HEX = 0xd8e4ee;
 const OVERLAY_SELECTORS = [".hud-cards", ".hud-engine", ".hud-source", ".stack", ".fps-chip"];
 
@@ -167,12 +167,12 @@ export class ViewGizmo {
     this.group.add(axisLine(AXIS_HEX.z, productViewDir("z", 1)));
 
     const specs = [
-      { axis: "x", sign: 1, hex: AXIS_HEX.x, css: "#ffc53d", letter: "X" },
-      { axis: "x", sign: -1, hex: AXIS_HEX.x, css: "#ffc53d", letter: "" },
-      { axis: "y", sign: 1, hex: AXIS_HEX.y, css: "#8a9aa8", letter: "Y" },
-      { axis: "y", sign: -1, hex: AXIS_HEX.y, css: "#8a9aa8", letter: "" },
-      { axis: "z", sign: 1, hex: AXIS_HEX.z, css: "#00fff2", letter: "Z" },
-      { axis: "z", sign: -1, hex: AXIS_HEX.z, css: "#00fff2", letter: "" },
+      { axis: "x", sign: 1, hex: AXIS_HEX.x, css: AXIS_CSS.x, letter: "X" },
+      { axis: "x", sign: -1, hex: AXIS_HEX.x, css: AXIS_CSS.x, letter: "" },
+      { axis: "y", sign: 1, hex: AXIS_HEX.y, css: AXIS_CSS.y, letter: "Y" },
+      { axis: "y", sign: -1, hex: AXIS_HEX.y, css: AXIS_CSS.y, letter: "" },
+      { axis: "z", sign: 1, hex: AXIS_HEX.z, css: AXIS_CSS.z, letter: "Z" },
+      { axis: "z", sign: -1, hex: AXIS_HEX.z, css: AXIS_CSS.z, letter: "" },
     ];
 
     for (const spec of specs) {

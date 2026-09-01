@@ -5,23 +5,26 @@
  * Later modes (points, sprites, shaders) should implement the same
  * `setEvents(soa, view)` surface.
  *
- * Product Z = 0 is the focus plane (`tFocus`). Engine Y-up stores that as
- * world Y = 0. Live: slices with t > tFocus sit above as a transparent ghost.
+ * Product Z = 0 is Now (`tNow`). Engine Y-up stores that as world Y = 0.
+ * The playhead (`tFocus`) is a plane that moves through that stack.
+ * Live: slices with t > tFocus sit above as a transparent ghost.
  * Inspect: Hull / Ghost / Triple from `voxelShadeClass`. Ghost hull fades
  * toward the AABB faces along the active plane (`sliceDistanceFade`).
  * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
  */
 
 import * as THREE from "three";
-import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
+import { AXIS_COLOR, COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
 import {
   normalizeSliceAxis,
   onAxisPlane,
   voxelShadeClass,
+  zWorldY,
 } from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
 import { depthFade, sliceDistanceFade } from "./fade.js";
+import { frameBarThickness, frameHandleInset, frameRingBox, frameRingWorldEdges } from "./frame.js";
 import { isolationWeight } from "./observe.js";
 
 function seedInstanceColors(mesh, maxCount, color) {
@@ -85,6 +88,7 @@ export class CubeRenderer {
    * @param {import("./spacetime.js").EventSoA} soa
    * @param {{
    *   tFocus: number,
+   *   tNow?: number,
    *   decay: boolean,
    *   fadeSpan: number,
    *   timeScale: number,
@@ -109,6 +113,7 @@ export class CubeRenderer {
     const fadeSpan = Math.max(1, view.fadeSpan | 0);
     const timeScale = view.timeScale;
     const tFocus = view.tFocus;
+    const tNow = view.tNow ?? tFocus;
     const isolate = view.isolate || null;
     const sliceOnly = Boolean(view.sliceOnly);
     const activeAxis = normalizeSliceAxis(view.activeAxis);
@@ -156,7 +161,7 @@ export class CubeRenderer {
         }
       }
 
-      dummy.position.set((x - ox) * cell, dt * timeScale, (y - oz) * cell);
+      dummy.position.set((x - ox) * cell, zWorldY(t, tNow, timeScale), (y - oz) * cell);
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
       const fill = minimal
@@ -228,18 +233,27 @@ export class CubeRenderer {
   }
 }
 
-function sliceSurfaceMat() {
+function sliceSurfaceMat(hex) {
   return new THREE.MeshBasicMaterial({
-    color: COLOR.cyan,
+    color: hex,
     transparent: true,
-    opacity: 0.07,
+    opacity: 0.12,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
 }
 
-/** Translucent slice plane — hit target and fill. Product Z is the playfield. */
-export function createFocusSurface(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
+/** Invisible slice rectangle: edit pick on Z, or swallow clicks in the 2D cut. */
+export function createFocusSurface(
+  width,
+  height,
+  cellSize,
+  axis = "z",
+  yMin = 0,
+  yMax = 0,
+  hex = AXIS_COLOR.z,
+  handle = "focus",
+) {
   const a = normalizeSliceAxis(axis);
   const cs = cellSize;
   const timeH = Math.max(cs, Math.abs(yMax - yMin) || cs);
@@ -247,8 +261,9 @@ export function createFocusSurface(width, height, cellSize, axis = "z", yMin = 0
   if (a === "x") geo = new THREE.PlaneGeometry(height * cs, timeH);
   else if (a === "y") geo = new THREE.PlaneGeometry(width * cs, timeH);
   else geo = new THREE.PlaneGeometry(width * cs, height * cs);
-  const mesh = new THREE.Mesh(geo, sliceSurfaceMat());
+  const mesh = new THREE.Mesh(geo, sliceSurfaceMat(hex ?? AXIS_COLOR[a]));
   mesh.userData.axis = a;
+  mesh.userData.handle = handle === "near" || handle === "far" ? handle : "focus";
   orientSlicePlane(mesh, a, width, height, cs, yMin, yMax, 0);
   return mesh;
 }
@@ -326,22 +341,54 @@ export function createSliceGrid(width, height, cellSize, axis = "z", yMin = 0, y
 }
 
 /**
- * Rectangle ring on the current slice plane. Cyan = playhead; gold = slab cuts.
+ * Rectangle ring on the current slice plane. Axis-colored playhead or clip.
  */
 export class FocusFrame {
-  constructor(scene, hex = COLOR.cyan) {
+  constructor(scene, hex = COLOR.cyan, handle = "focus") {
     this.scene = scene;
     this._hex = hex;
+    this._handle = handle === "near" || handle === "far" ? handle : "focus";
     this.group = new THREE.Group();
     this._mat = new THREE.MeshBasicMaterial({
       color: hex,
       transparent: true,
-      opacity: 0.92,
+      opacity: this._handle === "focus" ? 0.62 : 0.22,
+      depthWrite: false,
     });
     this._parts = [];
     this._axis = "z";
+    this._box = null;
     this._emphasis = "active";
+    this._hover = false;
+    this._editing = false;
+    this._ea = new THREE.Vector3();
+    this._eb = new THREE.Vector3();
     scene.add(this.group);
+  }
+
+  pickMeta() {
+    return { axis: this._axis, handle: this._handle };
+  }
+
+  edgeWorldSegments() {
+    if (!this._box || !this.group.visible) return [];
+    const local = frameRingWorldEdges(this._box, this._axis, 0);
+    const out = [];
+    for (const [p, q] of local) {
+      this._ea.set(p.x, p.y, p.z);
+      this._eb.set(q.x, q.y, q.z);
+      this.group.localToWorld(this._ea);
+      this.group.localToWorld(this._eb);
+      out.push({
+        ax: this._ea.x,
+        ay: this._ea.y,
+        az: this._ea.z,
+        bx: this._eb.x,
+        by: this._eb.y,
+        bz: this._eb.z,
+      });
+    }
+    return out;
   }
 
   setSize(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
@@ -352,35 +399,40 @@ export class FocusFrame {
     this._parts.length = 0;
     this._axis = normalizeSliceAxis(axis);
 
-    const hw = (width * cellSize) / 2;
-    const hd = (height * cellSize) / 2;
-    const t = Math.max(0.07, cellSize * 0.08);
-    const yMid = (yMin + yMax) / 2;
-    const hy = Math.max(cellSize, Math.abs(yMax - yMin) / 2);
+    const inset = frameHandleInset(cellSize, this._handle, width, height, yMin, yMax);
+    const box = frameRingBox(width, height, cellSize, this._axis, yMin, yMax, inset);
+    this._box = box;
+    const { visual: t } = frameBarThickness(cellSize, this._handle);
+    const { hw, hd, yMin: y0, yMax: y1, yMid } = box;
+    const hy = Math.max(cellSize * 0.25, Math.abs(y1 - y0) / 2);
 
     const add = (x, y, z, sx, sy, sz) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), this._mat);
-      mesh.position.set(x, y, z);
-      this.group.add(mesh);
-      this._parts.push(mesh);
+      const vis = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), this._mat);
+      vis.position.set(x, y, z);
+      vis.userData.axis = this._axis;
+      vis.userData.handle = this._handle;
+      vis.raycast = () => {};
+      this.group.add(vis);
+      this._parts.push(vis);
     };
 
     if (this._axis === "x") {
       add(0, yMid, -hd, t, hy * 2 + t, t);
       add(0, yMid, hd, t, hy * 2 + t, t);
-      add(0, yMin, 0, t, t, height * cellSize + t);
-      add(0, yMax, 0, t, t, height * cellSize + t);
+      add(0, y0, 0, t, t, hd * 2 + t);
+      add(0, y1, 0, t, t, hd * 2 + t);
     } else if (this._axis === "y") {
       add(-hw, yMid, 0, t, hy * 2 + t, t);
       add(hw, yMid, 0, t, hy * 2 + t, t);
-      add(0, yMin, 0, width * cellSize + t, t, t);
-      add(0, yMax, 0, width * cellSize + t, t, t);
+      add(0, y0, 0, hw * 2 + t, t, t);
+      add(0, y1, 0, hw * 2 + t, t, t);
     } else {
-      add(0, t * 0.5, -hd, width * cellSize + t, t, t);
-      add(0, t * 0.5, hd, width * cellSize + t, t, t);
-      add(-hw, t * 0.5, 0, t, t, height * cellSize);
-      add(hw, t * 0.5, 0, t, t, height * cellSize);
+      add(0, t * 0.5, -hd, hw * 2 + t, t, t);
+      add(0, t * 0.5, hd, hw * 2 + t, t, t);
+      add(-hw, t * 0.5, 0, t, t, hd * 2);
+      add(hw, t * 0.5, 0, t, t, hd * 2);
     }
+    this._applyLook();
   }
 
   setOffset(axis, coord) {
@@ -399,14 +451,31 @@ export class FocusFrame {
   }
 
   setEditing(on) {
-    this._mat.opacity = on ? 1 : this._emphasis === "idle" ? 0.32 : 0.78;
-    this._mat.color.setHex(this._hex);
+    this._editing = Boolean(on);
+    this._applyLook();
   }
 
   setEmphasis(level) {
     this._emphasis = level === "idle" ? "idle" : "active";
-    if (this._emphasis === "idle") this._mat.opacity = 0.32;
-    else this._mat.opacity = 0.92;
+    this._applyLook();
+  }
+
+  setHover(on) {
+    this._hover = Boolean(on);
+    this._applyLook();
+  }
+
+  _applyLook() {
+    let opacity;
+    if (this._handle !== "focus") {
+      opacity = this._emphasis === "idle" ? 0.12 : 0.2;
+    } else if (this._emphasis === "idle") opacity = 0.42;
+    else opacity = 0.72;
+    if (this._editing) opacity = 0.85;
+    if (this._hover) opacity = 0.95;
+    this._mat.opacity = opacity;
+    this._mat.color.setHex(this._hex);
+    if (this._hover) this._mat.color.offsetHSL(0, 0.08, 0.18);
   }
 
   dispose() {
@@ -529,7 +598,7 @@ export class HoverOutlines {
     scene.add(this.cube);
   }
 
-  set(cell, width, height, cellSize, cubeScale) {
+  set(cell, width, height, cellSize, cubeScale, worldY = 0) {
     if (!cell) {
       this.hide();
       return;
@@ -538,10 +607,11 @@ export class HoverOutlines {
     const oz = (height - 1) * 0.5;
     const wx = (cell.x - ox) * cellSize;
     const wz = (cell.y - oz) * cellSize;
-    this.cell.position.set(wx, 0.05, wz);
+    const wy = Number(worldY) || 0;
+    this.cell.position.set(wx, wy + 0.05, wz);
     this.cell.visible = true;
     if (cubeScale > 0) {
-      this.cube.position.set(wx, 0, wz);
+      this.cube.position.set(wx, wy, wz);
       this.cube.scale.setScalar(cubeScale);
       this.cube.visible = true;
     } else {

@@ -55,8 +55,9 @@ explorative 3D (XR-A tabletop in; marker next)**.
 ## Axes (X, Y, Z)
 
 DONNER labels axes the scientific way. **X and Y are the playfield** (cell
-or sensor). **Z is time** — the vertical stack. The focus plane is **Z = 0**:
-past below, newer slices (ghost) above.
+or sensor). **Z is time** — the vertical stack. **Now** is **Z = 0**:
+past below, newer slices (ghost) above. The playhead (`tFocus`) walks
+that stack; it does not move the volume.
 
 | Axis | Meaning | On screen |
 |------|---------|-----------|
@@ -68,10 +69,9 @@ Three.js is Y-up internally. Product `(X, Y, Z)` is stored as world
 `(X, Z, Y)`. UI, HUD, and docs always mean **product** X/Y/Z. Do not call
 time “Y” in user-facing copy.
 
-The numbered coordinate frame sits on the **right** of the volume (away from
-the control sheet). Hovering the plane draws two thin lines from the cell
-to the X and Y axes. Time is **not** a 3D gizmo on that frame: scrub with
-the **Z stack slider**, like a 3D slicer through the generation stack
+The numbered coordinate frame is **off**. Numbered axes with units return
+later. Time is **not** a 3D gizmo on that frame: scrub with the
+**Z stack slider**, like a 3D slicer through the generation stack
 (desktop: Now at the top, past at the bottom; phone: Now at the right).
 One tick per stored step.
 
@@ -184,16 +184,16 @@ If the LAN IP changes, `npm run cert` again.
 - Instanced cubes, Depth along the time axis (product **Z**)
 - Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
-- Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
-- CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a 2D ortho cut on that axis; orbit restores the volume
-- Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
+- Axis-colored playfield frames (inset playhead, smaller clips); grab an **edge** to move that plane (no numbered overlay, no hover hairlines)
+- CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
+- Parallax on/off (perspective vs orthographic at the current look). Align to Z pins XY and still pans along Z.
 - Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
 - Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
-- **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
+- **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; axis-colored planes and clips). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
 - Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks (including the local MRI preview `../datasets/MRT/mni152_stack.npy`). **Stream** connects to the EVT sidecar / WOLKE (`http://127.0.0.1:5055`, token `evt`); cube bytes arrive via same-origin `/stream-npy`.

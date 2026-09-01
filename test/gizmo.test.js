@@ -12,7 +12,7 @@ import {
 import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { gizmoFollowYaw } from "../src/turntable.js";
-import { clampCubeCap, DEFAULTS } from "../src/config.js";
+import { clampCubeCap, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
 
 describe("product view directions", () => {
   it("maps product +Z to world +Y (top-down)", () => {
@@ -198,5 +198,15 @@ describe("cube cap", () => {
     assert.equal(clampCubeCap(1), DEFAULTS.cubeCapMin);
     assert.equal(clampCubeCap(9e9), DEFAULTS.cubeCapMax);
     assert.equal(clampCubeCap("nope"), DEFAULTS.maxInstances);
+  });
+});
+
+describe("axis colors", () => {
+  it("keeps X Y Z distinct from the encoding LUT", () => {
+    assert.equal(hexCss(AXIS_COLOR.x), "#5b8cff");
+    assert.equal(hexCss(AXIS_COLOR.y), "#e8c547");
+    assert.equal(hexCss(AXIS_COLOR.z), "#3ecf8e");
+    assert.notEqual(AXIS_COLOR.z, 0x00fff2);
+    assert.notEqual(AXIS_COLOR.x, 0xffc53d);
   });
 });

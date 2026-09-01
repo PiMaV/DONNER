@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { COLOR, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
+import { AXIS_COLOR, COLOR, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
 import {
   BENCH_PRESETS,
   PathTimer,
@@ -13,7 +13,7 @@ import {
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
 import { countVolumeFromNpy, isDenseCount } from "./count.js";
-import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex, encodingCubeFill } from "./encoding.js";
+import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ } from "./observe.js";
@@ -23,16 +23,12 @@ import { WolkeViewer } from "./wolke.js";
 import {
   CubeRenderer,
   FocusFrame,
-  HoverOutlines,
-  IsolateBeacon,
   createFocusSurface,
   createSliceGrid,
   orientSlicePlane,
 } from "./renderer.js";
-import { CoordinateFrame, PlaneHairlines } from "./coords.js";
 import {
   EventSoA,
-  eventAt,
   GenerationRing,
   fadePastSpan,
   visibleTimeSpan,
@@ -44,18 +40,25 @@ import {
   effectiveShade,
   fociFromSlabs,
   normalizeSliceAxis,
-  planeLockShouldExit,
   productViewDir,
   slabGenerations,
   sliceMaxBack,
   sliceOnlyFromPlaneLock,
   stepFocusBack,
+  zBackWorldY,
 } from "./axes.js";
 import {
+  FRAME_PICK_PX,
+  closestTOnSegment2,
+  distPointToSegment2,
+  pickOverlappingFrameHit,
+  screenAxisDragMap,
+  screenAxisDragStep,
+} from "./frame.js";
+import {
   fitOrbitDistance,
-  offsetLength,
-  pinOrbitHeight,
-  pinOrbitToAxis,
+  orthoFitHalfHeight,
+  pinOrbitToOriginXY,
   placeOnViewRay,
   slabYRange,
   snapPose,
@@ -143,6 +146,8 @@ const _xrUp = new THREE.Vector3();
 const arAnchorPos = new THREE.Vector3();
 const arAnchorQuat = new THREE.Quaternion();
 const _hitLocal = new THREE.Vector3();
+const _proj = new THREE.Vector3();
+const _grabPoint = new THREE.Vector3();
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
 camera.position.set(22, 16, 28);
@@ -162,14 +167,26 @@ controls.maxPolarAngle = Math.PI;
 controls.target.set(0, -6, 0);
 controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+controls.addEventListener("change", () => {
+  if (planeLock && isRotateControlState() && !planeDrag) exitPlaneLock();
+  else if (alignZ && !planeLock) pinOrbitPivot();
+});
 
 const gizmo = new ViewGizmo({ coarse });
 const gizmoHit = document.getElementById("gizmo-hit");
 const gizmoSlot = document.getElementById("gizmo-slot");
+const gizmoCol = document.querySelector(".gizmo-col");
+const btnShowPlanes = document.getElementById("btn-show-planes");
 function syncGizmoChrome() {
   const on = showGizmo();
   if (gizmoHit) gizmoHit.hidden = !on;
   if (gizmoSlot) gizmoSlot.hidden = !on;
+  if (gizmoCol) gizmoCol.hidden = !on;
+}
+function syncShowPlanesButton() {
+  if (!btnShowPlanes) return;
+  btnShowPlanes.classList.toggle("is-on", showPlanes);
+  btnShowPlanes.setAttribute("aria-pressed", showPlanes ? "true" : "false");
 }
 syncGizmoChrome();
 
@@ -191,18 +208,28 @@ let cubes = new CubeRenderer(turntable, {
   cellSize: DEFAULTS.cellSize,
 });
 const playfields = {
-  x: new FocusFrame(turntable, COLOR.cyan),
-  y: new FocusFrame(turntable, COLOR.cyan),
-  z: new FocusFrame(turntable, COLOR.cyan),
+  x: new FocusFrame(turntable, AXIS_COLOR.x, "focus"),
+  y: new FocusFrame(turntable, AXIS_COLOR.y, "focus"),
+  z: new FocusFrame(turntable, AXIS_COLOR.z, "focus"),
 };
-const clipNearFrame = new FocusFrame(turntable, COLOR.gold);
-const clipFarFrame = new FocusFrame(turntable, COLOR.gold);
-clipNearFrame.setVisible(false);
-clipFarFrame.setVisible(false);
-const axes = new CoordinateFrame(turntable);
-const hairlines = new PlaneHairlines(turntable);
-const beacon = new IsolateBeacon(turntable, DEFAULTS.cellSize);
-const hover = new HoverOutlines(turntable, DEFAULTS.cellSize);
+const clipFrames = {
+  x: {
+    near: new FocusFrame(turntable, AXIS_COLOR.x, "near"),
+    far: new FocusFrame(turntable, AXIS_COLOR.x, "far"),
+  },
+  y: {
+    near: new FocusFrame(turntable, AXIS_COLOR.y, "near"),
+    far: new FocusFrame(turntable, AXIS_COLOR.y, "far"),
+  },
+  z: {
+    near: new FocusFrame(turntable, AXIS_COLOR.z, "near"),
+    far: new FocusFrame(turntable, AXIS_COLOR.z, "far"),
+  },
+};
+for (const a of ["x", "y", "z"]) {
+  clipFrames[a].near.setVisible(false);
+  clipFrames[a].far.setVisible(false);
+}
 
 let world;
 let ring;
@@ -224,6 +251,7 @@ let activeAxis = DEFAULTS.sliceAxis;
 let shadeMode = DEFAULTS.shadeMode;
 let shadeHeld = false;
 let planeLock = false;
+let showPlanes = true;
 let slabs = {
   x: { near: 0, focus: 0, far: 0 },
   y: { near: 0, focus: 0, far: 0 },
@@ -245,8 +273,7 @@ let gpsWindow = 0;
 let gpsSteps = 0;
 let pointerDown = null;
 let planeDrag = null;
-let hoverCell = null;
-let hoverKey = "";
+let frameHover = null;
 let dirtySource = true;
 let dirtyView = true;
 let dirtyEncoding = true;
@@ -453,7 +480,7 @@ function spatialCoord(back, axis) {
 
 function sliceWorldCoord(back, axis = activeAxis) {
   const a = normalizeSliceAxis(axis);
-  if (a === "z") return (slabs.z.focus - back) * DEFAULTS.timeScale;
+  if (a === "z") return zBackWorldY(back, DEFAULTS.timeScale);
   return spatialCoord(back, a);
 }
 
@@ -475,6 +502,7 @@ function cropFoci() {
 
 function inspectShade() {
   if (!inspectMode() || arPresenting()) return null;
+  if (planeDrag && planeDrag.handle !== "focus") return "hull";
   return effectiveShade(shadeMode, shadeHeld);
 }
 
@@ -606,7 +634,7 @@ function stopHitTest() {
 function arPillarYMin() {
   const store = viewStore();
   if (!store) return 0;
-  return slabYRange(tFocus(), store.oldestT(), viewNow(), DEFAULTS.timeScale).yMin;
+  return slabYRange(viewNow(), store.oldestT(), viewNow(), DEFAULTS.timeScale).yMin;
 }
 
 function applyArStagePose() {
@@ -707,7 +735,7 @@ async function onArSessionStart() {
   document.documentElement.classList.add("is-ar");
   document.body.classList.add("is-ar");
   gizmo.clearHover();
-  canvas.style.cursor = "";
+  setViewCursor("");
   syncGizmoChrome();
   renderer.setClearAlpha(0);
   controls.enabled = false;
@@ -783,27 +811,22 @@ function applyRingCapacity() {
   historyLen = cfg.history;
   if (ring && ring.capacity !== historyLen) ring.resize(historyLen);
   applySlab("z", slabs.z, "focus");
-  syncBeacon();
   dirtySource = true;
 }
 
 function currentSlabY() {
   const span = volumeSpan();
-  return slabYRange(tFocus(), span.tLo, span.tHi, DEFAULTS.timeScale);
+  return slabYRange(viewNow(), span.tLo, span.tHi, DEFAULTS.timeScale);
 }
 
 function pinOrbitPivot() {
   if (arPresenting() || !world || !alignZ || planeLock) return;
   const cam = activeCamera();
-  const { yMid } = currentSlabY();
-  if (!Number.isFinite(yMid)) return;
   if (!Number.isFinite(cam.position.x)) {
     cam.position.set(22, 16, 28);
     controls.target.set(0, 0, 0);
   }
-  const pinned = parallax
-    ? pinOrbitToAxis(cam.position, controls.target, yMid)
-    : pinOrbitHeight(cam.position, controls.target, yMid);
+  const pinned = pinOrbitToOriginXY(cam.position, controls.target);
   if (!Number.isFinite(pinned.cam.x) || !Number.isFinite(pinned.target.y)) return;
   cam.position.set(pinned.cam.x, pinned.cam.y, pinned.cam.z);
   controls.target.set(pinned.target.x, pinned.target.y, pinned.target.z);
@@ -811,7 +834,11 @@ function pinOrbitPivot() {
 }
 
 function syncOrbitPan() {
-  controls.enablePan = !arPresenting() && (!parallax || !alignZ);
+  const free = !arPresenting();
+  controls.enablePan = free;
+  controls.enableZoom = free;
+  controls.enableRotate = free;
+  controls.touches.ONE = THREE.TOUCH.ROTATE;
 }
 
 function fitVolume() {
@@ -872,7 +899,6 @@ function applySlab(axis, next, dragged = "focus") {
   };
   syncStackUi();
   syncClipPlanes();
-  pinOrbitPivot();
   updateHint();
   dirtyView = true;
   if (inspectMode()) dirtySource = true;
@@ -933,23 +959,8 @@ function setLineOpacity(obj, opacity) {
   }
 }
 
-function syncBeacon() {
-  beacon.setCell(
-    null,
-    world.width,
-    world.height,
-    DEFAULTS.cellSize,
-    volumeWindow(),
-    DEFAULTS.timeScale,
-  );
-}
-
 function layoutPlayfield(width, height) {
   rebuildSliceVisuals(width, height);
-  axes.setSize(width, height, DEFAULTS.cellSize);
-  if (hoverCell && (hoverCell.x >= width || hoverCell.y >= height)) {
-    hoverCell = null;
-  }
 }
 
 function disposeObject3(obj) {
@@ -971,17 +982,19 @@ function brickYRange() {
 function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   if (!width || !height) return;
   const { yMin, yMax } = brickYRange();
+  const cs = DEFAULTS.cellSize;
   for (const a of ["x", "y", "z"]) {
     disposeObject3(focusSurfaces[a]);
-    focusSurfaces[a] = createFocusSurface(width, height, DEFAULTS.cellSize, a, yMin, yMax);
+    focusSurfaces[a] = createFocusSurface(width, height, cs, a, yMin, yMax, AXIS_COLOR[a], "focus");
     turntable.add(focusSurfaces[a]);
-    playfields[a].setSize(width, height, DEFAULTS.cellSize, a, yMin, yMax);
+    playfields[a].setSize(width, height, cs, a, yMin, yMax);
+    for (const handle of ["near", "far"]) {
+      clipFrames[a][handle].setSize(width, height, cs, a, yMin, yMax);
+    }
   }
   disposeObject3(nowGrid);
-  nowGrid = createSliceGrid(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
+  nowGrid = createSliceGrid(width, height, cs, activeAxis, yMin, yMax);
   turntable.add(nowGrid);
-  clipNearFrame.setSize(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
-  clipFarFrame.setSize(width, height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
   syncClipPlanes();
   applyGridLook();
 }
@@ -1113,9 +1126,7 @@ function bootCount(vol) {
   ui.setParallax(parallax);
   syncStackUi();
   syncOrbitPan();
-  syncBeacon();
   lastSpanKey = "";
-  hoverKey = "";
   dirtySource = true;
   dirtyView = true;
   dirtyEncoding = true;
@@ -1276,9 +1287,7 @@ function bootWorld(resizeGrid) {
   ui.setParallax(parallax);
   syncStackUi();
   syncOrbitPan();
-  syncBeacon();
   lastSpanKey = "";
-  hoverKey = "";
   dirtySource = true;
   dirtyView = true;
   dirtyEncoding = true;
@@ -1383,6 +1392,7 @@ function toggleParallax() {
     dirtyView = true;
   }
   applyParallax(!parallax);
+  syncClipPlanes();
   updateHint();
 }
 
@@ -1390,37 +1400,57 @@ function exitPlaneLock() {
   if (!planeLock) return;
   planeLock = false;
   applyParallax(true);
+  syncClipPlanes();
   dirtyView = true;
   updateHint();
 }
 
-function maybeExitPlaneLock() {
-  if (!planeLock || arPresenting()) return;
-  const cam = activeCamera();
-  if (
-    planeLockShouldExit(true, cam.position, controls.target, activeAxis)
-  ) {
-    exitPlaneLock();
-  }
-}
-
-function snapToProductView(axis, sign) {
-  if (arPresenting()) return;
-  const cam = activeCamera();
-  const dist = offsetLength(cam.position, controls.target) || 40;
-  const pos = snapPose(controls.target, productViewDir(axis, sign), dist);
-  cam.position.set(pos.x, pos.y, pos.z);
-  cam.lookAt(controls.target);
-  controls.update();
-  dirtyView = true;
+function planeRectSize(axis) {
+  const box = cropAabb();
+  const cs = DEFAULTS.cellSize;
+  const ox = (world.width - 1) * 0.5;
+  const oz = (world.height - 1) * 0.5;
+  const xLo = box ? box.xLo : 0;
+  const xHi = box ? box.xHi : world.width - 1;
+  const yLo = box ? box.yLo : 0;
+  const yHi = box ? box.yHi : world.height - 1;
+  const hx = Math.max(Math.abs(xLo - ox), Math.abs(xHi - ox)) * cs;
+  const hz = Math.max(Math.abs(yLo - oz), Math.abs(yHi - oz)) * cs;
+  const { yMin, yMax } = currentSlabY();
+  const hy = Math.max(cs, Math.abs(yMax - yMin) / 2);
+  const a = normalizeSliceAxis(axis);
+  if (a === "x") return { width: hz * 2, height: hy * 2 };
+  if (a === "y") return { width: hx * 2, height: hy * 2 };
+  return { width: hx * 2, height: hz * 2 };
 }
 
 function enterPlaneLock(axis, sign) {
-  if (arPresenting()) return;
+  if (arPresenting() || !world) return;
   setActiveAxis(axis, { keepPlaneLock: true });
   applyParallax(false);
   planeLock = true;
-  snapToProductView(axis, sign);
+  syncOrbitPan();
+  syncClipPlanes();
+  clearFrameHover();
+  const a = normalizeSliceAxis(axis);
+  const coord = sliceWorldCoord(slabs[a].focus, a);
+  const { yMid } = currentSlabY();
+  if (a === "x") controls.target.set(coord, yMid, 0);
+  else if (a === "y") controls.target.set(0, yMid, coord);
+  else controls.target.set(0, coord, 0);
+  const { width, height } = planeRectSize(a);
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const halfH = orthoFitHalfHeight(width, height, aspect, 1.16);
+  const cam = activeCamera();
+  const radius = Math.hypot(width, height) / 2;
+  const dist = Math.max(16, radius * 2.4);
+  const pos = snapPose(controls.target, productViewDir(a, sign), dist);
+  cam.position.set(pos.x, pos.y, pos.z);
+  cam.lookAt(controls.target);
+  setOrthoFrustum(orthoCam, halfH, aspect, 0.1, Math.max(400, dist + radius * 4));
+  orthoCam.zoom = 1;
+  orthoCam.lookAt(controls.target);
+  controls.update();
   dirtyView = true;
   updateHint();
 }
@@ -1478,64 +1508,72 @@ function applyCubeCap() {
 
 function applyGridLook() {
   const inspect = inspectMode();
+  const chrome = !planeLock && !arPresenting();
+  const cut = planeLock && !arPresenting();
   if (nowGrid) {
-    nowGrid.visible = true;
-    setLineOpacity(nowGrid, inspect ? 0.4 : 0.18);
+    nowGrid.visible = (chrome && showPlanes) || cut;
+    setLineOpacity(nowGrid, inspect || cut ? 0.42 : 0.18);
   }
   for (const a of ["x", "y", "z"]) {
     const surf = focusSurfaces[a];
-    const show = a === "z" || inspect;
-    const active = a === activeAxis;
+    const showFrame = cut ? a === activeAxis : chrome && showPlanes && (a === "z" || inspect);
     if (surf) {
-      surf.visible = show;
-      surf.material.opacity = inspect ? (active ? 0.1 : 0.03) : 0.07;
+      const pickEdit = editing && a === "z" && chrome;
+      const pickCut = cut && a === activeAxis;
+      surf.visible = pickEdit || pickCut;
+      surf.material.opacity = 0;
     }
-    playfields[a].setVisible(show);
-    playfields[a].setEmphasis(inspect && active ? "active" : a === "z" ? "active" : "idle");
+    playfields[a].setVisible(showFrame);
+    if (!showFrame || cut) {
+      clipFrames[a].near.setVisible(false);
+      clipFrames[a].far.setVisible(false);
+    }
+    playfields[a].setEmphasis(inspect && a === activeAxis ? "active" : a === "z" ? "active" : "idle");
   }
 }
 
 function syncClipPlanes() {
   if (!world) return;
   const { yMin, yMax } = brickYRange();
-  const showGold = inspectMode() && !stackLiveLocked();
-  const s = slabs[activeAxis];
-  const showNear = showGold && s.near !== s.focus;
-  const showFar = showGold && s.far !== s.focus;
-  clipNearFrame.setVisible(showNear);
-  clipFarFrame.setVisible(showFar);
-  clipNearFrame.setSize(world.width, world.height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
-  clipFarFrame.setSize(world.width, world.height, DEFAULTS.cellSize, activeAxis, yMin, yMax);
+  const chrome = !planeLock && !arPresenting();
+  const showClips = chrome && showPlanes && inspectMode() && !stackLiveLocked();
+  const cs = DEFAULTS.cellSize;
+  const w = world.width;
+  const h = world.height;
   for (const a of ["x", "y", "z"]) {
-    const coord = sliceWorldCoord(slabs[a].focus, a);
+    const s = slabs[a];
+    const show = chrome && showPlanes && (a === "z" || inspectMode());
+    const coord = sliceWorldCoord(s.focus, a);
+    playfields[a].setSize(w, h, cs, a, yMin, yMax);
     playfields[a].setOffset(a, coord);
     if (focusSurfaces[a]) {
-      orientSlicePlane(
-        focusSurfaces[a],
-        a,
-        world.width,
-        world.height,
-        DEFAULTS.cellSize,
-        yMin,
-        yMax,
-        coord,
-      );
+      orientSlicePlane(focusSurfaces[a], a, w, h, cs, yMin, yMax, coord);
+    }
+    const nearOn = showClips && show && s.near !== s.focus;
+    const farOn = showClips && show && s.far !== s.focus;
+    clipFrames[a].near.setVisible(nearOn);
+    clipFrames[a].far.setVisible(farOn);
+    if (nearOn) {
+      clipFrames[a].near.setSize(w, h, cs, a, yMin, yMax);
+      clipFrames[a].near.setOffset(a, sliceWorldCoord(s.near, a));
+    }
+    if (farOn) {
+      clipFrames[a].far.setSize(w, h, cs, a, yMin, yMax);
+      clipFrames[a].far.setOffset(a, sliceWorldCoord(s.far, a));
     }
   }
   if (nowGrid) {
     orientSlicePlane(
       nowGrid,
       activeAxis,
-      world.width,
-      world.height,
-      DEFAULTS.cellSize,
+      w,
+      h,
+      cs,
       yMin,
       yMax,
       sliceWorldCoord(slabs[activeAxis].focus, activeAxis),
     );
   }
-  if (showNear) clipNearFrame.setOffset(activeAxis, sliceWorldCoord(s.near, activeAxis));
-  if (showFar) clipFarFrame.setOffset(activeAxis, sliceWorldCoord(s.far, activeAxis));
   applyGridLook();
 }
 
@@ -1550,21 +1588,21 @@ function updateHint() {
       ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
     }
   } else if (planeLock) {
-    ui.setHint("Slice — ortho cut · stack slider walks the plane · orbit restores the volume");
+    ui.setHint("Slice — wheel zooms · right-drag pans · left-drag leaves · Shift+wheel pages · B restores 3D");
   } else if (sourceId === "count") {
     ui.setHint(
       countVol && isDenseCount(countVol)
-        ? "Dense cube — gold clips are the AABB crop · Play walks the active playhead · enclosed voxels stay hidden"
+        ? "Dense cube — hover a frame edge to grab it · Play walks the playhead"
         : playing
           ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
-          : "Count stack — three cyan planes · gold clips crop the AABB · Play scrubs the active axis · Load another .npy in Source",
+          : "Count stack — grab a frame edge to move that plane · Play scrubs the active axis",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
-      `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · three planes · Play is live`,
+      `Inspect — ash · period ≤ ${MAX_OSC_PERIOD} for ${DEFAULTS.stableHold} gens · grab a frame edge · Play is live`,
     );
   } else if (tapeMode) {
-    ui.setHint("Inspect — three cyan planes · gold clips crop the AABB · hold a handle to peek · Play returns to live");
+    ui.setHint("Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live");
   } else if (editing && atNow) {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
@@ -1578,7 +1616,7 @@ function updateHint() {
   } else if (playing) {
     ui.setHint("Live — Pause to inspect the cache · orbit · pinch zoom");
   } else {
-    ui.setHint("Inspect — three cyan planes · gold clips crop the AABB · hold a handle to peek · Play returns to live");
+    ui.setHint("Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live");
   }
   applyGridLook();
   playfields.z.setEditing(editing);
@@ -1646,6 +1684,7 @@ function fadeSpan() {
 function uploadInstances() {
   cubes.setEvents(soa, {
     tFocus: tFocus(),
+    tNow: viewNow(),
     decay: arPresenting() ? false : decay,
     fadeSpan: fadeSpan(),
     timeScale: DEFAULTS.timeScale,
@@ -1671,14 +1710,13 @@ function fillAndUpload() {
   dirtySource = false;
   dirtyView = false;
   dirtyEncoding = false;
-  hoverKey = "";
 }
 
 function spanKey() {
   const span = volumeSpan();
   const box = cropAabb();
   const s = slabs[activeAxis];
-  return `${span.tLo}:${span.tHi}:${activeAxis}:${shadeMode}:${shadeHeld}:${s.near}:${s.focus}:${s.far}:${box ? `${box.xLo}:${box.xHi}:${box.yLo}:${box.yHi}` : "live"}`;
+  return `${span.tLo}:${span.tHi}:${activeAxis}:${inspectShade()}:${s.near}:${s.focus}:${s.far}:${box ? `${box.xLo}:${box.xHi}:${box.yLo}:${box.yHi}` : "live"}`;
 }
 
 function syncVolume() {
@@ -1699,7 +1737,6 @@ function syncVolume() {
     paths.measure("inst", uploadInstances);
     lastWork = "inst";
     dirtyView = false;
-    hoverKey = "";
     return;
   }
   paths.record("inst", 0);
@@ -1727,17 +1764,95 @@ function hitCell(event, cubesToo = false) {
   );
 }
 
-function hitFocusPlane(event) {
-  const meshes = ["x", "y", "z"].map((a) => focusSurfaces[a]).filter(Boolean);
-  if (!meshes.length) return null;
+function isRotateControlState() {
+  const s = controls.state;
+  return s === 0 || s === 3 || s === 6;
+}
+
+function setViewCursor(kind) {
+  if (kind) canvas.dataset.cursor = kind;
+  else delete canvas.dataset.cursor;
+}
+
+function canGrabFrames() {
+  return !arPresenting() && !planeLock && inspectMode() && showPlanes;
+}
+
+function projectFramePoint(x, y, z, cam, rect) {
+  _proj.set(x, y, z).project(cam);
+  if (!Number.isFinite(_proj.x) || _proj.z < -1 || _proj.z > 1) return null;
+  return {
+    x: rect.left + (_proj.x * 0.5 + 0.5) * rect.width,
+    y: rect.top + (-_proj.y * 0.5 + 0.5) * rect.height,
+    depth: _proj.z,
+  };
+}
+
+function collectFramePick(frame, event, cam, rect, into) {
+  if (!frame.group.visible) return;
+  const { axis, handle } = frame.pickMeta();
+  let best = null;
+  for (const seg of frame.edgeWorldSegments()) {
+    const pa = projectFramePoint(seg.ax, seg.ay, seg.az, cam, rect);
+    const pb = projectFramePoint(seg.bx, seg.by, seg.bz, cam, rect);
+    if (!pa || !pb) continue;
+    const pixelDist = distPointToSegment2(event.clientX, event.clientY, pa.x, pa.y, pb.x, pb.y);
+    if (best && pixelDist >= best.pixelDist) continue;
+    const t = closestTOnSegment2(event.clientX, event.clientY, pa.x, pa.y, pb.x, pb.y);
+    const point = {
+      x: seg.ax + t * (seg.bx - seg.ax),
+      y: seg.ay + t * (seg.by - seg.ay),
+      z: seg.az + t * (seg.bz - seg.az),
+    };
+    best = {
+      axis,
+      handle,
+      pixelDist,
+      depth: (pa.depth + pb.depth) * 0.5,
+      viewDir: {
+        x: point.x - cam.position.x,
+        y: point.y - cam.position.y,
+        z: point.z - cam.position.z,
+      },
+      point,
+    };
+  }
+  if (best) into.push(best);
+}
+
+function hitWorkPlane(event) {
+  if (!canGrabFrames()) return null;
+  const cam = activeCamera();
   const rect = canvas.getBoundingClientRect();
-  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(ndc, activeCamera());
-  const hits = raycaster.intersectObjects(meshes, false);
-  if (!hits.length) return null;
-  const axis = hits[0].object.userData.axis || "z";
-  return { axis, point: hits[0].point.clone() };
+  const candidates = [];
+  for (const a of ["x", "y", "z"]) {
+    collectFramePick(playfields[a], event, cam, rect, candidates);
+    collectFramePick(clipFrames[a].near, event, cam, rect, candidates);
+    collectFramePick(clipFrames[a].far, event, cam, rect, candidates);
+  }
+  const picked = pickOverlappingFrameHit(candidates, frameHover, FRAME_PICK_PX);
+  if (!picked) return null;
+  _grabPoint.set(picked.point.x, picked.point.y, picked.point.z);
+  return {
+    axis: picked.axis,
+    handle: picked.handle,
+    point: _grabPoint,
+  };
+}
+
+function setFrameHover(hit) {
+  const key = hit ? `${hit.axis}:${hit.handle}` : "";
+  if (key === frameHover) return;
+  frameHover = key;
+  for (const a of ["x", "y", "z"]) {
+    playfields[a].setHover(Boolean(hit && hit.axis === a && hit.handle === "focus"));
+    clipFrames[a].near.setHover(Boolean(hit && hit.axis === a && hit.handle === "near"));
+    clipFrames[a].far.setHover(Boolean(hit && hit.axis === a && hit.handle === "far"));
+  }
+}
+
+function clearFrameHover() {
+  setFrameHover(null);
 }
 
 function worldAxisDir(axis) {
@@ -1746,25 +1861,27 @@ function worldAxisDir(axis) {
   return new THREE.Vector3(0, 1, 0);
 }
 
-function beginPlaneDrag(event, axis, grabPoint) {
+function beginPlaneDrag(event, axis, handle, grabPoint) {
+  const key = handle === "near" || handle === "far" ? handle : "focus";
   setActiveAxis(axis);
-  if (inspectMode()) setShadeHeld(true);
+  if (inspectMode() && key === "focus") setShadeHeld(true);
   const cam = activeCamera();
   const axisDir = worldAxisDir(axis);
-  const toCam = cam.position.clone().sub(grabPoint);
-  const n = new THREE.Vector3().crossVectors(toCam, axisDir).cross(axisDir);
-  if (n.lengthSq() < 1e-10) n.set(0, 0, 1);
-  n.normalize();
-  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, grabPoint);
+  const scale = axis === "z" ? DEFAULTS.timeScale : DEFAULTS.cellSize;
+  const rect = canvas.getBoundingClientRect();
+  const mapped = screenAxisDragMap(grabPoint, axisDir, scale, (p) =>
+    projectFramePoint(p.x, p.y, p.z, cam, rect),
+  );
   planeDrag = {
     pointerId: event.pointerId,
     axis,
-    plane,
-    grab: grabPoint.clone(),
-    axisDir,
-    focus0: slabs[axis].focus,
+    handle: key,
+    pointer0: { x: event.clientX, y: event.clientY },
+    mapped,
+    value0: slabs[axis][key],
   };
   controls.enabled = false;
+  setViewCursor("frame");
   try {
     canvas.setPointerCapture(event.pointerId);
   } catch {
@@ -1774,17 +1891,16 @@ function beginPlaneDrag(event, axis, grabPoint) {
 
 function movePlaneDrag(event) {
   if (!planeDrag || event.pointerId !== planeDrag.pointerId) return;
-  const rect = canvas.getBoundingClientRect();
-  ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(ndc, activeCamera());
-  const hit = new THREE.Vector3();
-  if (!raycaster.ray.intersectPlane(planeDrag.plane, hit)) return;
-  const delta = hit.clone().sub(planeDrag.grab).dot(planeDrag.axisDir);
-  const scale = planeDrag.axis === "z" ? DEFAULTS.timeScale : DEFAULTS.cellSize;
-  const step = Math.round(delta / Math.max(1e-6, scale));
-  const next = planeDrag.focus0 - step;
-  applySlab(planeDrag.axis, { ...slabs[planeDrag.axis], focus: next }, "focus");
+  if (!planeDrag.mapped) return;
+  const dx = event.clientX - planeDrag.pointer0.x;
+  const dy = event.clientY - planeDrag.pointer0.y;
+  const step = screenAxisDragStep(dx, dy, planeDrag.mapped);
+  const next = planeDrag.value0 - step;
+  applySlab(
+    planeDrag.axis,
+    { ...slabs[planeDrag.axis], [planeDrag.handle]: next },
+    planeDrag.handle,
+  );
 }
 
 function endPlaneDrag(event) {
@@ -1793,10 +1909,11 @@ function endPlaneDrag(event) {
   planeDrag = null;
   setShadeHeld(false);
   if (!arPresenting()) controls.enabled = true;
+  setViewCursor("");
 }
 
 function paintAt(event) {
-  if (sourceId === "count" || !editing || slabs.z.focus !== 0) return;
+  if (planeLock || sourceId === "count" || !editing || slabs.z.focus !== 0) return;
   const cell = hitCell(event);
   if (!cell) return;
   if (world.toggle(cell.x, cell.y)) {
@@ -1811,37 +1928,7 @@ function paintAt(event) {
 }
 
 function clearHover() {
-  hoverCell = null;
-  hoverKey = "";
-  hairlines.hide();
-  axes.setHover(null);
-  hover.hide();
-}
-
-function syncHover() {
-  if (!hoverCell || !world) {
-    hover.hide();
-    return;
-  }
-  const foc = tFocus();
-  const key = `${hoverCell.x},${hoverCell.y},${foc},${soa.count},${stabForFill()}`;
-  if (key === hoverKey) return;
-  hoverKey = key;
-  const fill = encodingCubeFill(
-    eventAt(soa, hoverCell.x, hoverCell.y, foc),
-    stabForFill(),
-    encodingWarmupK(),
-  );
-  hover.set(hoverCell, world.width, world.height, DEFAULTS.cellSize, fill);
-}
-
-function updateHover(event) {
-  if (planeDrag) return;
-  const cell = hitCell(event);
-  hoverCell = cell;
-  hairlines.setCell(cell, world.width, world.height, DEFAULTS.cellSize);
-  axes.setHover(cell);
-  syncHover();
+  clearFrameHover();
 }
 
 function resize() {
@@ -1914,6 +2001,15 @@ if (gizmoHit) {
   gizmoHit.addEventListener("pointerleave", () => gizmo.clearHover());
 }
 
+if (btnShowPlanes) {
+  btnShowPlanes.addEventListener("click", () => {
+    showPlanes = !showPlanes;
+    syncShowPlanesButton();
+    if (!showPlanes) setFrameHover(null);
+    syncClipPlanes();
+  });
+}
+
 canvas.addEventListener(
   "pointerdown",
   (e) => {
@@ -1936,15 +2032,17 @@ canvas.addEventListener(
       return;
     }
     pointerDown = { x: e.clientX, y: e.clientY };
-    if (!arPresenting() && inspectMode()) {
-      const hit = hitFocusPlane(e);
+    if (planeLock) return;
+    if (canGrabFrames()) {
+      const hit = hitWorkPlane(e);
       if (hit) {
-        const paintZ = editing && slabs.z.focus === 0 && hit.axis === "z";
+        const paintZ =
+          editing && slabs.z.focus === 0 && hit.axis === "z" && hit.handle === "focus";
         if (!paintZ) {
           e.preventDefault();
           e.stopImmediatePropagation();
           pointerDown = null;
-          beginPlaneDrag(e, hit.axis, hit.point);
+          beginPlaneDrag(e, hit.axis, hit.handle, hit.point);
         }
       }
     }
@@ -1957,14 +2055,16 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
   if (planeDrag) {
+    setViewCursor("drag");
     movePlaneDrag(e);
     return;
   }
-  if (showGizmo()) {
-    const face = gizmo.hover(e.clientX, e.clientY, canvas);
-    canvas.style.cursor = face ? "pointer" : "";
-  }
-  updateHover(e);
+  const face = showGizmo() ? gizmo.hover(e.clientX, e.clientY, canvas) : null;
+  const hit = canGrabFrames() ? hitWorkPlane(e) : null;
+  setFrameHover(hit);
+  if (face) setViewCursor("pointer");
+  else if (hit) setViewCursor("frame");
+  else setViewCursor("");
 });
 window.addEventListener("pointermove", (e) => {
   if (yawDrag) moveYawDrag(e);
@@ -1993,8 +2093,8 @@ window.addEventListener("pointercancel", (e) => {
 });
 canvas.addEventListener("pointerleave", () => {
   gizmo.clearHover();
-  canvas.style.cursor = "";
-  clearHover();
+  setViewCursor("");
+  clearFrameHover();
 });
 
 canvas.addEventListener(
@@ -2005,7 +2105,7 @@ canvas.addEventListener(
     e.stopPropagation();
     e.stopImmediatePropagation();
     const dir = Math.sign(e.deltaY) || 1;
-    enterInspect();
+    if (!inspectMode()) enterInspect();
     applySlab(activeAxis, { ...slabs[activeAxis], focus: slabs[activeAxis].focus + dir }, "focus");
   },
   { capture: true, passive: false },
@@ -2077,7 +2177,7 @@ function frame(now, xrFrame) {
   }
 
   syncVolume();
-  paths.measure("hover", syncHover);
+  paths.record("hover", 0);
   if (arPresenting()) {
     updateReticle(xrFrame);
     if (arPlacePending) {
@@ -2086,9 +2186,8 @@ function frame(now, xrFrame) {
     }
     if (arPlaced) applyArStagePose();
   } else {
-    if (!planeLock) pinOrbitPivot();
     controls.update();
-    maybeExitPlaneLock();
+    if (!planeLock) pinOrbitPivot();
   }
   syncHeadlamp();
   paths.measure("rend", () => {

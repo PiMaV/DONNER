@@ -22,6 +22,9 @@
   --dampf: #00fff2;
   --blitz: #ff5a4f;
   --unsettled: #b388ff;
+  --axis-x: #5b8cff;
+  --axis-y: #e8c547;
+  --axis-z: #3ecf8e;
   --radius: 16px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
@@ -60,11 +63,16 @@ body {
   height: 100%;
   display: block;
   touch-action: none;
-  cursor: grab;
+  cursor: default;
 }
 
-#view:active {
-  cursor: grabbing;
+#view[data-cursor="pointer"] {
+  cursor: pointer;
+}
+
+#view[data-cursor="frame"],
+#view[data-cursor="drag"] {
+  cursor: move;
 }
 
 .brand,
@@ -134,12 +142,22 @@ body {
   pointer-events: none;
 }
 
+.gizmo-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  flex: 0 0 144px;
+  width: 144px;
+  align-self: flex-start;
+  pointer-events: none;
+}
+
 .gizmo-slot {
   position: relative;
   flex: 0 0 144px;
   width: 144px;
   height: 144px;
-  align-self: flex-start;
   pointer-events: none;
 }
 
@@ -154,6 +172,31 @@ body {
   background: rgba(0, 0, 0, 0.01);
 }
 
+.btn-show-planes {
+  appearance: none;
+  pointer-events: auto;
+  margin: 0;
+  padding: 4px 8px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  color: var(--muted);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.btn-show-planes.is-on {
+  border-color: rgba(0, 255, 242, 0.45);
+  color: var(--dampf);
+  box-shadow: 0 0 8px rgba(0, 255, 242, 0.2);
+}
+
+body.is-ar .gizmo-col,
 body.is-ar .gizmo-slot,
 body.is-ar .gizmo-hit {
   display: none !important;
@@ -161,6 +204,7 @@ body.is-ar .gizmo-hit {
 }
 
 @media (pointer: coarse) {
+  .gizmo-col,
   .gizmo-slot,
   .gizmo-hit {
     display: none !important;
@@ -290,6 +334,13 @@ body.hud-view-collapsed .hud-engine {
   padding: 2px 0 4px;
   border: 0;
   background: none;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.stack:hover,
+.stack:focus-within {
+  opacity: 0.92;
 }
 
 .stack-axis {
@@ -315,11 +366,23 @@ body.hud-view-collapsed .hud-engine {
 
 .stack-axis.is-active .stack-axis-label,
 .stack-axis.is-z.is-active .btn-stack-now {
-  color: var(--dampf);
+  color: var(--axis);
 }
 
 .stack-axis.is-active .stack-rail {
-  background: rgba(0, 255, 242, 0.35);
+  background: color-mix(in srgb, var(--axis) 40%, transparent);
+}
+
+.stack-axis[data-axis="x"] {
+  --axis: var(--axis-x);
+}
+
+.stack-axis[data-axis="y"] {
+  --axis: var(--axis-y);
+}
+
+.stack-axis[data-axis="z"] {
+  --axis: var(--axis-z);
 }
 
 body:not(.is-inspect) .stack-axis:not(.is-z) {
@@ -443,8 +506,8 @@ body.is-ar .stack-axis:not(.is-z) {
   height: calc((var(--far) - var(--near)) * 100%);
   min-height: 4px;
   border-radius: 999px;
-  background: rgba(255, 197, 61, 0.85);
-  box-shadow: 0 0 8px rgba(255, 197, 61, 0.35);
+  background: color-mix(in srgb, var(--axis, var(--donner)) 80%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--axis, var(--donner)) 35%, transparent);
   pointer-events: none;
 }
 
@@ -483,8 +546,8 @@ body:not(.is-inspect) .z-clip {
   width: 14px;
   height: 10px;
   border-radius: 2px;
-  background: var(--donner);
-  box-shadow: 0 0 8px rgba(255, 197, 61, 0.4);
+  background: var(--axis, var(--donner));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--axis, var(--donner)) 40%, transparent);
 }
 
 .z-focus {
@@ -492,8 +555,8 @@ body:not(.is-inspect) .z-clip {
   width: 22px;
   height: 16px;
   border-radius: 3px;
-  background: var(--dampf);
-  box-shadow: 0 0 10px rgba(0, 255, 242, 0.55);
+  background: var(--axis, var(--dampf));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--axis, var(--dampf)) 50%, transparent);
   z-index: 3;
 }
 
@@ -1080,6 +1143,7 @@ body.source-count .encoding-conway {
     pointer-events: auto;
   }
 
+  .gizmo-col,
   .gizmo-slot,
   .gizmo-hit {
     display: none !important;

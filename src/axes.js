@@ -1,7 +1,7 @@
 /**
  * Product axes (what the UI labels):
  *   X, Y — playfield / sensor
- *   Z    — time (vertical stack; focus plane is Z = 0)
+ *   Z    — time (vertical stack; Now is Z = 0, playhead scrubs along Z)
  *
  * Three.js is Y-up. Engine mapping (do not use in UI copy):
  *   world.x = product X
@@ -11,6 +11,17 @@
 
 export function productToWorld(px, py, pz) {
   return { x: px, y: pz, z: py };
+}
+
+/** World Y for a generation: Now sits at 0, older slices below. */
+export function zWorldY(t, tNow, timeScale) {
+  return ((t | 0) - (tNow | 0)) * (Number(timeScale) || 1);
+}
+
+/** World Y for a Z-rail back index (0 = Now). */
+export function zBackWorldY(back, timeScale) {
+  const y = -(back | 0) * (Number(timeScale) || 1);
+  return y === 0 ? 0 : y;
 }
 
 export function worldToProduct(wx, wy, wz) {
@@ -72,9 +83,12 @@ export function sliceOnlyFromPlaneLock(planeLock) {
   return Boolean(planeLock);
 }
 
-/** Leave the 2D cut when the look leaves the slice axis (~15°). */
+/**
+ * True when a 2D cut look has left the slice axis (about 2°).
+ * The viewer no longer auto-exits on orbit; keep this for tests and B.
+ */
 export function planeLockShouldExit(planeLock, cam, target, axis) {
-  return Boolean(planeLock) && !lookAlignedWithAxis(cam, target, axis);
+  return Boolean(planeLock) && !lookAlignedWithAxis(cam, target, axis, Math.cos((2 * Math.PI) / 180));
 }
 
 /** Inspect display: outer hull, peek (ghost), or three solid cuts. */

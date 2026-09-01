@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   fitOrbitDistance,
+  orthoFitHalfHeight,
   pinOrbitToAxis,
+  pinOrbitToOriginXY,
   placeOnViewRay,
   playfieldHalfExtent,
   slabYRange,
@@ -11,26 +13,29 @@ import {
 } from "../src/orbit.js";
 
 describe("slab world Y", () => {
-  it("puts the focus plane at Y = 0 and the older cut below", () => {
+  it("puts Now at Y = 0 and the older cut below", () => {
     const y = slabYRange(80, 40, 80, 1);
     assert.equal(y.yMax, 0);
     assert.equal(y.yMin, -40);
     assert.equal(y.yMid, -20);
   });
 
-  it("keeps gen 0 at the pillar base when a mid slab is clipped", () => {
-    const pillar = slabYRange(50, 0, 100, 1);
-    const slab = slabYRange(50, 40, 60, 1);
-    assert.equal(pillar.yMin, -50);
-    assert.equal(slab.yMin, -10);
+  it("keeps Now at Y = 0 when the Z crop shrinks", () => {
+    const full = slabYRange(80, 0, 80, 1);
+    const crop = slabYRange(80, 40, 80, 1);
+    assert.equal(full.yMax, 0);
+    assert.equal(crop.yMax, 0);
+    assert.equal(full.yMin, -80);
+    assert.equal(crop.yMin, -40);
   });
 
-  it("keeps the brick mid-height when the playhead moves through a fixed slab", () => {
-    const a = slabYRange(80, 40, 80, 1);
-    const b = slabYRange(60, 40, 80, 1);
-    assert.equal(b.yMid - a.yMid, 20);
-    assert.equal(b.yMin - a.yMin, 20);
-    assert.equal(b.yMax - a.yMax, 20);
+  it("keeps gen 0 at the pillar base independent of a clipped inspect slab", () => {
+    const pillar = slabYRange(100, 0, 100, 1);
+    const slab = slabYRange(100, 40, 60, 1);
+    assert.equal(pillar.yMin, -100);
+    assert.equal(pillar.yMax, 0);
+    assert.equal(slab.yMin, -60);
+    assert.equal(slab.yMax, -40);
   });
 });
 
@@ -45,6 +50,15 @@ describe("orbit pin", () => {
     assert.deepEqual(pinned.cam, { x: 8, y: -8, z: 13 });
   });
 
+  it("pins XY to the time axis without moving target height", () => {
+    const pinned = pinOrbitToOriginXY(
+      { x: 10, y: 4, z: 12 },
+      { x: 2, y: -8, z: -1 },
+    );
+    assert.deepEqual(pinned.target, { x: 0, y: -8, z: 0 });
+    assert.deepEqual(pinned.cam, { x: 8, y: 4, z: 13 });
+  });
+
   it("places the camera on the view ray at a fit distance", () => {
     const p = placeOnViewRay({ x: 0, y: 6, z: 8 }, { x: 0, y: 0, z: 0 }, 20);
     const len = Math.hypot(p.x, p.y, p.z);
@@ -57,5 +71,14 @@ describe("orbit pin", () => {
     const short = fitOrbitDistance(50, volumeRadius(hx, hz, -8, 0));
     const tall = fitOrbitDistance(50, volumeRadius(hx, hz, -400, 0));
     assert.ok(tall > short * 5);
+  });
+
+  it("fits an ortho frustum to a slice rectangle", () => {
+    const square = orthoFitHalfHeight(32, 32, 1, 1);
+    assert.equal(square, 16);
+    const wide = orthoFitHalfHeight(40, 10, 1, 1);
+    assert.equal(wide, 20);
+    const tall = orthoFitHalfHeight(10, 40, 1, 1);
+    assert.equal(tall, 20);
   });
 });

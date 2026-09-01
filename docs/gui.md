@@ -143,16 +143,15 @@ rectangle select on the playfield).
 |-------|--------|
 | Drag / one-finger | Orbit |
 | Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
-| Wheel / pinch | Zoom |
-| Right-drag / two-finger | Pan when **Parallax** is off, or when **Align to Z** is off. Align to Z (default) rotates around the time axis at the brick center. |
-| Shift+wheel | Scrub the **active** axis |
-| **Slice stack** | Three rails (X / Y / Z). Cyan playhead plus two gold clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent gold, hull cull against the AABB. After **Fit**, the brick stays put and the cyan plane moves. Desktop: three vertical rails, Now on Z at top. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. AR: Z only. |
+| Wheel / pinch | Zoom. **Shift+wheel** pages the **active** axis (3D and viewcube cut). |
+| Right-drag / two-finger | Pan. **Align to Z** keeps XY on the time axis and still slides along Z. Off = free XY pan. In a viewcube cut, pan stays in that plane. |
+| **Slice stack** | Three rails (X / Y / Z). Playhead plus two clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent clips, hull cull against the AABB. After **Fit**, the brick stays put; X/Y **and Z** playheads move through it. Desktop: three vertical rails, Now on Z at top. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. AR: Z only. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
-| Viewcube | Desktop: click a product-axis **face** (144 px slot left of the View card; hover lights the frame). Collapse View via the heading. Hidden on phone and in AR. |
+| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. **Left-drag** orbits out to 3D. **B** also leaves. **Planes** under the cube (default on) shows or hides 3D frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone and in AR. |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Yaw** orients the pillar; then walk. **Play** grows from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
@@ -167,16 +166,16 @@ rectangle select on the playfield).
 |---------|---------|
 | Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
-| Align to Z | Default on = orbit around the time axis. Off = free pan. Off while a viewcube cut is locked. |
+| Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
 | Yaw | AR overlay only: turn the pillar on the table after place, then walk. |
-| Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
+| Fit | Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
 | Decay | Default **off**. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Ghost hull uses proximity along the active plane, not Decay. |
-| Shade | Inspect: **Hull** (default, outer AABB solid; hold a handle/plane to peek as ghost), **Ghost** (volume ghost, active plane solid), **Triple** (three cuts solid, hull ghost). |
+| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead edge to peek as ghost; clip edges stay hull), **Ghost** (volume ghost, active plane solid), **Triple** (three cuts solid, hull ghost). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | Bench instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
-| **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, cyan playheads, gold AABB clips. Dragging a gold handle past the playhead pushes it. **Now** snaps Z to the high end of the rail. |
+| **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. **Now** snaps Z to the high end of the rail. Z matches X/Y: the volume stays put. |
 
 ## Source
 
@@ -235,42 +234,57 @@ stats stay in **Source**.
 |---------|---------|
 | Stability | **None** — equal cube size (occupancy). **Time** (default) — fill = stability already reached at that generation. **Focus** — fill = stability on the focus plane, whole column. Hover the control for details. |
 
-The **cyan frames** are the three slice planes. The **active** plane is
-full (fill + cell grid); the other two are hinted. Inspect also draws
-**gold rings** on the active axis at the AABB cuts. Three HUD rails
-(Now/max at the top of Z). Crop is the intersection of the three gold
-windows. **Hull** (default) draws the outer hull solid; grab a handle or
-plane to peek as ghost. **Ghost** / **Triple** persist in the View sheet.
-**Decay** stays a Z/time fade on sparse stacks. The CAD viewcube
-(desktop, left of the View card) is navigation, not a grabber.
+The **axis-colored frames** are the three slice planes (X `#5b8cff`, Y
+`#e8c547`, Z `#3ecf8e`). Inspect also draws **clip rings** on all three
+axes at the AABB cuts. Playhead rings sit slightly inside the box; clips
+sit further in so they do not share a side with a playhead. Playhead bars are thicker
+and brighter than clips. A clip on the playhead index is hidden. Hover a
+**frame edge** (about 28 px rim, **move** cursor) to light that whole ring
+and drag it along the axis in screen space; the fill is not a hit target. Three
+HUD rails stay as a dimmer second path (Now/max at the top of Z). **Planes**
+under the viewcube hides the 3D frames (default on). Crop is
+the intersection of the three clip windows. **Hull** (default) draws the
+outer hull solid; grab a **playhead** edge to peek as ghost. Grab a **clip**
+edge and the volume stays hull so you can stake the crop. **Ghost** /
+**Triple** persist in the View sheet. **Decay** stays a Z/time fade on
+sparse stacks. The CAD viewcube (desktop, left of the View card) enters a
+fitted 2D cut with **that plane's frame and grid**; wheel zooms, right-drag
+pans, Shift+wheel pages; a click on
+the cut does nothing; **B** restores the volume. Zoom and pan stay in the cut.
 
 ```mermaid
 flowchart TB
   subgraph idle [Inspect idle]
-    aabb[AABB from three gold windows]
+    aabb[AABB from three clip windows]
     hull[Outer hull solid]
-    planes[Three cyan planes]
+    planes[Three axis planes]
     aabb --> hull
     aabb --> planes
   end
-  subgraph drag [Hold handle or plane]
+  subgraph play [Grab playhead]
     ghost[AABB as ghost]
     cut[Active plane solid]
     ghost --> cut
   end
-  idle -->|grab Hull| drag
-  drag -->|release| idle
+  subgraph clip [Grab clip]
+    full[Full hull]
+    stake[Stake the crop]
+    full --> stake
+  end
+  idle -->|playhead| play
+  idle -->|clip| clip
+  play -->|release| idle
+  clip -->|release| idle
 ```
 
-Hovering the Z plane draws two thin lines to X and Y,
-a gold square on the cell, and a pale cage around the cube on that
-slice when the cell is live. Live: slices newer than the focus sit **above**
+Live: slices newer than the focus sit **above**
 the plane, translucent.
 
 **Parallax** off is orthographic at the current look (no vanishing point)
 and still shows the slab. Click a **face** of the viewcube (desktop; hover
 lights the frame) to enter a 2D **cut** on that axis: ortho, one plane,
-stack slider walks it. Orbit off the axis (or `B`) restores the volume.
+that plane's frame and cell grid, wheel zooms, Shift+wheel pages the stack. A click on the cut does
+nothing. **B** restores the volume; zoom and pan stay in the cut.
 
 ```mermaid
 flowchart TB
@@ -435,7 +449,7 @@ Bench stays in the sheet, not on the FPS chip.
 - **Thin View:** teaching View keeps Parallax / Align to Z / Light / Decay / Depth (and maybe
   cache). Bench, GPU strings, Neighborhood, presets, and dense Encoding
   leave the everyday sheet.
-- **Isolation later:** rectangle select on the playfield (not cube double-click).
+- **Isolation later:** rectangle select on the playfield (not cube double-click). Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, packed WOLKE selection / `viewer_index`, BLITZ widget sync, in-browser EVT3
 - **MRI source kind** (not in the Source sheet). Dense count `.npy`

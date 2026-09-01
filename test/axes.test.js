@@ -20,12 +20,21 @@ import {
   visibleTimeRange,
   voxelShadeClass,
   worldToProduct,
+  zBackWorldY,
+  zWorldY,
 } from "../src/axes.js";
 
 describe("product vs engine axes", () => {
   it("maps X Y playfield and Z time onto Three.js Y-up", () => {
     assert.deepEqual(productToWorld(3, 5, 8), { x: 3, y: 8, z: 5 });
     assert.deepEqual(worldToProduct(3, 8, 5), { x: 3, y: 5, z: 8 });
+  });
+
+  it("anchors world Y at Now so the playhead can move through a still stack", () => {
+    assert.equal(zWorldY(80, 80, 1), 0);
+    assert.equal(zWorldY(60, 80, 1), -20);
+    assert.equal(zBackWorldY(0, 1), 0);
+    assert.equal(zBackWorldY(20, 1), -20);
   });
 });
 

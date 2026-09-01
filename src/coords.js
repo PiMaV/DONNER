@@ -1,6 +1,6 @@
 /**
- * Right-side product XY frame on the playfield.
- * Time (Z) is the HUD stack slider, not a 3D grabber.
+ * Right-side product XY frame on the playfield (unwired).
+ * Numbered axes with units return later; the viewer no longer mounts this overlay.
  */
 
 import * as THREE from "three";

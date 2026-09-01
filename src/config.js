@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.6.0";
+export const VERSION = "0.7.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -13,6 +13,17 @@ export const COLOR = {
   gridDiv: 0x1a242e,
   frame: 0xffc53d,
 };
+
+/** Product-axis language (gizmo, planes, rails). Not the encoding LUT. */
+export const AXIS_COLOR = {
+  x: 0x5b8cff,
+  y: 0xe8c547,
+  z: 0x3ecf8e,
+};
+
+export function hexCss(hex) {
+  return `#${(hex >>> 0).toString(16).padStart(6, "0")}`;
+}
 
 export const GHOST_OPACITY = 0.22;
 export const GHOST_FALLOFF = 0.12;

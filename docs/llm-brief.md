@@ -27,8 +27,9 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   proxy exists. The cube renderer must stay source-agnostic.
   File format is not the runtime contract (SoA is). `.npy` count cubes
   are in; NPZ is still later.
-  Product axes: **X, Y = playfield**, **Z = time**. `tFocus` is Z = 0
-  (engine Y = 0 internally; Three.js is Y-up). `t > tFocus` is a
+  Product axes: **X, Y = playfield**, **Z = time**. **Now** is Z = 0
+  (engine Y = 0 internally; Three.js is Y-up). `tFocus` is the playhead
+  that walks that stack (same as X/Y). `t > tFocus` is a
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / moving / unsettled, plus warmup for `t < 2`.
   Count uses integer rungs (cyan → gold → coral).
@@ -40,18 +41,20 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) **face click** is a 2D cut: that axis, ortho, one plane. Orbit off-axis or `B` restores the 3D slab. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view). **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view). **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
-  cyan playhead and gold slab grips onto that product axis.
+  playhead and slab grips onto that product axis (axis-colored in the volume).
   Sparse Conway/EVT X/Y keeps the full time brick and ghosts toward the
-  gold grips. Dense count cubes (occupancy > 15 %) use the same mid-volume
+  clip grips. Dense count cubes (occupancy > 15 %) use the same mid-volume
   slab + enclosed cull + one-sided stack ghost as Z; Play walks that
   window on X, Y, or Z. Inspect
-  has two extra **slab** handles; outside the band is not drawn.
-  **Decay** defaults off (Z/time fade when on; sparse stacks only). Gold
-  handles push the cyan playhead when dragged past it. The focus plane
-  ring is cyan; slab cuts are gold rings in the volume. **Depth**
+  has two extra **slab** handles per axis; outside the band is not drawn.
+  **Decay** defaults off (Z/time fade when on; sparse stacks only). Clip
+  handles push the playhead when dragged past it. Planes and cuts share
+  the axis color. Hover a frame **edge** to light that ring and grab it
+  (playhead inset, clips smaller; coincident clip hidden);
+  HUD rails recede. Invisible fills are not grab targets. **Depth**
   is cube volume height (live wake). The RAM tape keeps the run from gen
   0 until cap; **Pause** inspects it (fog off, zoom-out stays lit). **Play** returns to
   live Now. Play is a display transport outside
@@ -60,14 +63,18 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   in a short cycle (period 1–15: stills and oscillators). Wrapping gliders
   keep running;
   a glider that walks off a hard edge becomes empty and then pauses (Wrap on
-  for a perpetual ship). **Fit** (`F`) frames the camera to the drawn slab;
-  Inspect Z scrub then moves only the cyan plane (brick stays put). **Align to Z**
-  (default on) orbits around the time axis at the brick center; off allows XY pan.
-  Ortho always pans. Hover and Edit stay on the Z playfield (disabled on X/Y slices).
+  for a perpetual ship).   **Fit** (`F`) frames the camera to the drawn slab (explicit);
+  Inspect Z scrub then moves only the playhead plane (brick stays put). **Align to Z**
+  (default on) orbits around the time axis without chasing Z clips;
+  right-drag still slides along Z; off allows XY pan.
+  Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
   Cube cap is a Bench number (default 200 000).
-  Hovering the plane draws hairlines to the numbered X/Y axes and
-  outlines the cell plus the focus-slice cube if live. Do not attach a
-  3D time grabber to the X/Y frame. Display HUD (FPS, AVG, 1%/0.1% lows,
+  Numbered X/Y overlay, hairlines, and cube hover outlines are off
+  (units later). Grab the axis-colored frame edges in the volume
+  (playhead full size, clips well inside; coincident clip hidden; ~28 px
+  screen rim to grab; drag in screen space along the axis). Clip grab
+  keeps Hull; playhead grab peeks Ghost. **Planes** under the viewcube
+  (default on) hides 3D frames. Display HUD (FPS, AVG, 1%/0.1% lows,
   sparkline, INST, FOC) stays separate from the Conway source HUD (GEN,
   LIVE, RATE). HUD shows **ORTHO** when parallax is off.
   On a phone the HUD is an FPS chip (tap for the View card); source stats

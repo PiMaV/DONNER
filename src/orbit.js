@@ -1,12 +1,14 @@
 /**
  * Orbit around the volume: product Z (engine Y) through the playfield
- * origin, pivot at the mid-height of the drawn brick.
+ * origin. World Y is anchored at Now, not the playhead. Fit sets the
+ * orbit height; Align to Z pins XY to that origin and still allows pan along Z.
  */
 
-export function slabYRange(tFocus, tLo, tHi, timeScale) {
-  const ts = Number(timeScale) || 1;
-  const a = ((tLo | 0) - (tFocus | 0)) * ts;
-  const b = ((tHi | 0) - (tFocus | 0)) * ts;
+import { zWorldY } from "./axes.js";
+
+export function slabYRange(tNow, tLo, tHi, timeScale) {
+  const a = zWorldY(tLo, tNow, timeScale);
+  const b = zWorldY(tHi, tNow, timeScale);
   const yMin = Math.min(a, b);
   const yMax = Math.max(a, b);
   return { yMin, yMax, yMid: (yMin + yMax) / 2 };
@@ -23,6 +25,15 @@ export function playfieldHalfExtent(width, height, cellSize) {
 export function volumeRadius(hx, hz, yMin, yMax) {
   const hy = Math.max(0.5, (yMax - yMin) / 2);
   return Math.hypot(Math.max(0.5, hx), hy, Math.max(0.5, hz));
+}
+
+/** Ortho half-height that fits a rectangle of `width` × `height` in the view. */
+export function orthoFitHalfHeight(width, height, aspect, pad = 1.12) {
+  const w = Math.max(0.5, Number(width) || 0.5);
+  const h = Math.max(0.5, Number(height) || 0.5);
+  const a = Math.max(0.2, Number(aspect) || 1);
+  const p = Number(pad) || 1.12;
+  return Math.max(h / 2, w / (2 * a)) * p;
 }
 
 export function fitOrbitDistance(fovDeg, radius, pad = 1.28) {
@@ -43,6 +54,7 @@ export function frustumFromDistance(distance, fovDeg) {
 /**
  * Move camera with the orbit target so the look stays put while the
  * pivot jumps to `(0, yMid, 0)` (time axis through the brick center).
+ * Fit uses this once; the animation loop does not.
  */
 export function pinOrbitToAxis(cam, target, yMid) {
   const dy = yMid - target.y;
@@ -51,6 +63,16 @@ export function pinOrbitToAxis(cam, target, yMid) {
   return {
     cam: { x: cam.x + dx, y: cam.y + dy, z: cam.z + dz },
     target: { x: 0, y: yMid, z: 0 },
+  };
+}
+
+/** Align to Z: lock orbit to the time axis without changing target.y. */
+export function pinOrbitToOriginXY(cam, target) {
+  const dx = -target.x;
+  const dz = -target.z;
+  return {
+    cam: { x: cam.x + dx, y: cam.y, z: cam.z + dz },
+    target: { x: 0, y: target.y, z: 0 },
   };
 }
 

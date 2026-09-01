@@ -29,11 +29,17 @@ describe("plane lock", () => {
     assert.equal(sliceOnlyFromPlaneLock(true), true);
   });
 
-  it("leaves the cut when the look leaves the slice axis", () => {
-    const top = { x: 0, y: 50, z: 0 };
+  it("leaves the cut after a small orbit off the slice axis", () => {
     const origin = { x: 0, y: 0, z: 0 };
+    const top = { x: 0, y: 50, z: 0 };
     const side = { x: 40, y: 8, z: 12 };
+    const tilt = {
+      x: 50 * Math.sin((5 * Math.PI) / 180),
+      y: 50 * Math.cos((5 * Math.PI) / 180),
+      z: 0,
+    };
     assert.equal(planeLockShouldExit(true, top, origin, "z"), false);
+    assert.equal(planeLockShouldExit(true, tilt, origin, "z"), true);
     assert.equal(planeLockShouldExit(true, side, origin, "z"), true);
     assert.equal(planeLockShouldExit(false, side, origin, "z"), false);
   });

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-01
+
+### Added
+
+- **Planes** toggle under the viewcube (default on). Off hides the 3D playhead and clip frames and the slice grid in orbit. A viewcube cut still shows the current plane.
+
+### Changed
+
+- Grabbing a **clip** ring keeps the crop as Hull so you can stake the box. Grabbing a **playhead** still peeks Ghost while Hull is selected. Frame hover uses the **move** cursor, not a crosshair.
+- Inspect **Z** matches X/Y: Now stays at world Y = 0, the playhead walks the stack, and Align to Z no longer recenters the camera when you scrub Z or drag the Z clips. **Fit** is the only reframe. **Align to Z** still allows right-drag (and two-finger pan) along Z; XY stays pinned.
+- Product axes share one color language in the gizmo, the volume, and the rails: X cornflower `#5b8cff`, Y maize `#e8c547`, Z mint `#3ecf8e`. Playhead rings match the true plane; clip rings sit well inside so they do not share a side. Playhead bars are thicker and brighter. Grab uses a ~28 px screen rim around each edge. A clip that sits on the playhead is hidden.
+- Viewcube **face** is a fitted 2D ortho cut of that plane: that plane's frame and cell grid only. Wheel zooms, right-drag pans in the plane, **Shift+wheel** pages the stack. Left-drag orbits out to 3D; pan/zoom stay in the cut. **B** also leaves.
+
+### Fixed
+
+- Dragging an X or Y plane no longer jumps far after a millimetre of mouse, especially with a tall Z stack. The grab follows the axis in screen space and ignores grazing views.
+
+### Removed
+
+- Numbered X/Y overlay, hover hairlines, cell/cube outlines, and isolate-beacon picking (edit-era chrome). Numbered axes with units return later.
+
 ## [0.6.0] - 2026-09-01
 
 ### Added

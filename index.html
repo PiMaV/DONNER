@@ -40,8 +40,11 @@
 
   <div id="xr-overlay" class="xr-overlay">
   <div class="hud-rail">
-    <div id="gizmo-slot" class="gizmo-slot">
-      <div id="gizmo-hit" class="gizmo-hit" aria-label="Viewcube"></div>
+    <div class="gizmo-col">
+      <div id="gizmo-slot" class="gizmo-slot">
+        <div id="gizmo-hit" class="gizmo-hit" aria-label="Viewcube"></div>
+      </div>
+      <button type="button" id="btn-show-planes" class="btn-show-planes is-on" aria-pressed="true" title="Show or hide the 3D playhead and clip frames. A viewcube cut still shows the current plane.">Planes</button>
     </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
@@ -137,9 +140,9 @@
       <h2 id="sheet-view" class="sheet-label">View</h2>
       <div class="btn-row">
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
-        <button type="button" id="btn-fit" class="btn" title="Frame the camera between the gold cuts (the cyan plane still scrubs)">Fit</button>
+        <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
       </div>
-      <label class="check" title="Orbit around the time axis at the brick center. Off: free pan (XY translation).">
+      <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
         <input id="align-z" type="checkbox" checked />
         <span>Align to Z</span>
       </label>
@@ -148,7 +151,7 @@
         <span>Decay (fade along Z toward oldest drawn)</span>
       </label>
       <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
-        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a handle or plane to peek.">Hull</button>
+        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek as ghost. Clip edges keep the hull.">Hull</button>
         <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Volume is ghost; the active plane stays solid.">Ghost</button>
         <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three cut planes are solid; the hull is ghost.">Triple</button>
       </div>
@@ -156,7 +159,7 @@
         <span>Depth <em id="history-val"></em></span>
         <input id="history" type="range" min="8" max="128" step="1" />
       </label>
-      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Three cyan planes; gold clips are the AABB crop. Fit frames that box. Hold a handle to peek as ghost.</p>
+      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Hold a playhead edge to peek as ghost; clip edges keep the hull.</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
     </section>
 

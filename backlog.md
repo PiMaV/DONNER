@@ -137,8 +137,13 @@ stay later.
 
 ## Isolation (later)
 
-Worldline isolation is **deferred**. Double-click on a cube is off.
+Worldline isolation is **deferred**. Double-click on a cube is off; the
+viewer no longer hover-picks cubes or draws an isolate beacon.
 Later: **rectangle selection** on the playfield, not a cube double-click.
 `src/observe.js` pick math can stay; the shell does not call it.
+
+**Numbered axes / units (later).** The right-side coordinate frame,
+tick numbers, and hover hairlines are unwired (`src/coords.js` stays
+in the tree). They come back with real units, not as an edit-era overlay.
 
 **Declined for now:** filmstrip and hover recheck-ROI.
