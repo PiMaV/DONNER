@@ -187,7 +187,7 @@ If the LAN IP changes, `npm run cert` again.
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a 2D ortho cut on that axis; orbit restores the volume
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
-- **Light** (desktop): View slider or Shift-drag walks the key light around Z; the volume stays put.
+- Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)

@@ -274,9 +274,7 @@ export function bindUI(on) {
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
   const alignZ = $("align-z");
-  const viewLight = $("view-light");
   const arYaw = $("ar-yaw");
-  const lightVal = $("light-val");
   const shadeHull = $("shade-hull");
   const shadeGhost = $("shade-ghost");
   const shadeTriple = $("shade-triple");
@@ -389,10 +387,6 @@ export function bindUI(on) {
   const syncLabels = () => {
     speedVal.textContent = `${speed.value}/s`;
     historyVal.textContent = history.value;
-    if (lightVal) {
-      const deg = viewLight ? Number(viewLight.value) || 0 : 0;
-      lightVal.textContent = `${Math.round(deg) % 360}°`;
-    }
   };
   syncLabels();
 
@@ -406,10 +400,6 @@ export function bindUI(on) {
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
   alignZ?.addEventListener("change", () => on.alignZ?.());
-  viewLight?.addEventListener("input", (e) => {
-    if (applying) return;
-    on.light?.(Number(e.target.value) || 0);
-  });
   arYaw?.addEventListener("input", (e) => {
     if (applying) return;
     on.yaw?.(Number(e.target.value) || 0);
@@ -620,16 +610,6 @@ export function bindUI(on) {
       applying = true;
       if (arYaw) arYaw.value = String(Math.round(d));
       applying = false;
-    },
-    getLightDegrees() {
-      return viewLight ? Number(viewLight.value) || 0 : 0;
-    },
-    setLightDegrees(deg) {
-      const d = ((Number(deg) % 360) + 360) % 360;
-      applying = true;
-      if (viewLight) viewLight.value = String(Math.round(d));
-      applying = false;
-      syncLabels();
     },
     setArYawEnabled(on) {
       if (arYaw) arYaw.disabled = !on;

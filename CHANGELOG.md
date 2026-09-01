@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Stop when stable** pauses after five generations in a short board cycle (period 1–15): stills **and** oscillators. Wrapping gliders keep running. Transit is gone; the legend is Still / Oscillator / Moving / Unsettled / Warmup. Oscillators along Z may have period 2–15, not only blinkers.
 - **Decay** defaults off. The checkbox stays for the old Z fade.
-- Viewcube **face** enters an ortho **cut** on that product axis (one playhead plane, no ghosts). **Orbit** past ~15° (or **B**) restores perspective and the slab. Shift-drag Light and the stack sliders do not leave the cut.
+- Viewcube **face** enters an ortho **cut** on that product axis (one playhead plane, no ghosts). **Orbit** past ~15° (or **B**) restores perspective and the slab. The stack sliders do not leave the cut.
 - The Grid light slider is gone. The cell lattice sits on the active cyan plane.
+- Lighting is a **headlamp**: key and fill follow the view (desktop orbit and AR walk). The View Light slider and Shift-drag azimuth are gone. AR **Yaw** after place (slider / swipe, then walk) is unchanged. A visible sun gizmo is later.
 
 ## [0.5.0] - 2026-09-01
 

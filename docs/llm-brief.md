@@ -40,7 +40,7 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) **face click** is a 2D cut: that axis, ortho, one plane. Orbit off-axis or `B` restores the 3D slab. Hover lights a face; omit the cube on phone and in AR. Desktop **Light** (View slider / Shift-drag) walks the key/fill around Z; the volume stays put. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) **face click** is a 2D cut: that axis, ortho, one plane. Orbit off-axis or `B` restores the 3D slab. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view). **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   cyan playhead and gold slab grips onto that product axis.
@@ -85,7 +85,8 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   square on the table; tap places and locks the pose for the session.
   **Yaw** (overlay slider or swipe) turns the pillar on the table around
   product Z; gen 0 stays put. Then walk with the phone. Desktop orbit
-  does not yaw the volume; **Light** walks key/fill around Z instead.
+  does not yaw the volume. Lighting is a **headlamp** (key/fill follow the
+  view in orbit and in AR walk).
   The pillar base (gen 0) stays on the table; **Play** grows the tape
   upward; Z clips a segment in place. Same `setEvents`.
   If hit-test is missing, the volume sits ~0.8 m in front of the viewer.

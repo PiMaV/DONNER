@@ -6,7 +6,6 @@ import { rotateVecByQuat } from "../src/xr.js";
 import {
   composeArYaw,
   gizmoFollowYaw,
-  lightsFollowTurntable,
   wrapTurntableYaw,
   yawDegrees,
   yawDeltaFromDrag,
@@ -45,17 +44,9 @@ describe("yawProductDir", () => {
     assert.ok(Math.abs(p.z + 1) < 1e-12);
   });
 
-  it("yaws volume axes under world-fixed lights (Lambert faces change)", () => {
-    assert.equal(lightsFollowTurntable(), false);
+  it("yaws volume axes in table space (headlamp stays on the view)", () => {
     const x = yawProductDir(productViewDir("x", 1), Math.PI / 2);
     assert.ok(Math.abs(x.z + 1) < 1e-12);
-  });
-
-  it("walks a key-light position around product Z without moving the volume", () => {
-    const key = yawProductDir({ x: 18, y: 32, z: 22 }, Math.PI / 2);
-    assert.ok(Math.abs(key.x - 22) < 1e-12);
-    assert.equal(key.y, 32);
-    assert.ok(Math.abs(key.z + 18) < 1e-12);
   });
 });
 

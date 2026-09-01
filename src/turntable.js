@@ -1,14 +1,9 @@
 /**
  * Object yaw around product Z (engine Y): AR table / cyan playfield.
- * Desktop lighting uses the same wrap/drag math on a separate light rig.
+ * Lighting is a view-locked headlamp (`src/headlamp.js`), not this yaw.
  */
 
 const TWO_PI = Math.PI * 2;
-
-/** Volume yaw does not carry the key/fill; a separate light rig does. */
-export function lightsFollowTurntable() {
-  return false;
-}
 
 export function wrapTurntableYaw(rad) {
   const t = Number(rad);
@@ -28,7 +23,7 @@ export function yawFromDegrees(deg) {
 
 /**
  * Horizontal drag → yaw. Mouse/finger right spins clockwise from above
- * (grab the disk / walk the sun around).
+ * (grab the disk).
  */
 export function yawDeltaFromDrag(dx, widthPx) {
   const w = Math.max(1, Number(widthPx) || 1);
@@ -63,7 +58,7 @@ export function invertUnitQuat(q) {
 
 /**
  * Rotate a parent-space direction by yaw around product Z (engine Y).
- * Matches Three.js `rotation.y`. Used for AR object axes and desktop lights.
+ * Matches Three.js `rotation.y`. Used for AR object axes.
  */
 export function yawProductDir(dir, yaw) {
   const c = Math.cos(wrapTurntableYaw(yaw));

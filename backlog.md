@@ -62,7 +62,7 @@ Source card) is a first cut, not the end state.
 - **Thin View.** The View sheet is too dense for teaching (Bench timers,
   GPU strings, Neighborhood, presets, Encoding legend, cache line, …).
   Strip View to display controls the human actually uses on the volume
-  (Parallax, Align to Z, Light, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
+  (Parallax, Align to Z, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
   leave the teaching View (fold, flag, or a separate debug sheet).
 
 These are orbit-shell polish. XR-A already specifies a **thin overlay**
@@ -71,12 +71,12 @@ applies: AR chrome is not the desktop sheets.
 
 ## Visible sun (later)
 
-A **visible sun** with a position in the scene is extra: a gold marker on a
-ring around the brick that you drag, so Lambert relief is a studio lamp you
-can see. Desktop first. Do not put a CGI sun in AR until that extra is wanted
-— AR keeps **Yaw** (slider / swipe after place, then walk). A view-locked
-headlamp (key/fill follow the camera) is a separate slice; the desktop Light
-slider stays until that ships. Not this slice.
+Headlamp is the default (key/fill follow the view). A **visible sun**
+with a position in the scene is extra: a gold marker on a ring around the
+brick that you drag, so Lambert relief is a studio lamp you can see.
+Desktop first. Do not put a CGI sun in AR until that extra is wanted —
+AR keeps headlamp plus **Yaw** (slider / swipe after place, then walk).
+Not this slice.
 
 ## HTTPS / ops
 

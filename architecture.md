@@ -70,7 +70,7 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Light azimuth, CAD gizmo, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
+| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
 | **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/warmup + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
@@ -96,7 +96,6 @@ flowchart TB
   subgraph view [View display]
     bird[Parallax]
     align[Align to Z]
-    light[Light azimuth]
     win[Depth live Decay shade Hull Ghost Triple Cache]
     enc[Encoding]
     bench[Bench]
@@ -292,14 +291,14 @@ flowchart LR
   orbit[Orbit perspective]
   ortho[Ortho no parallax]
   gizmo[CAD viewcube]
-  light[Light azimuth]
+  lamp[Headlamp]
   slab[Slice slab XYZ]
   scrub[Stack playhead]
   orbit --> volume[Volume]
   ortho --> volume
   gizmo --> orbit
   gizmo --> ortho
-  light --> volume
+  lamp --> volume
   slab --> volume
   scrub --> plane[Cyan plane]
 ```
@@ -393,7 +392,7 @@ A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
 HUD card (desktop orbit only). Six axis-colored **face frames**, a rim, and
 X/Y/Z labels on the + faces. Hover lights the face; click enters the 2D
 cut. Orbit more than ~15° off the axis (or `B`) restores perspective and
-the drawn slab. Shift-drag Light and the stack slider stay in the cut.
+the drawn slab. The stack slider stays in the cut.
 The cube is omitted on phone / coarse pointer (orbit + the slice
 stack stay) and in AR. The desktop View card heading collapses the
 telemetry (`View ▾` / `View ▸`).
@@ -406,22 +405,22 @@ product Z (overlay slider or swipe). Gen 0 stays put. Then walk with the
 phone. Desktop orbit does **not** yaw the volume — that looked like a
 second camera orbit.
 
-**Light** (desktop) walks the key and fill around product Z. The brick
-stays put; Lambert faces change. Hemisphere stays sky-up. Shift-drag or
-the View slider. In AR the light rig is identity so walking is the look.
+**Light** is a **headlamp**: key and fill sit in camera space, so the
+facing side of the brick stays lit in desktop orbit and in AR walk.
+Hemisphere stays world sky-up. There is no Light slider and no Shift-drag
+azimuth. AR **Yaw** after place is unchanged. A visible sun gizmo is later
+(backlog).
 
 ```mermaid
 flowchart TB
   scene[scene]
   hemi[hemi sky up]
-  rig[lightRig desktop azimuth]
-  lights[key fill]
+  lights[key fill headlamp]
   stage[stage AR pose]
   turntable[turntable AR yaw]
   vol[cubes frames axes]
   scene --> hemi
-  scene --> rig
-  rig --> lights
+  scene --> lights
   scene --> stage
   stage --> turntable
   turntable --> vol
@@ -447,7 +446,6 @@ flowchart LR
   gizmo[CAD gizmo face]
   para[Parallax on off]
   align[Align to Z]
-  light[Light azimuth]
   slice[Three rails XYZ]
   shade[Hull Ghost Triple]
   cam[Orbit or ortho camera]
@@ -456,7 +454,6 @@ flowchart LR
   gizmo --> slice
   para --> cam
   align --> cam
-  light --> vol
   slice --> vol
   shade --> vol
   cam --> vol
@@ -528,7 +525,8 @@ grow the DOM.
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
 | `src/fade.js` | Decay along Z (time); ghost-hull fade along the active plane |
 | `src/orbit.js` | Fit / pin orbit around the brick |
-| `src/turntable.js` | AR object yaw around product Z; desktop light-rig azimuth |
+| `src/turntable.js` | AR object yaw around product Z |
+| `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |

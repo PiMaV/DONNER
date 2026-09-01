@@ -8,7 +8,6 @@ layout.
 ```mermaid
 flowchart LR
   orbit[Orbit / pinch / pan] --> scene[Volume]
-  light[Light / Shift-drag] --> scene
   play[Play Pause] --> scene
   step[Step] --> sim[Conway]
   sim --> scene
@@ -53,7 +52,7 @@ flowchart TB
   end
   subgraph walk [Inspect]
     phone[Walk with phone]
-    desk[Desktop: Light slider not object yaw]
+    desk[Desktop: orbit plus headlamp not object yaw]
     spin --> phone
     spin --> desk
   end
@@ -81,7 +80,6 @@ flowchart TB
   subgraph view [View display]
     bird[Parallax]
     align[Align to Z]
-    light[Light azimuth]
     fit[Fit slab]
     win[Depth live Decay GridLight Cache]
     enc[Encoding]
@@ -170,7 +168,7 @@ rectangle select on the playfield).
 | Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
 | Align to Z | Default on = orbit around the time axis. Off = free pan. Off while a viewcube cut is locked. |
-| Light | Desktop: azimuth of the key/fill around product Z. Volume stays put (Lambert changes). View slider or Shift-drag. Off in AR. |
+| Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
 | Yaw | AR overlay only: turn the pillar on the table after place, then walk. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
 | Decay | Default **off**. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Ghost hull uses proximity along the active plane, not Decay. |

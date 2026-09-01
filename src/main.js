@@ -67,6 +67,7 @@ import {
   yawDeltaFromDrag,
   yawFromDegrees,
 } from "./turntable.js";
+import { headlampPose } from "./headlamp.js";
 import { bindUI } from "./ui.js";
 import {
   applyOrthoAspect,
@@ -174,15 +175,15 @@ syncGizmoChrome();
 
 const hemi = new THREE.HemisphereLight(0xb8c8e0, 0x0a0e13, 0.72);
 scene.add(hemi);
-const lightRig = new THREE.Group();
-lightRig.name = "lightRig";
-scene.add(lightRig);
 const key = new THREE.DirectionalLight(0xffe6c0, 0.9);
-key.position.set(18, 32, 22);
-lightRig.add(key);
+scene.add(key);
+scene.add(key.target);
 const fill = new THREE.DirectionalLight(0x88ddff, 0.22);
-fill.position.set(-20, 8, -12);
-lightRig.add(fill);
+scene.add(fill);
+scene.add(fill.target);
+const _headPos = new THREE.Vector3();
+const _headQuat = new THREE.Quaternion();
+const _headScale = new THREE.Vector3();
 
 let soa = new EventSoA(DEFAULTS.maxInstances);
 let cubes = new CubeRenderer(turntable, {
@@ -263,7 +264,6 @@ let arAnchored = false;
 let arLocked = false;
 let arMag = XR_MAG_DEFAULT;
 let turntableYaw = 0;
-let lightAzimuth = 0;
 let yawDrag = null;
 
 const clock = new FrameClock();
@@ -284,9 +284,6 @@ const ui = bindUI({
   },
   yaw: (deg) => {
     setTurntableYaw(yawFromDegrees(deg ?? ui.getYawDegrees()));
-  },
-  light: (deg) => {
-    setLightAzimuth(yawFromDegrees(deg ?? ui.getLightDegrees()));
   },
   sliceAxis: (axis) => setActiveAxis(axis),
   activeAxis: (axis) => setActiveAxis(axis),
@@ -563,20 +560,34 @@ function syncTurntableVisual() {
   turntable.rotation.y = arPresenting() ? turntableYaw : 0;
 }
 
-function syncLightRig() {
-  lightRig.rotation.y = arPresenting() ? 0 : lightAzimuth;
+function headlampCamera() {
+  if (renderer.xr.isPresenting) {
+    const xrCam = renderer.xr.getCamera();
+    return xrCam.cameras?.[0] || xrCam;
+  }
+  return activeCamera();
+}
+
+function syncHeadlamp() {
+  const cam = headlampCamera();
+  cam.updateMatrixWorld();
+  cam.matrixWorld.decompose(_headPos, _headQuat, _headScale);
+  const pose = headlampPose(
+    { x: _headPos.x, y: _headPos.y, z: _headPos.z },
+    { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w },
+  );
+  key.position.set(pose.key.x, pose.key.y, pose.key.z);
+  fill.position.set(pose.fill.x, pose.fill.y, pose.fill.z);
+  key.target.position.set(pose.target.x, pose.target.y, pose.target.z);
+  fill.target.position.set(pose.target.x, pose.target.y, pose.target.z);
+  key.target.updateMatrixWorld();
+  fill.target.updateMatrixWorld();
 }
 
 function setTurntableYaw(rad) {
   turntableYaw = wrapTurntableYaw(rad);
   syncTurntableVisual();
   ui.setYawDegrees(yawDegrees(turntableYaw));
-}
-
-function setLightAzimuth(rad) {
-  lightAzimuth = wrapTurntableYaw(rad);
-  syncLightRig();
-  ui.setLightDegrees(yawDegrees(lightAzimuth));
 }
 
 function stopHitTest() {
@@ -715,7 +726,6 @@ async function onArSessionStart() {
   }
   ui.setArYawEnabled(!arUseHitTest);
   syncTurntableVisual();
-  syncLightRig();
   dirtySource = true;
   dirtyView = true;
   syncFog();
@@ -732,7 +742,6 @@ function onArSessionEnd() {
   stopHitTest();
   resetStageOrbit();
   syncTurntableVisual();
-  syncLightRig();
   dirtySource = true;
   dirtyView = true;
   syncFog();
@@ -1567,7 +1576,7 @@ function updateHint() {
       `INST ${cubes.count} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
     );
   } else if (playing) {
-    ui.setHint("Live — Pause to inspect the cache · orbit · Shift-drag moves the light");
+    ui.setHint("Live — Pause to inspect the cache · orbit · pinch zoom");
   } else {
     ui.setHint("Inspect — three cyan planes · gold clips crop the AABB · hold a handle to peek · Play returns to live");
   }
@@ -1864,8 +1873,7 @@ function beginYawDrag(e) {
   yawDrag = {
     pointerId: e.pointerId,
     x: e.clientX,
-    yaw: arPresenting() ? turntableYaw : lightAzimuth,
-    ar: arPresenting(),
+    yaw: turntableYaw,
   };
   try {
     canvas.setPointerCapture(e.pointerId);
@@ -1877,8 +1885,7 @@ function beginYawDrag(e) {
 function moveYawDrag(e) {
   if (!yawDrag || e.pointerId !== yawDrag.pointerId) return;
   const next = yawDrag.yaw + yawDeltaFromDrag(e.clientX - yawDrag.x, canvas.clientWidth);
-  if (yawDrag.ar) setTurntableYaw(next);
-  else setLightAzimuth(next);
+  setTurntableYaw(next);
 }
 
 function endYawDrag(e) {
@@ -1921,8 +1928,7 @@ canvas.addEventListener(
       }
     }
     const arYaw = arPresenting() && arLocked;
-    const deskYaw = !arPresenting() && e.shiftKey;
-    if (arYaw || deskYaw) {
+    if (arYaw) {
       e.preventDefault();
       e.stopImmediatePropagation();
       pointerDown = null;
@@ -2084,6 +2090,7 @@ function frame(now, xrFrame) {
     controls.update();
     maybeExitPlaneLock();
   }
+  syncHeadlamp();
   paths.measure("rend", () => {
     if (arPresenting()) {
       renderer.autoClear = true;
