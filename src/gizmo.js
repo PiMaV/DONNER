@@ -16,6 +16,7 @@ import {
   gizmoScissor,
   viewFromLocalNormal,
 } from "./gizmo-layout.js";
+import { gizmoFollowYaw } from "./turntable.js";
 
 export {
   productViewDir,
@@ -223,8 +224,10 @@ export class ViewGizmo {
     }
   }
 
-  sync(mainCamera) {
-    this.group.quaternion.copy(mainCamera.quaternion).invert();
+  sync(mainCamera, yaw = 0) {
+    const q = mainCamera.quaternion;
+    const g = gizmoFollowYaw({ x: q.x, y: q.y, z: q.z, w: q.w }, yaw);
+    this.group.quaternion.set(g.x, g.y, g.z, g.w);
   }
 
   layoutHit(el, canvas) {

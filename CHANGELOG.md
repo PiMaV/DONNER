@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-01
+
+### Added
+
+- **Yaw** (AR): after the pose locks, overlay Yaw or a horizontal swipe turns the pillar on the table around product Z; gen 0 stays put. Then walk with the phone.
+- **Light** (desktop orbit): View slider or Shift-drag walks the key/fill around product Z. The volume stays put, so Lambert shading changes without looking like a second orbit. Hemisphere stays sky-up. Not used in AR.
+
 ## [0.4.0] - 2026-09-01
 
 ### Added

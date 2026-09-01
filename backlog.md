@@ -62,7 +62,7 @@ Source card) is a first cut, not the end state.
 - **Thin View.** The View sheet is too dense for teaching (Bench timers,
   GPU strings, Neighborhood, presets, Encoding legend, cache line, …).
   Strip View to display controls the human actually uses on the volume
-  (Parallax, Align to Z, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
+  (Parallax, Align to Z, Light, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
   leave the teaching View (fold, flag, or a separate debug sheet).
 
 These are orbit-shell polish. XR-A already specifies a **thin overlay**
@@ -103,8 +103,10 @@ flowchart LR
    up, Z clips a segment in place.
    If hit-test is missing, the volume sits ~0.8 m in front of the viewer.
    Feature detect; no AR button if `immersive-ar` is missing. Orbit is
-   the fallback. **HTTPS** is `https://lab.ole.icu/` (`start:lan`
-   upstream); mkcert is fallback. AR chrome is Play, Z, Size, Exit. Pause
+   the fallback. After place, **Yaw** orients the pillar on the table
+   (product Z; overlay slider or swipe). Then walk with the phone.
+   **HTTPS** is `https://lab.ole.icu/` (`start:lan`
+   upstream); mkcert is fallback. AR chrome is Play, Z, Size, Yaw, Exit. Pause
    `OrbitControls` in session. `setEvents(...)` stays. Teaching 32 is
    enough; no extra Depth/Grid cap this stage. iPhone only if
    `navigator.xr` actually supports AR. No 8th Wall, no ARKit shell.

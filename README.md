@@ -187,6 +187,8 @@ If the LAN IP changes, `npm run cert` again.
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
 - CAD viewcube, rail slot left of the View card (desktop orbit only): tap a face to snap that product axis
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
+- **Light** (desktop): View slider or Shift-drag walks the key light around Z; the volume stays put.
+- **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
@@ -196,7 +198,7 @@ If the LAN IP changes, `npm run cert` again.
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
 - Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks (including the local MRI preview `../datasets/MRT/mni152_stack.npy`). **Stream** connects to the EVT sidecar / WOLKE (`http://127.0.0.1:5055`, token `evt`); cube bytes arrive via same-origin `/stream-npy`.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
-- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; gen 0 stays on the table; Z clips a segment in place. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing.
+- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; **Yaw** orients the pillar on the table; gen 0 stays on the table; Z clips a segment in place. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing.
 
 **Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, MRI source kind / NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B/C, points renderer.
 

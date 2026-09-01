@@ -60,6 +60,11 @@
         <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
           aria-label="AR volume size" />
       </label>
+      <label class="ar-yaw" for="ar-yaw">
+        <span>Yaw</span>
+        <input id="ar-yaw" type="range" min="0" max="360" step="1" value="0"
+          aria-label="Turntable yaw" disabled />
+      </label>
       <aside class="stack" aria-label="Slice stack">
         <div class="slice-axes" role="radiogroup" aria-label="Slice axis">
           <button type="button" id="slice-x" class="btn-slice" data-axis="x" aria-pressed="false">X</button>
@@ -97,7 +102,7 @@
 
   <form id="controls" class="controls-root" autocomplete="off" onsubmit="return false">
     <div id="panel-view" class="controls panel-view">
-    <p id="hint" class="hint">Orbit · pinch zoom · two-finger pan</p>
+    <p id="hint" class="hint">Orbit · Shift-drag moves the light · pinch zoom</p>
 
     <section class="sheet-block" data-slot="view" aria-labelledby="sheet-view">
       <h2 id="sheet-view" class="sheet-label">View</h2>
@@ -108,6 +113,11 @@
       <label class="check" title="Orbit around the time axis at the brick center. Off: free pan (XY translation).">
         <input id="align-z" type="checkbox" checked />
         <span>Align to Z</span>
+      </label>
+      <label class="field" title="Azimuth of the key light around product Z. The volume stays put; orbit is still look-around. Shift-drag on the canvas.">
+        <span>Light <em id="light-val">0°</em></span>
+        <input id="view-light" type="range" min="0" max="360" step="1" value="0"
+          aria-label="Key light azimuth" />
       </label>
       <label class="check" title="Fade older time slices toward the back of the drawn Z window. Does not fade the X/Y slice.">
         <input id="decay" type="checkbox" checked />

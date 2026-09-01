@@ -8,6 +8,7 @@ layout.
 ```mermaid
 flowchart LR
   orbit[Orbit / pinch / pan] --> scene[Volume]
+  light[Light / Shift-drag] --> scene
   play[Play Pause] --> scene
   step[Step] --> sim[Conway]
   sim --> scene
@@ -30,7 +31,9 @@ Conway Play from Inspect jumps to live Now.
 In an **AR session** the same Play and Z stack stay; brand, View/Source
 sheets, and the FPS chip hide. The viewcube and Parallax are not offered. Point at a table
 until a gold square appears, then **tap** to place. The pose **locks**
-for the session (Z and Size do not move the origin). The volume is a
+for the session (Z and Size do not move the origin). **Yaw** then turns
+the pillar on the table (product Z; swipe on passthrough or the overlay
+slider). Walk with the phone after that. The volume is a
 **pillar**: gen 0 stays on the table; **Play** grows the tape upward;
 Z clips a segment in place; **Size** scales the whole stack. **Exit**
 (or Escape) returns to orbit. The WebXR DOM
@@ -38,17 +41,37 @@ overlay is `#xr-overlay` (HUD only), not `document.body`, so the camera
 passthrough and the volume stay visible.
 
 ```mermaid
-flowchart LR
-  look[Look at table]
-  tap[Tap gold square]
-  lock[Pose locked at 0]
-  play[Play grows the tape up]
-  clip[Z clips a segment in place]
-  look --> tap --> lock --> play
-  lock --> clip
+flowchart TB
+  subgraph place [AR place]
+    tap[Tap gold reticle]
+    lock[Position and scale lock]
+    tap --> lock
+  end
+  subgraph turntable [Turntable]
+    spin[Yaw around product Z]
+    lock --> spin
+  end
+  subgraph walk [Inspect]
+    phone[Walk with phone]
+    desk[Desktop: Light slider not object yaw]
+    spin --> phone
+    spin --> desk
+  end
 ```
 
-The left chrome is two sheets — **View** (Parallax, Align to Z, Decay, Depth live-only,
+```mermaid
+flowchart LR
+  look[Look at table]
+  tap2[Tap gold square]
+  lock2[Pose locked at 0]
+  yaw2[Yaw on the table]
+  play[Play grows the tape up]
+  clip[Z clips a segment in place]
+  look --> tap2 --> lock2 --> yaw2 --> play
+  lock2 --> clip
+```
+
+The left chrome is two sheets — **View** (Parallax, Align to Z, Light, Decay, Depth live-only,
 cache, Encoding, Bench) and **Source** (kind: Conway or count stack;
 GEN/LIVE/RATE or T/LIVE/SUM stay on the right HUD). Generator controls do
 not share a panel with View.
@@ -58,6 +81,7 @@ flowchart TB
   subgraph view [View display]
     bird[Parallax]
     align[Align to Z]
+    light[Light azimuth]
     fit[Fit slab]
     win[Depth live Decay GridLight Cache]
     enc[Encoding]
@@ -120,6 +144,7 @@ rectangle select on the playfield).
 | Input | Action |
 |-------|--------|
 | Drag / one-finger | Orbit |
+| Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan when **Parallax** is off, or when **Align to Z** is off. Align to Z (default) rotates around the time axis at the brick center. |
 | Shift+wheel | Scrub the current slice axis |
@@ -130,7 +155,7 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face** (144 px slot left of the View card; hover lights the frame). Collapse View via the heading. Hidden on phone and in AR. |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Play** grows the pillar from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Yaw** orients the pillar; then walk. **Play** grows from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -145,6 +170,8 @@ rectangle select on the playfield).
 | Play / Pause | **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. |
 | Parallax | Default on = perspective. Off = orthographic at the current look. Key `B`. |
 | Align to Z | Default on = orbit around the time axis. Off = free pan. |
+| Light | Desktop: azimuth of the key/fill around product Z. Volume stays put (Lambert changes). View slider or Shift-drag. Off in AR. |
+| Yaw | AR overlay only: turn the pillar on the table after place, then walk. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
 | Decay | On/off. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Sparse X/Y uses ghost-to-gold on its own. Dense count reuses this one-sided fade along the active stack axis (Decay stays off). |
 | Grid light | Brightness of the cell grid and focus-plane fill |
@@ -346,7 +373,7 @@ Bench stays in the sheet, not on the FPS chip.
 
 - **Source off the rail:** Conway HUD (GEN / LIVE / RATE) and the left
   Source sheet leave the viewer chrome; generator is its own surface.
-- **Thin View:** teaching View keeps Parallax / Align to Z / Decay / Depth (and maybe
+- **Thin View:** teaching View keeps Parallax / Align to Z / Light / Decay / Depth (and maybe
   cache). Bench, GPU strings, Neighborhood, presets, and dense Encoding
   leave the everyday sheet.
 - **Isolation later:** rectangle select on the playfield (not cube double-click).
@@ -359,7 +386,7 @@ Bench stays in the sheet, not on the FPS chip.
 - **XR-A is in:** WebXR `immersive-ar` passthrough and plane hit-test
   (gold reticle, tap a table to place; pose locks; Z clips a segment in
   the pillar). **AR** only if `navigator.xr` supports it. Chrome is
-  Play, Z, Size, Exit. Phone HTTPS is
+  Play, Z, Size, Yaw, Exit. Phone HTTPS is
   `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
   After a Chrome update, check site **Augmented reality** (not blocked)
   and that the response has `Permissions-Policy: xr-spatial-tracking=(self)`.

@@ -13,6 +13,7 @@ import {
 } from "../src/axes.js";
 import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
+import { gizmoFollowYaw } from "../src/turntable.js";
 import { clampCubeCap, DEFAULTS } from "../src/config.js";
 
 describe("product view directions", () => {
@@ -162,6 +163,27 @@ describe("viewFromLocalNormal", () => {
     assert.deepEqual(viewFromLocalNormal(0, 0, 1), { axis: "y", sign: 1 });
     assert.deepEqual(viewFromLocalNormal(0, 1, 0), { axis: "z", sign: 1 });
     assert.deepEqual(viewFromLocalNormal(0, -1, 0), { axis: "z", sign: -1 });
+  });
+});
+
+describe("viewcube follows turntable yaw", () => {
+  it("desktop snap stays on world product axes (object yaw is AR-only)", () => {
+    const dir = productViewDir("x", 1);
+    assert.deepEqual(dir, { x: 1, y: 0, z: 0 });
+  });
+
+  it("uses invert(camera) when yaw is 0", () => {
+    const g = gizmoFollowYaw({ x: 0, y: 0, z: 0, w: 1 }, 0);
+    assert.equal(g.x, 0);
+    assert.equal(g.y, 0);
+    assert.equal(g.z, 0);
+    assert.equal(g.w, 1);
+  });
+
+  it("can still compose invert(camera) times object yaw for AR", () => {
+    const g = gizmoFollowYaw({ x: 0, y: 0, z: 0, w: 1 }, Math.PI / 2);
+    assert.ok(Math.abs(g.y - Math.sin(Math.PI / 4)) < 1e-12);
+    assert.ok(Math.abs(g.w - Math.cos(Math.PI / 4)) < 1e-12);
   });
 });
 

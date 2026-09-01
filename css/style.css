@@ -763,7 +763,8 @@ body.is-ar .hud-rail {
 body.is-ar .hud-time,
 body.is-ar .stack,
 body.is-ar .transport,
-body.is-ar .ar-size {
+body.is-ar .ar-size,
+body.is-ar .ar-yaw {
   pointer-events: auto;
 }
 
@@ -771,11 +772,13 @@ body.is-ar .slice-axes {
   display: none !important;
 }
 
-.ar-size {
+.ar-size,
+.ar-yaw {
   display: none;
 }
 
-body.is-ar .ar-size {
+body.is-ar .ar-size,
+body.is-ar .ar-yaw {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -787,7 +790,8 @@ body.is-ar .ar-size {
   letter-spacing: 0.08em;
 }
 
-body.is-ar .ar-size input {
+body.is-ar .ar-size input,
+body.is-ar .ar-yaw input {
   flex: 1 1 auto;
   min-width: 0;
   accent-color: var(--donner);
@@ -1065,7 +1069,8 @@ body.source-count .encoding-conway {
     align-items: center;
   }
 
-  body.is-ar .ar-size {
+  body.is-ar .ar-size,
+  body.is-ar .ar-yaw {
     order: -1;
   }
 

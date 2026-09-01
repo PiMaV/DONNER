@@ -57,6 +57,12 @@ import {
   snapPose,
   volumeRadius,
 } from "./orbit.js";
+import {
+  wrapTurntableYaw,
+  yawDegrees,
+  yawDeltaFromDrag,
+  yawFromDegrees,
+} from "./turntable.js";
 import { bindUI } from "./ui.js";
 import {
   applyOrthoAspect,
@@ -117,6 +123,9 @@ scene.fog = fog;
 const stage = new THREE.Group();
 stage.name = "stage";
 scene.add(stage);
+const turntable = new THREE.Group();
+turntable.name = "turntable";
+stage.add(turntable);
 const reticle = createArReticle();
 scene.add(reticle);
 const xrSelect = renderer.xr.getController(0);
@@ -161,27 +170,30 @@ syncGizmoChrome();
 
 const hemi = new THREE.HemisphereLight(0xb8c8e0, 0x0a0e13, 0.72);
 scene.add(hemi);
+const lightRig = new THREE.Group();
+lightRig.name = "lightRig";
+scene.add(lightRig);
 const key = new THREE.DirectionalLight(0xffe6c0, 0.9);
 key.position.set(18, 32, 22);
-scene.add(key);
+lightRig.add(key);
 const fill = new THREE.DirectionalLight(0x88ddff, 0.22);
 fill.position.set(-20, 8, -12);
-scene.add(fill);
+lightRig.add(fill);
 
 let soa = new EventSoA(DEFAULTS.maxInstances);
-let cubes = new CubeRenderer(stage, {
+let cubes = new CubeRenderer(turntable, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
-const playfield = new FocusFrame(stage, COLOR.cyan);
-const clipNearFrame = new FocusFrame(stage, COLOR.gold);
-const clipFarFrame = new FocusFrame(stage, COLOR.gold);
+const playfield = new FocusFrame(turntable, COLOR.cyan);
+const clipNearFrame = new FocusFrame(turntable, COLOR.gold);
+const clipFarFrame = new FocusFrame(turntable, COLOR.gold);
 clipNearFrame.setVisible(false);
 clipFarFrame.setVisible(false);
-const axes = new CoordinateFrame(stage);
-const hairlines = new PlaneHairlines(stage);
-const beacon = new IsolateBeacon(stage, DEFAULTS.cellSize);
-const hover = new HoverOutlines(stage, DEFAULTS.cellSize);
+const axes = new CoordinateFrame(turntable);
+const hairlines = new PlaneHairlines(turntable);
+const beacon = new IsolateBeacon(turntable, DEFAULTS.cellSize);
+const hover = new HoverOutlines(turntable, DEFAULTS.cellSize);
 
 let world;
 let ring;
@@ -242,6 +254,9 @@ let arUseHitTest = false;
 let arAnchored = false;
 let arLocked = false;
 let arMag = XR_MAG_DEFAULT;
+let turntableYaw = 0;
+let lightAzimuth = 0;
+let yawDrag = null;
 
 const clock = new FrameClock();
 const paths = new PathTimer();
@@ -258,6 +273,12 @@ const ui = bindUI({
     alignZ = ui.getConfig().alignZ;
     syncOrbitPan();
     pinOrbitPivot();
+  },
+  yaw: (deg) => {
+    setTurntableYaw(yawFromDegrees(deg ?? ui.getYawDegrees()));
+  },
+  light: (deg) => {
+    setLightAzimuth(yawFromDegrees(deg ?? ui.getLightDegrees()));
   },
   sliceAxis: (axis) => setSliceAxis(axis),
   cubeCap: () => applyCubeCap(),
@@ -487,6 +508,26 @@ function resetStageOrbit() {
   stage.visible = true;
 }
 
+function syncTurntableVisual() {
+  turntable.rotation.y = arPresenting() ? turntableYaw : 0;
+}
+
+function syncLightRig() {
+  lightRig.rotation.y = arPresenting() ? 0 : lightAzimuth;
+}
+
+function setTurntableYaw(rad) {
+  turntableYaw = wrapTurntableYaw(rad);
+  syncTurntableVisual();
+  ui.setYawDegrees(yawDegrees(turntableYaw));
+}
+
+function setLightAzimuth(rad) {
+  lightAzimuth = wrapTurntableYaw(rad);
+  syncLightRig();
+  ui.setLightDegrees(yawDegrees(lightAzimuth));
+}
+
 function stopHitTest() {
   if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
     arHitTestSource.cancel();
@@ -532,6 +573,7 @@ function placeStageInFrontOfViewer() {
   arPlaced = true;
   arLocked = true;
   applyArStagePose();
+  ui.setArYawEnabled(true);
 }
 
 function placeStageFromReticle() {
@@ -542,6 +584,7 @@ function placeStageFromReticle() {
   arLocked = true;
   reticle.visible = false;
   applyArStagePose();
+  ui.setArYawEnabled(true);
   updateHint();
 }
 
@@ -615,6 +658,9 @@ async function onArSessionStart() {
     arPlacePending = true;
     stage.visible = true;
   }
+  ui.setArYawEnabled(!arUseHitTest);
+  syncTurntableVisual();
+  syncLightRig();
   dirtySource = true;
   dirtyView = true;
   syncFog();
@@ -630,11 +676,14 @@ function onArSessionEnd() {
   arPlacePending = false;
   stopHitTest();
   resetStageOrbit();
+  syncTurntableVisual();
+  syncLightRig();
   dirtySource = true;
   dirtyView = true;
   syncFog();
   pinOrbitPivot();
   ui.setArActive(false);
+  ui.setArYawEnabled(true);
   syncGizmoChrome();
   updateHint();
 }
@@ -829,7 +878,7 @@ function layoutPlayfield(width, height) {
 
 function disposeObject3(obj) {
   if (!obj) return;
-  stage.remove(obj);
+  obj.parent?.remove(obj);
   if (obj.geometry) obj.geometry.dispose();
   const mats = obj.material
     ? Array.isArray(obj.material)
@@ -857,8 +906,8 @@ function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   playfield.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
   clipNearFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
   clipFarFrame.setSize(width, height, DEFAULTS.cellSize, sliceAxis, yMin, yMax);
-  stage.add(focusSurface);
-  stage.add(nowGrid);
+  turntable.add(focusSurface);
+  turntable.add(nowGrid);
   syncClipPlanes();
   applyGridLook();
 }
@@ -1332,7 +1381,7 @@ function applyCubeCap() {
   if (soa.capacity === cap) return;
   soa = new EventSoA(cap);
   cubes.dispose();
-  cubes = new CubeRenderer(stage, {
+  cubes = new CubeRenderer(turntable, {
     maxCount: cap,
     cellSize: DEFAULTS.cellSize,
     kindHex: sourceId === "count" && countVol ? countKindHex(countVol.ceiling) : CONWAY_KIND_HEX,
@@ -1379,9 +1428,9 @@ function updateHint() {
     if (arUseHitTest && !arPlaced) {
       ui.setHint("AR — point at a table until the gold square appears, then tap");
     } else if (arUseHitTest) {
-      ui.setHint("AR — pillar at 0 · Play grows up from the table · Exit returns to orbit");
+      ui.setHint("AR — yaw the pillar on the table · Play grows up · swipe or Yaw · Exit to orbit");
     } else {
-      ui.setHint("AR — volume is world-locked in front of you · Exit returns to orbit");
+      ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
     }
   } else if (sourceId === "count") {
     ui.setHint(
@@ -1408,7 +1457,7 @@ function updateHint() {
       `INST ${cubes.count} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
     );
   } else if (playing) {
-    ui.setHint("Live — Pause to inspect the cache · orbit · pinch zoom");
+    ui.setHint("Live — Pause to inspect the cache · orbit · Shift-drag moves the light");
   } else {
     ui.setHint("Inspect — cyan plane · gold rings are the cuts · Fit frames the slab · Play returns to live");
   }
@@ -1554,7 +1603,7 @@ function hitCell(event, cubesToo = false) {
   const hits = raycaster.intersectObjects(objs, false);
   if (!hits.length) return null;
   _hitLocal.copy(hits[0].point);
-  stage.worldToLocal(_hitLocal);
+  turntable.worldToLocal(_hitLocal);
   return cellFromWorldXZ(
     _hitLocal.x,
     _hitLocal.z,
@@ -1639,6 +1688,33 @@ function refreshGpu() {
   }
 }
 
+function beginYawDrag(e) {
+  yawDrag = {
+    pointerId: e.pointerId,
+    x: e.clientX,
+    yaw: arPresenting() ? turntableYaw : lightAzimuth,
+    ar: arPresenting(),
+  };
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch {
+    /* already captured or XR overlay */
+  }
+}
+
+function moveYawDrag(e) {
+  if (!yawDrag || e.pointerId !== yawDrag.pointerId) return;
+  const next = yawDrag.yaw + yawDeltaFromDrag(e.clientX - yawDrag.x, canvas.clientWidth);
+  if (yawDrag.ar) setTurntableYaw(next);
+  else setLightAzimuth(next);
+}
+
+function endYawDrag(e) {
+  if (!yawDrag) return;
+  if (e && e.pointerId !== yawDrag.pointerId) return;
+  yawDrag = null;
+}
+
 if (gizmoHit) {
   gizmoHit.addEventListener(
     "pointerdown",
@@ -1672,18 +1748,38 @@ canvas.addEventListener(
         return;
       }
     }
+    const arYaw = arPresenting() && arLocked;
+    const deskYaw = !arPresenting() && e.shiftKey;
+    if (arYaw || deskYaw) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pointerDown = null;
+      beginYawDrag(e);
+      return;
+    }
     pointerDown = { x: e.clientX, y: e.clientY };
   },
   { capture: true },
 );
 canvas.addEventListener("pointermove", (e) => {
+  if (yawDrag) {
+    moveYawDrag(e);
+    return;
+  }
   if (showGizmo()) {
     const face = gizmo.hover(e.clientX, e.clientY, canvas);
     canvas.style.cursor = face ? "pointer" : "";
   }
   updateHover(e);
 });
+window.addEventListener("pointermove", (e) => {
+  if (yawDrag) moveYawDrag(e);
+});
 window.addEventListener("pointerup", (e) => {
+  if (yawDrag) {
+    endYawDrag(e);
+    return;
+  }
   if (!pointerDown) return;
   const dx = e.clientX - pointerDown.x;
   const dy = e.clientY - pointerDown.y;
@@ -1692,6 +1788,7 @@ window.addEventListener("pointerup", (e) => {
   if (e.target !== canvas) return;
   paintAt(e);
 });
+window.addEventListener("pointercancel", endYawDrag);
 canvas.addEventListener("pointerleave", () => {
   gizmo.clearHover();
   canvas.style.cursor = "";

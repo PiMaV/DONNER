@@ -49,6 +49,9 @@ export function bindUI(on) {
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
   const alignZ = $("align-z");
+  const viewLight = $("view-light");
+  const arYaw = $("ar-yaw");
+  const lightVal = $("light-val");
   const sliceX = $("slice-x");
   const sliceY = $("slice-y");
   const sliceZ = $("slice-z");
@@ -172,6 +175,10 @@ export function bindUI(on) {
     speedVal.textContent = `${speed.value}/s`;
     gridBrightVal.textContent = Number(gridBright.value).toFixed(2);
     historyVal.textContent = history.value;
+    if (lightVal) {
+      const deg = viewLight ? Number(viewLight.value) || 0 : 0;
+      lightVal.textContent = `${Math.round(deg) % 360}°`;
+    }
   };
   syncLabels();
 
@@ -185,6 +192,14 @@ export function bindUI(on) {
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
   alignZ?.addEventListener("change", () => on.alignZ?.());
+  viewLight?.addEventListener("input", (e) => {
+    if (applying) return;
+    on.light?.(Number(e.target.value) || 0);
+  });
+  arYaw?.addEventListener("input", (e) => {
+    if (applying) return;
+    on.yaw?.(Number(e.target.value) || 0);
+  });
   const onSlice = (axis) => () => on.sliceAxis?.(axis);
   sliceX?.addEventListener("click", onSlice("x"));
   sliceY?.addEventListener("click", onSlice("y"));
@@ -524,6 +539,28 @@ export function bindUI(on) {
     },
     getArMag() {
       return arMag ? Number(arMag.value) : 1;
+    },
+    getYawDegrees() {
+      return arYaw ? Number(arYaw.value) || 0 : 0;
+    },
+    setYawDegrees(deg) {
+      const d = ((Number(deg) % 360) + 360) % 360;
+      applying = true;
+      if (arYaw) arYaw.value = String(Math.round(d));
+      applying = false;
+    },
+    getLightDegrees() {
+      return viewLight ? Number(viewLight.value) || 0 : 0;
+    },
+    setLightDegrees(deg) {
+      const d = ((Number(deg) % 360) + 360) % 360;
+      applying = true;
+      if (viewLight) viewLight.value = String(Math.round(d));
+      applying = false;
+      syncLabels();
+    },
+    setArYawEnabled(on) {
+      if (arYaw) arYaw.disabled = !on;
     },
     setEditing(editing) {
       editBtn.classList.toggle("is-on", editing);

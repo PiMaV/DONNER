@@ -40,7 +40,7 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) snaps the camera; hover lights a face; omit it on phone and in AR. The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z) snaps the camera; hover lights a face; omit it on phone and in AR. Desktop **Light** (View slider / Shift-drag) walks the key/fill around Z; the volume stays put. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   cyan playhead and gold slab grips onto that product axis.
@@ -73,19 +73,23 @@ not a pipeline stage. Brand spelling: **DONNER** (never “thunder”).
   stay in the Source sheet. There is no viewcube. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is two left
-  sheets: **View** (Parallax, Align to Z, Depth, Decay, Encoding, Bench) and **Source**
+  sheets: **View** (Parallax, Align to Z, Light, Depth, Decay, Encoding, Bench) and **Source**
   (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
   (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
   Bench. Camera-only frames must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
-  Visible volume lives on a `stage` group. Plane hit-test shows a gold
+  Visible volume lives on a `stage` group with a nested `turntable`.
+  Plane hit-test shows a gold
   square on the table; tap places and locks the pose for the session.
+  **Yaw** (overlay slider or swipe) turns the pillar on the table around
+  product Z; gen 0 stays put. Then walk with the phone. Desktop orbit
+  does not yaw the volume; **Light** walks key/fill around Z instead.
   The pillar base (gen 0) stays on the table; **Play** grows the tape
   upward; Z clips a segment in place. Same `setEvents`.
   If hit-test is missing, the volume sits ~0.8 m in front of the viewer.
-  Decay is off in AR. A Size slider (0.4×–2.5×) is on the overlay.
-  AR chrome is Play, Z, Size, Exit on `#xr-overlay` (not `document.body`
+  Decay is off in AR. Size (0.4×–2.5×) and Yaw (0°–360°) are on the overlay.
+  AR chrome is Play, Z, Size, Yaw, Exit on `#xr-overlay` (not `document.body`
   — that paints the page over passthrough). Next is XR-B marker. Phone
   HTTPS is `https://lab.ole.icu/` after `start:lan`.
   Three.js is the engine, not the product name. Do not propose a

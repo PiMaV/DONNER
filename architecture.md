@@ -70,7 +70,7 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, CAD gizmo, slice stack (X/Y/Z), Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
+| **Display** | Orbit, Parallax, Align to Z, Light azimuth, CAD gizmo, slice stack (X/Y/Z), Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
 | **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
@@ -95,6 +95,8 @@ The left chrome is two sheets, not one mixed panel:
 flowchart TB
   subgraph view [View display]
     bird[Parallax]
+    align[Align to Z]
+    light[Light azimuth]
     win[Depth live Decay GridLight Cache]
     enc[Encoding]
     bench[Bench]
@@ -273,12 +275,14 @@ flowchart LR
   orbit[Orbit perspective]
   ortho[Ortho no parallax]
   gizmo[CAD viewcube]
+  light[Light azimuth]
   slab[Slice slab XYZ]
   scrub[Stack playhead]
   orbit --> volume[Volume]
   ortho --> volume
   gizmo --> orbit
   gizmo --> ortho
+  light --> volume
   slab --> volume
   scrub --> plane[Cyan plane]
 ```
@@ -344,7 +348,7 @@ brick center. Live: only the cyan playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
 
-## Parallax, gizmo, Align to Z
+## Parallax, gizmo, Align to Z, yaw, light
 
 **Parallax** (default on, keyboard `B`) is perspective. Off copies the
 current pose onto an orthographic camera so you can look from the side
@@ -362,17 +366,45 @@ telemetry (`View ▾` / `View ▸`).
 **Align to Z** (default on) pins orbit to the time axis through the brick
 center. Off allows screen-space pan. Ortho always pans.
 
+**Yaw** is **AR-only**: after place, rotate the pillar on the table around
+product Z (overlay slider or swipe). Gen 0 stays put. Then walk with the
+phone. Desktop orbit does **not** yaw the volume — that looked like a
+second camera orbit.
+
+**Light** (desktop) walks the key and fill around product Z. The brick
+stays put; Lambert faces change. Hemisphere stays sky-up. Shift-drag or
+the View slider. In AR the light rig is identity so walking is the look.
+
+```mermaid
+flowchart TB
+  scene[scene]
+  hemi[hemi sky up]
+  rig[lightRig desktop azimuth]
+  lights[key fill]
+  stage[stage AR pose]
+  turntable[turntable AR yaw]
+  vol[cubes frames axes]
+  scene --> hemi
+  scene --> rig
+  rig --> lights
+  scene --> stage
+  stage --> turntable
+  turntable --> vol
+```
+
 ```mermaid
 flowchart LR
   gizmo[CAD gizmo snap]
   para[Parallax on off]
   align[Align to Z]
+  light[Light azimuth]
   slice[Slice axis XYZ]
   cam[Orbit or ortho camera]
   vol[Drawn slab]
   gizmo --> cam
   para --> cam
   align --> cam
+  light --> vol
   slice --> vol
   cam --> vol
 ```
@@ -442,6 +474,8 @@ grow the DOM.
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
 | `src/fade.js` | Decay along Z (time); X/Y slice proximity fade |
+| `src/orbit.js` | Fit / pin orbit around the brick |
+| `src/turntable.js` | AR object yaw around product Z; desktop light-rig azimuth |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
@@ -785,10 +819,12 @@ flowchart LR
    is also later: same `.npy` interchange, not a NIfTI parser — see
    [MRI volume (later)](#mri-volume-later).
 3. **XR** — same scene, WebXR only. **XR-A is opened:** passthrough,
-   plane hit-test (tap a table to place, then lock for the session),
-   viewer-front fallback. The volume is a pillar: gen 0 on the table,
+   plane hit-test (tap a table to place, then lock the session origin),
+   viewer-front fallback. After lock, **Yaw** turns the pillar on the
+   table (product Z; gen 0 stays put). Then walk with the phone.
+   The volume is a pillar: gen 0 on the table,
    **Play** grows the tape up, Z clips a segment in place. The DOM overlay is `#xr-overlay`
-   (Play / Z / Size / Exit), not `document.body`. Next
+   (Play / Z / Size / Yaw / Exit), not `document.body`. Next
    is XR-B marker origin, then XR-C Quest 3 passthrough. Detail in
    [backlog.md](backlog.md). Do not start a new renderer in the same
    slice as XR.
@@ -827,8 +863,9 @@ flowchart TB
   subgraph phone [Phone tabletop AR]
     sess[Session: passthrough]
     hit[Hit-test: tap table, lock pillar at 0]
+    yaw[Yaw around table Z]
     walk[Walk around with phone as window]
-    sess --> hit --> walk
+    sess --> hit --> yaw --> walk
   end
   subgraph marker [Marker origin]
     tag[AprilTag or printed playfield frame]
@@ -846,7 +883,7 @@ flowchart TB
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Plane hit-test (gold reticle, tap to place then lock); pillar at gen 0; Z clips in place; viewer-front if hit-test is missing | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-A** | Plane hit-test (gold reticle, tap to place then lock); yaw on the table; pillar at gen 0; Z clips in place; viewer-front if hit-test is missing | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Same phone AR; marker reused on Quest |
 | **XR-C** | Hit-test and/or marker | Quest 3 passthrough; hands / Z scrub later |
 
