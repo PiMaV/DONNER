@@ -1,31 +1,80 @@
 /**
- * Corner CAD viewcube. Product axes: X gold, Y muted, Z cyan (time).
- * Renders into a scissor inset of the main WebGL canvas.
+ * Corner CAD viewcube (desktop rail slot, left of the View HUD). Product axes: X gold,
+ * Y muted, Z cyan (time). Six face frames, like a CAD viewcube: click a
+ * face to snap that view. Hover / press light the face.
  */
 
 import * as THREE from "three";
 import { COLOR } from "./config.js";
 import { productViewDir } from "./axes.js";
+import {
+  GIZMO_CSS,
+  GIZMO_CSS_COARSE,
+  MARGIN_CSS,
+  gizmoCssBox,
+  gizmoOnScreen,
+  gizmoScissor,
+  viewFromLocalNormal,
+} from "./gizmo-layout.js";
 
-export { productViewDir };
+export {
+  productViewDir,
+  gizmoCssBox,
+  gizmoOnScreen,
+  gizmoScissor,
+  GIZMO_CSS,
+  MARGIN_CSS,
+  viewFromLocalNormal,
+};
 
 const Y_MUTED = 0x8a9aa8;
 const AXIS_HEX = { x: COLOR.gold, y: Y_MUTED, z: COLOR.cyan };
-const GIZMO_CSS = 96;
-const GIZMO_CSS_COARSE = 104;
-const MARGIN_CSS = 12;
+const RIM_HEX = 0xd8e4ee;
+const OVERLAY_SELECTORS = [".hud-cards", ".hud-engine", ".hud-source", ".stack", ".fps-chip"];
+
+const CUBE = 1.4;
+const FACE = 1.22;
+const FACE_OPACITY = 0.28;
+const FACE_HOVER = 0.7;
+
+function overlayRects() {
+  if (typeof document === "undefined") return [];
+  const out = [];
+  for (const sel of OVERLAY_SELECTORS) {
+    const el = document.querySelector(sel);
+    if (!el) continue;
+    const st = getComputedStyle(el);
+    if (st.display === "none" || st.visibility === "hidden") continue;
+    if (el.hidden) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    out.push(r);
+  }
+  return out;
+}
+
+function slotRect() {
+  if (typeof document === "undefined") return null;
+  const el = document.getElementById("gizmo-slot");
+  if (!el || el.hidden) return null;
+  const st = getComputedStyle(el);
+  if (st.display === "none" || st.visibility === "hidden") return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return null;
+  return r;
+}
 
 function makeLabel(text, cssColor) {
   const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
+  canvas.width = 128;
+  canvas.height = 128;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 64, 64);
-  ctx.font = "700 36px Inter, system-ui, sans-serif";
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.font = "700 72px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = cssColor;
-  ctx.fillText(text, 32, 34);
+  ctx.fillText(text, 64, 68);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({
@@ -35,8 +84,8 @@ function makeLabel(text, cssColor) {
     depthWrite: false,
   });
   const spr = new THREE.Sprite(mat);
-  spr.scale.set(0.55, 0.55, 1);
-  spr.renderOrder = 2;
+  spr.scale.set(0.48, 0.48, 1);
+  spr.renderOrder = 4;
   spr.userData.tex = tex;
   return spr;
 }
@@ -46,9 +95,9 @@ function axisLine(hex, to) {
     new THREE.Vector3(0, 0, 0),
     new THREE.Vector3(to.x, to.y, to.z),
   ]);
-  const mat = new THREE.LineBasicMaterial({ color: hex, depthTest: false });
+  const mat = new THREE.LineBasicMaterial({ color: hex, depthTest: true });
   const line = new THREE.Line(geo, mat);
-  line.renderOrder = 1;
+  line.renderOrder = 2;
   line.frustumCulled = false;
   return line;
 }
@@ -57,14 +106,17 @@ export class ViewGizmo {
   constructor({ coarse = false } = {}) {
     this.coarse = Boolean(coarse);
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(-1.8, 1.8, 1.8, -1.8, 0.1, 8);
+    this.camera = new THREE.OrthographicCamera(-1.55, 1.55, 1.55, -1.55, 0.1, 8);
     this.camera.position.set(0, 0, 4);
     this.group = new THREE.Group();
     this.scene.add(this.group);
     this._targets = [];
+    this._hover = null;
+    this._hitProxy = null;
     this._ray = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
     this._size = new THREE.Vector2();
+    this._look = new THREE.Vector3();
     this._build();
   }
 
@@ -73,16 +125,46 @@ export class ViewGizmo {
   }
 
   cssBox(canvas) {
-    const rect = canvas.getBoundingClientRect();
-    const css = this.cssSize();
-    return {
-      left: rect.left + MARGIN_CSS,
-      top: rect.bottom - MARGIN_CSS - css,
-      size: css,
-    };
+    return gizmoCssBox(
+      canvas.getBoundingClientRect(),
+      this.cssSize(),
+      MARGIN_CSS,
+      overlayRects(),
+      slotRect(),
+    );
   }
 
   _build() {
+    const half = CUBE * 0.5;
+    const box = new THREE.BoxGeometry(CUBE, CUBE, CUBE);
+    const rim = new THREE.LineSegments(
+      new THREE.EdgesGeometry(box),
+      new THREE.LineBasicMaterial({
+        color: RIM_HEX,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: true,
+      }),
+    );
+    rim.renderOrder = 3;
+    rim.frustumCulled = false;
+    this.group.add(rim);
+    box.dispose();
+
+    const proxyMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this._hitProxy = new THREE.Mesh(new THREE.BoxGeometry(3.1, 3.1, 3.1), proxyMat);
+    this._hitProxy.frustumCulled = false;
+    this.group.add(this._hitProxy);
+
+    this.group.add(axisLine(AXIS_HEX.x, productViewDir("x", 1)));
+    this.group.add(axisLine(AXIS_HEX.y, productViewDir("y", 1)));
+    this.group.add(axisLine(AXIS_HEX.z, productViewDir("z", 1)));
+
     const specs = [
       { axis: "x", sign: 1, hex: AXIS_HEX.x, css: "#ffc53d", letter: "X" },
       { axis: "x", sign: -1, hex: AXIS_HEX.x, css: "#ffc53d", letter: "" },
@@ -91,32 +173,53 @@ export class ViewGizmo {
       { axis: "z", sign: 1, hex: AXIS_HEX.z, css: "#00fff2", letter: "Z" },
       { axis: "z", sign: -1, hex: AXIS_HEX.z, css: "#00fff2", letter: "" },
     ];
-    this.group.add(axisLine(AXIS_HEX.x, productViewDir("x", 1)));
-    this.group.add(axisLine(AXIS_HEX.y, productViewDir("y", 1)));
-    this.group.add(axisLine(AXIS_HEX.z, productViewDir("z", 1)));
 
     for (const spec of specs) {
       const dir = productViewDir(spec.axis, spec.sign);
-      const size = spec.letter ? 0.32 : 0.22;
-      const geo = new THREE.BoxGeometry(size, size, size);
+      const geo = new THREE.PlaneGeometry(FACE, FACE);
       const mat = new THREE.MeshBasicMaterial({
         color: spec.hex,
         transparent: true,
-        opacity: spec.sign > 0 ? 0.95 : 0.45,
-        depthTest: false,
+        opacity: spec.sign > 0 ? FACE_OPACITY : FACE_OPACITY * 0.55,
+        depthTest: true,
+        depthWrite: true,
+        side: THREE.FrontSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(dir.x * 1.05, dir.y * 1.05, dir.z * 1.05);
+      mesh.position.set(dir.x * half, dir.y * half, dir.z * half);
+      this._look.set(
+        mesh.position.x + dir.x,
+        mesh.position.y + dir.y,
+        mesh.position.z + dir.z,
+      );
+      mesh.lookAt(this._look);
       mesh.userData.view = { axis: spec.axis, sign: spec.sign };
-      mesh.renderOrder = 3;
+      mesh.userData.baseOpacity = mat.opacity;
+      mesh.renderOrder = 1;
       mesh.frustumCulled = false;
       this.group.add(mesh);
       this._targets.push(mesh);
       if (spec.letter) {
         const spr = makeLabel(spec.letter, spec.css);
-        spr.position.copy(mesh.position).multiplyScalar(1.35);
+        spr.position.set(dir.x * 1.12, dir.y * 1.12, dir.z * 1.12);
         this.group.add(spr);
       }
+    }
+  }
+
+  _setHover(mesh) {
+    if (this._hover === mesh) return;
+    if (this._hover) {
+      this._hover.material.opacity = this._hover.userData.baseOpacity;
+      this._hover.scale.setScalar(1);
+    }
+    this._hover = mesh;
+    if (mesh) {
+      mesh.material.opacity = FACE_HOVER;
+      mesh.scale.setScalar(1.04);
     }
   }
 
@@ -124,23 +227,45 @@ export class ViewGizmo {
     this.group.quaternion.copy(mainCamera.quaternion).invert();
   }
 
-  render(renderer) {
-    const full = renderer.getSize(this._size);
-    const pr = renderer.getPixelRatio();
-    const css = this.cssSize();
-    const w = Math.max(1, Math.round(css * pr));
-    const h = Math.max(1, Math.round(css * pr));
-    const margin = Math.round(MARGIN_CSS * pr);
-    renderer.clearDepth();
-    renderer.setScissorTest(true);
-    renderer.setScissor(margin, margin, w, h);
-    renderer.setViewport(margin, margin, w, h);
-    renderer.render(this.scene, this.camera);
-    renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, full.x, full.y);
+  layoutHit(el, canvas) {
+    if (!el) return;
+    if (slotRect()) {
+      el.style.left = "";
+      el.style.top = "";
+      el.style.width = "";
+      el.style.height = "";
+      return;
+    }
+    const box = this.cssBox(canvas);
+    el.style.left = `${Math.round(box.left)}px`;
+    el.style.top = `${Math.round(box.top)}px`;
+    el.style.width = `${Math.round(box.size)}px`;
+    el.style.height = `${Math.round(box.size)}px`;
   }
 
-  hit(clientX, clientY, canvas) {
+  render(renderer, hitEl) {
+    const canvas = renderer.domElement;
+    this.layoutHit(hitEl, canvas);
+    const full = renderer.getSize(this._size);
+    const box = this.cssBox(canvas);
+    const rect = canvas.getBoundingClientRect();
+    const { x, y, size } = gizmoScissor(box, rect, full.x, full.y);
+    const tone = renderer.toneMapping;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.clearDepth();
+    renderer.setScissorTest(true);
+    renderer.setScissor(x, y, size, size);
+    renderer.setViewport(x, y, size, size);
+    try {
+      renderer.render(this.scene, this.camera);
+    } finally {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, full.x, full.y);
+      renderer.toneMapping = tone;
+    }
+  }
+
+  _viewAt(clientX, clientY, canvas) {
     const box = this.cssBox(canvas);
     if (
       clientX < box.left ||
@@ -153,10 +278,42 @@ export class ViewGizmo {
     const nx = ((clientX - box.left) / box.size) * 2 - 1;
     const ny = -((clientY - box.top) / box.size) * 2 + 1;
     this._ndc.set(nx, ny);
+    this.group.updateWorldMatrix(true, true);
     this._ray.setFromCamera(this._ndc, this.camera);
-    const hits = this._ray.intersectObjects(this._targets, false);
+    const hits = this._hitProxy
+      ? this._ray.intersectObject(this._hitProxy, false)
+      : this._ray.intersectObjects(this._targets, false);
     if (!hits.length) return null;
+    const face = hits[0].face;
+    if (face?.normal) {
+      return viewFromLocalNormal(face.normal.x, face.normal.y, face.normal.z);
+    }
     return hits[0].object.userData.view || null;
+  }
+
+  _faceMesh(view) {
+    if (!view) return null;
+    return (
+      this._targets.find(
+        (m) => m.userData.view?.axis === view.axis && m.userData.view?.sign === view.sign,
+      ) || null
+    );
+  }
+
+  hover(clientX, clientY, canvas) {
+    const view = this._viewAt(clientX, clientY, canvas);
+    this._setHover(this._faceMesh(view));
+    return view;
+  }
+
+  clearHover() {
+    this._setHover(null);
+  }
+
+  hit(clientX, clientY, canvas) {
+    const view = this._viewAt(clientX, clientY, canvas);
+    this._setHover(this._faceMesh(view));
+    return view;
   }
 
   dispose() {

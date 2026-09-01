@@ -65,3 +65,19 @@ adjacency matrix. Same rule, different pictures.
   matrices; a 9-cell outer-totalistic step can be shown as Life, as a
   network, or as several graph layouts.
   [Wolfram Demonstrations](https://demonstrations.wolfram.com/VisualizingConwaysGameOfLife/).
+
+## MRI demo volume (data source, not a viewer)
+
+DONNER is not a NIfTI viewer. The public T1 used for a later MRI cube is
+only a **dataset pointer**.
+
+- **NiiVue demo images** — [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
+  (BSD-2-Clause). Low-res `mni152.nii.gz` for browser/phone tests. Local
+  copy: `datasets/MRT/mni152.nii.gz`. Converted count cube:
+  `datasets/MRT/mni152_stack.npy` (dense; DONNER culls enclosed voxels
+  at the current slab). NiiVue itself is unrelated to DONNER’s event
+  viewer — do not embed it.
+- **ICBM 152 Nonlinear atlases version 2009** — McGill BIC
+  ([atlas page](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
+  The NiiVue `mni152` file is derived from this atlas. Cite ICBM; check
+  terms before redistributing a derived `.npy`.

@@ -54,8 +54,23 @@ export function slabIndices(topBack, botBack, maxBack) {
 }
 
 /**
+ * Solid/ghost policy for the active stack axis.
+ * Z (and dense count on X/Y) is one-sided: solid toward the past, ghost
+ * toward Now. Sparse Conway/EVT X/Y still fades both ways to the gold grips.
+ */
+export function sliceViewMode(axis, { sliceOnly = false, sliceStackGhost = false } = {}) {
+  const a = normalizeSliceAxis(axis);
+  const stackGhost = a === "z" || Boolean(sliceStackGhost);
+  const spatialFade = a !== "z" && !sliceOnly && !stackGhost;
+  return { stackGhost, spatialFade };
+}
+
+/**
  * Whether an event sits on the current slice slab.
  * Time (Z) is already clipped in fillSoA unless sliceOnly.
+ * Sparse X/Y gold grips still clip here; proximity fade inside that slab
+ * is `sliceDistanceFade` in the renderer (ghost → gone), not this boolean.
+ * Dense count X/Y clips in `fillSoA` and uses stack-axis ghost like Z.
  */
 export function eventOnSlice(axis, x, y, t, { lo, hi, focus, sliceOnly }) {
   const a = normalizeSliceAxis(axis);

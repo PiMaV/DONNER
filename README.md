@@ -35,6 +35,13 @@ Representations) renders sparse space-time events in the browser.
 | Conway (v1) | `x, y, generation, state` |
 | Count stack | `x, y, t, count` (EVT `.npy`) |
 
+MRI as a dedicated source is **later**. A public T1 is a dense
+count-shaped cube at `../datasets/MRT/mni152_stack.npy` — use **Load .npy**.
+Occupancy above ~15 % opens a mid-volume slab (~8 slices) on Z, X, or Y
+and skips enclosed voxels (cut faces stay). Do not embed NiiVue. Do not add a
+NIfTI parser in the browser. SHIP volumes under `datasets/MRT/` stay
+local working data (not git).
+
 Conway is the first demonstrator — deterministic, in-browser, no files.
 A count stack is the first event-camera path: the same cubes, a different
 source. The renderer does not know whether a point came from a cellular
@@ -76,7 +83,7 @@ Static files, no build step, no backend. ES modules need a local HTTP server
 ```bash
 cd DONNER
 npm start
-# same as: python3 -m http.server 8765 --bind 127.0.0.1
+# python3 scripts/serve-http.py --bind 127.0.0.1  (also GET /stream-npy)
 ```
 
 Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Count stack**
@@ -88,6 +95,11 @@ WETTER-Suite layout). Or use **Load .npy**.
 mkdir -p data
 ln -sfn ../datasets/EVT/ignition_stack.npy data/ignition_stack.npy
 ```
+
+Local MRI preview (not in git, not a second demo URL): Source → Count
+stack → **Load .npy** → `../datasets/MRT/mni152_stack.npy`. Re-convert
+from `mni152.nii.gz` with the recipe in
+[`architecture.md`](architecture.md#mri-volume-later).
 
 ```bash
 npm test    # unit tests (Node 18+)
@@ -101,7 +113,7 @@ interfaces:
 ```bash
 cd DONNER
 npm run start:lan
-# same as: python3 -m http.server 8765 --bind 0.0.0.0
+# python3 scripts/serve-http.py --bind 0.0.0.0  (also GET /stream-npy)
 ```
 
 Find the desktop LAN address, then open **http** (not https) on the phone
@@ -145,8 +157,12 @@ curl -I https://lab.ole.icu/
 ```
 
 On the phone, open the same URL. **AR** is shown only when
-`navigator.xr` supports `immersive-ar` (Android Chrome). Without AR, the
-orbit viewer is unchanged.
+`navigator.xr` supports `immersive-ar` (Android Chrome). A Chrome update
+often resets **Augmented reality** for the site (lock icon → Site
+settings) or fails the check if `Permissions-Policy:
+xr-spatial-tracking=(self)` is missing. `npm run start:lan` and
+`start:https` send that header; Caddy on `lab.ole.icu` should pass it
+through (or set it on the CT). Without AR, the orbit viewer is unchanged.
 
 If the LXC is down, local **mkcert** is the fallback:
 
@@ -169,7 +185,7 @@ If the LAN IP changes, `npm run cert` again.
 - Decay, speed, Depth (wake length), play / pause / step / reset
 - Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
 - Gold playfield frame; numbered X/Y on the right; hover hairlines, cell and cube outlines
-- CAD viewcube (orbit only): click a product axis to snap the camera
+- CAD viewcube, rail slot left of the View card (desktop orbit only): tap a face to snap that product axis
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z vs free pan.
 - Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
 - Edit mode: tap cells inside the frame (Now only)
@@ -178,11 +194,11 @@ If the LAN IP changes, `npm run cert` again.
 - **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; cyan plane, gold cuts). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses a still or empty board after five identical grids (not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
-- Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks.
+- Source switch: Conway ↔ EVT count cube (`.npy`). Demo: `data/ignition_stack.npy`. **Load .npy** for other stacks (including the local MRI preview `../datasets/MRT/mni152_stack.npy`). **Stream** connects to the EVT sidecar / WOLKE (`http://127.0.0.1:5055`, token `evt`); cube bytes arrive via same-origin `/stream-npy`.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
 - XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; gen 0 stays on the table; Z clips a segment in place. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing.
 
-**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, backend, streaming, BLITZ sync, XR-B/C, points renderer.
+**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, MRI source kind / NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B/C, points renderer.
 
 ## Architecture
 
@@ -191,8 +207,9 @@ and [`docs/related.md`](docs/related.md) (Conway is the demonstrator;
 DONNER is the event viewer. Links found while looking around, not
 influences).
 
-Three.js r180 is vendored under `vendor/three/` (MIT). DONNER is GPL-3.0,
-same family as BLITZ.
+Three.js r180 is vendored under `vendor/three/` (MIT). socket.io-client
+v4.8.1 is vendored under `vendor/socket.io/` (MIT) for the WOLKE
+viewer. DONNER is GPL-3.0, same family as BLITZ.
 
 ## Author
 

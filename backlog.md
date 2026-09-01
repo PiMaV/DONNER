@@ -5,9 +5,31 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 [`docs/gui.md`](docs/gui.md).
 
 **Later:** polarity / occupancy / states encodings on the same `EventSoA`,
-sidecar ingest, then the XR ladder below. Count-stack `.npy` is in.
+packed WOLKE selection / `viewer_index`, then the XR ladder below.
+Count-stack `.npy` and the WOLKE-contract stream (EVT sidecar) are in.
 P1 instrumentation and P2 dirty-state / visible window are in this tree.
-NPZ loaders, a points renderer, and slice-append SoA updates are also later.
+NPZ loaders, a points renderer, slice-append SoA updates, and an MRI
+source kind are also later. Dense count cubes (occupancy > 15 %) already
+open on a mid-volume slab with enclosed voxels culled; the public T1 is
+`datasets/MRT/mni152_stack.npy`. Do not embed NiiVue.
+
+## MRI volume (later)
+
+Anatomical MRI is not a NIfTI viewer. Same cube engine, later source
+addon. Until a dedicated kind exists, the public MNI stack is a count
+cube.
+
+- **Now:** dense `datasets/MRT/mni152_stack.npy` (4×, `(T, H, W)` uint16,
+  intensity 1…32). Occupancy > 15 % → Inspect opens ~8 slices on the
+  active stack axis (Z, X, or Y), Decay off, `fillSoA` skips 6-enclosed
+  voxels, Play walks the window. Local only, not git.
+  Recipe in [`architecture.md`](architecture.md#mri-volume-later).
+  Source → Count stack → **Load .npy**.
+- **Next:** MRI source kind / intensity encoding, or a volume-texture
+  pass if the slab is not enough. Not NiiVue, not a NIfTI-in-browser
+  parser first.
+- **Not git:** SHIP MPR and nose masks under `datasets/MRT/`. Do not
+  commit subject NIfTIs. ICBM terms before shipping a derived `.npy`.
 
 ## Public connection
 
@@ -16,6 +38,17 @@ https://github.com/uzh-rpg/event-based_vision_resources#software-utilities
 Hier mal PR oder so.
 würde eigentlich sehr gut passen
 (eher zu event viewer?)
+
+
+## 3d Viewer
+
+- Rail und View aufräumen (sinnvoll separieren)
+
+## DATA
+
+wir könnten beim einladen der daten einen schwellwert oder filter einstelllen; unterhabl wird kein cube dargestellt
+
+empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meinem sehr performanten Laptop)
 
 ## Chrome (desktop / phone orbit — not XR-A)
 

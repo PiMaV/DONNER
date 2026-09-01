@@ -40,9 +40,12 @@
 
   <div id="xr-overlay" class="xr-overlay">
   <div class="hud-rail">
+    <div id="gizmo-slot" class="gizmo-slot">
+      <div id="gizmo-hit" class="gizmo-hit" aria-label="Viewcube"></div>
+    </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
-        <h2 class="sheet-label">View</h2>
+        <button type="button" id="btn-hud-view" class="sheet-label sheet-fold" aria-expanded="true" title="Collapse the View card">View ▾</button>
         <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
         <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
       </section>
@@ -106,9 +109,9 @@
         <input id="align-z" type="checkbox" checked />
         <span>Align to Z</span>
       </label>
-      <label class="check">
+      <label class="check" title="Fade older time slices toward the back of the drawn Z window. Does not fade the X/Y slice.">
         <input id="decay" type="checkbox" checked />
-        <span>Decay (fade toward oldest drawn)</span>
+        <span>Decay (fade along Z toward oldest drawn)</span>
       </label>
       <label class="field">
         <span>Grid light <em id="grid-bright-val"></em></span>
@@ -245,13 +248,25 @@
       </label>
       </div>
       <div id="source-count">
-        <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt.</p>
+        <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt. Stream from the EVT sidecar or WOLKE (Send as counts).</p>
         <div class="btn-row">
           <button type="button" id="btn-count-demo" class="btn">Ignition demo</button>
           <label class="btn file-btn">Load .npy
             <input id="count-file" type="file" accept=".npy,application/octet-stream" />
           </label>
         </div>
+        <label class="field">
+          <span>Stream</span>
+          <input id="wolke-url" type="url" spellcheck="false" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Token</span>
+          <input id="wolke-token" type="text" spellcheck="false" autocomplete="off" />
+        </label>
+        <div class="btn-row">
+          <button type="button" id="btn-wolke-connect" class="btn" aria-pressed="false">Connect</button>
+        </div>
+        <p id="wolke-status" class="hint"></p>
         <p id="count-meta" class="hint"></p>
       </div>
     </section>

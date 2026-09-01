@@ -21,7 +21,8 @@ flowchart LR
 
 Play is a **display** transport outside the sheets. Conway loads **paused**
 (R-pentomino). **Play** = Live View (generator runs, Z locked at Now);
-for a count stack it scrubs Z through the recording. **Pause** = Inspect
+for a count stack it scrubs the **active stack axis** (dense MRI: the 8-slice
+window; sparse EVT: Z time). **Pause** = Inspect
 the RAM tape (Z from 0). **Pause** lights the brick (fog off, camera far
 fits the tape). Two extra Z handles clip a **slab** (outside not drawn).
 Conway Play from Inspect jumps to live Now.
@@ -67,6 +68,7 @@ flowchart TB
     gen[GEN LIVE RATE or T LIVE SUM]
     conway[Pattern Seed Speed Stop-stable]
     npy[npy file ignition demo]
+    stream[WOLKE stream]
   end
   play[Play transport]
   view --> volume[Volume]
@@ -74,6 +76,7 @@ flowchart TB
   source --> volume
   kind --> conway
   kind --> npy
+  npy --> stream
 ```
 
 ```mermaid
@@ -120,13 +123,13 @@ rectangle select on the playfield).
 | Wheel / pinch | Zoom |
 | Right-drag / two-finger | Pan when **Parallax** is off, or when **Align to Z** is off. Align to Z (default) rotates around the time axis at the brick center. |
 | Shift+wheel | Scrub the current slice axis |
-| **Slice stack** | X / Y / Z (default Z = time). Cyan playhead plus two gold **slab** handles (Inspect, and always on X/Y). After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now/max at top. Phone: bottom timeline. Wheel over it steps the playhead. |
+| **Slice stack** | X / Y / Z (default Z = time). Cyan playhead plus two gold **slab** handles (Inspect, and always on X/Y). Sparse Conway/EVT: cubes ghost away from the cyan plane and vanish at the gold grips. Dense count (MRI): same mid-volume slab as Z — tissue on the cut, enclosed cubes hidden. After **Fit**, the brick stays put and the cyan plane moves. Desktop: right rail, Now/max at top. Phone: bottom timeline. Wheel over it steps the playhead. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
-| Viewcube | Click a product axis (lower-left) to snap that view. Hidden in AR. |
+| Viewcube | Desktop: click a product-axis **face** (144 px slot left of the View card; hover lights the frame). Collapse View via the heading. Hidden on phone and in AR. |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome). Look at a table; tap the gold square to place. Pose locks. **Play** grows the pillar from gen 0; Z clips a segment; **Size** scales it. Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | `.` or `N` | Simulation step |
@@ -143,7 +146,7 @@ rectangle select on the playfield).
 | Parallax | Default on = perspective. Off = orthographic at the current look. Key `B`. |
 | Align to Z | Default on = orbit around the time axis. Off = free pan. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the gold cuts). Key `F`. |
-| Decay | On/off. On: fade to 0 at the oldest **drawn** slice (live: back of Depth; inspect: back of the Z slab). Off: even brick. |
+| Decay | On/off. On: fade to 0 at the oldest **drawn** Z slice (live: back of Depth; inspect: back of the time window). Off: even along time. Sparse X/Y uses ghost-to-gold on its own. Dense count reuses this one-sided fade along the active stack axis (Decay stays off). |
 | Grid light | Brightness of the cell grid and focus-plane fill |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
@@ -155,7 +158,7 @@ rectangle select on the playfield).
 | Control | Meaning |
 |---------|---------|
 | Source | **Conway** or **Count stack** |
-| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs Z |
+| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs the stack (dense: the slab window) |
 
 ### Conway addon
 
@@ -175,7 +178,10 @@ rectangle select on the playfield).
 | Control | Meaning |
 |---------|---------|
 | Ignition demo | Load `data/ignition_stack.npy` (local symlink into `datasets/EVT/`) |
-| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity |
+| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Local MRI preview: `../datasets/MRT/mni152_stack.npy` (dense; auto 8-slice slab on Z/X/Y + hidden enclosed cubes; see architecture *MRI volume*) |
+| Stream | WOLKE contract. Default `http://127.0.0.1:5055` / token `evt` (EVT sidecar). Connect listens for `send_file_message`; the cube GET is same-origin `/stream-npy` (DONNER’s static server pulls the sidecar). Send as **counts**. Restart `npm start` / `start:lan` so the proxy exists. `https://lab.ole.icu` works when Caddy reverse-proxies that laptop server. |
+| Token | Sidecar / WOLKE token (sidecar default `evt`) |
+| Connect | Toggle the Socket.IO viewer. A new send replaces the cube. 2D/RGB is rejected with a hint; the previous volume stays. |
 | Size by count | Encoding: cube scale follows the integer count. Off: occupancy (color only) |
 
 Count stacks open in Inspect (the recording is already complete). **Play**
@@ -197,14 +203,17 @@ stats stay in **Source**.
 The **cyan frame** is the current slice plane. Numbered **X/Y** sit on the
 **right** (gold). Inspect also draws **gold rings** at the slab cuts.
 The stack slider beside the HUD (Now/max at the top) is Z time by
-default, or X / Y. The CAD viewcube is navigation, not a grabber.
+default, or X / Y. Sparse X/Y: cyan plane solid, cubes toward the gold
+grips ghost and then vanish. Dense count X/Y matches Z (slab + cut faces).
+**Decay** stays a Z/time fade on sparse stacks. The CAD
+viewcube (desktop, left of the View card) is navigation, not a grabber.
 Hovering the Z plane draws two thin lines to X and Y,
 a gold square on the cell, and a pale cage around the cube on that
 slice when the cell is live. Slices newer than the focus sit **above**
 the plane, translucent.
 
 **Parallax** off is orthographic at the current look (no vanishing point).
-Click the viewcube to look from +X / +Y / +Z. Worldline **isolation** is
+Click a **face** of the viewcube (desktop; hover lights the frame) to look from +X / +Y / +Z. Worldline **isolation** is
 deferred (later: rectangle select). Edit stays on the Z playfield at Now.
 
 Inspect **Z slab** (3D-slicer):
@@ -227,6 +236,18 @@ flowchart TB
   lo --> ringLo[Gold cut ring]
 ```
 
+Inspect **X/Y slab** (same gold grips):
+
+```mermaid
+flowchart TB
+  cyan[Cyan playhead]
+  sparse[Sparse: ghost toward gold]
+  dense[Dense count: same as Z]
+  gone[Gold grips: not drawn]
+  cyan --> sparse --> gone
+  cyan --> dense --> gone
+```
+
 On narrow viewports **View ▸** and **Source ▸** are separate folds (Play
 stays bottom-center). The Z stack is a bottom timeline, and telemetry
 collapses to an **FPS chip** (tap to open the View card). Source GEN /
@@ -235,8 +256,9 @@ LIVE / RATE stay in the Source sheet.
 ## HUD (right rail)
 
 Desktop: two cards, then a thin Z stack to their right, Play under the
-stack. Display is cyan; source is muted. Phone: FPS chip top-right; tap
-to expand the View card. Source stats live in the Source sheet.
+stack. Click **View ▾** on the display card to collapse the stats.
+Display is cyan; source is muted. Phone: FPS chip top-right; tap
+to expand the View card. Source stats live in the Source sheet. No viewcube.
 
 | Line | Block |
 |------|-------|
@@ -286,7 +308,7 @@ A glider must read as a coral trail, not mixed cyan/gold: those
 classes mean the pattern sat still. Cyan on a glider was a false friend
 (the ship crawling over the same cell).
 
-Decay only darkens older slices; it does not change hue or cube size.
+Decay only darkens older **Z** slices; it does not change hue or cube size.
 **Size / fill** depends on **Stability**:
 
 - **None** — every live cell the same size (truth view for occupancy)
@@ -329,11 +351,17 @@ Bench stays in the sheet, not on the FPS chip.
   leave the everyday sheet.
 - **Isolation later:** rectangle select on the playfield (not cube double-click).
 - Polarity / occupancy / states encodings (count rungs are in)
-- NPZ, sidecar ingest, BLITZ sync, in-browser EVT3
+- NPZ, packed WOLKE selection / `viewer_index`, BLITZ widget sync, in-browser EVT3
+- **MRI source kind** (not in the Source sheet). Dense count `.npy`
+  (occupancy > 15 %) already opens a mid-volume slab with enclosed
+  voxels hidden. Do not embed NiiVue. Volume texture / raymarch later
+  if that slab is not enough. See [`architecture.md`](../architecture.md#mri-volume-later).
 - **XR-A is in:** WebXR `immersive-ar` passthrough and plane hit-test
   (gold reticle, tap a table to place; pose locks; Z clips a segment in
   the pillar). **AR** only if `navigator.xr` supports it. Chrome is
   Play, Z, Size, Exit. Phone HTTPS is
   `https://lab.ole.icu/` (`start:lan` upstream); mkcert is fallback.
+  After a Chrome update, check site **Augmented reality** (not blocked)
+  and that the response has `Permissions-Policy: xr-spatial-tracking=(self)`.
   **Next:** XR-B marker, then XR-C Quest 3. Do not start a points
   renderer in the same slice as further XR work.

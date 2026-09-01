@@ -54,6 +54,7 @@ export function bindUI(on) {
   const sliceZ = $("slice-z");
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
+  const hudViewFold = $("btn-hud-view");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
@@ -95,6 +96,10 @@ export function bindUI(on) {
   const countDemo = $("btn-count-demo");
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
+  const wolkeUrl = $("wolke-url");
+  const wolkeToken = $("wolke-token");
+  const wolkeConnect = $("btn-wolke-connect");
+  const wolkeStatus = $("wolke-status");
   const countSize = $("count-size");
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
@@ -143,6 +148,8 @@ export function bindUI(on) {
   if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
   if (countSize) countSize.checked = false;
+  if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
+  if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
   document.body.classList.toggle("source-count", DEFAULTS.sourceKind === "count");
   const syncStabHint = () => {
     const key = stabMode.value;
@@ -254,6 +261,7 @@ export function bindUI(on) {
     if (applying) return;
     on.countSize?.();
   });
+  wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
   const layoutStack = () => {
     const max = Number(stack.max) || 0;
     const foc = Number(stack.value) || 0;
@@ -433,6 +441,18 @@ export function bindUI(on) {
     const open = document.body.classList.toggle("hud-view-open");
     fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
   });
+  const syncHudViewFold = () => {
+    if (!hudViewFold) return;
+    const collapsed = document.body.classList.contains("hud-view-collapsed");
+    hudViewFold.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    hudViewFold.textContent = collapsed ? "View ▸" : "View ▾";
+    hudViewFold.title = collapsed ? "Expand the View card" : "Collapse the View card";
+  };
+  hudViewFold?.addEventListener("click", () => {
+    document.body.classList.toggle("hud-view-collapsed");
+    syncHudViewFold();
+  });
+  syncHudViewFold();
 
   return {
     getConfig() {
@@ -461,6 +481,8 @@ export function bindUI(on) {
         preset: preset.value,
         sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: countSize ? countSize.checked : false,
+        wolkeUrl: wolkeUrl ? wolkeUrl.value : DEFAULTS.wolkeUrl,
+        wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
         alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
         maxInstances: cubeCap ? clampCubeCap(cubeCap.value) : DEFAULTS.maxInstances,
       };
@@ -488,6 +510,9 @@ export function bindUI(on) {
       playBtn.textContent = playing ? "Pause" : "Play";
       playBtn.setAttribute("aria-pressed", playing ? "true" : "false");
       playBtn.classList.toggle("is-live", playing);
+    },
+    setDecay(on) {
+      decay.checked = Boolean(on);
     },
     setArAvailable(ok) {
       arSupported = Boolean(ok);
@@ -582,6 +607,15 @@ export function bindUI(on) {
     },
     setCountHint(text) {
       if (countHint) countHint.textContent = text;
+    },
+    setWolkeConnected(on) {
+      if (!wolkeConnect) return;
+      wolkeConnect.textContent = on ? "Disconnect" : "Connect";
+      wolkeConnect.setAttribute("aria-pressed", on ? "true" : "false");
+      wolkeConnect.classList.toggle("is-on", Boolean(on));
+    },
+    setWolkeStatus(text) {
+      if (wolkeStatus) wolkeStatus.textContent = text || "";
     },
     setCountLegend(ceiling) {
       const hi = Math.max(1, ceiling | 0);

@@ -26,9 +26,13 @@ flowchart LR
   subgraph sources [Data sources]
     conway[Conway simulation]
     count[EVT count stack npy]
+    stream[WOLKE contract]
+    mri[MRI npy later]
   end
   conway --> soa[Event SoA x y t v]
   count --> soa
+  stream --> count
+  mri --> soa
   soa --> rend[Space-time renderer]
   rend --> view[Three.js scene]
 ```
@@ -44,6 +48,7 @@ flowchart LR
   subgraph source [Source addon]
     conway[Conway B3/S23]
     count[EVT count stack]
+    stream[WOLKE stream]
   end
   subgraph adapter [Encoding adapter]
     mapK[Color k]
@@ -58,6 +63,7 @@ flowchart LR
   end
   conway --> adapter
   count --> adapter
+  stream --> count
   adapter --> soa2[EventSoA]
   soa2 --> engine
 ```
@@ -65,7 +71,7 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, CAD gizmo, slice stack (X/Y/Z), Play (Live/Inspect), Depth (live wake), Decay, cache tape, Grid light, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
-| **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
+| **Source** | Kind switch. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` file / ignition demo / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
 | **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/transit + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
 | **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
 
@@ -74,8 +80,9 @@ For Conway, **Play** is Live View: the generator runs, the playhead stays
 at Now, the Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer
 opens its RAM tape, Z is gen 0 … cached Now, and **every cached slice is
 drawn**. Play from Inspect jumps to live Now (no tape replay). A **count
-stack** loads already-complete, so it opens in Inspect; **Play** scrubs Z
-through the recording (loops). **Depth** is live-only GPU wake (hidden
+stack** loads already-complete, so it opens in Inspect; **Play** scrubs
+the active stack axis (sparse EVT: Z time; dense count: the slab window).
+**Depth** is live-only GPU wake (hidden
 in Inspect). **Decay** and the cache are viewer-owned. Decay is on/off:
 fade toward the oldest drawn slice (live: back of Depth; inspect: tape start).
 
@@ -97,6 +104,7 @@ flowchart TB
     gen[GEN LIVE RATE or T LIVE SUM]
     conway[Pattern Seed Speed Edit]
     npy[npy cube]
+    stream[WOLKE stream]
   end
   view --> volume[Volume]
   playT[Play transport]
@@ -104,6 +112,7 @@ flowchart TB
   source --> volume
   kind --> conway
   kind --> npy
+  npy --> stream
 ```
 
 ```mermaid
@@ -112,6 +121,50 @@ flowchart TB
   sparse --> soa[Event SoA]
   soa --> cubes[Solid cubes + ghost above focus]
 ```
+
+A **WOLKE-contract viewer** is another way to get that cube. Socket.IO
+only announces `send_file_message`. The browser then GETs same-origin
+`/stream-npy?u=…`; `scripts/serve-http.py` (and HTTPS) pulls the `.npy`
+from the sidecar on the laptop so Chrome Local Network Access / CORS
+cannot hide the body. The EVT sidecar already speaks this protocol
+(`http://127.0.0.1:5055`, token `evt`). Packed selection and
+`viewer_index` are not this slice.
+
+```mermaid
+flowchart LR
+  sidecar[EVT sidecar]
+  wolke[WOLKE later]
+  sio["Socket.IO send_file_message"]
+  page["DONNER page origin"]
+  proxy["GET /stream-npy"]
+  adapter[countVolumeFromNpy]
+  soaStream[EventSoA]
+  rendStream[renderer]
+  sidecar --> sio
+  wolke --> sio
+  sio --> page
+  page --> proxy
+  proxy -->|"laptop GET npy"| sidecar
+  proxy --> adapter
+  adapter --> soaStream
+  soaStream --> rendStream
+```
+
+```mermaid
+flowchart LR
+  nii[datasets/MRT/mni152.nii.gz]
+  mniNpy[datasets/MRT/mni152_stack.npy]
+  countLoad[Count source Load npy]
+  soaMri[EventSoA]
+  cubesMri[Cubes]
+  nii -->|"one-shot 4x dense"| mniNpy --> countLoad --> soaMri --> cubesMri
+```
+
+MRI is a **later** source addon, not a second product. A public low-res T1
+is already converted to a count-shaped `.npy` (see
+[MRI volume (later)](#mri-volume-later)). There is no NIfTI parser in the
+browser and no MRI source kind yet. Load it today with Source → Count
+stack → **Load .npy**.
 
 ```mermaid
 flowchart TB
@@ -137,7 +190,9 @@ A CAD viewcube snaps product-axis views. Worldline
 isolation is deferred (later: rectangle select). Scrub the **stack**
 (desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
 along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
-handles: samples outside the band are not drawn.
+handles: samples outside the band are not drawn. On X/Y, cells inside the
+band fade from the cyan plane (ghost) and vanish at the gold grips. **Decay**
+is only along Z (time); it does not drive that spatial fade.
 
 ## Mapping
 
@@ -242,11 +297,23 @@ Z (time) by default, or X / Y. **Now** is `focusBack = 0` (high end of
 the rail: live head on Z, max index on X/Y). The far end is the other
 bound. The thumb is the cyan plane. Inspect (and X/Y always) has gold
 slab grips. Wheel over the stack (or Shift+wheel on the canvas) still
-scrubs. X/Y numbers stay on the playfield frame. A CAD viewcube in the
-canvas corner is navigation only, not a time grabber.
+scrubs. X/Y numbers stay on the playfield frame. A CAD viewcube (desktop,
+left of the View card) is navigation only, not a time grabber.
 
 When the slice axis is X or Y, the time brick is the live wake or the
 whole inspect tape; Play still advances time and does not move the stack.
+Inside the gold slab, cubes are solid on the cyan plane, ghost away from
+it, and vanish at the grips. **Decay** still darkens older Z slices only.
+
+```mermaid
+flowchart TB
+  cyan[Cyan playhead on X or Y]
+  ghost[Off plane: ghost fade toward gold]
+  gone[At gold grips: not drawn]
+  decay[Decay still along Z time]
+  cyan --> ghost --> gone
+  cyan --> decay
+```
 
 Desktop: vertical rail on the right, **Now at the top**, past at the
 bottom. Phone: horizontal timeline at the bottom, **Now at the right**,
@@ -285,9 +352,12 @@ without a vanishing point. Escape turns parallax back on. When the look
 sits within ~15° of the slice axis, ortho draws only the playhead plane
 so cells do not stack.
 
-A CAD **viewcube** sits in the lower-left of the canvas (product X gold,
-Y muted, Z cyan). It rotates with the camera; click a face to snap that
-view. Hidden in AR.
+A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
+HUD card (desktop orbit only). Six axis-colored **face frames**, a rim, and
+X/Y/Z labels on the + faces. Hover lights the face; click snaps that
+view. The cube is omitted on phone / coarse pointer (orbit + the slice
+stack stay) and in AR. The desktop View card heading collapses the
+telemetry (`View ▾` / `View ▸`).
 
 **Align to Z** (default on) pins orbit to the time axis through the brick
 center. Off allows screen-space pan. Ortho always pans.
@@ -316,8 +386,9 @@ are unchanged.
 ## Display HUD vs source HUD
 
 Desktop: two telemetry cards plus a thin Z stack to their right, Play
-under the stack. Phone: FPS chip (tap expands the View card); Z timeline
-and Play at the bottom; source stats in the Source sheet.
+under the stack. The View card heading collapses the display stats.
+Phone: FPS chip (tap expands the View card); Z timeline
+and Play at the bottom; source stats in the Source sheet. No viewcube.
 
 ```mermaid
 flowchart TB
@@ -370,9 +441,13 @@ grow the DOM.
 | `src/coords.js` | Right-side numbered X/Y frame and hover hairlines |
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
-| `src/gizmo.js` | CAD viewcube (product axes, click-to-snap) |
+| `src/fade.js` | Decay along Z (time); X/Y slice proximity fade |
+| `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
+| `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
 | `src/count.js` | Sparse count volume → `EventSoA` |
+| `src/wolke.js` | WOLKE viewer contract: Socket.IO notify + same-origin `/stream-npy` GET |
+| `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the static HTTP/HTTPS servers |
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
@@ -403,13 +478,18 @@ and does not import Conway dynamics.
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
 
-No WebSocket, no BLITZ sync, no EVT3 decode in the browser. Those attach
-behind the same SoA later:
+No DONNER backend, no EVT3 decode in the browser, no packed-selection /
+`viewer_index` sync. A **WOLKE-contract viewer** (`src/wolke.js`) may
+connect to the EVT sidecar or WOLKE: Socket.IO announces
+`send_file_message`, the page GETs `/stream-npy` (allowlisted loopback /
+RFC1918 only), then the count adapter unpacks EventSoA. Cubes do not
+ride the socket. Restart `npm start` / `start:lan` after pulling this
+so the proxy exists; `python3 -m http.server` will not.
 
 ```text
 Event camera → sidecar → count cube .npy
                           ├─ BLITZ (dense stack)
-                          ├─ DONNER (space-time 3D)
+                          ├─ DONNER (space-time 3D; file or stream)
                           └─ DONNER XR (same scene)
 ```
 
@@ -605,6 +685,85 @@ Dynamics is cheap. Depth stops the 200k cap. Camera-only frames skip
 hitches until slice-append exists. Measure GPU FPS in the Bench HUD; do
 not copy these Node numbers as frame rate.
 
+## MRI volume (later)
+
+Anatomical MRI is a dense `(x, y, z)` cube. DONNER still consumes
+`EventSoA` cubes — **not** a NIfTI viewer. Do **not** embed NiiVue (different
+camera, chrome, and contract). A 3D-texture / raymarch “glass brain” is a
+later renderer behind the same stage, only if a measured slab of cubes is
+not enough.
+
+There is **no** MRI source kind and **no** NIfTI parser in the browser.
+The public demo is a one-shot convert to the count interchange
+`(T, H, W)` uint16. Load it with Source → Count stack → **Load .npy**.
+Until a dedicated kind exists, Count **Play** walks the 8-slice window
+on the **active** stack axis (Z, X, or Y). Decay is off on dense stacks
+(a time-fade on anatomy is wrong).
+
+```mermaid
+flowchart TB
+  dense[Dense mni152_stack npy]
+  slab[Stack-axis slab window]
+  cull[Emit if 6-neighbor air or slab boundary]
+  soa[EventSoA]
+  cubes[Instanced cubes]
+  dense --> slab --> cull --> soa --> cubes
+```
+
+**Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
+[niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
+(BSD-2-Clause wrapper; derived from [ICBM 152 NLin 2009](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
+Converted file: `datasets/MRT/mni152_stack.npy` — **dense** 4× stack
+`(54, 64, 52)`, intensity 1…32. Do not vendor either file in this repo.
+Check ICBM terms before shipping a derived `.npy`.
+
+**SHIP working data** under `datasets/MRT/raw image/` and
+`Segmentierungen/` stays on disk only. Do not copy subject NIfTIs or
+masks into DONNER git.
+
+**Cube budget** is occupancy, not INST. Ignition is ~70k cubes at **3 %**
+fill — a sparse cloud. A 4× MNI brick is ~84k at **47 %**: ~75k interiors
+overdraw if every voxel is a Lambert cube (`bound GPU fill`, ~200 ms).
+`CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
+**and** inside the current slab on the **active stack axis** (Z time, or
+X / Y). A full-tape slab is an outer hull; an **8-slice** mid-volume
+window (auto when occupancy > 15 %) shows tissue on the cut. Play
+translates that window on X, Y, or Z. Affine / RAS is ignored — the
+gizmo is array X/Y/Z.
+
+Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
+root:
+
+```python
+import gzip, struct
+from pathlib import Path
+import numpy as np
+
+src = Path("datasets/MRT/mni152.nii.gz")
+dst = Path("datasets/MRT/mni152_stack.npy")
+raw = gzip.open(src, "rb").read()
+dim = struct.unpack_from("<8h", raw[:348], 40)
+off = max(352, int(struct.unpack_from("<f", raw[:348], 108)[0] or 352))
+nx, ny, nz = int(dim[1]), int(dim[2]), int(dim[3])
+vol = np.frombuffer(raw[off:off + nx * ny * nz], dtype=np.uint8).reshape(
+    (nx, ny, nz), order="F"
+)
+stack = np.ascontiguousarray(np.transpose(vol[::4, ::4, ::4], (2, 1, 0)))
+mx = int(stack.max())
+out = np.zeros(stack.shape, dtype=np.uint16)
+if mx > 0:
+    q = np.clip(np.round(stack.astype(np.float64) * 32.0 / mx), 0, 32).astype(
+        np.uint16
+    )
+    q[(stack > 0) & (q == 0)] = 1
+    out = np.ascontiguousarray(q)
+np.save(dst, out)
+```
+
+Next (not this tree): a dedicated MRI encoding / source kind, or a volume
+texture pass. Not a NIfTI-in-browser parser first. See
+[backlog.md](backlog.md).
+
 ## Stages
 
 ```mermaid
@@ -619,9 +778,12 @@ flowchart LR
 ```
 
 1. **Conway 3D** — this tree (P1 timers + P2 dirty/window are in)
-2. **Event camera** — count-stack `.npy` is in (same SoA). Polarity /
-   occupancy / states encodings, sidecar ingest, and EVT3-in-browser are
-   later.
+2. **Event camera** — count-stack `.npy` is in (same SoA), including a
+   WOLKE-contract stream from the EVT sidecar (Socket.IO notify + HTTP
+   GET). Polarity / occupancy / states encodings, packed selection,
+   `viewer_index`, and EVT3-in-browser are later. An anatomical MRI cube
+   is also later: same `.npy` interchange, not a NIfTI parser — see
+   [MRI volume (later)](#mri-volume-later).
 3. **XR** — same scene, WebXR only. **XR-A is opened:** passthrough,
    plane hit-test (tap a table to place, then lock for the session),
    viewer-front fallback. The volume is a pillar: gen 0 on the table,
@@ -630,8 +792,9 @@ flowchart LR
    is XR-B marker origin, then XR-C Quest 3 passthrough. Detail in
    [backlog.md](backlog.md). Do not start a new renderer in the same
    slice as XR.
-4. **Integration** — optional sidecar / BLITZ via dataset + ROI, not shared
-   widgets. Later: Open in DONNER / send space-time ROI back to BLITZ.
+4. **Integration** — WOLKE-contract stream is in (sidecar / WOLKE →
+   DONNER count cube). Later: Open in DONNER / send space-time ROI back
+   to BLITZ. No shared widgets.
 
 Product **Z** (time) already stands on the playfield plane, so a table
 is a natural origin. In AR the **oldest slice** (gen 0 / tape start)
@@ -640,8 +803,10 @@ segment in place (it does not slide that chunk onto the table). Phone
 orbit is still the non-AR fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
-laptop `start:lan`). mkcert (`npm run start:https`) is fallback if the
-LXC is down. Do not use `pve.ole.icu:8006`. iOS Safari AR is not the
+laptop `start:lan`). The LAN/HTTPS servers send
+`Permissions-Policy: xr-spatial-tracking=(self)` so Chrome Android still
+allows WebXR after a browser update. mkcert (`npm run start:https`) is
+fallback if the LXC is down. Do not use `pve.ole.icu:8006`. iOS Safari AR is not the
 demo path unless `navigator.xr` actually supports it. Chrome later
 (Source off the rail, thin View) is in [backlog.md](backlog.md) and is
 not a gate for XR-A.

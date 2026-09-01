@@ -11,12 +11,14 @@ import {
   probeGpu,
 } from "./bench.js";
 import { ConwayWorld, gridsEqual, seedPattern } from "./conway.js";
-import { countVolumeFromNpy } from "./count.js";
+import { countVolumeFromNpy, denseSlabBacks, isDenseCount, slideDenseSlabBacks } from "./count.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, countKindHex, encodingCubeFill } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ } from "./observe.js";
 import { mulberry32 } from "./rng.js";
+import { io } from "../vendor/socket.io/socket.io.esm.min.js";
+import { WolkeViewer } from "./wolke.js";
 import {
   CubeRenderer,
   FocusFrame,
@@ -63,7 +65,7 @@ import {
   exitOrtho,
   setOrthoFrustum,
 } from "./view.js";
-import { ViewGizmo } from "./gizmo.js";
+import { ViewGizmo, gizmoOnScreen } from "./gizmo.js";
 import {
   XR_BOARD_METERS,
   XR_MAG_DEFAULT,
@@ -86,6 +88,14 @@ const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
 
 const coarse = window.matchMedia("(pointer: coarse)").matches;
+const gizmoNarrowMq = window.matchMedia("(max-width: 720px)");
+function showGizmo() {
+  return gizmoOnScreen({
+    coarse,
+    narrow: gizmoNarrowMq.matches,
+    ar: arPresenting(),
+  });
+}
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -140,6 +150,14 @@ controls.touches.ONE = THREE.TOUCH.ROTATE;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 const gizmo = new ViewGizmo({ coarse });
+const gizmoHit = document.getElementById("gizmo-hit");
+const gizmoSlot = document.getElementById("gizmo-slot");
+function syncGizmoChrome() {
+  const on = showGizmo();
+  if (gizmoHit) gizmoHit.hidden = !on;
+  if (gizmoSlot) gizmoSlot.hidden = !on;
+}
+syncGizmoChrome();
 
 const hemi = new THREE.HemisphereLight(0xb8c8e0, 0x0a0e13, 0.72);
 scene.add(hemi);
@@ -172,6 +190,9 @@ let tapeMode = false;
 let sourceId = "conway";
 let countVol = null;
 let countSizeByCount = false;
+const wolke = new WolkeViewer({ io });
+const COUNT_HINT =
+  "EVT count cube (T × H × W). Integer events per pixel per Δt. Stream: sidecar Send as counts.";
 let focusSurface;
 let nowGrid;
 let playing = false;
@@ -253,7 +274,7 @@ const ui = bindUI({
     stepOnce();
     updateHint();
   },
-  reset: () => (sourceId === "count" ? applyFocus(0) : bootWorld(false)),
+  reset: () => (sourceId === "count" ? resetCountView() : bootWorld(false)),
   rebuild: () => bootWorld(true),
   speed: () => {
     gensPerSec = ui.getConfig().gensPerSec;
@@ -316,6 +337,10 @@ const ui = bindUI({
   countSize: () => {
     countSizeByCount = ui.getConfig().countSize;
     dirtyEncoding = true;
+  },
+  wolkeConnect: () => {
+    if (wolke.listening) disconnectWolke();
+    else connectWolke();
   },
   enterAr,
   exitAr,
@@ -572,6 +597,9 @@ function exitAr() {
 async function onArSessionStart() {
   document.documentElement.classList.add("is-ar");
   document.body.classList.add("is-ar");
+  gizmo.clearHover();
+  canvas.style.cursor = "";
+  syncGizmoChrome();
   renderer.setClearAlpha(0);
   controls.enabled = false;
   arPlacePending = false;
@@ -607,6 +635,7 @@ function onArSessionEnd() {
   syncFog();
   pinOrbitPivot();
   ui.setArActive(false);
+  syncGizmoChrome();
   updateHint();
 }
 
@@ -726,8 +755,10 @@ function enterInspect() {
   playing = false;
   tapeMode = true;
   if (sliceAxis === "z") {
-    clipNearBack = 0;
-    clipFarBack = maxTimeBack();
+    if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
+      clipNearBack = 0;
+      clipFarBack = maxTimeBack();
+    }
   }
   ui.setPlaying(false);
   dirtySource = true;
@@ -869,7 +900,48 @@ function markGps() {
   lastStepAt = now;
 }
 
+function applyDenseCountWindow(vol, axis = sliceAxis) {
+  const a = normalizeSliceAxis(axis);
+  const max =
+    a === "z"
+      ? Math.max(0, vol.newestT() - vol.oldestT())
+      : sliceMaxBack(a, vol.width, vol.height, 0);
+  const s = denseSlabBacks({ oldestT: () => 0, newestT: () => max });
+  clipNearBack = s.nearBack;
+  clipFarBack = s.farBack;
+  if (a === "z") {
+    timeNearBack = s.nearBack;
+    timeFarBack = s.farBack;
+    timeFocusBack = s.focusBack;
+  } else {
+    spaceNearBack = s.nearBack;
+    spaceFarBack = s.farBack;
+    spaceFocusBack = s.focusBack;
+  }
+  decay = false;
+  ui.setDecay(false);
+  applyFocus(s.focusBack);
+}
+
+function resetCountView() {
+  if (countVol && isDenseCount(countVol)) {
+    applyDenseCountWindow(countVol);
+    return;
+  }
+  applyFocus(0);
+}
+
 function stepCountPlayhead() {
+  if (countVol && isDenseCount(countVol)) {
+    const max = maxSliceBack();
+    if (max <= 0) return;
+    const next = slideDenseSlabBacks(clipNearBack, focusBack, clipFarBack, max, -1);
+    clipNearBack = next.nearBack;
+    clipFarBack = next.farBack;
+    applyFocus(next.focusBack);
+    markGps();
+    return;
+  }
   if (sliceAxis !== "z") {
     const max = maxTimeBack();
     if (max <= 0) return;
@@ -914,12 +986,16 @@ function bootCount(vol) {
   acc = 0;
   clipNearBack = 0;
   timeFocusBack = 0;
-  if (sliceAxis === "z") {
+  if (isDenseCount(vol)) {
+    applyDenseCountWindow(vol);
+  } else if (sliceAxis === "z") {
+    decay = ui.getConfig().decay;
     clipFarBack = Math.max(0, vol.newestT() - vol.oldestT());
+    applyFocus(0);
   } else {
     clipFarBack = sliceMaxBack(sliceAxis, vol.width, vol.height, 0);
+    applyFocus(0);
   }
-  applyFocus(0);
   syncFog();
   syncViewRange();
   const span = Math.max(vol.width, vol.height);
@@ -956,7 +1032,7 @@ async function loadCountFromUrl(url, name) {
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     const buf = await res.arrayBuffer();
     bootCount(countVolumeFromNpy(buf, name));
-    ui.setCountHint("EVT count cube (T × H × W). Integer events per pixel per Δt.");
+    ui.setCountHint(COUNT_HINT);
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
     ui.setCountHint(`Could not load ${name}. Use Load .npy (${msg}).`);
@@ -978,11 +1054,50 @@ async function loadCountFromFile(file) {
     const buf = await file.arrayBuffer();
     const name = String(file.name || "count").replace(/\.npy$/i, "");
     bootCount(countVolumeFromNpy(buf, name));
-    ui.setCountHint("EVT count cube (T × H × W). Integer events per pixel per Δt.");
+    ui.setCountHint(COUNT_HINT);
   } catch (err) {
     ui.setCountHint(err && err.message ? err.message : String(err));
     updateHint();
   }
+}
+
+function connectWolke() {
+  const cfg = ui.getConfig();
+  ui.setWolkeStatus("connecting");
+  ui.setWolkeConnected(true);
+  wolke.connect({
+    baseUrl: cfg.wolkeUrl,
+    token: cfg.wolkeToken,
+    onNpy: (buf, fileName) => {
+      try {
+        const name = String(fileName || "stack").replace(/\.npy$/i, "");
+        bootCount(countVolumeFromNpy(buf, name));
+        ui.setCountHint(COUNT_HINT);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        ui.setCountHint(`Stream cube rejected (${msg}). Need (T × H × W) .npy; Send as counts.`);
+        updateHint();
+      }
+    },
+    onStatus: (status) => {
+      ui.setWolkeStatus(status);
+      if (status === "disconnected") ui.setWolkeConnected(wolke.listening);
+    },
+    onError: (err) => {
+      const msg = err && err.message ? err.message : String(err);
+      ui.setWolkeStatus(`error: ${msg}`);
+      ui.setCountHint(`Stream: ${msg}`);
+      ui.setWolkeConnected(wolke.listening);
+      updateHint();
+    },
+  });
+  if (!wolke.listening) ui.setWolkeConnected(false);
+}
+
+function disconnectWolke() {
+  wolke.disconnect();
+  ui.setWolkeConnected(false);
+  ui.setWolkeStatus("disconnected");
 }
 
 function switchSource(kind) {
@@ -991,6 +1106,7 @@ function switchSource(kind) {
     else loadCountDemo();
     return;
   }
+  disconnectWolke();
   bootWorld(true);
 }
 
@@ -1075,8 +1191,15 @@ function togglePlay() {
     } else {
       playing = true;
       ui.setPlaying(true);
-      if (sliceAxis === "z" && focusBack === 0) applyFocus(maxTimeBack());
-      else if (sliceAxis !== "z" && timeFocusBack === 0) timeFocusBack = maxTimeBack();
+      if (sliceAxis === "z" && focusBack === 0 && !(countVol && isDenseCount(countVol))) {
+        applyFocus(maxTimeBack());
+      } else if (
+        sliceAxis !== "z" &&
+        timeFocusBack === 0 &&
+        !(countVol && isDenseCount(countVol))
+      ) {
+        timeFocusBack = maxTimeBack();
+      }
     }
     updateHint();
     return;
@@ -1174,7 +1297,9 @@ function setSliceAxis(next) {
     spaceFarBack = clipFarBack;
   }
   sliceAxis = a;
-  if (a === "z") {
+  if (sourceId === "count" && countVol && isDenseCount(countVol)) {
+    applyDenseCountWindow(countVol, a);
+  } else if (a === "z") {
     clipNearBack = timeNearBack;
     focusBack = timeFocusBack;
     clipFarBack = timeFarBack;
@@ -1196,7 +1321,9 @@ function setSliceAxis(next) {
   }
   ui.setSliceAxis(a);
   rebuildSliceVisuals();
-  applyFocus(focusBack);
+  if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
+    applyFocus(focusBack);
+  }
   dirtySource = true;
 }
 
@@ -1258,9 +1385,11 @@ function updateHint() {
     }
   } else if (sourceId === "count") {
     ui.setHint(
-      playing
-        ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
-        : "Count stack — cyan plane · gold cuts · Play scrubs time · Load another .npy in Source",
+      countVol && isDenseCount(countVol)
+        ? "Dense cube — gold cuts are a slab through the volume · Play walks that window on X, Y, or Z · enclosed voxels stay hidden"
+        : playing
+          ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
+          : "Count stack — cyan plane · gold cuts · Play scrubs time · Load another .npy in Source",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
@@ -1318,10 +1447,11 @@ function stepOnce() {
 
 function fillVolume() {
   const store = viewStore();
-  const spatial = sliceAxis !== "z";
+  const max = maxSliceBack();
+  const band = slabIndices(clipNearBack, clipFarBack, max);
   const span =
     inspectMode() || arPillar()
-      ? spatial
+      ? sliceAxis !== "z"
         ? { tLo: store.oldestT(), tHi: viewNow() }
         : volumeSpan()
       : null;
@@ -1333,6 +1463,9 @@ function fillVolume() {
     dynamics: dynamicsOn,
     neighborhoodRadius,
     stabScale: stabScaleOn,
+    sliceAxis,
+    sliceLo: band.lo,
+    sliceHi: band.hi,
     ...(span ? { tLo: span.tLo, tHi: span.tHi } : {}),
   });
 }
@@ -1364,6 +1497,7 @@ function uploadInstances() {
     sliceHi: span.hi,
     sliceFocus: sliceAxis === "z" ? tFocus() : axisIndexFromBack(focusBack, max),
     sliceOnly: aligned,
+    sliceStackGhost: sourceId === "count" && isDenseCount(countVol),
     encodingMinimal,
   });
 }
@@ -1505,11 +1639,31 @@ function refreshGpu() {
   }
 }
 
+if (gizmoHit) {
+  gizmoHit.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!showGizmo()) return;
+      if (e.button !== 0 && e.pointerType !== "touch") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const view = gizmo.hit(e.clientX, e.clientY, canvas);
+      if (view) snapToProductView(view.axis, view.sign);
+    },
+    { passive: false },
+  );
+  gizmoHit.addEventListener("pointermove", (e) => {
+    if (!showGizmo()) return;
+    gizmo.hover(e.clientX, e.clientY, canvas);
+  });
+  gizmoHit.addEventListener("pointerleave", () => gizmo.clearHover());
+}
+
 canvas.addEventListener(
   "pointerdown",
   (e) => {
     if (e.button !== 0) return;
-    if (!arPresenting()) {
+    if (showGizmo()) {
       const view = gizmo.hit(e.clientX, e.clientY, canvas);
       if (view) {
         e.stopImmediatePropagation();
@@ -1523,6 +1677,10 @@ canvas.addEventListener(
   { capture: true },
 );
 canvas.addEventListener("pointermove", (e) => {
+  if (showGizmo()) {
+    const face = gizmo.hover(e.clientX, e.clientY, canvas);
+    canvas.style.cursor = face ? "pointer" : "";
+  }
   updateHover(e);
 });
 window.addEventListener("pointerup", (e) => {
@@ -1535,6 +1693,8 @@ window.addEventListener("pointerup", (e) => {
   paintAt(e);
 });
 canvas.addEventListener("pointerleave", () => {
+  gizmo.clearHover();
+  canvas.style.cursor = "";
   clearHover();
 });
 
@@ -1585,10 +1745,13 @@ window.addEventListener("keydown", (e) => {
     if (sliceAxis === "z") enterInspect();
     applyFocus(focusBack - 1);
   } else if (e.code === "Home") {
-    if (sliceAxis === "z") clipNearBack = 0;
-    applyFocus(0);
+    if (sourceId === "count") resetCountView();
+    else {
+      if (sliceAxis === "z") clipNearBack = 0;
+      applyFocus(0);
+    }
   } else if (e.code === "KeyR") {
-    if (sourceId === "count") applyFocus(0);
+    if (sourceId === "count") resetCountView();
     else bootWorld(false);
   }
 });
@@ -1637,8 +1800,13 @@ function frame(now, xrFrame) {
     renderer.clear();
     const cam = activeCamera();
     renderer.render(scene, cam);
-    gizmo.sync(cam);
-    gizmo.render(renderer);
+    syncGizmoChrome();
+    if (showGizmo()) {
+      gizmo.sync(cam);
+      gizmo.render(renderer, gizmoHit);
+    } else {
+      gizmo.clearHover();
+    }
   });
 
   paths.measure("hud", () => {

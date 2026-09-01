@@ -122,12 +122,49 @@ body {
   top: calc(12px + var(--safe-t));
   right: calc(12px + var(--safe-r));
   bottom: calc(52px + var(--safe-b));
-  width: auto;
+  left: auto;
+  width: max-content;
+  max-width: calc(100% - 24px - var(--safe-l) - var(--safe-r));
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  justify-content: flex-end;
   gap: 8px;
   pointer-events: none;
+}
+
+.gizmo-slot {
+  position: relative;
+  flex: 0 0 144px;
+  width: 144px;
+  height: 144px;
+  align-self: flex-start;
+  pointer-events: none;
+}
+
+.gizmo-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+  /* iOS skips hit-testing fully transparent nodes */
+  background: rgba(0, 0, 0, 0.01);
+}
+
+body.is-ar .gizmo-slot,
+body.is-ar .gizmo-hit {
+  display: none !important;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .gizmo-slot,
+  .gizmo-hit {
+    display: none !important;
+    pointer-events: none;
+  }
 }
 
 .fps-chip {
@@ -156,7 +193,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  width: 4.8rem;
   min-width: 4.1rem;
   min-height: 0;
   gap: 8px;
@@ -180,6 +218,38 @@ body {
   border-radius: 12px;
   background: var(--panel);
   backdrop-filter: blur(12px);
+}
+
+.sheet-fold {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-fold:hover,
+.sheet-fold:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+body.hud-view-collapsed .hud-engine .hud-spark,
+body.hud-view-collapsed .hud-engine .hud-stats {
+  display: none;
+}
+
+body.hud-view-collapsed .hud-engine {
+  padding: 6px 10px;
+  width: auto;
+  align-self: flex-end;
 }
 
 .hud-spark {
@@ -728,7 +798,8 @@ body.is-ar .ar-size input {
   color: var(--dampf);
 }
 
-.btn-edit.is-on {
+.btn-edit.is-on,
+#btn-wolke-connect.is-on {
   border-color: rgba(255, 197, 61, 0.55);
   color: var(--donner);
   background: rgba(255, 197, 61, 0.08);
@@ -958,6 +1029,16 @@ body.source-count .encoding-conway {
     pointer-events: auto;
   }
 
+  .gizmo-slot,
+  .gizmo-hit {
+    display: none !important;
+  }
+
+  .sheet-fold {
+    pointer-events: none;
+    cursor: default;
+  }
+
   body.hud-view-open .hud-cards {
     display: flex;
   }
@@ -975,6 +1056,7 @@ body.source-count .encoding-conway {
   }
 
   .hud-time {
+    flex: 1 1 auto;
     flex-direction: row;
     flex-wrap: wrap;
     width: 100%;
@@ -1132,7 +1214,7 @@ body.source-count .encoding-conway {
     bottom: calc(12px + var(--safe-b));
     transform: translateX(-50%);
     width: auto;
-    z-index: 3;
+    z-index: 4;
     flex-direction: row;
     align-items: center;
     gap: 8px;
@@ -1141,8 +1223,9 @@ body.source-count .encoding-conway {
   .transport .btn-play,
   .transport .btn-ar,
   .transport .btn-xr-exit {
-    min-width: 5.6rem;
+    min-width: 4.6rem;
     width: auto;
+    flex-shrink: 0;
   }
 
   .brand h1 {

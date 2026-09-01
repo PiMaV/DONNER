@@ -9,7 +9,9 @@ import {
   productToWorld,
   slabIndices,
   sliceMaxBack,
+  sliceViewMode,
 } from "../src/axes.js";
+import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { clampCubeCap, DEFAULTS } from "../src/config.js";
 
@@ -57,11 +59,109 @@ describe("eventOnSlice", () => {
     assert.equal(eventOnSlice("z", 1, 2, 9, { lo: 0, hi: 4, focus: 9, sliceOnly: true }), true);
   });
 
+  it("uses stack-axis ghost for Z and for dense X/Y", () => {
+    assert.deepEqual(sliceViewMode("z"), { stackGhost: true, spatialFade: false });
+    assert.deepEqual(sliceViewMode("x"), { stackGhost: false, spatialFade: true });
+    assert.deepEqual(sliceViewMode("x", { sliceStackGhost: true }), {
+      stackGhost: true,
+      spatialFade: false,
+    });
+    assert.deepEqual(sliceViewMode("y", { sliceOnly: true }), {
+      stackGhost: false,
+      spatialFade: false,
+    });
+  });
+
   it("clips X and Y slabs", () => {
     assert.equal(eventOnSlice("x", 4, 2, 9, { lo: 3, hi: 5, focus: 4, sliceOnly: false }), true);
     assert.equal(eventOnSlice("x", 1, 2, 9, { lo: 3, hi: 5, focus: 4, sliceOnly: false }), false);
     assert.equal(eventOnSlice("y", 1, 7, 9, { lo: 7, hi: 7, focus: 7, sliceOnly: true }), true);
     assert.equal(eventOnSlice("y", 1, 6, 9, { lo: 7, hi: 7, focus: 7, sliceOnly: true }), false);
+  });
+});
+
+describe("gizmoCssBox", () => {
+  const canvas = { left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 };
+
+  it("sits in the upper-right with a margin", () => {
+    const box = gizmoCssBox(canvas, 96, MARGIN_CSS);
+    assert.equal(box.size, 96);
+    assert.equal(box.top, MARGIN_CSS);
+    assert.equal(box.left, 800 - MARGIN_CSS - 96);
+  });
+
+  it("shifts left of a HUD rail that occupies the top-right", () => {
+    const rail = { left: 620, top: 12, right: 788, bottom: 540, width: 168, height: 528 };
+    const box = gizmoCssBox(canvas, 96, MARGIN_CSS, [rail]);
+    assert.equal(box.top, MARGIN_CSS);
+    assert.equal(box.left, 620 - MARGIN_CSS - 96);
+  });
+
+  it("sits left of the View card, not in the gap before the stack", () => {
+    const view = { left: 500, top: 12, right: 668, bottom: 220, width: 168, height: 208 };
+    const stack = { left: 676, top: 12, right: 716, bottom: 540, width: 40, height: 528 };
+    const box = gizmoCssBox(canvas, 72, MARGIN_CSS, [view, stack]);
+    assert.equal(box.top, MARGIN_CSS);
+    assert.equal(box.left, 500 - MARGIN_CSS - 72);
+  });
+
+  it("uses a rail slot when one is given", () => {
+    const view = { left: 500, top: 12, right: 668, bottom: 220, width: 168, height: 208 };
+    const stack = { left: 676, top: 12, right: 716, bottom: 540, width: 40, height: 528 };
+    const slot = { left: 356, top: 12, right: 500, bottom: 156, width: 144, height: 144 };
+    const box = gizmoCssBox(canvas, 144, MARGIN_CSS, [view, stack], slot);
+    assert.equal(box.left, 356);
+    assert.equal(box.top, 12);
+    assert.equal(box.size, 144);
+  });
+
+  it("ignores left-side chrome", () => {
+    const brand = { left: 12, top: 12, right: 180, bottom: 56, width: 168, height: 44 };
+    const box = gizmoCssBox(canvas, 96, MARGIN_CSS, [brand]);
+    assert.equal(box.left, 800 - MARGIN_CSS - 96);
+  });
+
+  it("ignores a bottom timeline that does not occupy the top-right", () => {
+    const rail = { left: 12, top: 520, right: 788, bottom: 576, width: 776, height: 56 };
+    const box = gizmoCssBox(canvas, 96, MARGIN_CSS, [rail]);
+    assert.equal(box.left, 800 - MARGIN_CSS - 96);
+  });
+
+  it("ignores a full-width bar so the cube stays in the top-right", () => {
+    const bar = { left: 0, top: 0, right: 800, bottom: 80, width: 800, height: 80 };
+    const box = gizmoCssBox(canvas, 96, MARGIN_CSS, [bar]);
+    assert.equal(box.left, 800 - MARGIN_CSS - 96);
+    assert.equal(box.top, MARGIN_CSS);
+  });
+});
+
+describe("gizmoOnScreen", () => {
+  it("is desktop orbit only", () => {
+    assert.equal(gizmoOnScreen({}), true);
+    assert.equal(gizmoOnScreen({ coarse: true }), false);
+    assert.equal(gizmoOnScreen({ narrow: true }), false);
+    assert.equal(gizmoOnScreen({ ar: true }), false);
+  });
+});
+
+describe("gizmoScissor", () => {
+  it("stays in CSS pixels so Three.js can apply the pixel ratio", () => {
+    const canvas = { left: 0, top: 0, right: 800, bottom: 600 };
+    const box = { left: 500, top: 12, size: 144 };
+    const s = gizmoScissor(box, canvas, 800, 600);
+    assert.equal(s.size, 144);
+    assert.equal(s.x, 500);
+    assert.equal(s.y, 600 - 12 - 144);
+  });
+});
+
+describe("viewFromLocalNormal", () => {
+  it("maps engine axes onto product X/Y/Z", () => {
+    assert.deepEqual(viewFromLocalNormal(1, 0, 0), { axis: "x", sign: 1 });
+    assert.deepEqual(viewFromLocalNormal(-1, 0, 0), { axis: "x", sign: -1 });
+    assert.deepEqual(viewFromLocalNormal(0, 0, 1), { axis: "y", sign: 1 });
+    assert.deepEqual(viewFromLocalNormal(0, 1, 0), { axis: "z", sign: 1 });
+    assert.deepEqual(viewFromLocalNormal(0, -1, 0), { axis: "z", sign: -1 });
   });
 });
 

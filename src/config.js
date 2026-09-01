@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -53,6 +53,8 @@ export const DEFAULTS = {
   sourceKind: "conway",
   countDemoUrl: "data/ignition_stack.npy",
   countDemoName: "ignition_stack",
+  wolkeUrl: "http://127.0.0.1:5055",
+  wolkeToken: "evt",
 };
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];

@@ -13,6 +13,91 @@ import { visibleTimeSpan } from "./spacetime.js";
 
 export const COUNT_LUT_CAP = 32;
 
+/** Occupancy above this is a dense brick (MRI), not a sparse event cloud. */
+export const DENSE_OCCUPANCY = 0.15;
+
+/** Inclusive slice count for the auto Inspect window on a dense cube. */
+export const DENSE_SLAB_SLICES = 8;
+
+export function countOccupancy(vol) {
+  const cells = (vol.width | 0) * (vol.height | 0) * (vol.nT | 0);
+  if (cells <= 0) return 0;
+  return vol.count / cells;
+}
+
+export function isDenseCount(vol) {
+  return Boolean(vol) && countOccupancy(vol) > DENSE_OCCUPANCY;
+}
+
+/**
+ * Mid-volume Inspect slab as stack back-offsets (Now = 0).
+ * `slices` is inclusive (8 → far-near = 7).
+ */
+export function denseSlabBacks(vol, slices = DENSE_SLAB_SLICES) {
+  const max = Math.max(0, (vol.newestT() | 0) - (vol.oldestT() | 0));
+  const thick = Math.min(max, Math.max(0, (slices | 0) - 1));
+  const midT = ((vol.oldestT() | 0) + (vol.newestT() | 0)) >> 1;
+  let foc = Math.min(max, Math.max(0, (vol.newestT() | 0) - midT));
+  let near = Math.max(0, foc - (thick >> 1));
+  let far = near + thick;
+  if (far > max) {
+    far = max;
+    near = Math.max(0, far - thick);
+  }
+  if (foc < near) foc = near;
+  if (foc > far) foc = far;
+  return { nearBack: near, focusBack: foc, farBack: far };
+}
+
+/**
+ * Translate a dense slab toward Now (`step` < 0) or the past. Wraps at 0
+ * to the oldest window so Play walks through the brick.
+ */
+export function slideDenseSlabBacks(nearBack, focusBack, farBack, maxBack, step = -1) {
+  const max = Math.max(0, maxBack | 0);
+  const near0 = Math.min(max, Math.max(0, nearBack | 0));
+  const far0 = Math.min(max, Math.max(near0, farBack | 0));
+  const thick = far0 - near0;
+  const focOff = Math.min(thick, Math.max(0, (focusBack | 0) - near0));
+  const d = step | 0;
+  if (d === 0) {
+    return { nearBack: near0, focusBack: near0 + focOff, farBack: far0 };
+  }
+  let near = near0 + d;
+  if (near < 0) near = Math.max(0, max - thick);
+  else if (near + thick > max) near = 0;
+  return { nearBack: near, focusBack: near + focOff, farBack: near + thick };
+}
+
+/**
+ * True when all six neighbors are occupied *and* inside the drawn slab.
+ * `slice` is `{ axis, lo, hi }` for an X/Y window; Z uses `[tLo, tHi]`.
+ * A neighbor outside the slab or empty (air / OOB) means the voxel is visible.
+ */
+export function countIsEnclosed(occ, width, height, nT, x, y, t, tLo, tHi, slice = null) {
+  const w = width | 0;
+  const h = height | 0;
+  const nt = nT | 0;
+  const axis = slice && (slice.axis === "x" || slice.axis === "y") ? slice.axis : "z";
+  const sLo = axis === "z" ? tLo : slice.lo | 0;
+  const sHi = axis === "z" ? tHi : slice.hi | 0;
+  const occAt = (nx, ny, tt) => {
+    if (tt < tLo || tt > tHi) return false;
+    if (tt < 0 || tt >= nt || nx < 0 || nx >= w || ny < 0 || ny >= h) return false;
+    const v = axis === "x" ? nx : axis === "y" ? ny : tt;
+    if (v < sLo || v > sHi) return false;
+    return occ[(tt * h + ny) * w + nx] !== 0;
+  };
+  return (
+    occAt(x - 1, y, t) &&
+    occAt(x + 1, y, t) &&
+    occAt(x, y - 1, t) &&
+    occAt(x, y + 1, t) &&
+    occAt(x, y, t - 1) &&
+    occAt(x, y, t + 1)
+  );
+}
+
 function product(shape) {
   let n = 1;
   for (let i = 0; i < shape.length; i++) n *= shape[i];
@@ -91,6 +176,14 @@ export class CountVolume {
       }
     }
     this._off[this.nT] = this.count;
+    const cells = this.nT * this.height * this.width;
+    this._occ = new Uint8Array(cells);
+    for (let i = 0; i < this.count; i++) {
+      const t = this.t[i];
+      const y = this.y[i];
+      const x = this.x[i];
+      this._occ[(t * this.height + y) * this.width + x] = 1;
+    }
   }
 
   oldestT() {
@@ -127,6 +220,12 @@ export class CountVolume {
           }
         : visibleTimeSpan(tFocus, tRef, this.oldestT(), window);
     const { tLo, tHi } = span;
+    const axis = opts.sliceAxis === "x" || opts.sliceAxis === "y" ? opts.sliceAxis : "z";
+    const sliceLo = opts.sliceLo == null ? 0 : opts.sliceLo | 0;
+    const sliceHi = opts.sliceHi == null
+      ? (axis === "x" ? this.width - 1 : axis === "y" ? this.height - 1 : tHi)
+      : opts.sliceHi | 0;
+    const slice = axis === "z" ? null : { axis, lo: sliceLo, hi: sliceHi };
     const useStab = opts.stabScale !== false && (opts.stabMode === "time" || opts.stabMode === "focus");
     const hi = Math.max(1, this.ceiling);
     let n = 0;
@@ -136,6 +235,13 @@ export class CountVolume {
       const b = this._off[t + 1];
       if (a == null || b == null) continue;
       for (let i = a; i < b; i++) {
+        const vx = this.x[i];
+        const vy = this.y[i];
+        if (axis === "x" && (vx < sliceLo || vx > sliceHi)) continue;
+        if (axis === "y" && (vy < sliceLo || vy > sliceHi)) continue;
+        if (countIsEnclosed(this._occ, this.width, this.height, this.nT, vx, vy, this.t[i], tLo, tHi, slice)) {
+          continue;
+        }
         if (n >= soa.capacity) {
           truncated = true;
           soa.count = n;
@@ -143,8 +249,8 @@ export class CountVolume {
           return soa;
         }
         const v = this.v[i];
-        soa.x[n] = this.x[i];
-        soa.y[n] = this.y[i];
+        soa.x[n] = vx;
+        soa.y[n] = vy;
         soa.t[n] = this.t[i];
         soa.v[n] = v;
         soa.k[n] = Math.min(hi, v);

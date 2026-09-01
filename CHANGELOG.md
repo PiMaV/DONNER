@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-01
+
 ### Added
 
-- CAD viewcube (desktop and phone orbit, not AR): product X/Y/Z, rotates with the camera, click a face to snap that view.
+- Count **Stream**: WOLKE-contract viewer (Socket.IO notify + HTTP GET `.npy`) so the EVT sidecar can push a 3D count cube into the existing adapter. Defaults `http://127.0.0.1:5055` / token `evt`. The cube GET goes through same-origin `/stream-npy` on the DONNER static server so Chrome Local Network Access / CORS cannot hide a sidecar download that already logged.
+- CAD viewcube (**desktop orbit only**, not phone or AR): product X/Y/Z, rotates with the camera, click a face to snap that view.
 - Slice-axis control on the stack (X / Y / Z). Default stays Z (time). Gold slab grips work on the chosen axis; Play still owns time.
 - Bench **Cube cap** (default 200 000, up to 4 000 000) so the instance envelope is a setting, not a hard constant.
 
@@ -17,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Bird** is now **Parallax** (default on = perspective). Off is orthographic at the current look, not a forced top-down 2D viewer. `B` / Escape toggle it. HUD shows `ORTHO` when off.
 - **Align to Z** (default on) keeps orbit on the time axis at the brick center. Off allows free pan (XY translation). Ortho always pans.
+- CAD viewcube sits **left of the View card** in a rail slot (144 px, sharp at HiDPI), not under Now / the Z stack. Desktop View HUD collapses via the **View** heading. Hidden on phone.
+- LAN / HTTPS servers send `Permissions-Policy: xr-spatial-tracking=(self)` so Android Chrome can still offer WebXR AR after a browser update.
+- X/Y slice: cubes are solid on the cyan plane, ghost toward the gold grips, and vanish at the cuts (Z still hard-clips the time window in the SoA).
+- **Decay** stays a Z/time fade (oldest drawn → dark). It does not drive the X/Y proximity fade.
+- Dense count cubes (occupancy above 15 %, e.g. the local MNI T1) open on a mid-volume **slab** (~8 slices) on Z, X, or Y, skip voxels enclosed inside that window, and turn Decay off. **Play** walks the window. Ghost-to-gold X/Y fade stays for sparse stacks only.
+
+### Fixed
+
+- LAN HTTP/HTTPS servers no longer dump a traceback when a client drops the connection mid-request.
 
 ## [0.3.0] - 2026-08-31
 

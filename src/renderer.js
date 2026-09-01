@@ -7,14 +7,16 @@
  *
  * Product Z = 0 is the focus plane (`tFocus`). Engine Y-up stores that as
  * world Y = 0. Slices with t > tFocus sit above as a transparent ghost.
+ * Dense count X/Y uses the same one-sided rule along the slice axis
+ * (`sliceStackGhost`); sparse X/Y still fades both ways to the gold grips.
  */
 
 import * as THREE from "three";
 import { COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
-import { eventOnSlice, normalizeSliceAxis } from "./axes.js";
+import { eventOnSlice, normalizeSliceAxis, sliceViewMode } from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
-import { depthFade } from "./fade.js";
+import { depthFade, sliceDistanceFade } from "./fade.js";
 import { isolationWeight } from "./observe.js";
 
 function seedInstanceColors(mesh, maxCount, color) {
@@ -91,6 +93,7 @@ export class CubeRenderer {
    *   sliceLo?: number,
    *   sliceHi?: number,
    *   sliceFocus?: number,
+   *   sliceStackGhost?: boolean,
    *   encodingMinimal?: boolean,
    * }} view
    */
@@ -108,6 +111,10 @@ export class CubeRenderer {
     const sliceLo = view.sliceLo;
     const sliceHi = view.sliceHi;
     const sliceFocus = view.sliceFocus ?? (sliceAxis === "z" ? tFocus : 0);
+    const { stackGhost, spatialFade } = sliceViewMode(sliceAxis, {
+      sliceOnly,
+      sliceStackGhost: view.sliceStackGhost,
+    });
     const minimal = Boolean(view.encodingMinimal);
     const n = Math.min(soa.count, this.maxCount);
     const dummy = this._dummy;
@@ -120,7 +127,9 @@ export class CubeRenderer {
 
     for (let i = 0; i < n; i++) {
       const t = soa.t[i];
+      const along = sliceAxis === "x" ? soa.x[i] : sliceAxis === "y" ? soa.y[i] : t;
       const dt = t - tFocus;
+      const dGhost = stackGhost ? along - sliceFocus : dt;
       if (
         !eventOnSlice(sliceAxis, soa.x[i], soa.y[i], t, {
           lo: sliceLo,
@@ -130,6 +139,12 @@ export class CubeRenderer {
         })
       ) {
         continue;
+      }
+      let spatialW = 1;
+      if (spatialFade) {
+        const along = sliceAxis === "x" ? soa.x[i] : soa.y[i];
+        spatialW = sliceDistanceFade(along, sliceFocus, sliceLo, sliceHi);
+        if (spatialW <= 0) continue;
       }
       dummy.position.set(
         (soa.x[i] - ox) * cell,
@@ -142,23 +157,28 @@ export class CubeRenderer {
         ? SCALE_UNIFORM
         : encodingFill(k, soa.s[i], view.stabMode, this._warmupK);
       const field = isolationWeight(isolate, soa.x[i], soa.y[i]);
+      const offPlane = spatialW < 1;
 
-      if (field < 1) {
+      if (field < 1 || offPlane) {
         const ageFade =
-          dt > 0
-            ? Math.exp(-GHOST_FALLOFF * dt)
-            : depthFade(Math.max(0, -dt), fadeSpan, decayOn);
+          dGhost > 0
+            ? Math.exp(-GHOST_FALLOFF * dGhost)
+            : depthFade(Math.max(0, -dGhost), fadeSpan, decayOn);
         dummy.scale.setScalar(cell * fill * 0.88);
         dummy.updateMatrix();
         this.ghost.setMatrixAt(iGhost, dummy.matrix);
-        color.copy(kind).multiplyScalar(field * (0.45 + 0.55 * ageFade));
+        const tone =
+          field < 1
+            ? field * (0.45 + 0.55 * ageFade) * spatialW
+            : (0.35 + 0.5 * ageFade) * spatialW;
+        color.copy(kind).multiplyScalar(tone);
         this.ghost.setColorAt(iGhost, color);
         iGhost += 1;
         continue;
       }
 
-      if (dt > 0) {
-        const fade = Math.exp(-GHOST_FALLOFF * dt);
+      if (dGhost > 0) {
+        const fade = Math.exp(-GHOST_FALLOFF * dGhost);
         dummy.scale.setScalar(cell * fill * (0.7 + 0.2 * fade));
         dummy.updateMatrix();
         this.ghost.setMatrixAt(iGhost, dummy.matrix);
@@ -166,7 +186,7 @@ export class CubeRenderer {
         this.ghost.setColorAt(iGhost, color);
         iGhost += 1;
       } else {
-        const age = -dt;
+        const age = -dGhost;
         const w = depthFade(age, fadeSpan, decayOn);
         const onFocus = age < 0.5;
         dummy.scale.setScalar(cell * fill);
