@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.5.0";
+export const VERSION = "0.6.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
