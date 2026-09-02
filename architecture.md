@@ -92,12 +92,12 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, **Planes** toggle, three slice rails (X/Y/Z), shade (Hull/Ghost/Triple), Play (Live/Inspect), Depth (live wake), Decay, cache tape, FPS/INST | Sheet **View** + right display HUD; Play outside the sheets |
-| **Source** | Kind switch. Conway / Ignition / MNI 152 / Count file-stream. Conway: Pattern, Seed, Wrap, Grid, Step, Reset, Edit; HUD GEN / LIVE / RATE. Count: `.npy` / WOLKE stream; HUD T / LIVE / SUM / MAX | Sheet **Source** (own left card) + right source HUD |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/moving/unsettled/base + None/Time/Focus. Count: integer rungs (cyan → gold → coral) + optional size-by-count. Polarity later. | Block inside the **View** sheet. LUT in `src/encoding.js` |
-| **Bench** | Path timers, GPU/software probe, Neighborhood none/3×3/5×5, presets | Block inside the **View** sheet |
+| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Stability, Cube cap | Sheet **View** + right display HUD |
+| **Source** | Kind switch. Conway / Ignition / MNI 152 / Count file-stream. Play/Pause (Conway and time stacks). Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit; stats GEN / LIVE / RATE. Count: `.npy` / WOLKE stream; stats T / LIVE / SUM / MAX | Sheet **Source** (config + stats, top of the left rail) |
+| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/unsettled/base + None/Time/Focus. Count: integer rungs (cyan → gold → coral); color only, no size-by-count. Polarity later. | Color coding block inside the **View** sheet. LUT in `src/encoding.js` |
 
-**Play** is one display button, always visible outside the sheets.
+**Play** is on the Source sheet (Conway and time-evolving stacks; hidden
+for static MNI). AR overlay still has Play after spawn.
 For Conway, **Play** is Live View: the generator runs, the playhead stays
 at Now, the Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer
 opens its RAM tape, Z is gen 0 … cached Now, and **every cached slice is
@@ -105,37 +105,50 @@ drawn**. Play from Inspect jumps to live Now (no tape replay). A **count
 stack** loads already-complete, so it opens in Inspect; **Play** scrubs
 the **active** playhead (X, Y, or Z). Dense MRI gold starts at full
 extent. **Depth** is live-only GPU wake (hidden
-in Inspect). **Decay** and the cache are viewer-owned. Decay is on/off:
-fade toward the oldest drawn slice (live: back of Depth; inspect: tape start).
+in Inspect). **Decay** is off (Z/time fade later / opt-in; cache is
+viewer-owned). When on it would fade toward the oldest drawn slice
+(live: back of Depth; inspect: tape start).
 
 The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX` or
 `countKindHex`, `encodingFill`). Do not move GEN into Encoding.
 
-The left chrome is two sheets, not one mixed panel:
+The left chrome is one stacked rail, not two persistent columns:
 
 ```mermaid
 flowchart TB
   subgraph view [View display]
     bird[Parallax]
     align[Align to Z]
-    win[Depth live Decay shade Hull Ghost Triple Cache]
-    enc[Encoding]
-    bench[Bench]
+    win[Depth live Gap shade Hull Ghost Cuts Cache]
+    color[Color coding]
+    stab[Stability Conway]
+    cap[Cube cap]
+    fps[Realtime FPS]
   end
-  subgraph source [Source slot]
+  subgraph source [Source]
     kind[Conway or Count]
+    play[Play Pause]
     gen[GEN LIVE RATE or T LIVE SUM]
-    conway[Pattern Seed Speed Edit]
+    conway[Pattern Fill Seed Speed Edit]
     npy[npy cube]
     stream[WOLKE stream]
   end
   view --> volume[Volume]
-  playT[Play transport]
-  playT --> volume
+  play --> volume
   source --> volume
+  kind --> play
   kind --> conway
   kind --> npy
   npy --> stream
+```
+
+```mermaid
+flowchart TB
+  subgraph rail [Left rail]
+    srcFold[Source fold config plus stats]
+    viewFold[View fold inspect plus color]
+    srcFold --> viewFold
+  end
 ```
 
 ```mermaid
@@ -205,7 +218,7 @@ flowchart TB
   tNow --> origin
   tFocus --> plane
   plane --> origin
-  origin --> below[Past: solid + decay]
+  origin --> below[Past: solid]
   origin --> above[Newer: transparent ghost]
 ```
 
@@ -218,8 +231,8 @@ isolation is deferred (later: rectangle select). Scrub the **stack**
 along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
 handles: samples outside the band are not drawn. On X/Y, cells inside the
 band fade from the playhead plane (ghost) and vanish at the clip grips unless
-the viewcube cut is on. **Decay** defaults off; when on it is only along
-Z (time) and does not drive that spatial fade.
+the viewcube cut is on. **Decay** is off (later / opt-in along Z/time
+only; it does not drive that spatial fade).
 
 ## Mapping
 
@@ -247,7 +260,7 @@ flowchart LR
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
 | Time | generation | bin index (Δt slice) | Z (Now at 0; playhead walks the stack) | world Y |
 | Value | alive = 1 | integer count | — | `v` |
-| Dynamics | still / osc / moving / unsettled / base | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
+| Color coding | still / osc / unsettled / base | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
 not the destination. The first event-camera path is an EVT **count** cube
@@ -267,9 +280,9 @@ Present sits at generation `tNow` and is always product **Z = 0** (engine Y = 0)
 The **playhead** is `tFocus` (`tNow` minus a scrub offset): a plane that
 moves through that still stack, same contract as X/Y. Older slices sit
 below Now; newer slices sit **above as a transparent ghost**
-so the live generation stays readable. Decay weights the past under the
-playhead; **Depth** is the live wake (how many slices are cubes while the
-generator runs — the control formerly labeled History / Window). Older
+so the live generation stays readable. Depth is the live wake (how many
+slices are cubes while the generator runs — the control formerly labeled
+History / Window). Older
 gens fall off the live volume when the run passes Depth. They stay on
 the RAM tape; **Pause** draws that whole tape.
 
@@ -279,34 +292,28 @@ This split matches the later event-camera design:
   load already-complete, so they open in Inspect).
 - **Playhead (Z stack)** — Conway Live: locked at Now. Inspect / count:
   position on the tape. Count **Play** auto-scrubs that playhead.
-- **Decay** — on: fade to 0 at the oldest drawn slice. Off: even brick.
+- **Decay** — later / opt-in Z fade. Off: even brick.
 - **Encoding** — color and fill from the source adapter (Conway: worldline
-  class still / oscillator / moving / unsettled / base; count: integer rungs)
+  class still / oscillator / unsettled / base; count: integer rungs)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
-color. A still life is a gold pillar. A glider is a BLITZ-red **moving
-tube** — the curve through XY+Z. Soup and one-shot births are violet
-**unsettled**. Occupancy of one pixel is not enough: a spaceship overlapping
-a cell for a few gens looks still/osc on that worldline. Occupancy-only
-(Neighborhood **None**, the default) is enough for Blinker/Toad. Still/osc vs
-glider tubes need a 3×3 or 5×5 centroid that stays put (net shift over two
-generations). Translating activity is then **moving**. **Base** (gray) is
+color. A still life is a gold pillar. Soup and one-shot births are violet
+**unsettled**. Occupancy classifies each `(x, y)` worldline in place.
+Translating ships read as still/osc on the cells they cross. **Base** (gray) is
 generations `t = 0, 1` and the first cube of each `(x, y)` worldline.
 Cube **scale** follows Stability **None / Time / Focus** from `s`
 stamped on each Conway slice (run-length along Z). Toggles and Focus are
-`setEvents` lookups, not a `stabilityAge` rebuild. Count uses the same
-`s` slot for magnitude (**Size by count**), also display-only.
-Decay is brightness only.
+`setEvents` lookups, not a `stabilityAge` rebuild. Count / MNI keep
+uniform occupancy size; color carries the integer ramp.
+Decay is brightness only (off in the UI).
 
 ```mermaid
 flowchart TD
   live[Live cell at t]
   live --> wu{t less than 2 or first live on this xy}
   wu -->|yes| base[Base gray]
-  wu -->|no| mot{Neighborhood centroid translated}
-  mot -->|yes| moving[Moving coral]
-  mot -->|no| prev{Live at t-1}
+  wu -->|no| prev{Live at t-1}
   prev -->|yes| still[Still gold]
   prev -->|no| per{Occupancy period 2 to 15}
   per -->|yes| osc[Oscillator cyan]
@@ -366,8 +373,9 @@ playhead. If a clip index equals the playhead, that
 clip is hidden. Playhead bars are thicker and brighter. Hover a **frame
 edge** (~28 px screen rim, **move** cursor) to light that ring and grab it; fills are not
 hit targets. Drag follows the axis in **screen space** (a grazing look cannot
-explode X/Y). **Planes** under the viewcube hides the 3D frames (default on);
-a viewcube cut still shows the current plane.
+explode X/Y). **Hide center** hides playhead frames and the slice grid;
+**Hide outer** hides clip / bound frames (viewcube shortcuts on desktop).
+A viewcube cut still shows the current plane.
 The right-hand rails stay as a dimmer second path.
 
 A viewcube **face** is a true 2D cut: orthographic, fitted to that
@@ -410,12 +418,12 @@ flowchart TB
 |------|------|---------------|-----------|
 | **Hull** (default) | AABB outer hull solid | Temporary peek (Ghost, or Slice on dense count) | Stays hull (stake the box) |
 | **Ghost** | Sparse: AABB ghost, active plane solid. Dense: the cut only | unchanged | Hull while dragging |
-| **Triple** | Three cut planes solid, no hull | unchanged | Hull while dragging |
+| **Cuts** (`triple`) | Three cut planes solid, no hull | unchanged | Hull while dragging |
 
 Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
 shows the hull so the crop is readable. Dense MRI never instantiates interior
-voxels (6-neighbor cull against the AABB). Ghost/Triple emit interiors
-only if they sit on a playhead plane. Triple never emits the hull; dense Ghost
+voxels (6-neighbor cull against the AABB). Ghost/Cuts emit interiors
+only if they sit on a playhead plane. Cuts never emits the hull; dense Ghost
 is that one plane only.
 
 ```mermaid
@@ -431,7 +439,7 @@ flowchart LR
     hullMode[Hull: hull solid]
     ghostMode[Ghost sparse: hull ghost, active plane solid]
     sliceMode[Ghost dense / Slice: active plane only]
-    tripleMode[Triple: three planes solid, no hull]
+    tripleMode[Cuts: three planes solid, no hull]
   end
   emit --> draw
 ```
@@ -442,6 +450,9 @@ stays Z-only.
 
 Inspect generations outside the AABB are **not drawn**. **Fit** frames
 that box. **Full** opens the three clip windows again (playhead stays).
+**Reset Planes** opens the clips and centers the three playheads (does not
+move the camera; does not run when switching to Cuts). Load, pattern
+change, and source change start on that pose.
 Live: only the Z playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
 distance fog.
@@ -461,8 +472,9 @@ A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
 HUD card (desktop orbit only). Six axis-colored **face frames** (X
 cornflower, Y maize, Z mint), a rim, and X/Y/Z labels on the + faces.
 Hover lights the face; click enters the 2D cut. Clicking the **same face**
-pages like Shift+wheel (zoom/pan stay). **Planes** under the cube
-toggles the 3D playhead/clip frames (default on). Wheel zooms, right-drag
+pages like Shift+wheel (zoom/pan stay). **Hide center** / **Hide outer**
+under the cube hide playhead+grid vs clip frames (default both visible).
+Wheel zooms, right-drag
 pans, Shift+wheel pages. `B` restores perspective and the drawn slab.
 The stack
 slider stays in the cut.
@@ -521,7 +533,7 @@ flowchart LR
   para[Parallax on off]
   align[Align to Z]
   slice[Three rails XYZ]
-  shade[Hull Ghost Triple]
+  shade[Hull Ghost Cuts]
   cam[Orbit or ortho camera]
   vol[Drawn slab or cut]
   gizmo --> cam
@@ -542,27 +554,26 @@ or cube hover outlines. Edit paint on the Z playfield is unchanged.
 
 ## Display HUD vs source HUD
 
-Desktop: two telemetry cards plus **three** slice rails to their right, Play
-under the rails. The View card heading collapses the display stats.
+Desktop: one View telemetry card plus **three** slice rails to their right.
+Play and source stats live in the Source fold (top of the left rail).
+The View card heading collapses the display stats.
 Phone: FPS chip (tap expands the View card); three horizontal tracks
-and Play at the bottom; source stats in the Source sheet. No viewcube.
+and Source | View folds; source stats in the Source sheet. No viewcube.
 
 ```mermaid
 flowchart TB
   subgraph desktop [Desktop]
-    sheetD[View sheet plus Source sheet]
+    sheetD[Source fold then View fold]
     volD[Volume]
-    hudD[View plus Source HUD]
+    hudD[View HUD]
     zD[X Y Z vertical rails]
-    playD[Play under rails]
     sheetD --> volD
     hudD --> zD
-    zD --> playD
   end
   subgraph phone [Phone]
     volP[Volume]
     zP[Three horizontal tracks Z Now at right]
-    barP[View and Source folds plus Play center]
+    barP[Source and View folds]
     chipP[FPS chip]
     volP --> zP
     zP --> barP
@@ -575,10 +586,11 @@ flowchart TB
   times are raw; the 100 ms clamp is simulation catch-up only, so FPS is
   not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
   Cliff-finder: scale Depth until FPS and 1% low hold. A clear
-  software rasterizer adds **SOFTWARE**. Path timers and GPU strings live
-  in the control-sheet **Bench** block, not this card.
+  software rasterizer adds **SOFTWARE**. Path timers stay internal
+  (`src/bench.js`); they are not a View sheet.
 - **Source** — Conway: GEN, LIVE, RATE (generations/s, not frame rate),
   EDIT. Count: T, LIVE, SUM, MAX, RATE (playhead/s while Play scrubs).
+  Those lines live in the Source fold, not a second right-rail card.
 
 The Z stack is a tick rail, not a HUD card: **Now**, the bar, the
 generation beside the handle. Ends are **absolute** generations (oldest
@@ -591,7 +603,7 @@ grow the DOM.
 | File | Role |
 |------|------|
 | `src/conway.js` | B3/S23, seeds, wrap — port of BLITZ `blitz/data/conway.py` |
-| `src/dynamics.js` | Worldline class still / oscillator / moving / unsettled / base |
+| `src/dynamics.js` | Worldline occupancy class still / oscillator / unsettled / base |
 | `src/spacetime.js` | Generation ring → `EventSoA` (`x, y, t, v, k`) |
 | `src/focus.js` | `tFocus` vs `tNow` (scrub clamp) |
 | `src/frame.js` | Playhead/clip insets, screen-space edge pick (~28 px rim) |
@@ -629,12 +641,18 @@ The cube renderer is the first implementation, not the only one. A later
 points / shader path should keep:
 
 ```text
-setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, isolate, activeAxis, aabb, foci, shade, sliceOnly, stabMode })
+setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, voxelGap, isolate, activeAxis, aabb, foci, shade, sliceOnly, stabMode })
 ```
 
 Color `k` and fill `s` are encoding fields. The renderer indexes
 `src/encoding.js` (`CONWAY_KIND_HEX` or `countKindHex`, `encodingFill`)
 and does not import Conway dynamics.
+
+View **Gap** (`voxelGap`) is display lattice spacing: pitch =
+`cellSize × (1 + gap)`. Cube edge stays `cellSize × fill`. Gap **0**
+packs faces (occupancy fill is 1). Frames and picking use the same pitch.
+AR places that same local layout; Size still maps 32 cube edges to 40 cm,
+so opening Gap grows the brick on the table.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
@@ -805,19 +823,18 @@ Inspect (Pause)
  all cached slices are cubes; Z only moves the plane
 ```
 
-**Decay** (View, on/off) fades to 0 at the **oldest drawn slice**. Live
-that is the back of Depth; Inspect that is gen 0 (or the tape start).
-Off = even brick.
+**Decay** is off in the UI (later / opt-in). When on it fades to 0 at
+the **oldest drawn slice**. Live that is the back of Depth; Inspect that
+is gen 0 (or the tape start). Off = even brick.
 
 Cache status lives in View. Conway Source does not own Depth, Decay, or
 the tape. Caps: 4096 gens or 400 000 cells, then `full` (recording from
 the start stops). Reset starts a new tape. Changing Depth resizes the
-wake ring only. The instance cap (Bench **Cube cap**, default 200 000)
+wake ring only. The instance cap (View **Cube cap**, default 200 000)
 still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
 envelope.
 
-Neighborhood default is **none**. 3×3 / 5×5 is the motion gate (CPU cliff
-at 5×5). Dynamics and Stability stay on for teaching.
+Color coding defaults on for teaching. Conway Stability defaults to Time.
 
 ## Dirty state
 
@@ -847,36 +864,32 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Decay, Stability None/Time/Focus, Size by count, encoding-minimal, Inspect **Hull** playhead (Focus still needs `setEvents`) | `setEvents` when instances or fill change; Hull + Decay off + Time/None skips even that (clip meshes only) |
-| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Triple** | `fillSoA` copies stamped `k`/`s`; Ghost/Triple still rebuild the occupancy list |
-| encoding | Neighborhood (restamp tape once), Dynamics on/off | Neighborhood: `stampAll` then fill. Dynamics: fill copies vs zeros `k`/`s`. **Not** Stability / Size-by-count |
+| view | Stability None/Time/Focus, Inspect **Hull** playhead (Focus still needs `setEvents`) | `setEvents` when instances or fill change; Hull + Decay off + Time/None skips even that (clip meshes only) |
+| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Cuts** | `fillSoA` copies stamped `k`/`s`; Ghost/Cuts still rebuild the occupancy list |
+| encoding | Color coding on/off | Color coding: fill copies vs zeros `k`/`s`. **Not** Stability |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
 | ring | Depth | wake `GenerationRing.resize` (keep newest slices) |
 
-**Force full rebuild** in Bench restores the old every-frame `fillSoA` +
+An internal `forceFullRebuild` flag (off) still restores every-frame `fillSoA` +
 `setEvents` for A/B. P2 does **not** yet append a single generation into the
 SoA or upload a GPU subrange — it refills the live wake or the inspect
-tape. Incremental append is the next cut if CPU Stress + Dynamics stays
+tape. Incremental append is the next cut if dense Random + Color coding stays
 hitchy while playing.
 
 Hover/`eventAt` runs only when the hovered cell, focus, or SoA changes.
 
-Bench `now` is **this frame**. Skipped paths record 0 (`work rend` ⇒ `soa`
-0). Rolling avg/max reset when a preset rebuilds the world — otherwise
-Teaching inherits CPU-Stress hitches. `bound CPU soa` vs `bound GPU fill`
+Path-timer `now` is **this frame**. Skipped paths record 0 (`work rend` ⇒ `soa`
+0). `bound CPU soa` vs `bound GPU fill`
 compares wall-clock frame time to the CPU paths. A paused 50k-cube volume
 on a retina canvas (DPR 2, ~2500²) can sit at ~24 FPS with `rend` CPU
-0.3 ms: that is fill-rate, not classification. Renderer Stress and CPU
-Stress then look the same **until you look at `soa now`**. Applying a
-preset starts Play.
+0.3 ms: that is fill-rate, not classification.
 
 ## Performance envelope
 
-Instanced cubes: one mesh, default 200 000 instances (Bench **Cube cap**
+Instanced cubes: one mesh, default 200 000 instances (View **Cube cap**
 up to 4 000 000). Conway is the synthetic
-load generator. Use the **Bench** sheet: path timers (`sim` / `soa` /
-`inst` / `hov` / `rend` CPU / `hud`), WebGL/software detection, feature
-toggles, presets.
+load generator. Realtime FPS is in View (and the display HUD). Software
+rasterizers still warn **SOFTWARE** on the FPS chip.
 
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`
 or `ext`. Do not treat CPU `rend` as GPU time.
@@ -885,40 +898,24 @@ If the unmasked renderer string matches llvmpipe, SwiftShader, Microsoft
 Basic Render Driver, or GDI Generic, the View HUD and FPS chip warn
 **SOFTWARE**. Missing unmasked strings are **unknown**, not a GPU claim.
 
-### Presets
+### Historical Node CPU (`fillSoA`, avg of 8, 2026-08-31)
 
-| Preset | Grid | Depth | Encoding |
-|--------|------|-------|----------|
-| **Teaching** | 32×32 Blinker | 48 | Full, Neighborhood none |
-| **Desktop** | 64×64 Blinker | 100 | Full, Neighborhood none |
-| **CPU Stress** | 64×64 Random | 100 | Dynamics on, Neighborhood none |
-| **Renderer Stress** | 64×64 Random | 100 | Dynamics off, constant color/size |
-
-Neighborhood **5×5** is the CPU cliff — turn it on in Bench to measure.
-Presets leave it off.
-
-Points renderer / million-event preset is later.
-
-### Node CPU baseline (`fillSoA`, avg of 8, this tree)
-
-Not FPS. Classification only, no Three.js. Measured 2026-08-31 on the
-dev Node process:
+Not FPS. Classification only, no Three.js. Neighborhood 5×5 was a
+motion-gate plaything (now removed); the row is kept as a cost record.
 
 | Case | `fillSoA` |
 |------|-----------|
-| Teaching 32 Blinker, dynamics on | ~1.3 ms (144 events) |
-| Same, dynamics off | ~0.02 ms |
-| Desktop 64 Blinker, dynamics on | ~1.5 ms (300 events) |
-| CPU Stress 64 Random, Depth 100, dynamics on, neighborhood 5×5 | ~315 ms (≈30k events) |
-| Same, dynamics off | ~0.14 ms |
-| Renderer Stress 64 Random, dynamics off | ~0.2 ms (≈51k events) |
-| Same soup if visible = resident = 1000, dynamics on | ~2.3 s and SoA truncates at 200k |
+| Teaching 32 Blinker, color coding on | ~1.3 ms (144 events) |
+| Same, color coding off | ~0.02 ms |
+| Desktop 64 Blinker, color coding on | ~1.5 ms (300 events) |
+| 64 Random, Depth 100, color coding on, neighborhood 5×5 (removed) | ~315 ms (≈30k events) |
+| Same, color coding off | ~0.14 ms |
+| 64 Random, color coding off | ~0.2 ms (≈51k events) |
+| Same soup if visible = resident = 1000, color coding on | ~2.3 s and SoA truncates at 200k |
 
-Takeaway: **Neighborhood 5×5 dominates** on dense soup; occupancy-only
-Dynamics is cheap. Depth stops the 200k cap. Camera-only frames skip
-`fillSoA` (Bench `work rend`). Playing at 8 gen/s with 5×5 on soup still
-hitches until slice-append exists. Measure GPU FPS in the Bench HUD; do
-not copy these Node numbers as frame rate.
+Takeaway: occupancy Color coding is cheap; the old 5×5 gate dominated.
+Depth stops the 200k cap. Camera-only frames skip `fillSoA`. Do not copy
+these Node numbers as frame rate.
 
 ## MRI volume (later)
 
@@ -948,7 +945,7 @@ flowchart TB
   faces --> soa
 ```
 
-Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. Sparse Ghost copies that hull plus the active plane. Dense Ghost / Triple emit only the cut plane(s).
+Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. Sparse Ghost copies that hull plus the active plane. Dense Ghost / Cuts emit only the cut plane(s).
 
 **Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
 [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
@@ -968,7 +965,7 @@ fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
 **and** inside the AABB, so idle Hull is ~140k surface cubes (under the
 200k default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
-Dense **Ghost** is the active plane only; **Triple** is the three planes
+Dense **Ghost** is the active plane only; **Cuts** is the three planes
 (no hull). Sparse Ghost still adds the hull as glass. Play/Loop steps the **active** playhead. Affine / RAS is ignored — the gizmo is array X/Y/Z.
 
 Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
@@ -1025,34 +1022,40 @@ flowchart LR
    is also later: same `.npy` interchange, not a NIfTI parser — see
    [MRI volume (later)](#mri-volume-later).
 3. **XR** — same scene, WebXR only. **XR-A is opened** (phone ceiling):
-   passthrough, plane hit-test (gold reticle tap re-places on a table),
-   viewer-front preview from the first frame (locks after a short wait if
-   no plane). After lock, **Yaw** turns the volume on the
-   table. Then walk with the phone as an IMU window. Default **stand** is
-   product Z (time up, gen 0 on the table); HUD **X / Y / Z** chooses which
-   product plane is the table. **Play** grows the tape along time; bounding
-   frames stay visible so you can walk the box; poke a cube to Ghost-isolate
-   the standing plane. Phone chrome is the DOM
-   overlay `#xr-overlay` (Play / Stand / Size / Yaw / Exit), not
-   `document.body`. **Quest must not request `dom-overlay`:** a fullscreen
-   overlay root covers passthrough even when CSS is transparent. Three.js
-   is told `local` if `local-floor` is missing, and `XRWebGLLayer` instead
-   of projection layers. **XR-C-0:** no in-world Play/stand/Exit plate
+   passthrough first (no brick). **Search Anchor** starts floor hit-test
+   (gold reticle on a horizontal floor plane; tap to spawn). The first
+   detected plane is **not** auto-committed, and a timeout does not lock.
+   **Reset Anchor** despawns and returns to search (overlay chrome taps
+   are guarded so Reset does not immediately re-place; a passthrough tap
+   still places). After lock, **Z** lifts the brick off the floor;
+   **Size** scales; **Yaw** turns it on the floor. **Stand** is hidden on
+   the phone overlay (renderer stand-axis stays for Quest). Outer bound /
+   clip frames are forced off for the phone session and restored on Exit;
+   center / playhead frames still draw after spawn. Phone chrome is the
+   DOM overlay `#xr-overlay` (Search Anchor / Play / Z / Size / Yaw /
+   Reset Anchor / Exit), not `document.body`. The overlay is 0×0 in orbit
+   so it does not cover the WebGL canvas; it expands for the session.
+   Overlay tap-guard is chrome only (passthrough taps still place).
+   **Quest must not request `dom-overlay`:** a fullscreen overlay root
+   covers passthrough even when CSS is transparent. Three.js is told
+   `local` if `local-floor` is missing, and `XRWebGLLayer` instead of
+   projection layers. **XR-C-0:** no in-world Play/stand/Exit plate
    (unreadable). Thumbstick yaws; both grips pinch size; grab a bounding
-   frame to slide the volume in the room. Headset-only — phone
-   `screen` overlay is unchanged. XR-B marker, hand tracking, and wrist
-   attach are later and do not gate C0. Detail in
+   frame to slide the volume in the room. Headset-only — phone `screen`
+   overlay is unchanged. Quest has no Search / Reset Anchor button; Exit
+   AR and enter again to place on another plane. XR-B marker, hand
+   tracking, and wrist attach are later and do not gate C0. Detail in
    [backlog.md](backlog.md).
    Do not start a new renderer in the same slice as XR.
 4. **Integration** — WOLKE-contract stream is in (sidecar / WOLKE →
    DONNER count cube). Later: Open in DONNER / send space-time ROI back
    to BLITZ. No shared widgets.
 
-Product **Z** (time) already stands on the playfield plane, so a table
-is a natural origin. In AR the **chosen stand plane** sits on the table
-(default Z: oldest slice / gen 0). **Play** grows the tape along time;
-clips crop in place. Phone
-orbit is still the non-AR fallback. One codebase: feature-detect
+Product **Z** (time) already stands on the playfield plane, so a floor
+is a natural origin. In phone AR the brick sits on that floor pose;
+**Z** on the overlay lifts it off the floor. **Play** grows the tape
+along time; clips crop in place. Phone orbit is still the non-AR
+fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
 laptop `start:lan`). The LAN/HTTPS servers send
@@ -1071,30 +1074,36 @@ flowchart LR
   phone -->|HTTPS LE| lab
   lab -->|reverse_proxy| laptop
   laptop --> xr[WebXR immersive-ar]
-  xr --> vol[Hit-test place on table]
+  xr --> vol[Hit-test place on the floor]
 ```
 
 ```mermaid
 flowchart TB
   enter[enterAr immersive-ar]
-  place[Hit-test place and lock]
+  idle[Passthrough no volume]
+  search[Search Anchor]
+  look[Look at the floor]
+  place[Tap gold reticle to lock]
+  reset[Reset Anchor]
   volume[stage then stand then turntable]
   overlay[XR-A DOM overlay screen]
-  frames[Grab frame to slide volume]
+  frames[Quest grab frame to slide volume]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
-  enter --> place --> volume
+  enter --> idle --> search --> look --> place --> volume
   volume --> overlay
   volume --> frames
+  volume --> reset
+  reset --> search
   frames --> hands
   place -.-> marker
 ```
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Viewer-front preview immediately; plane hit-test re-places (gold reticle); lock after tap or if no plane; yaw on the table; stand X/Y/Z; bounding frames; voxel poke isolates the standing plane. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-A** | Passthrough only on enter (no brick); **Search Anchor** then floor reticle; tap to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; **Z** height, Size, Yaw; Stand hidden on phone overlay; outer frames off in the session; center frames still draw. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Later; same phone AR; marker reused on Quest. Not a gate for C0. |
-| **XR-C-0** | Same hit-test / viewer-front as XR-A | Quest: no world HUD; stick yaw; grip-pinch size; grab frame slides the volume; poke |
+| **XR-C-0** | Headset still uses viewer-front until tap; phone Search overlay does not apply | Quest: no world HUD and no Search / Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
 
 ## WETTER context

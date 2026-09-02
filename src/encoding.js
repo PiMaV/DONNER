@@ -1,6 +1,7 @@
 /**
  * Encoding adapter: color LUT and fill for packed `k` / `s`.
- * Conway fills still/osc/moving/unsettled/base; a count stack fills integer rungs.
+ * Conway LUT still / osc / moving / unsettled / base; a count stack fills integer rungs.
+ * Moving is a LUT index (Color coding off), not a motion gate.
  */
 
 import { COLOR } from "./config.js";

@@ -1,6 +1,6 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.8.0";
+export const VERSION = "0.9.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -41,11 +41,16 @@ export const DEFAULTS = {
   pattern: "R-pentomino",
   seed: 42,
   density: 0.28,
+  densityMin: 0.05,
+  densityMax: 0.9,
+  densityStep: 0.01,
   gensPerSec: 8,
   decay: false,
   history: 48,
   cellSize: 1,
   timeScale: 1,
+  /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. */
+  voxelGap: 0,
   maxInstances: 200_000,
   cubeCapMin: 20_000,
   cubeCapMax: 4_000_000,
@@ -57,8 +62,6 @@ export const DEFAULTS = {
   maxStepCatchUp: 8,
   stabMode: "time",
   dynamics: true,
-  neighborhoodRadius: 0,
-  stabScale: true,
   encodingMinimal: false,
   forceFullRebuild: false,
   maxTapeSlices: 4096,
@@ -80,7 +83,29 @@ export function isCountSourceKind(kind) {
   return kind === "count" || Boolean(COUNT_DEMOS[kind]);
 }
 
+/** MRI / static volumes: no Conway Play/Speed transport. */
+export function isStaticSourceKind(kind) {
+  return kind === "mni152";
+}
+
+export function clampDensity(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULTS.density;
+  return Math.min(DEFAULTS.densityMax, Math.max(DEFAULTS.densityMin, v));
+}
+
 export const GRID_PRESETS = [16, 24, 32, 48, 64];
+
+/** View Gap slider: 0 packs MRI; 2 leaves two cube-widths of air. */
+export const VOXEL_GAP_MIN = 0;
+export const VOXEL_GAP_MAX = 2;
+export const VOXEL_GAP_STEP = 0.05;
+
+export function clampVoxelGap(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULTS.voxelGap;
+  return Math.min(VOXEL_GAP_MAX, Math.max(VOXEL_GAP_MIN, v));
+}
 
 export function clampCubeCap(n) {
   const v = Number(n);

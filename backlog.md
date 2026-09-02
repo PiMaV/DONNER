@@ -14,8 +14,8 @@ DOM overlay, `local` tracking, `XRWebGLLayer`). The in-world Play/stand/Exit
 plate is retired — confirm the four device follow-ups below on hardware
 (WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
-**Phase 2 — public preview.** Thin View; Bench off the primary workflow
-(see Chrome notes below). Curated Conway + EVT + volume demos. Deploy
+**Phase 2 — public preview.** Thin View (Bench and Neighborhood are already
+off the chrome). Curated Conway + EVT + volume demos. Deploy
 `https://donner.mess.engineering` (GitHub Pages + custom domain). Add
 DONNER to the WETTER landing page (sibling repo `WETTER/`). Retire the
 old M.E.S.S. Java/browser point-cloud showcase from the active site
@@ -87,31 +87,53 @@ empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meine
 
 ## Conway encoding cost
 
-Conway `s` is stamped per generation (along Z). None / Time / Focus and
-count **Size by count** are display. Neighborhood restamp stays.
+Conway `s` is stamped per generation (along Z). None / Time / Focus are
+display. Occupancy classification only. Count / MNI color the integer
+ramp; they do not size-by-count.
 
-**Later:** drop the Bench “Stability scaling” checkbox (Source Stability
-None is enough). Ghost/Triple still refill the occupancy list on
-playhead — next cut after stored `s`.
+Ghost/Triple still refill the occupancy list on playhead — next cut after
+stored `s`.
 
 ## Chrome (desktop / phone orbit — not XR-A)
 
-Keep the generator out of the viewer chrome. The left split (View card vs
-Source card) is a first cut, not the end state.
+Keep the generator out of the viewer chrome. The left rail (Source fold
+on top, View fold below) is the current shell, not the end state.
 
-- **Source off the rail.** Conway does not belong on the right HUD rail
-  (GEN / LIVE / RATE) or as a permanent left sheet beside View. Source
-  becomes its own surface: open when picking pattern / seed / grid, then
-  get out of the way. The volume and Z/Play stay viewer-only.
-- **Thin View.** The View sheet is too dense for teaching (Bench timers,
-  GPU strings, Neighborhood, presets, Encoding legend, cache line, …).
-  Strip View to display controls the human actually uses on the volume
-  (Parallax, Align to Z, Decay, Depth, maybe a one-line cache). Bench and debug telemetry
-  leave the teaching View (fold, flag, or a separate debug sheet).
+- **Source off the rail.** Conway does not belong on the right HUD rail.
+  After setup the Source fold is a static block the user collapses.
+  Later: Source becomes its own surface and leaves the viewer chrome;
+  the volume and Z/Play stay viewer-only.
+- **Thin View.** The View sheet can still slim for teaching
+  (Encoding legend, cache line, Cube cap). Strip View to display controls
+  the human actually uses on the volume
+  (Parallax, Align to Z, Depth, maybe a one-line cache). Do not shorten
+  all View labels in a toolbox pass yet.
 
 These are orbit-shell polish. XR-A already specifies a **thin overlay**
 (Play, Z, Exit) and must not wait on this cleanup — but the same instinct
 applies: AR chrome is not the desktop sheets.
+
+## Decay (later / opt-in)
+
+Z/time fade toward the oldest drawn slice is still in the renderer
+(`src/fade.js`, `DEFAULTS.decay` off). There is no Decay checkbox.
+Bring it back only as an explicit opt-in (sparse stacks). Dense MNI
+must keep it off. Do not put a dead toggle in View.
+
+## Bench (later / opt-in debug)
+
+Path timers in `src/bench.js` are internal. Always-on bench on the
+frame / rAF HUD stuttered; FPS recovered after it left the chrome.
+Later: an optional debug bench the human can open to diagnose, which
+**must not run on the hot path unless that sheet is open**. Do not
+put Bench back in Source/View chrome or the FPS card.
+
+## Legacy — Neighborhood
+
+Neighborhood (none / 3×3 / 5×5) was a filter plaything on the Conway
+demonstrator, from a time when coloring and filters were going to be a
+bigger deal. Occupancy classification is the only path now. Not a
+product feature.
 
 ## Visible sun (later)
 
@@ -219,6 +241,30 @@ Confirm on hardware after the session-fix (WWM). In this tree:
    rim is ~8 cm, not a 3 cm thread. Clip/playhead in XR is not this
    grab — phone sliders still crop; Quest crop-by-frame is later if
    needed.
+
+## AR (later)
+
+Phone AR chrome today (Search Anchor required, floor brick, Z height
+off the floor, outer bounds off) is the current session, not the later
+inspect model. These items are backlog, not Unreleased shipped intent.
+
+- **Volume inspect in AR.** A brain / MNI volume looks wrong as a floor
+  brick with height-off-floor and bounds hidden. In AR, bring back the
+  desktop inspect/crop model: three sliders plus three planes (playhead
+  and clip), not the current phone overlay (floor sit, Z lift, outer
+  frames off). Size and Yaw can stay for place; inspect is the stack.
+- **Anchor search on by default.** Entering AR should already be
+  searching (gold reticle as soon as a floor is in view). The user should
+  not have to press **Search Anchor** first. Current code waits for that
+  explicit press before spawn (`#btn-ar-search`); later default is the
+  opposite. This is not QR-door auto-enter AR (still a separate later).
+- **Remove the AR Z slider.** The overlay height-over-floor control was
+  a misunderstanding. Drop it in a later cut. Size still scales the
+  brick; Yaw still turns it.
+- **Optional: pick the floor plane.** Let the user choose which detected
+  plane is the ground or table the voxels sit on, not only “any
+  horizontal surface.” Walls stay ignored; among horizontal hits, pick
+  which plane is the sit surface.
 
 ## QR door (later)
 

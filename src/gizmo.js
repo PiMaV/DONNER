@@ -31,7 +31,7 @@ export {
 const AXIS_HEX = { x: AXIS_COLOR.x, y: AXIS_COLOR.y, z: AXIS_COLOR.z };
 const AXIS_CSS = { x: hexCss(AXIS_COLOR.x), y: hexCss(AXIS_COLOR.y), z: hexCss(AXIS_COLOR.z) };
 const RIM_HEX = 0xd8e4ee;
-const OVERLAY_SELECTORS = [".hud-cards", ".hud-engine", ".hud-source", ".stack", ".fps-chip"];
+const OVERLAY_SELECTORS = [".hud-cards", ".hud-engine", ".stack", ".fps-chip"];
 
 const CUBE = 1.4;
 const FACE = 1.22;

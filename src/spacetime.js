@@ -13,7 +13,7 @@
 
 import { collectLive } from "./conway.js";
 import { inAabb } from "./axes.js";
-import { KIND_MOVING, kindAt, kindOptsRadius, stabilityAge } from "./dynamics.js";
+import { KIND_MOVING, kindAt, stabilityAge } from "./dynamics.js";
 
 export class EventSoA {
   constructor(capacity) {
@@ -106,9 +106,6 @@ export class GenerationRing {
     this.liveByGen = new Map();
     this._width = 0;
     this._height = 0;
-    this._wrap = true;
-    this._kindOpts = { neighborhoodRadius: 0 };
-    this._stampKey = "";
   }
 
   clear() {
@@ -117,7 +114,6 @@ export class GenerationRing {
     this.eventCount = 0;
     this.stopped = false;
     this.liveByGen.clear();
-    this._stampKey = "";
   }
 
   /**
@@ -170,61 +166,20 @@ export class GenerationRing {
     this.liveByGen.set(sl.t, set);
   }
 
-  /** Neighborhood / wrap for stamps. A new key restamps on the next fill. */
-  setClassify(opts = {}) {
-    if (opts.wrap != null) this._wrap = Boolean(opts.wrap);
-    if (opts.neighborhoodRadius != null || opts.neighborhood != null) {
-      this._kindOpts = { neighborhoodRadius: kindOptsRadius(opts) };
-    }
-  }
-
-  _classifyKey(width, height) {
-    const w = width | 0;
-    const h = (height | 0) || w;
-    const wrap = this._wrap !== false ? 1 : 0;
-    const r = kindOptsRadius(this._kindOpts || {});
-    return `${w}:${h}:${wrap}:${r}`;
-  }
-
   _isLive(t, packed) {
     const set = this.liveByGen.get(t);
     return !!(set && set.has(packed));
   }
 
-  stampSlice(sl, width, height) {
+  stampSlice(sl, width) {
     const w = width | 0;
     if (!sl || !w) return;
-    const h = (height | 0) || this._height || w;
-    const bounds = { width: w, height: h, wrap: this._wrap !== false };
-    const kindOpts = this._kindOpts || { neighborhoodRadius: 0 };
     const isLive = (t, packed) => this._isLive(t, packed);
     for (let c = 0; c < sl.count; c++) {
       const packed = sl.y[c] * w + sl.x[c];
-      sl.k[c] = kindAt(sl.t, packed, isLive, bounds, kindOpts);
-      sl.s[c] = stabilityAge(sl.t, packed, isLive, undefined, bounds, kindOpts);
+      sl.k[c] = kindAt(sl.t, packed, isLive);
+      sl.s[c] = stabilityAge(sl.t, packed, isLive);
     }
-    this._stampKey = this._classifyKey(w, h);
-  }
-
-  stampAll(width, height) {
-    const w = (width | 0) || this._width;
-    const h = (height | 0) || this._height || w;
-    if (!w) return;
-    for (let i = 0; i < this.size; i++) {
-      const idx = (this.head - this.size + i + this.capacity) % this.capacity;
-      this.stampSlice(this.slices[idx], w, h);
-    }
-  }
-
-  _ensureStamped(width, opts) {
-    this.setClassify({
-      wrap: opts.wrap,
-      neighborhood: opts.neighborhood,
-      neighborhoodRadius: opts.neighborhoodRadius,
-    });
-    const height = opts.height || width;
-    const key = this._classifyKey(width, height);
-    if (key !== this._stampKey) this.stampAll(width, height);
   }
 
   pushGrid(grid, width, height, t) {
@@ -246,7 +201,7 @@ export class GenerationRing {
     sl.count = collectLive(grid, width, height, sl.x, sl.y);
     this._indexSlice(sl, width);
     this._height = height || width;
-    this.stampSlice(sl, width, this._height);
+    this.stampSlice(sl, width);
     this.head = (this.head + 1) % this.capacity;
     this.size = Math.min(this.size + 1, this.capacity);
     if (this.appendOnly) {
@@ -277,7 +232,7 @@ export class GenerationRing {
         if (this.appendOnly) this.eventCount += sl.count - prev;
         this._indexSlice(sl, width);
         this._height = height || width;
-        this.stampSlice(sl, width, this._height);
+        this.stampSlice(sl, width);
         return;
       }
     }
@@ -295,8 +250,6 @@ export class GenerationRing {
    *   height?: number,
    *   wrap?: boolean,
    *   dynamics?: boolean,
-   *   neighborhood?: boolean,
-   *   neighborhoodRadius?: number,
    *   tLo?: number,
    *   tHi?: number,
    *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number },
@@ -313,7 +266,6 @@ export class GenerationRing {
         : visibleTimeSpan(tFocus, tRef, this.oldestT(), window);
     const { tLo, tHi } = span;
     const dynamics = opts.dynamics !== false;
-    if (width > 0 && dynamics) this._ensureStamped(width, opts);
 
     let n = 0;
     let truncated = false;

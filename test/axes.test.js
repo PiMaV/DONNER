@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   aabbFromSlabs,
+  axisIndexFromBack,
   clampSlab,
+  defaultInspectSlabs,
   denseGhostToSlice,
   effectiveShade,
   fociFromSlabs,
@@ -13,6 +15,7 @@ import {
   onAxisPlane,
   productToWorld,
   relativeTimeTicks,
+  resetPlanes,
   resetSlabClips,
   shouldEmitVoxel,
   slabGenerations,
@@ -27,7 +30,10 @@ import {
   zWorldY,
   backFromWorldCoord,
   focusBackFromVoxel,
+  voxelPitch,
+  voxelLocalCenter,
 } from "../src/axes.js";
+import { clampVoxelGap, VOXEL_GAP_MAX } from "../src/config.js";
 
 describe("product vs engine axes", () => {
   it("maps X Y playfield and Z time onto Three.js Y-up", () => {
@@ -147,6 +153,63 @@ describe("Z slab", () => {
     assert.deepEqual(next.x, { near: 0, focus: 8, far: 20 });
     assert.deepEqual(next.y, { near: 0, focus: 2, far: 15 });
     assert.deepEqual(next.z, { near: 0, focus: 20, far: 40 });
+  });
+
+  it("opens clips and centers each playhead", () => {
+    assert.deepEqual(resetPlanes(20, 15, 40), {
+      x: { near: 0, focus: 10, far: 20 },
+      y: { near: 0, focus: 7, far: 15 },
+      z: { near: 0, focus: 20, far: 40 },
+    });
+    assert.deepEqual(resetPlanes(0, 1, 0), {
+      x: { near: 0, focus: 0, far: 0 },
+      y: { near: 0, focus: 0, far: 1 },
+      z: { near: 0, focus: 0, far: 0 },
+    });
+  });
+
+  it("default Inspect pose matches Reset Planes (mid playheads, full clips)", () => {
+    const conway = defaultInspectSlabs(32, 32, 0, 0);
+    assert.deepEqual(conway, resetPlanes(31, 31, 0));
+    assert.deepEqual(conway.x, { near: 0, focus: 15, far: 31 });
+    assert.deepEqual(conway.y, { near: 0, focus: 15, far: 31 });
+    assert.deepEqual(conway.z, { near: 0, focus: 0, far: 0 });
+    const conwayFoci = fociFromSlabs(conway, 32, 32, 0);
+    assert.equal(conwayFoci.x, axisIndexFromBack(15, 31));
+    assert.equal(conwayFoci.y, axisIndexFromBack(15, 31));
+    assert.equal(conwayFoci.z, 0);
+    assert.notEqual(conwayFoci.x, 0);
+    assert.notEqual(conwayFoci.x, 31);
+    assert.deepEqual(defaultInspectSlabs(32, 32, 0, 0), conway);
+
+    const mni = defaultInspectSlabs(48, 64, 24, 0);
+    assert.deepEqual(mni, resetPlanes(47, 63, 24));
+    assert.equal(mni.x.near, 0);
+    assert.equal(mni.x.far, 47);
+    assert.equal(mni.y.near, 0);
+    assert.equal(mni.y.far, 63);
+    assert.equal(mni.z.near, 0);
+    assert.equal(mni.z.far, 24);
+    const mniFoci = fociFromSlabs(mni, 48, 64, 24);
+    assert.equal(mniFoci.x, axisIndexFromBack(47 >> 1, 47));
+    assert.equal(mniFoci.y, axisIndexFromBack(63 >> 1, 63));
+    assert.equal(mniFoci.z, 24 - (24 >> 1));
+    assert.notEqual(mniFoci.x, 0);
+    assert.notEqual(mniFoci.x, 47);
+    assert.notEqual(mniFoci.z, 0);
+    assert.notEqual(mniFoci.z, 24);
+  });
+
+  it("Reset Planes from a cropped brick returns the default Inspect pose", () => {
+    const fresh = defaultInspectSlabs(21, 16, 40, 0);
+    const cropped = {
+      x: { near: 2, focus: 4, far: 8 },
+      y: { near: 1, focus: 3, far: 6 },
+      z: { near: 5, focus: 12, far: 30 },
+    };
+    const restored = resetPlanes(20, 15, 40);
+    assert.deepEqual(restored, fresh);
+    assert.notDeepEqual(cropped, fresh);
   });
 });
 
@@ -287,5 +350,32 @@ describe("voxel and world rail back", () => {
     assert.equal(backFromWorldCoord("z", -20, 32, 32, 1, 1), 20);
     assert.equal(backFromWorldCoord("x", 0, 5, 5, 1, 1), 2);
     assert.equal(backFromWorldCoord("y", 2, 5, 5, 1, 1), 0);
+  });
+});
+
+describe("voxel gap lattice", () => {
+  it("packs at gap 0 and opens centers when gap rises", () => {
+    assert.equal(voxelPitch(1, 0), 1);
+    assert.equal(voxelPitch(1, 1), 2);
+    assert.equal(voxelPitch(2, 0.5), 3);
+    assert.equal(voxelPitch(1, -4), 1);
+  });
+
+  it("clamps the View slider to 0…2", () => {
+    assert.equal(clampVoxelGap(-1), 0);
+    assert.equal(clampVoxelGap(9), VOXEL_GAP_MAX);
+    assert.equal(clampVoxelGap("0.5"), 0.5);
+    assert.equal(clampVoxelGap("no"), 0);
+  });
+
+  it("places neighbors one cube apart at gap 0 and two at gap 1", () => {
+    const packedA = voxelLocalCenter(0, 0, 10, 5, 5, 1, 10, 1, 0);
+    const packedB = voxelLocalCenter(1, 0, 10, 5, 5, 1, 10, 1, 0);
+    assert.equal(packedB.x - packedA.x, 1);
+    const openA = voxelLocalCenter(0, 0, 10, 5, 5, 1, 10, 1, 1);
+    const openB = voxelLocalCenter(1, 0, 10, 5, 5, 1, 10, 1, 1);
+    assert.equal(openB.x - openA.x, 2);
+    const below = voxelLocalCenter(0, 0, 9, 5, 5, 1, 10, 1, 1);
+    assert.equal(openA.y - below.y, 2);
   });
 });

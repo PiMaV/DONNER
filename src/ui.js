@@ -1,8 +1,8 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, clampCubeCap, isCountSourceKind } from "./config.js";
-import { BENCH_PRESETS } from "./bench.js";
+import { DEFAULTS, GRID_PRESETS, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampVoxelGap, isCountSourceKind, isStaticSourceKind } from "./config.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, stackThumbFrac, stackTickMarks } from "./axes.js";
+import { arOverlaySelectShouldGuard } from "./xr.js";
 
 const STAB_HINT = {
   none: "None: equal cubes. Occupancy only — start here if size is confusing.",
@@ -16,10 +16,10 @@ const PATTERN_HINT = {
   Toad: "Toad: period-2 oscillator, two rows. Watch cyan occupancy flip along Z (time), not XY motion.",
   Beacon: "Beacon: period-2. Two blocks trade a corner; gold cores, cyan flicker.",
   Glider:
-    "Glider: occupancy-only looks gold/cyan on cells the ship crosses. Set Neighborhood 3×3 or 5×5 for the coral moving tube.",
+    "Glider: occupancy looks gold/cyan on cells the ship crosses. Translating tubes are not a separate class.",
   "R-pentomino": "R-pentomino: long chaotic unsettled, then stills/oscillators lock in place.",
-  "Gosper gun": "Gosper gun needs grid ≥ 48. Gliders peel off as coral moving trails.",
-  Random: "Random soup: violet unsettled until islands lock. Neighborhood 3×3/5×5 for coral moving tubes.",
+  "Gosper gun": "Gosper gun needs grid ≥ 48. Gliders peel off as occupancy trails.",
+  Random: "Random soup: violet unsettled until islands lock. Fill sets occupancy (sparse ↔ dense).",
 };
 
 function $(id) {
@@ -264,9 +264,13 @@ function bindAxisRail(axis, { on, narrow }) {
 
 export function bindUI(on) {
   const playBtn = $("btn-play");
+  const playArBtn = $("btn-play-ar");
   const arBtn = $("btn-ar");
   const xrExit = $("btn-xr-exit");
+  const arReset = $("btn-ar-reset");
+  const arSearch = $("btn-ar-search");
   const arMag = $("ar-mag");
+  const arHeight = $("ar-height");
   const stepBtn = $("btn-step");
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
@@ -274,6 +278,7 @@ export function bindUI(on) {
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
   const extentBtn = $("btn-extent");
+  const resetPlanesBtn = $("btn-reset-planes");
   const alignZ = $("align-z");
   const arYaw = $("ar-yaw");
   const arStandBtns = ["x", "y", "z"].map((axis) => $(`ar-stand-${axis}`));
@@ -282,15 +287,19 @@ export function bindUI(on) {
   const shadeTriple = $("shade-triple");
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
+  const viewFps = $("view-fps");
   const hudViewFold = $("btn-hud-view");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
   const speedVal = $("speed-val");
-  const decay = $("decay");
   const cacheStatus = $("cache-status");
   const history = $("history");
   const historyVal = $("history-val");
+  const voxelGap = $("voxel-gap");
+  const voxelGapVal = $("voxel-gap-val");
+  const btnHideCenter = $("btn-hide-center");
+  const btnHideOuter = $("btn-hide-outer");
   const stackNow = $("btn-stack-now");
   const narrow = window.matchMedia("(max-width: 720px)");
   const rails = {
@@ -307,6 +316,8 @@ export function bindUI(on) {
   const readHint = $("read-hint");
   const foldView = $("btn-fold-view");
   const foldSource = $("btn-fold-source");
+  const railView = $("btn-rail-view");
+  const railSource = $("btn-rail-source");
   const panelView = $("panel-view");
   const panelSource = $("panel-source");
   const hint = $("hint");
@@ -318,17 +329,12 @@ export function bindUI(on) {
   const wolkeToken = $("wolke-token");
   const wolkeConnect = $("btn-wolke-connect");
   const wolkeStatus = $("wolke-status");
-  const countSize = $("count-size");
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
   const countLegHi = $("count-leg-hi");
-  const preset = $("bench-preset");
-  const presetHint = $("preset-hint");
-  const dyn = $("bench-dynamics");
-  const neigh = $("bench-neighborhood");
-  const stabScale = $("bench-stab-scale");
-  const encMin = $("bench-encoding-min");
-  const fullRebuild = $("bench-full-rebuild");
+  const dyn = $("color-coding");
+  const fill = $("random-fill");
+  const fillVal = $("random-fill-val");
   let applying = false;
 
   fillSelect(pattern, PATTERN_NAMES, DEFAULTS.pattern);
@@ -340,34 +346,33 @@ export function bindUI(on) {
     if (n === DEFAULTS.width) opt.selected = true;
     grid.appendChild(opt);
   }
-  preset.replaceChildren();
-  for (const p of BENCH_PRESETS) {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = p.label;
-    if (p.id === "teaching") opt.selected = true;
-    preset.appendChild(opt);
-  }
 
   seed.value = String(DEFAULTS.seed);
   speed.value = String(DEFAULTS.gensPerSec);
-  decay.checked = DEFAULTS.decay;
   history.value = String(DEFAULTS.history);
+  if (voxelGap) {
+    voxelGap.min = String(VOXEL_GAP_MIN);
+    voxelGap.max = String(VOXEL_GAP_MAX);
+    voxelGap.step = String(VOXEL_GAP_STEP);
+    voxelGap.value = String(DEFAULTS.voxelGap);
+  }
   wrap.checked = DEFAULTS.wrap;
   if (stopStable) stopStable.checked = DEFAULTS.stopWhenStable;
   stabMode.value = DEFAULTS.stabMode;
-  dyn.checked = DEFAULTS.dynamics;
-  neigh.value = String(DEFAULTS.neighborhoodRadius);
-  stabScale.checked = DEFAULTS.stabScale;
-  encMin.checked = DEFAULTS.encodingMinimal;
-  fullRebuild.checked = DEFAULTS.forceFullRebuild;
+  if (dyn) dyn.checked = DEFAULTS.dynamics;
+  if (fill) {
+    fill.min = String(DEFAULTS.densityMin);
+    fill.max = String(DEFAULTS.densityMax);
+    fill.step = String(DEFAULTS.densityStep);
+    fill.value = String(DEFAULTS.density);
+  }
   if (alignZ) alignZ.checked = DEFAULTS.alignZ;
   if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
-  if (countSize) countSize.checked = false;
   if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
   if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
   document.body.classList.toggle("source-count", isCountSourceKind(DEFAULTS.sourceKind));
+  document.body.classList.toggle("source-static", isStaticSourceKind(DEFAULTS.sourceKind));
   const syncStabHint = () => {
     const key = stabMode.value;
     stabHint.textContent = STAB_HINT[key] || STAB_HINT.none;
@@ -377,30 +382,51 @@ export function bindUI(on) {
     readHint.textContent =
       PATTERN_HINT[pattern.value] || PATTERN_HINT.Blinker;
   };
-  const syncPresetHint = () => {
-    const p = BENCH_PRESETS.find((x) => x.id === preset.value);
-    presetHint.textContent = p ? p.blurb : "";
+  const syncFillVisibility = () => {
+    document.body.classList.toggle("pattern-random", pattern.value === "Random");
   };
   syncStabHint();
   syncReadHint();
-  syncPresetHint();
+  syncFillVisibility();
 
   const syncLabels = () => {
     speedVal.textContent = `${speed.value}/s`;
     historyVal.textContent = history.value;
+    if (voxelGapVal && voxelGap) {
+      const g = Number(voxelGap.value);
+      voxelGapVal.textContent = !Number.isFinite(g) || g === 0 ? "0" : g.toFixed(2);
+    }
+    if (fillVal && fill) {
+      const d = clampDensity(fill.value);
+      fillVal.textContent = `${Math.round(d * 100)}%`;
+    }
   };
   syncLabels();
 
-  playBtn.addEventListener("click", () => on.togglePlay());
+  playBtn?.addEventListener("click", () => on.togglePlay());
+  playArBtn?.addEventListener("click", () => on.togglePlay());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
+  if (arSearch && on.searchArAnchor) arSearch.addEventListener("click", () => on.searchArAnchor());
+  if (arReset && on.resetArAnchor) arReset.addEventListener("click", () => on.resetArAnchor());
+  const xrOverlay = $("xr-overlay");
+  xrOverlay?.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!document.body.classList.contains("is-ar")) return;
+      if (arOverlaySelectShouldGuard(e.target, xrOverlay)) on.guardArOverlaySelect?.();
+    },
+    true,
+  );
   if (arMag && on.arMag) arMag.addEventListener("input", () => on.arMag());
+  if (arHeight && on.arHeight) arHeight.addEventListener("input", () => on.arHeight());
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
   extentBtn?.addEventListener("click", () => on.resetClips?.());
+  resetPlanesBtn?.addEventListener("click", () => on.resetPlanes?.());
   alignZ?.addEventListener("change", () => on.alignZ?.());
   arYaw?.addEventListener("input", (e) => {
     if (applying) return;
@@ -439,6 +465,7 @@ export function bindUI(on) {
   pattern.addEventListener("change", () => {
     if (applying) return;
     syncReadHint();
+    syncFillVisibility();
     on.reset();
   });
   seed.addEventListener("change", () => {
@@ -448,6 +475,15 @@ export function bindUI(on) {
   grid.addEventListener("change", () => {
     if (applying) return;
     on.rebuild();
+  });
+  fill?.addEventListener("input", () => {
+    syncLabels();
+  });
+  fill?.addEventListener("change", () => {
+    if (applying) return;
+    fill.value = String(clampDensity(fill.value));
+    syncLabels();
+    on.reset();
   });
   wrap.addEventListener("change", () => {
     if (applying) return;
@@ -461,26 +497,41 @@ export function bindUI(on) {
     syncLabels();
     on.speed();
   });
-  decay.addEventListener("change", () => {
-    on.decay();
-  });
   history.addEventListener("input", () => {
     syncLabels();
     on.history();
   });
-  const onBenchFlag = () => {
-    if (applying) return;
-    on.benchFlags();
-  };
-  dyn.addEventListener("change", onBenchFlag);
-  neigh.addEventListener("change", onBenchFlag);
-  stabScale.addEventListener("change", onBenchFlag);
-  encMin.addEventListener("change", onBenchFlag);
-  fullRebuild.addEventListener("change", onBenchFlag);
-  preset.addEventListener("change", () => {
-    if (applying) return;
-    on.preset();
+  voxelGap?.addEventListener("input", () => {
+    syncLabels();
+    on.voxelGap?.();
   });
+  const hidePressed = (btn) => btn?.getAttribute("aria-pressed") === "true";
+  const syncPlaneChrome = () => {
+    const hc = hidePressed(btnHideCenter);
+    const ho = hidePressed(btnHideOuter);
+    if (btnHideCenter) btnHideCenter.classList.toggle("is-on", hc);
+    if (btnHideOuter) btnHideOuter.classList.toggle("is-on", ho);
+  };
+  const onPlaneChrome = () => {
+    syncPlaneChrome();
+    on.planeChrome?.();
+  };
+  btnHideCenter?.addEventListener("click", () => {
+    const next = !hidePressed(btnHideCenter);
+    btnHideCenter.setAttribute("aria-pressed", next ? "true" : "false");
+    onPlaneChrome();
+  });
+  btnHideOuter?.addEventListener("click", () => {
+    const next = !hidePressed(btnHideOuter);
+    btnHideOuter.setAttribute("aria-pressed", next ? "true" : "false");
+    onPlaneChrome();
+  });
+  syncPlaneChrome();
+  const onViewFlag = () => {
+    if (applying) return;
+    on.viewFlags?.();
+  };
+  dyn?.addEventListener("change", onViewFlag);
   sourceKind?.addEventListener("change", () => {
     if (applying) return;
     on.sourceKind?.();
@@ -489,10 +540,6 @@ export function bindUI(on) {
     const file = countFile.files && countFile.files[0];
     countFile.value = "";
     if (file) on.countFile?.(file);
-  });
-  countSize?.addEventListener("change", () => {
-    if (applying) return;
-    on.countSize?.();
   });
   wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
   stackNow?.addEventListener("click", () => on.focusNow());
@@ -512,6 +559,25 @@ export function bindUI(on) {
   foldSource.addEventListener("click", () => {
     setFold(panelSource.classList.contains("is-open") ? "" : "source");
   });
+  const syncRailFold = (panel, btn, name) => {
+    if (!panel || !btn) return;
+    const collapsed = panel.classList.contains("is-collapsed");
+    btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    btn.textContent = collapsed ? `${name} ▸` : `${name} ▾`;
+    btn.title = collapsed ? `Expand ${name}` : `Collapse ${name}`;
+  };
+  const syncRailFolds = () => {
+    syncRailFold(panelSource, railSource, "Source");
+    syncRailFold(panelView, railView, "View");
+  };
+  const onRailFold = (panel) => {
+    if (narrow.matches) return;
+    panel.classList.toggle("is-collapsed");
+    syncRailFolds();
+  };
+  railSource?.addEventListener("click", () => onRailFold(panelSource));
+  railView?.addEventListener("click", () => onRailFold(panelView));
+  syncRailFolds();
   fpsChip?.addEventListener("click", () => {
     const open = document.body.classList.toggle("hud-view-open");
     fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
@@ -537,8 +603,11 @@ export function bindUI(on) {
         pattern: pattern.value || DEFAULTS.pattern,
         seed: Number.parseInt(seed.value, 10) || 0,
         gensPerSec: Number(speed.value) || DEFAULTS.gensPerSec,
-        decay: decay.checked,
+        decay: DEFAULTS.decay,
         history: Number.parseInt(history.value, 10) || DEFAULTS.history,
+        voxelGap: voxelGap ? clampVoxelGap(voxelGap.value) : DEFAULTS.voxelGap,
+        hideCenter: hidePressed(btnHideCenter),
+        hideOuter: hidePressed(btnHideOuter),
         shadeMode: shadeGhost?.classList.contains("is-on")
           ? "ghost"
           : shadeTriple?.classList.contains("is-on")
@@ -554,57 +623,60 @@ export function bindUI(on) {
         wrap: wrap.checked,
         stopWhenStable: stopStable ? stopStable.checked : DEFAULTS.stopWhenStable,
         stabMode: stabMode.value,
-        dynamics: dyn.checked,
-        neighborhoodRadius: Number.parseInt(neigh.value, 10) || 0,
-        stabScale: stabScale.checked,
-        encodingMinimal: encMin.checked,
-        forceFullRebuild: fullRebuild.checked,
-        preset: preset.value,
+        dynamics: dyn ? dyn.checked : DEFAULTS.dynamics,
+        density: fill ? clampDensity(fill.value) : DEFAULTS.density,
+        encodingMinimal: DEFAULTS.encodingMinimal,
+        forceFullRebuild: DEFAULTS.forceFullRebuild,
         sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
-        countSize: countSize ? countSize.checked : false,
+        countSize: false,
         wolkeUrl: wolkeUrl ? wolkeUrl.value : DEFAULTS.wolkeUrl,
         wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
         alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
         maxInstances: cubeCap ? clampCubeCap(cubeCap.value) : DEFAULTS.maxInstances,
       };
     },
-    applyPreset(p) {
-      applying = true;
-      if (sourceKind) sourceKind.value = "conway";
-      document.body.classList.remove("source-count");
-      pattern.value = p.pattern;
-      grid.value = String(p.width);
-      history.value = String(p.visible);
-      stabMode.value = p.stabMode;
-      dyn.checked = p.dynamics;
-      neigh.value = String(p.neighborhoodRadius ?? 0);
-      stabScale.checked = p.stabScale;
-      encMin.checked = p.encodingMinimal;
-      preset.value = p.id;
-      syncStabHint();
-      syncReadHint();
-      syncPresetHint();
-      syncLabels();
-      applying = false;
-    },
     setPlaying(playing) {
-      playBtn.textContent = playing ? "Pause" : "Play";
-      playBtn.setAttribute("aria-pressed", playing ? "true" : "false");
-      playBtn.classList.toggle("is-live", playing);
+      const label = playing ? "Pause" : "Play";
+      for (const btn of [playBtn, playArBtn]) {
+        if (!btn) continue;
+        btn.textContent = label;
+        btn.setAttribute("aria-pressed", playing ? "true" : "false");
+        btn.classList.toggle("is-live", playing);
+      }
     },
-    setDecay(on) {
-      decay.checked = Boolean(on);
+    setDecay() {},
+    setPlaneChrome({ hideCenter: hc = false, hideOuter: ho = false } = {}) {
+      if (btnHideCenter) btnHideCenter.setAttribute("aria-pressed", hc ? "true" : "false");
+      if (btnHideOuter) btnHideOuter.setAttribute("aria-pressed", ho ? "true" : "false");
+      syncPlaneChrome();
     },
     setArAvailable(ok) {
       arSupported = Boolean(ok);
       if (arBtn) arBtn.hidden = !arSupported || document.body.classList.contains("is-ar");
     },
-    setArActive(active) {
+    setArActive(active, { locked = false, searching = false } = {}) {
       if (xrExit) xrExit.hidden = !active;
+      if (playArBtn) playArBtn.hidden = !active;
+      if (arSearch) {
+        arSearch.hidden = !active || locked;
+        arSearch.disabled = Boolean(!active || locked || searching);
+        arSearch.classList.toggle("is-on", Boolean(active && searching && !locked));
+        arSearch.setAttribute("aria-pressed", active && searching && !locked ? "true" : "false");
+      }
+      if (arReset) {
+        arReset.hidden = !active || !locked;
+        arReset.disabled = !locked;
+      }
       if (arBtn) arBtn.hidden = !arSupported || active;
     },
     getArMag() {
       return arMag ? Number(arMag.value) : 1;
+    },
+    getArHeight() {
+      return arHeight ? Number(arHeight.value) : 0;
+    },
+    setArHeight(h) {
+      if (arHeight) arHeight.value = String(h);
     },
     getYawDegrees() {
       return arYaw ? Number(arYaw.value) || 0 : 0;
@@ -647,8 +719,9 @@ export function bindUI(on) {
       }
     },
     setFps(fps) {
-      if (!fpsChip) return;
-      fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
+      const text = `${Number(fps).toFixed(0)} FPS`;
+      if (fpsChip) fpsChip.textContent = text;
+      if (viewFps) viewFps.textContent = text;
     },
     setSlabs({ activeAxis = "z", x, y, z }) {
       const a = activeAxis === "x" || activeAxis === "y" ? activeAxis : "z";
@@ -677,6 +750,8 @@ export function bindUI(on) {
       const k = isCountSourceKind(kind) ? kind : "conway";
       if (sourceKind) sourceKind.value = k;
       document.body.classList.toggle("source-count", isCountSourceKind(k));
+      document.body.classList.toggle("source-static", isStaticSourceKind(k));
+      syncFillVisibility();
     },
     setCountMeta(text) {
       if (countMeta) countMeta.textContent = text || "";

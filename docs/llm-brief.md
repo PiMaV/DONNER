@@ -19,13 +19,13 @@ advantage, not a deployment convenience.
   generator of `(x, y, t, v)` so the renderer can be built before
   event-camera files exist — seeding, teaching, and a performance
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
-  **display** (DONNER: camera, Depth, Z-stack playhead, FPS),
+  **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
   **source addon** (Conway **or** EVT count stack `.npy` from file,
   ignition demo, WOLKE-contract stream, or MNI 152 as a dense count cube),
   **encoding slot**
-  (color `k` + fill `s`; Conway fills still/osc/moving/unsettled + Stability;
-  count fills integer rungs + optional size-by-count).
-  `src/dynamics.js` is Conway classification; `src/encoding.js` is the
+  (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
+  count fills integer rungs, color only).
+  `src/dynamics.js` is Conway occupancy classification; `src/encoding.js` is the
   LUT the renderer actually indexes. Do not assume the Life legend for
   count or polarity streams.
 - Keep `Data source → encoding adapter → EventSoA → renderer`. Conway
@@ -44,15 +44,14 @@ advantage, not a deployment convenience.
   (public preview first). `tFocus` is the playhead
   that walks that stack (same as X/Y). `t > tFocus` is a
   transparent ghost, not extra geometry. Color is an encoding index
-  (`k`): Conway uses still / osc / moving / unsettled, plus base for `t < 2`
+  (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
   and the first cube of each worldline.
   Count uses integer rungs (cyan → gold → coral).
-  Default Neighborhood is **none** (occupancy). 3×3 or 5×5 is the motion
-  gate so gliders become moving tubes (5×5 is the CPU cliff). Cube scale follows Stability mode (`none` / `time` / `focus`)
-  via stamped `s` on each generation (along Z). None / Time / Focus and
-  count **Size by count** are display (`setEvents`); do not rerun
-  `stabilityAge` on playhead or toggle. Neighborhood change restamps the
-  tape once. Oscillators encode as occupancy along Z, not extra
+  Occupancy only (no neighborhood motion gate). Cube scale follows Stability mode (`none` / `time` / `focus`)
+  via stamped `s` on each generation (along Z). None / Time / Focus are
+  display (`setEvents`); do not rerun
+  `stabilityAge` on playhead or toggle. Count / MNI color the integer ramp
+  only (no size-by-count). Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino, started paused; default Stability: Time.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
@@ -66,15 +65,15 @@ advantage, not a deployment convenience.
   slab + enclosed cull + one-sided stack ghost as Z; Play walks that
   window on X, Y, or Z. Inspect
   has two extra **slab** handles per axis; outside the band is not drawn.
-  **Decay** defaults off (Z/time fade when on; sparse stacks only). Clip
+  **Decay** is off (later / opt-in Z/time fade; sparse stacks only). Clip
   handles push the playhead when dragged past it. Planes and cuts share
   the axis color. Hover a frame **edge** to light that ring and grab it
   (playhead inset, clips smaller; coincident clip hidden);
   HUD rails recede. Invisible fills are not grab targets. **Depth**
   is cube volume height (live wake). The RAM tape keeps the run from gen
   0 until cap; **Pause** inspects it (fog off, zoom-out stays lit). **Play** returns to
-  live Now. Play is a display transport outside
-  the sheets; live Conway also steps the generator.
+  live Now. Play is Source transport (Conway and time stacks; hidden for MNI);
+  live Conway also steps the generator.
   Source **Stop when stable** (default on) pauses after five generations
   in a short cycle (period 1–15: stills and oscillators). Wrapping gliders
   keep running;
@@ -84,53 +83,61 @@ advantage, not a deployment convenience.
   (default on) orbits around the time axis without chasing Z clips;
   right-drag still slides along Z; off allows XY pan.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
-  Cube cap is a Bench number (default 200 000).
+  Cube cap is a View number (default 200 000).
   Numbered X/Y overlay, hairlines, and cube hover outlines are off
   (units later). Grab the axis-colored frame edges in the volume
   (playhead full size, clips well inside; coincident clip hidden; ~28 px
   screen rim to grab; drag in screen space along the axis). Clip grab
-  keeps Hull; playhead grab peeks Ghost (dense count: the cut only). **Triple**
-  is three planes, no hull. **Full** (next to Fit) opens the clip box again.
+  keeps Hull; playhead grab peeks Ghost (dense count: the cut only). **Cuts**
+  is three orthogonal planes, no hull (shade id `triple`). **Full** (next to Fit) opens the clip box again.
+  **Reset Planes** (same row) opens clips and centers the three playheads; it does not run when toggling Cuts.
+  Load / source change start on that pose.
   Playhead and clip bars scale with the brick span, not the cell.
-  **Planes** under the viewcube
-  (default on) hides 3D frames. Display HUD (FPS, AVG, 1%/0.1% lows,
-  sparkline, INST, FOC) stays separate from the Conway source HUD (GEN,
-  LIVE, RATE). HUD shows **ORTHO** when parallax is off.
+  **Hide center** / **Hide outer** (under the viewcube on desktop)
+  hide playhead+grid vs clip frames independently. A cut still shows the current plane. Display HUD (FPS, AVG, 1%/0.1% lows,
+  sparkline, INST, FOC) stays separate from Conway source stats (GEN,
+  LIVE, RATE) in the Source fold. HUD shows **ORTHO** when parallax is off.
   On a phone the HUD is an FPS chip (tap for the View card); source stats
   stay in the Source sheet. There is no viewcube. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
-  + generation beside the handle), not a HUD card. Chrome is two left
-  sheets: **View** (Parallax, Align to Z, Light, Depth, Decay, Encoding, Bench) and **Source**
-  (Conway or count stack). Do not put the generator in the View panel. **Neighborhood 5×5** is the CPU cliff
-  (Renderer Stress is the cube/GPU check). Path timers and GPU/software strings belong in
-  Bench. Camera-only frames must not call `fillSoA`. Inspect Hull playhead
-  must not either (clip, Ghost, and Triple still refill occupancy; clip uses the hull
+  + generation beside the handle), not a HUD card. Chrome is one left
+  rail: **Source** (kind, Play/Pause, Conway Pattern first, Random Fill, stats) then **View**
+  (Parallax, Align to Z, Light, Depth, Gap, Color coding, Conway Stability, Cube cap, FPS).
+  Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
+  Camera-only frames must not call `fillSoA`. Inspect Hull playhead
+  must not either (clip, Ghost, and Cuts still refill occupancy; clip uses the hull
   cache plus AABB faces, not a full occupancy scan). Stability None/Time/Focus
   must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
   Visible volume lives on a `stage` group, then `stand` (which product
-  axis sits on the table), then `turntable` (yaw).
-  Plane hit-test shows a gold
-  square on the table; tap re-places and locks. The volume already sits
-  ~0.8 m in front from the first AR frame (it used to stay hidden until a
-  plane hit). If hit-test is missing or never finds a plane, that pose
-  locks after a short wait.
-  **Yaw** (overlay slider or swipe) turns the pillar on the table around
-  product Z; gen 0 stays put. Then walk with the phone. Desktop orbit
-  does not yaw the volume. Lighting is a **headlamp** (key/fill follow the
-  view in orbit and in AR walk).
-  Default stand is Z (time up). HUD **X / Y / Z** tips the volume so that
-  product plane is the table. Bounding frames stay on after lock; poke a
-  cube to Ghost-isolate the standing plane. Play grows the tape; clips
-  crop in place. Same `setEvents`.
-  Decay is off in AR. Size (0.4×–2.5×) and Yaw (0°–360°) are on the overlay.
-  AR chrome on a phone is Play, Stand X/Y/Z, Size, Yaw, Exit on `#xr-overlay` (not
-  `document.body` — that paints the page over passthrough). On a headset,
+  axis sits on the table; phone overlay hides Stand, default Z), then
+  `turntable` (yaw).
+  Phone AR: enter is passthrough with no brick. **Search Anchor** arms
+  floor hit-test (gold square on a horizontal floor plane); tap locks.
+  Timeouts never lock; there is no viewer-front preview. **Reset Anchor**
+  despawns and returns to search. Overlay taps on chrome are guarded so
+  Reset does not immediately re-place; a tap on empty overlay /
+  passthrough still places. If hit-test is missing, a tap after Search
+  may lock a viewer-front pose.
+  **Z** (overlay slider) lifts the brick off the floor (world-up).
+  **Yaw** turns the pillar around product Z. **Size** (0.4×–2.5×) scales
+  the brick. Desktop orbit does not yaw the volume. Lighting is a
+  **headlamp** (key/fill follow the view in orbit and in AR walk).
+  Stand-axis math stays in the renderer for Quest; the phone HUD does not
+  offer X/Y/Z stand. Outer bound frames are forced off while phone AR
+  runs and restored on Exit. Center / playhead frames still draw after
+  spawn. Play grows the tape; clips crop in place. Same `setEvents`.
+  Decay is off in AR. AR chrome on a phone is Search Anchor, then after
+  spawn Play, Z, Size, Yaw, Reset Anchor, Exit on `#xr-overlay` (not
+  `document.body` — that paints the page over passthrough). The overlay is
+  0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
+  the AR session. On a headset,
   do not request `dom-overlay` (fullscreen overlay covers passthrough).
   There is no in-world Play/stand/Exit plate. Thumbstick yaws; both
   grips pinch Size. Grab a bounding frame to slide the volume in the room;
-  poke a cube to isolate the standing plane. Phone orbit: fingers rotate
+  poke a cube to isolate the standing plane. Quest: Exit AR and enter
+  again to place on another plane. Phone orbit: fingers rotate
   and pinch-zoom; stack sliders move planes. XR-B marker, hand tracking, and wrist
   attach are later. Phone HTTPS is
   `https://lab.ole.icu/` after `start:lan`.

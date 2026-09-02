@@ -110,7 +110,7 @@ export class PathTimer {
 }
 
 /**
- * Compact Bench-sheet copy. `work` is soa / inst / rend for the last frame.
+ * Compact path-timer copy (internal, not a View sheet). `work` is soa / inst / rend for the last frame.
  * `now` is this frame only (0 if that path did not run). Reset timers on preset
  * or the rolling avg/max still show the previous load.
  * @param {{
@@ -225,57 +225,3 @@ export function formatGpuHud(gpu) {
   return lines.join("\n");
 }
 
-export const BENCH_PRESETS = [
-  {
-    id: "teaching",
-    label: "Teaching",
-    width: 32,
-    pattern: "Blinker",
-    visible: 48,
-    dynamics: true,
-    neighborhoodRadius: 0,
-    stabScale: true,
-    encodingMinimal: false,
-    stabMode: "time",
-    blurb: "Demo: 32×32 Blinker. Should feel native.",
-  },
-  {
-    id: "desktop",
-    label: "Desktop",
-    width: 64,
-    pattern: "Blinker",
-    visible: 100,
-    dynamics: true,
-    neighborhoodRadius: 0,
-    stabScale: true,
-    encodingMinimal: false,
-    stabMode: "time",
-    blurb: "Same read as Teaching, 64×64, Depth 100.",
-  },
-  {
-    id: "cpuStress",
-    label: "CPU Stress",
-    width: 64,
-    pattern: "Random",
-    visible: 100,
-    dynamics: true,
-    neighborhoodRadius: 0,
-    stabScale: true,
-    encodingMinimal: false,
-    stabMode: "time",
-    blurb: "Random soup + Dynamics. Neighborhood 5×5 is the CPU cliff — leave it off unless measuring.",
-  },
-  {
-    id: "rendererStress",
-    label: "Renderer Stress",
-    width: 64,
-    pattern: "Random",
-    visible: 100,
-    dynamics: false,
-    neighborhoodRadius: 0,
-    stabScale: false,
-    encodingMinimal: true,
-    stabMode: "none",
-    blurb: "Random soup, Dynamics off. Cubes and GPU only; should stay smooth.",
-  },
-];

@@ -1,13 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, clampVoxelGap, isStaticSourceKind } from "./config.js";
 import {
-  BENCH_PRESETS,
   PathTimer,
-  formatBenchHud,
-  formatGpuHud,
-  inferBound,
   probeGpu,
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
@@ -37,6 +33,7 @@ import {
   aabbFromSlabs,
   axisIndexFromBack,
   clampSlab,
+  defaultInspectSlabs,
   denseGhostToSlice,
   effectiveShade,
   fociFromSlabs,
@@ -51,6 +48,7 @@ import {
   sliceMaxBack,
   sliceOnlyFromPlaneLock,
   stepFocusBack,
+  voxelPitch,
   zBackWorldY,
 } from "./axes.js";
 import {
@@ -90,10 +88,21 @@ import {
 } from "./view.js";
 import { ViewGizmo, gizmoOnScreen } from "./gizmo.js";
 import {
+  anyFrameChromeVisible,
+  centerChromeVisible,
+  outerChromeVisible,
+} from "./plane-chrome.js";
+import {
   XR_BOARD_METERS,
+  XR_HEIGHT_DEFAULT,
   XR_MAG_DEFAULT,
+  arReticleAllowed,
   arStandLift,
+  arVolumeVisible,
+  arWorldLift,
+  clampArHeight,
   clampArMag,
+  firstFloorHitMatrix,
   isImmersiveArSupported,
   isHeadsetBrowser,
   normalizeStandAxis,
@@ -101,7 +110,9 @@ import {
   preferredReferenceSpaceType,
   requestImmersiveAr,
   requestViewerHitTestSource,
-  shouldFallbackArPlace,
+  AR_OVERLAY_SELECT_GUARD_MS,
+  arSelectIsOverlayEcho,
+  canConfirmArPlace,
   spaceDragAnchor,
   spaceDragOffset,
   standQuatFromAxis,
@@ -127,8 +138,6 @@ const canvas = document.getElementById("view");
 const hudViewEl = document.getElementById("hud-view");
 const hudSrcEl = document.getElementById("hud-src");
 const hudSparkEl = document.getElementById("hud-spark");
-const hudBenchEl = document.getElementById("hud-bench");
-const hudGpuEl = document.getElementById("hud-gpu");
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
 
@@ -237,17 +246,11 @@ const gizmo = new ViewGizmo({ coarse });
 const gizmoHit = document.getElementById("gizmo-hit");
 const gizmoSlot = document.getElementById("gizmo-slot");
 const gizmoCol = document.querySelector(".gizmo-col");
-const btnShowPlanes = document.getElementById("btn-show-planes");
 function syncGizmoChrome() {
   const on = showGizmo();
   if (gizmoHit) gizmoHit.hidden = !on;
   if (gizmoSlot) gizmoSlot.hidden = !on;
   if (gizmoCol) gizmoCol.hidden = !on;
-}
-function syncShowPlanesButton() {
-  if (!btnShowPlanes) return;
-  btnShowPlanes.classList.toggle("is-on", showPlanes);
-  btnShowPlanes.setAttribute("aria-pressed", showPlanes ? "true" : "false");
 }
 syncGizmoChrome();
 
@@ -298,7 +301,6 @@ let tape;
 let tapeMode = false;
 let sourceId = "conway";
 let countVol = null;
-let countSizeByCount = false;
 const wolke = new WolkeViewer({ io });
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt. Stream: sidecar Send as counts.";
@@ -313,7 +315,8 @@ let shadeMode = DEFAULTS.shadeMode;
 let shadeHeld = false;
 let planeLock = false;
 let planeLockSign = 1;
-let showPlanes = true;
+let hideCenter = false;
+let hideOuter = false;
 let slabs = {
   x: { near: 0, focus: 0, far: 0 },
   y: { near: 0, focus: 0, far: 0 },
@@ -322,10 +325,9 @@ let slabs = {
 let gensPerSec = DEFAULTS.gensPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
+let voxelGap = DEFAULTS.voxelGap;
 let stabMode = DEFAULTS.stabMode;
 let dynamicsOn = DEFAULTS.dynamics;
-let neighborhoodRadius = DEFAULTS.neighborhoodRadius;
-let stabScaleOn = DEFAULTS.stabScale;
 let encodingMinimal = DEFAULTS.encodingMinimal;
 let forceFullRebuild = DEFAULTS.forceFullRebuild;
 let acc = 0;
@@ -345,16 +347,19 @@ let stableStreak = 0;
 let stoppedStable = false;
 /** Newest-first copies of recent grids (`[0]` = t-1) for ash cycle detection. */
 const gridHistory = [];
-let arPlacePending = false;
-let arHitStartedAt = 0;
 let arHitTestSource = null;
 let arPlaced = false;
 let arUseHitTest = false;
+let arHitTestResolved = false;
 let arAnchored = false;
 let arLocked = false;
+let arSearching = false;
+let arPhoneOverlay = false;
+let arIgnoreSelectUntil = 0;
 let arHeadsetHud = false;
 let arPinch = null;
 let arMag = XR_MAG_DEFAULT;
+let arHeight = XR_HEIGHT_DEFAULT;
 let arStandAxis = "z";
 let arFrameDrag = null;
 let arPlanePoke = false;
@@ -373,6 +378,7 @@ const ui = bindUI({
   toggleParallax,
   fitVolume,
   resetClips: resetClipExtent,
+  resetPlanes: resetPlanesToVolume,
   alignZ: () => {
     alignZ = ui.getConfig().alignZ;
     syncOrbitPan();
@@ -413,6 +419,14 @@ const ui = bindUI({
     dirtyView = true;
   },
   history: () => applyRingCapacity(),
+  voxelGap: () => applyVoxelGap(),
+  planeChrome: () => {
+    const cfg = ui.getConfig();
+    hideCenter = Boolean(cfg.hideCenter);
+    hideOuter = Boolean(cfg.hideOuter);
+    if (hideCenter && hideOuter) setFrameHover(null);
+    syncClipPlanes();
+  },
   focusNow: () => {
     if (stackLiveLocked()) return;
     slabs.z.near = 0;
@@ -422,45 +436,18 @@ const ui = bindUI({
     stabMode = ui.getConfig().stabMode;
     dirtyView = true;
   },
-  benchFlags: () => {
+  viewFlags: () => {
     const cfg = ui.getConfig();
-    const neighChanged = cfg.neighborhoodRadius !== neighborhoodRadius;
     const dynChanged = cfg.dynamics !== dynamicsOn;
     dynamicsOn = cfg.dynamics;
-    neighborhoodRadius = cfg.neighborhoodRadius;
-    stabScaleOn = cfg.stabScale;
-    encodingMinimal = cfg.encodingMinimal;
-    forceFullRebuild = cfg.forceFullRebuild;
-    if (neighChanged) {
-      restampConway();
-      dirtySource = true;
-    } else if (dynChanged || forceFullRebuild) {
-      dirtySource = true;
-    } else {
-      dirtyView = true;
-    }
-  },
-  preset: () => {
-    const id = ui.getConfig().preset;
-    const p = BENCH_PRESETS.find((x) => x.id === id);
-    if (!p) return;
-    playing = true;
-    editing = false;
-    ui.setPlaying(true);
-    ui.setEditing(false);
-    ui.applyPreset(p);
-    tapeMode = false;
-    bootWorld(true);
+    if (dynChanged) dirtySource = true;
+    else dirtyView = true;
   },
   sourceKind: () => {
     switchSource(ui.getConfig().sourceKind);
   },
   countFile: (file) => {
     loadCountFromFile(file);
-  },
-  countSize: () => {
-    countSizeByCount = ui.getConfig().countSize;
-    dirtyView = true;
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -469,10 +456,15 @@ const ui = bindUI({
   enterAr,
   exitAr,
   arMag: () => {
-    arMag = clampArMag(ui.getArMag());
-    applyArStagePose();
+    setArMag(ui.getArMag());
+  },
+  arHeight: () => {
+    setArHeight(ui.getArHeight());
   },
   arStand: (axis) => setArStandAxis(axis),
+  searchArAnchor,
+  resetArAnchor,
+  guardArOverlaySelect,
 });
 
 function activeCamera() {
@@ -544,19 +536,34 @@ function stackLiveLocked() {
   return playing && !tapeMode;
 }
 
+function layoutCell() {
+  return voxelPitch(DEFAULTS.cellSize, voxelGap);
+}
+
+function layoutTime() {
+  return voxelPitch(DEFAULTS.timeScale, voxelGap);
+}
+
+function applyVoxelGap() {
+  voxelGap = clampVoxelGap(ui.getConfig().voxelGap);
+  dirtyView = true;
+  rebuildSliceVisuals();
+  if (arPresenting()) applyArStagePose();
+}
+
 function spatialCoord(back, axis) {
   if (!world) return 0;
   const a = normalizeSliceAxis(axis);
   const max = sliceMaxBack(a, world.width, world.height, 0);
   const idx = axisIndexFromBack(back, max);
-  const cs = DEFAULTS.cellSize;
+  const cs = layoutCell();
   if (a === "x") return (idx - (world.width - 1) * 0.5) * cs;
   return (idx - (world.height - 1) * 0.5) * cs;
 }
 
 function sliceWorldCoord(back, axis = activeAxis) {
   const a = normalizeSliceAxis(axis);
-  if (a === "z") return zBackWorldY(back, DEFAULTS.timeScale);
+  if (a === "z") return zBackWorldY(back, layoutTime());
   return spatialCoord(back, a);
 }
 
@@ -684,6 +691,24 @@ function arPresenting() {
   return renderer.xr.isPresenting;
 }
 
+function phoneArSession() {
+  return arPresenting() && arPhoneOverlay;
+}
+
+function syncArVolumeVisible() {
+  stage.visible = !arPresenting()
+    ? true
+    : arVolumeVisible({
+        locked: arLocked,
+        headset: !arPhoneOverlay,
+        anchored: arAnchored,
+      });
+}
+
+function syncArOverlayChrome() {
+  ui.setArActive(arPresenting(), { locked: arLocked, searching: arSearching });
+}
+
 function resetStageOrbit() {
   stage.position.set(0, 0, 0);
   stage.quaternion.identity();
@@ -732,9 +757,11 @@ function stopHitTest() {
   }
   arHitTestSource = null;
   arUseHitTest = false;
+  arHitTestResolved = false;
   arPlaced = false;
   arAnchored = false;
   arLocked = false;
+  arSearching = false;
   reticle.visible = false;
 }
 
@@ -744,9 +771,9 @@ function arLockedChrome() {
 
 function arVolumeBox() {
   const store = viewStore();
-  if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, DEFAULTS.cellSize);
-  const y = slabYRange(viewNow(), store.oldestT(), viewNow(), DEFAULTS.timeScale);
-  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, DEFAULTS.cellSize);
+  if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, layoutCell());
+  const y = slabYRange(viewNow(), store.oldestT(), viewNow(), layoutTime());
+  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, layoutCell());
 }
 
 function applyStandQuat() {
@@ -779,14 +806,14 @@ function applyArStagePose() {
   stage.quaternion.copy(arAnchorQuat);
   stage.scale.setScalar(s);
   applyStandQuat();
-  const lift = arStandLift(arStandAxis, arVolumeBox(), s);
-  const dy = Number.isFinite(lift) ? lift : 0;
+  const sit = arStandLift(arStandAxis, arVolumeBox(), s);
+  const lift = arWorldLift(sit, arHeight);
   _xrUp.set(0, 1, 0).applyQuaternion(arAnchorQuat);
-  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, dy);
+  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, lift);
   if (!Number.isFinite(stage.position.x)) {
     stage.position.copy(arAnchorPos);
   }
-  stage.visible = true;
+  syncArVolumeVisible();
 }
 
 function captureViewerAnchor() {
@@ -809,7 +836,6 @@ function captureViewerAnchor() {
   arAnchorPos.set(front.x, front.y, front.z);
   arAnchorQuat.identity();
   arAnchored = true;
-  arPlaced = true;
   applyArStagePose();
 }
 
@@ -818,16 +844,13 @@ function lockArPlacement() {
   if (!arAnchored) captureViewerAnchor();
   arLocked = true;
   arPlaced = true;
-  arPlacePending = false;
+  arSearching = false;
   applyArStagePose();
   ui.setArYawEnabled(true);
+  setArPlacedDocument(true);
+  syncArOverlayChrome();
   syncClipPlanes();
   updateHint();
-}
-
-function placeStageInFrontOfViewer() {
-  captureViewerAnchor();
-  lockArPlacement();
 }
 
 function placeStageFromReticle() {
@@ -841,8 +864,57 @@ function placeStageFromReticle() {
 
 function onArSelect() {
   if (!arPresenting() || arLocked) return;
+  if (arSelectIsOverlayEcho(performance.now(), arIgnoreSelectUntil)) return;
+  if (
+    !canConfirmArPlace({
+      locked: arLocked,
+      searching: arSearching,
+      reticleVisible: reticle.visible,
+      hasHitTest: arUseHitTest,
+      hitTestResolved: arHitTestResolved,
+    })
+  ) {
+    return;
+  }
   if (arUseHitTest && reticle.visible) placeStageFromReticle();
   else lockArPlacement();
+}
+
+function searchArAnchor() {
+  if (!arPresenting() || arLocked) return;
+  arSearching = true;
+  guardArOverlaySelect();
+  syncArOverlayChrome();
+  updateHint();
+}
+
+function resetArAnchor() {
+  if (!arPresenting()) return;
+  endArFrameDrag();
+  arLocked = false;
+  arPlaced = false;
+  arPinch = null;
+  arFrameDrag = null;
+  guardArOverlaySelect();
+  reticle.visible = false;
+  arSearching = true;
+  if (arPhoneOverlay) {
+    arAnchored = false;
+    stage.visible = false;
+    ui.setArYawEnabled(false);
+  } else {
+    arAnchored = false;
+    ui.setArYawEnabled(!arUseHitTest);
+    captureViewerAnchor();
+  }
+  setArPlacedDocument(false);
+  syncArOverlayChrome();
+  syncClipPlanes();
+  updateHint();
+}
+
+function guardArOverlaySelect() {
+  arIgnoreSelectUntil = performance.now() + AR_OVERLAY_SELECT_GUARD_MS;
 }
 
 function setXrRaysVisible(on) {
@@ -898,12 +970,19 @@ function collectArFramePick(frame, origin, dir, into) {
 }
 
 function hitArFrame(origin, dir) {
-  if (!arLockedChrome() || !showPlanes) return null;
+  if (
+    !arLockedChrome() ||
+    !anyFrameChromeVisible(hideCenter, hideOuter, { inspect: true, arHideOuter: phoneArSession() })
+  ) {
+    return null;
+  }
   const best = {};
   for (const a of ["x", "y", "z"]) {
-    collectArFramePick(playfields[a], origin, dir, best);
-    collectArFramePick(clipFrames[a].near, origin, dir, best);
-    collectArFramePick(clipFrames[a].far, origin, dir, best);
+    if (centerChromeVisible(hideCenter)) collectArFramePick(playfields[a], origin, dir, best);
+    if (outerChromeVisible(hideOuter, { inspect: true, arHideOuter: phoneArSession() })) {
+      collectArFramePick(clipFrames[a].near, origin, dir, best);
+      collectArFramePick(clipFrames[a].far, origin, dir, best);
+    }
   }
   if (!best.axis) return null;
   return { axis: best.axis, handle: best.handle };
@@ -954,9 +1033,9 @@ function pokeArVoxel(origin, dir) {
     _hitLocal.z,
     world.width,
     world.height,
-    DEFAULTS.cellSize,
+    layoutCell(),
     viewNow(),
-    DEFAULTS.timeScale,
+    layoutTime(),
   );
   if (!voxel) return false;
   const axis = arStandAxis;
@@ -978,6 +1057,7 @@ function pokeArVoxel(origin, dir) {
 
 function onArSelectStart(event) {
   if (!arPresenting() || !arLocked) return;
+  if (arSelectIsOverlayEcho(performance.now(), arIgnoreSelectUntil)) return;
   const ctrl = event.target;
   const ray = controllerWorldRay(ctrl);
   const frameHit = hitArFrame(ray.origin, ray.dir);
@@ -996,6 +1076,12 @@ function setArMag(next) {
   arMag = clampArMag(next);
   const el = document.getElementById("ar-mag");
   if (el) el.value = String(arMag);
+  applyArStagePose();
+}
+
+function setArHeight(next) {
+  arHeight = clampArHeight(next);
+  ui.setArHeight?.(arHeight);
   applyArStagePose();
 }
 
@@ -1042,7 +1128,15 @@ function updateXrHud() {
 }
 
 function updateReticle(xrFrame) {
-  if (!arPresenting() || !arUseHitTest || !arHitTestSource || !xrFrame || arLocked) {
+  if (
+    !arReticleAllowed({
+      presenting: arPresenting(),
+      searching: arSearching,
+      locked: arLocked,
+      hasHitTest: Boolean(arUseHitTest && arHitTestSource),
+    }) ||
+    !xrFrame
+  ) {
     reticle.visible = false;
     return;
   }
@@ -1062,13 +1156,29 @@ function updateReticle(xrFrame) {
     reticle.visible = false;
     return;
   }
-  const pose = hits[0].getPose(refSpace);
-  if (!pose) {
+  const matrices = [];
+  for (const hit of hits) {
+    const pose = hit.getPose(refSpace);
+    if (pose?.transform?.matrix) matrices.push(pose.transform.matrix);
+  }
+  const chosen = arPhoneOverlay ? firstFloorHitMatrix(matrices) : matrices[0];
+  if (!chosen) {
     reticle.visible = false;
     return;
   }
   reticle.visible = true;
-  reticle.matrix.fromArray(pose.transform.matrix);
+  reticle.matrix.fromArray(chosen);
+}
+
+function setArDocument(on) {
+  document.documentElement.classList.toggle("is-ar", Boolean(on));
+  document.body.classList.toggle("is-ar", Boolean(on));
+  if (!on) setArPlacedDocument(false);
+}
+
+function setArPlacedDocument(on) {
+  document.documentElement.classList.toggle("is-ar-placed", Boolean(on));
+  document.body.classList.toggle("is-ar-placed", Boolean(on));
 }
 
 async function enterAr() {
@@ -1085,6 +1195,7 @@ async function enterAr() {
     document.getElementById("xr-overlay"),
     navigator.userAgent || "",
   );
+  setArDocument(true);
   try {
     const session = await requestImmersiveAr(xr, overlay);
     const space = await preferredReferenceSpaceType(session);
@@ -1096,6 +1207,7 @@ async function enterAr() {
       await attach();
     }
   } catch (err) {
+    setArDocument(false);
     console.warn("WebXR session failed", err);
   }
 }
@@ -1107,25 +1219,27 @@ function exitAr() {
 
 async function onArSessionStart() {
   try {
-    document.documentElement.classList.add("is-ar");
-    document.body.classList.add("is-ar");
+    setArDocument(true);
     gizmo.clearHover();
     setViewCursor("");
     syncGizmoChrome();
     renderer.setClearAlpha(0);
     renderer.setScissorTest(false);
     controls.enabled = false;
-    arPlacePending = false;
-    arHitStartedAt = performance.now();
     arPlaced = false;
     arAnchored = false;
     arLocked = false;
+    arIgnoreSelectUntil = 0;
     arUseHitTest = false;
+    arHitTestResolved = false;
+    arPhoneOverlay = !isHeadsetBrowser(navigator.userAgent || "");
+    arSearching = !arPhoneOverlay;
+    arHeight = XR_HEIGHT_DEFAULT;
+    ui.setArHeight?.(arHeight);
     if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
       arHitTestSource.cancel();
     }
     arHitTestSource = null;
-    stage.visible = true;
     reticle.visible = false;
     arHeadsetHud = false;
     arPinch = null;
@@ -1133,15 +1247,18 @@ async function onArSessionStart() {
     arPlanePoke = false;
     arStandAxis = "z";
     stand.quaternion.identity();
-    ui.setArYawEnabled(true);
+    ui.setArYawEnabled(!arPhoneOverlay);
     ui.setArStandAxis?.("z");
-    captureViewerAnchor();
+    setArPlacedDocument(false);
+    syncArVolumeVisible();
+    if (!arPhoneOverlay) captureViewerAnchor();
     const session = renderer.xr.getSession();
     requestViewerHitTestSource(session).then((src) => {
-      if (!arPresenting() || arLocked) return;
+      if (!arPresenting()) return;
       arHitTestSource = src;
       arUseHitTest = Boolean(src);
-      ui.setArYawEnabled(!arUseHitTest);
+      arHitTestResolved = true;
+      ui.setArYawEnabled(arLocked || !arUseHitTest);
       updateHint();
     });
     syncTurntableVisual();
@@ -1150,25 +1267,28 @@ async function onArSessionStart() {
     dirtySource = true;
     dirtyView = true;
     syncFog();
-    ui.setArActive(true);
+    syncClipPlanes();
+    syncArOverlayChrome();
     updateHint();
   } catch (err) {
     console.warn("DONNER AR session start", err);
-    if (arPresenting() && !arLocked) {
-      stage.visible = true;
+    if (arPresenting() && !arLocked && !arPhoneOverlay) {
       captureViewerAnchor();
+      syncArVolumeVisible();
     }
   }
 }
 
 function onArSessionEnd() {
-  document.documentElement.classList.remove("is-ar");
-  document.body.classList.remove("is-ar");
+  setArDocument(false);
   renderer.setClearAlpha(1);
   controls.enabled = true;
-  arPlacePending = false;
-  arHitStartedAt = 0;
+  arIgnoreSelectUntil = 0;
   arHeadsetHud = false;
+  arPhoneOverlay = false;
+  arSearching = false;
+  arHeight = XR_HEIGHT_DEFAULT;
+  ui.setArHeight?.(arHeight);
   arPinch = null;
   arFrameDrag = null;
   arPlanePoke = false;
@@ -1185,6 +1305,7 @@ function onArSessionEnd() {
   pinOrbitPivot();
   ui.setArActive(false);
   ui.setArYawEnabled(true);
+  syncClipPlanes();
   syncGizmoChrome();
   updateHint();
   resize();
@@ -1200,7 +1321,7 @@ function syncFog() {
 
 function syncViewRange() {
   if (inspectMode() && tape) {
-    const h = Math.max(24, (tape.newestT() - tape.oldestT() + 1) * DEFAULTS.timeScale);
+    const h = Math.max(24, (tape.newestT() - tape.oldestT() + 1) * layoutTime());
     controls.maxDistance = Math.min(2400, Math.max(220, h * 1.85));
     camera.far = Math.max(400, controls.maxDistance * 2.4);
   } else {
@@ -1226,7 +1347,7 @@ function applyRingCapacity() {
 
 function currentSlabY() {
   const span = volumeSpan();
-  return slabYRange(viewNow(), span.tLo, span.tHi, DEFAULTS.timeScale);
+  return slabYRange(viewNow(), span.tLo, span.tHi, layoutTime());
 }
 
 function pinOrbitPivot() {
@@ -1255,7 +1376,7 @@ function fitVolume() {
   if (!world || arPresenting()) return;
   const box = cropAabb();
   const { yMin, yMax, yMid } = currentSlabY();
-  const cs = DEFAULTS.cellSize;
+  const cs = layoutCell();
   const ox = (world.width - 1) * 0.5;
   const oz = (world.height - 1) * 0.5;
   const xLo = box ? box.xLo : 0;
@@ -1288,6 +1409,11 @@ function fitVolume() {
   controls.update();
 }
 
+function inspectPoseSlabs() {
+  if (!world) return defaultInspectSlabs(1, 1, 0, 0);
+  return defaultInspectSlabs(world.width, world.height, maxTimeBack(), 0);
+}
+
 function resetClipExtent() {
   if (!world) return;
   slabs = resetSlabClips(
@@ -1296,6 +1422,15 @@ function resetClipExtent() {
     Math.max(0, world.height - 1),
     maxTimeBack(),
   );
+  syncStackUi();
+  syncClipPlanes();
+  updateHint();
+  dirtyView = true;
+}
+
+function resetPlanesToVolume() {
+  if (!world) return;
+  slabs = inspectPoseSlabs();
   syncStackUi();
   syncClipPlanes();
   updateHint();
@@ -1331,7 +1466,7 @@ function applySlab(axis, next, dragged = "focus") {
     dragged === "focus" &&
     !decay &&
     !planeLock;
-  dirtyView = !hullFocus || (sourceId !== "count" && stabScaleOn && stabMode === "focus");
+  dirtyView = !hullFocus || (sourceId !== "count" && stabMode === "focus");
 }
 
 function enterInspect() {
@@ -1413,7 +1548,7 @@ function brickYRange() {
 function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   if (!width || !height) return;
   const { yMin, yMax } = brickYRange();
-  const cs = DEFAULTS.cellSize;
+  const cs = layoutCell();
   for (const a of ["x", "y", "z"]) {
     disposeObject3(focusSurfaces[a]);
     focusSurfaces[a] = createFocusSurface(width, height, cs, a, yMin, yMax, AXIS_COLOR[a], "focus");
@@ -1445,21 +1580,8 @@ function countWorld(vol) {
 }
 
 function stabForFill() {
-  if (sourceId === "count") return countSizeByCount ? "time" : "none";
-  return stabScaleOn ? stabMode : "none";
-}
-
-function restampConway() {
-  if (sourceId !== "conway" || !world) return;
-  const opts = { wrap: world.wrap, neighborhoodRadius };
-  if (ring && typeof ring.setClassify === "function") {
-    ring.setClassify(opts);
-    ring.stampAll(world.width, world.height);
-  }
-  if (tape && typeof tape.setClassify === "function") {
-    tape.setClassify(opts);
-    tape.stampAll(world.width, world.height);
-  }
+  if (sourceId === "count") return "none";
+  return stabMode;
 }
 
 function encodingBaseK() {
@@ -1482,25 +1604,15 @@ function markGps() {
 
 function ensureSpatialSlabs() {
   if (!world) return;
-  const xMax = Math.max(0, world.width - 1);
-  const yMax = Math.max(0, world.height - 1);
-  if (slabs.x.far < 1 && xMax > 0) slabs.x = { near: 0, focus: 0, far: xMax };
-  else slabs.x.far = Math.min(slabs.x.far, xMax);
-  if (slabs.y.far < 1 && yMax > 0) slabs.y = { near: 0, focus: 0, far: yMax };
-  else slabs.y.far = Math.min(slabs.y.far, yMax);
+  const pose = inspectPoseSlabs();
+  if (slabs.x.far < 1 && pose.x.far > 0) slabs.x = pose.x;
+  else slabs.x.far = Math.min(slabs.x.far, pose.x.far);
+  if (slabs.y.far < 1 && pose.y.far > 0) slabs.y = pose.y;
+  else slabs.y.far = Math.min(slabs.y.far, pose.y.far);
 }
 
-function fullExtentSlabs(vol) {
-  const zMax = Math.max(0, vol.newestT() - vol.oldestT());
-  const xMax = Math.max(0, vol.width - 1);
-  const yMax = Math.max(0, vol.height - 1);
-  slabs.x = { near: 0, focus: xMax >> 1, far: xMax };
-  slabs.y = { near: 0, focus: yMax >> 1, far: yMax };
-  slabs.z = { near: 0, focus: zMax >> 1, far: zMax };
-}
-
-function applyDenseCountWindow(vol) {
-  fullExtentSlabs(vol);
+function applyDenseCountWindow() {
+  slabs = inspectPoseSlabs();
   decay = false;
   ui.setDecay(false);
   applySlab(activeAxis, slabs[activeAxis], "focus");
@@ -1508,7 +1620,7 @@ function applyDenseCountWindow(vol) {
 
 function resetCountView() {
   if (countVol && isDenseCount(countVol)) {
-    applyDenseCountWindow(countVol);
+    applyDenseCountWindow();
     return;
   }
   applySlab("z", { ...slabs.z, focus: 0 }, "focus");
@@ -1526,12 +1638,9 @@ function stepCountPlayhead() {
 function bootCount(vol) {
   sourceId = "count";
   countVol = vol;
-  countSizeByCount = ui.getConfig().countSize;
   gensPerSec = ui.getConfig().gensPerSec;
   decay = ui.getConfig().decay;
   historyLen = ui.getConfig().history;
-  encodingMinimal = ui.getConfig().encodingMinimal;
-  forceFullRebuild = ui.getConfig().forceFullRebuild;
   playing = false;
   editing = false;
   tapeMode = true;
@@ -1548,12 +1657,10 @@ function bootCount(vol) {
   );
   acc = 0;
   if (isDenseCount(vol)) {
-    applyDenseCountWindow(vol);
+    applyDenseCountWindow();
   } else {
     decay = ui.getConfig().decay;
-    slabs.x = { near: 0, focus: 0, far: Math.max(0, vol.width - 1) };
-    slabs.y = { near: 0, focus: 0, far: Math.max(0, vol.height - 1) };
-    slabs.z = { near: 0, focus: 0, far: Math.max(0, vol.newestT() - vol.oldestT()) };
+    slabs = inspectPoseSlabs();
     applySlab("z", slabs.z, "focus");
   }
   syncFog();
@@ -1691,10 +1798,6 @@ function bootWorld(resizeGrid) {
   historyLen = cfg.history;
   stabMode = cfg.stabMode;
   dynamicsOn = cfg.dynamics;
-  neighborhoodRadius = cfg.neighborhoodRadius;
-  stabScaleOn = cfg.stabScale;
-  encodingMinimal = cfg.encodingMinimal;
-  forceFullRebuild = cfg.forceFullRebuild;
   tapeMode = !playing;
 
   world = new ConwayWorld({
@@ -1703,7 +1806,7 @@ function bootWorld(resizeGrid) {
     wrap: cfg.wrap,
   });
   const rng = mulberry32(cfg.seed >>> 0);
-  world.load(seedPattern(cfg.pattern, world.height, world.width, rng, DEFAULTS.density));
+  world.load(seedPattern(cfg.pattern, world.height, world.width, rng, cfg.density));
 
   ring = new GenerationRing(historyLen, cfg.width * cfg.height);
   tape = new GenerationRing(64, cfg.width * cfg.height, {
@@ -1711,9 +1814,6 @@ function bootWorld(resizeGrid) {
     maxCapacity: DEFAULTS.maxTapeSlices,
     maxEvents: DEFAULTS.maxTapeEvents,
   });
-  const classify = { wrap: world.wrap, neighborhoodRadius };
-  ring.setClassify(classify);
-  tape.setClassify(classify);
   ring.pushGrid(world.grid, world.width, world.height, world.generation);
   tape.pushGrid(world.grid, world.width, world.height, world.generation);
   layoutPlayfield(cfg.width, cfg.height);
@@ -1725,15 +1825,7 @@ function bootWorld(resizeGrid) {
   stoppedStable = false;
   gridHistory.length = 0;
   rememberGrid(world.grid);
-  const xMax = Math.max(0, cfg.width - 1);
-  const yMax = Math.max(0, cfg.height - 1);
-  slabs.x = { near: 0, focus: 0, far: xMax };
-  slabs.y = { near: 0, focus: 0, far: yMax };
-  slabs.z = {
-    near: 0,
-    focus: 0,
-    far: tapeMode ? Math.max(0, tape.newestT() - tape.oldestT()) : 0,
-  };
+  slabs = inspectPoseSlabs();
   applySlab("z", slabs.z, "focus");
   syncFog();
   syncViewRange();
@@ -1761,6 +1853,7 @@ function bootWorld(resizeGrid) {
 }
 
 function togglePlay() {
+  if (isStaticSourceKind(ui.getConfig().sourceKind)) return;
   if (sourceId === "count") {
     if (playing) {
       playing = false;
@@ -1874,7 +1967,7 @@ function pageActiveFocus(dir) {
 
 function planeRectSize(axis) {
   const box = cropAabb();
-  const cs = DEFAULTS.cellSize;
+  const cs = layoutCell();
   const ox = (world.width - 1) * 0.5;
   const oz = (world.height - 1) * 0.5;
   const xLo = box ? box.xLo : 0;
@@ -1985,14 +2078,15 @@ function applyGridLook() {
   const chrome = (!planeLock && !arPresenting()) || arChrome;
   const cut = planeLock && !arPresenting();
   if (nowGrid) {
-    nowGrid.visible = (!arPresenting() && chrome && showPlanes) || cut;
+    nowGrid.visible =
+      (!arPresenting() && chrome && centerChromeVisible(hideCenter, { cut })) || cut;
     setLineOpacity(nowGrid, inspect || cut ? 0.42 : 0.18);
   }
   for (const a of ["x", "y", "z"]) {
     const surf = focusSurfaces[a];
     const showFrame = cut
       ? a === activeAxis
-      : chrome && showPlanes && (arChrome || a === "z" || inspect);
+      : chrome && centerChromeVisible(hideCenter) && (arChrome || a === "z" || inspect);
     if (surf) {
       const pickEdit = editing && a === "z" && chrome && !arPresenting();
       const pickCut = cut && a === activeAxis;
@@ -2000,7 +2094,7 @@ function applyGridLook() {
       surf.material.opacity = 0;
     }
     playfields[a].setVisible(showFrame);
-    if (!showFrame || cut) {
+    if (cut) {
       clipFrames[a].near.setVisible(false);
       clipFrames[a].far.setVisible(false);
     }
@@ -2023,21 +2117,25 @@ function syncClipPlanes() {
   const { yMin, yMax } = brickYRange();
   const arChrome = arLockedChrome();
   const chrome = (!planeLock && !arPresenting()) || arChrome;
-  const showClips = chrome && showPlanes && inspectMode() && !stackLiveLocked();
-  const cs = DEFAULTS.cellSize;
+  const showClips = chrome && outerChromeVisible(hideOuter, {
+    inspect: inspectMode(),
+    liveLocked: stackLiveLocked(),
+    arHideOuter: phoneArSession(),
+  });
+  const cs = layoutCell();
   const w = world.width;
   const h = world.height;
   for (const a of ["x", "y", "z"]) {
     const s = slabs[a];
-    const show = chrome && showPlanes && (arChrome || a === "z" || inspectMode());
+    const axisChrome = arChrome || a === "z" || inspectMode();
     const coord = sliceWorldCoord(s.focus, a);
     playfields[a].setSize(w, h, cs, a, yMin, yMax);
     playfields[a].setOffset(a, coord);
     if (focusSurfaces[a]) {
       orientSlicePlane(focusSurfaces[a], a, w, h, cs, yMin, yMax, coord);
     }
-    const nearOn = showClips && show && s.near !== s.focus;
-    const farOn = showClips && show && s.far !== s.focus;
+    const nearOn = showClips && axisChrome && s.near !== s.focus;
+    const farOn = showClips && axisChrome && s.far !== s.focus;
     clipFrames[a].near.setVisible(nearOn);
     clipFrames[a].far.setVisible(farOn);
     if (nearOn) {
@@ -2067,16 +2165,24 @@ function syncClipPlanes() {
 function updateHint() {
   const atNow = slabs.z.focus === 0;
   if (arPresenting()) {
-    if (arUseHitTest && !arPlaced) {
-      ui.setHint("AR — point at a table until the gold square appears, then tap");
+    if (!arLocked) {
+      ui.setHint(
+        arPhoneOverlay && !arSearching
+          ? "AR — Search Anchor, then look at the floor"
+          : !arHitTestResolved
+            ? "AR — looking for the floor…"
+            : arUseHitTest
+              ? "AR — look at the floor until the gold square appears, then tap to place"
+              : "AR — tap to place the volume in front of you",
+      );
     } else if (arUseHitTest) {
       ui.setHint(
         arHeadsetHud
-          ? "AR — grab a frame to slide the volume · poke a cube to isolate the standing plane · stick yaws · both grips pinch size"
-          : "AR — Stand X/Y/Z on the overlay · grab a frame to slide the volume · tap a cube to isolate the standing plane · yaw · Exit to orbit",
+          ? "AR — grab a frame to slide the volume · poke a cube to isolate the standing plane · stick yaws · both grips pinch size · Exit AR to place again"
+          : "AR — Reset Anchor to search again · Z lifts off the floor · Size scales · yaw · Exit to orbit",
       );
     } else {
-      ui.setHint("AR — yaw the volume · walk around with the phone · Exit returns to orbit");
+      ui.setHint("AR — Reset Anchor to search again · Z lifts off the floor · yaw · Exit returns to orbit");
     }
   } else if (planeLock) {
     ui.setHint("Slice — wheel zooms · same-face click pages · right-drag pans · left-drag leaves · Shift+wheel pages · B restores 3D");
@@ -2171,8 +2277,6 @@ function fillVolume() {
     height: world.height,
     wrap: world.wrap,
     dynamics: dynamicsOn,
-    neighborhoodRadius,
-    stabScale: stabScaleOn,
     aabb,
     foci,
     shade,
@@ -2198,6 +2302,7 @@ function uploadInstances() {
     history: volumeWindow(),
     stabMode: stabForFill(),
     cellSize: DEFAULTS.cellSize,
+    voxelGap,
     isolate: null,
     activeAxis,
     aabb: inspectMode() ? cropAabb() : null,
@@ -2274,7 +2379,7 @@ function hitCell(event, cubesToo = false) {
     _hitLocal.z,
     world.width,
     world.height,
-    DEFAULTS.cellSize,
+    layoutCell(),
   );
 }
 
@@ -2289,7 +2394,12 @@ function setViewCursor(kind) {
 }
 
 function canGrabFrames() {
-  return !arPresenting() && !planeLock && inspectMode() && showPlanes;
+  return (
+    !arPresenting() &&
+    !planeLock &&
+    inspectMode() &&
+    anyFrameChromeVisible(hideCenter, hideOuter, { inspect: true })
+  );
 }
 
 function projectFramePoint(x, y, z, cam, rect) {
@@ -2340,9 +2450,13 @@ function hitWorkPlane(event) {
   const rect = canvas.getBoundingClientRect();
   const candidates = [];
   for (const a of ["x", "y", "z"]) {
-    collectFramePick(playfields[a], event, cam, rect, candidates);
-    collectFramePick(clipFrames[a].near, event, cam, rect, candidates);
-    collectFramePick(clipFrames[a].far, event, cam, rect, candidates);
+    if (centerChromeVisible(hideCenter)) {
+      collectFramePick(playfields[a], event, cam, rect, candidates);
+    }
+    if (outerChromeVisible(hideOuter, { inspect: true })) {
+      collectFramePick(clipFrames[a].near, event, cam, rect, candidates);
+      collectFramePick(clipFrames[a].far, event, cam, rect, candidates);
+    }
   }
   const picked = pickOverlappingFrameHit(candidates, frameHover, FRAME_PICK_PX);
   if (!picked) return null;
@@ -2381,7 +2495,7 @@ function beginPlaneDrag(event, axis, handle, grabPoint) {
   if (inspectMode() && key === "focus") setShadeHeld(true);
   const cam = activeCamera();
   const axisDir = worldAxisDir(axis);
-  const scale = axis === "z" ? DEFAULTS.timeScale : DEFAULTS.cellSize;
+  const scale = axis === "z" ? layoutTime() : layoutCell();
   const rect = canvas.getBoundingClientRect();
   const mapped = screenAxisDragMap(grabPoint, axisDir, scale, (p) =>
     projectFramePoint(p.x, p.y, p.z, cam, rect),
@@ -2447,8 +2561,13 @@ function clearHover() {
 
 function resize() {
   if (arPresenting()) return;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
+  let w = canvas.clientWidth;
+  let h = canvas.clientHeight;
+  if (w < 2 || h < 2) {
+    const vv = window.visualViewport;
+    w = Math.round(vv?.width || window.innerWidth || 0);
+    h = Math.round(vv?.height || window.innerHeight || 0);
+  }
   if (w < 2 || h < 2) return;
   renderer.setSize(w, h, false);
   const aspect = w / Math.max(1, h);
@@ -2465,10 +2584,6 @@ function refreshGpu() {
     canvasHeight: canvas.height,
   });
   document.body.classList.toggle("is-software", Boolean(gpuInfo.software));
-  if (hudGpuEl) {
-    hudGpuEl.textContent = formatGpuHud(gpuInfo);
-    hudGpuEl.classList.toggle("is-soft", Boolean(gpuInfo.software));
-  }
 }
 
 function beginYawDrag(e) {
@@ -2514,15 +2629,6 @@ if (gizmoHit) {
     gizmo.hover(e.clientX, e.clientY, canvas);
   });
   gizmoHit.addEventListener("pointerleave", () => gizmo.clearHover());
-}
-
-if (btnShowPlanes) {
-  btnShowPlanes.addEventListener("click", () => {
-    showPlanes = !showPlanes;
-    syncShowPlanesButton();
-    if (!showPlanes) setFrameHover(null);
-    syncClipPlanes();
-  });
 }
 
 canvas.addEventListener(
@@ -2700,23 +2806,7 @@ function frame(now, xrFrame) {
     if (arPresenting()) {
       updateReticle(xrFrame);
       if (!arLocked) {
-        if (reticle.visible) {
-          reticle.matrix.decompose(arAnchorPos, arAnchorQuat, _xrScale);
-          arAnchored = true;
-          arPlaced = true;
-          applyArStagePose();
-        } else {
-          captureViewerAnchor();
-        }
-        if (
-          shouldFallbackArPlace({
-            locked: arLocked,
-            hasHitTest: arUseHitTest,
-            waitedMs: performance.now() - arHitStartedAt,
-          })
-        ) {
-          lockArPlacement();
-        }
+        if (!arPhoneOverlay && !arAnchored) captureViewerAnchor();
       } else if (arPlaced) {
         applyArStagePose();
       }
@@ -2805,16 +2895,6 @@ function frame(now, xrFrame) {
         });
       }
       if (hudSparkEl) drawSparkline(hudSparkEl, clock);
-      if (hudBenchEl) {
-        const rows = paths.snapshot();
-        hudBenchEl.textContent = formatBenchHud({
-          rows,
-          work: lastWork,
-          forceFull: forceFullRebuild,
-          frameMs: ms,
-          bound: inferBound(rows, ms, lastWork),
-        });
-      }
     });
   } catch (err) {
     console.warn("DONNER hud", err);

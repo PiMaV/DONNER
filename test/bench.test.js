@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  BENCH_PRESETS,
   PathTimer,
   formatBenchHud,
   formatGpuHud,
@@ -220,23 +219,7 @@ describe("append-only tape", () => {
   });
 });
 
-describe("bench presets", () => {
-  it("keeps teaching at 32, neighborhood off, and CPU stress on Depth 100", () => {
-    const teaching = BENCH_PRESETS.find((p) => p.id === "teaching");
-    const cpu = BENCH_PRESETS.find((p) => p.id === "cpuStress");
-    const rend = BENCH_PRESETS.find((p) => p.id === "rendererStress");
-    assert.equal(teaching.width, 32);
-    assert.equal(teaching.visible, 48);
-    assert.equal(teaching.neighborhoodRadius, 0);
-    assert.equal(cpu.width, 64);
-    assert.equal(cpu.visible, 100);
-    assert.equal(cpu.neighborhoodRadius, 0);
-    assert.equal(rend.encodingMinimal, true);
-    assert.equal(rend.dynamics, false);
-  });
-});
-
-describe("fillSoA bench flags", () => {
+describe("fillSoA view flags", () => {
   function blinkerRing() {
     let grid = seedPattern("Blinker", 9, 9, mulberry32(0));
     const ring = new GenerationRing(8, 81);
@@ -248,7 +231,7 @@ describe("fillSoA bench flags", () => {
     return { ring, soa };
   }
 
-  it("skips kindAt when dynamics are off", () => {
+  it("skips kindAt when color coding is off", () => {
     const { ring, soa } = blinkerRing();
     ring.fillSoA(soa, 2, 8, 9, { dynamics: false });
     assert.ok(soa.count >= 3);
@@ -258,9 +241,9 @@ describe("fillSoA bench flags", () => {
     }
   });
 
-  it("still classifies occupancy when neighborhood is off", () => {
+  it("classifies occupancy by default", () => {
     const { ring, soa } = blinkerRing();
-    ring.fillSoA(soa, 2, 8, 9, { neighborhood: false });
+    ring.fillSoA(soa, 2, 8, 9);
     const kindAt = (x, y) => {
       for (let i = 0; i < soa.count; i++) {
         if (soa.t[i] === 2 && soa.x[i] === x && soa.y[i] === y) return soa.k[i];

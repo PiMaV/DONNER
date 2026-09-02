@@ -11,6 +11,7 @@
  * Inspect: Hull / Ghost / Triple / Slice from `voxelShadeClass`. Ghost hull fades
  * toward the AABB faces along the active plane (`sliceDistanceFade`).
  * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
+ * View Gap (`voxelGap`) spreads instance centers; cube edge stays `cellSize × fill`.
  */
 
 import * as THREE from "three";
@@ -18,6 +19,7 @@ import { AXIS_COLOR, COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
 import {
   normalizeSliceAxis,
   onAxisPlane,
+  voxelPitch,
   voxelShadeClass,
   zWorldY,
 } from "./axes.js";
@@ -96,6 +98,7 @@ export class CubeRenderer {
    *   height: number,
    *   stabMode?: "none" | "time" | "focus",
    *   cellSize?: number,
+   *   voxelGap?: number,
    *   isolate?: { x: number, y: number } | null,
    *   sliceOnly?: boolean,
    *   activeAxis?: "x" | "y" | "z",
@@ -107,11 +110,13 @@ export class CubeRenderer {
    */
   setEvents(soa, view) {
     const cell = view.cellSize ?? this.cellSize;
+    const timeScale = view.timeScale;
+    const pitch = voxelPitch(cell, view.voxelGap);
+    const timePitch = voxelPitch(timeScale, view.voxelGap);
     const ox = (view.width - 1) * 0.5;
     const oz = (view.height - 1) * 0.5;
     const decayOn = Boolean(view.decay);
     const fadeSpan = Math.max(1, view.fadeSpan | 0);
-    const timeScale = view.timeScale;
     const tFocus = view.tFocus;
     const tNow = view.tNow ?? tFocus;
     const isolate = view.isolate || null;
@@ -166,7 +171,7 @@ export class CubeRenderer {
         }
       }
 
-      dummy.position.set((x - ox) * cell, zWorldY(t, tNow, timeScale), (y - oz) * cell);
+      dummy.position.set((x - ox) * pitch, zWorldY(t, tNow, timePitch), (y - oz) * pitch);
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
       const s = focusS ? focusS.get((y | 0) * view.width + (x | 0)) || 0 : soa.s[i];

@@ -13,11 +13,29 @@ export const XR_HIT_TEST = "hit-test";
 export const XR_MAG_MIN = 0.4;
 export const XR_MAG_MAX = 2.5;
 export const XR_MAG_DEFAULT = 1;
+/** World meters along the floor normal (height off the plane). */
+export const XR_HEIGHT_MIN = 0;
+export const XR_HEIGHT_MAX = 2;
+export const XR_HEIGHT_DEFAULT = 0;
+/** Hit pose Y (surface normal) must align with world +Y at least this much. */
+export const XR_FLOOR_UP_DOT = 0.7;
 
 export function clampArMag(mag) {
   const m = Number(mag);
   if (!Number.isFinite(m) || m <= 0) return XR_MAG_DEFAULT;
   return Math.min(XR_MAG_MAX, Math.max(XR_MAG_MIN, m));
+}
+
+export function clampArHeight(height) {
+  const h = Number(height);
+  if (!Number.isFinite(h)) return XR_HEIGHT_DEFAULT;
+  return Math.min(XR_HEIGHT_MAX, Math.max(XR_HEIGHT_MIN, h));
+}
+
+/** Sit-on-plane lift plus extra height off the floor (world-up meters). */
+export function arWorldLift(sit, height) {
+  const base = Number(sit);
+  return (Number.isFinite(base) ? base : 0) + clampArHeight(height);
 }
 
 /** Scale so 32 cells of `cellSize` span 40 cm × `mag` in WebXR meters. */
@@ -179,22 +197,97 @@ export async function requestViewerHitTestSource(session) {
   }
 }
 
-/** Place in front of the viewer if hit-test never arrives. */
-export const AR_NO_HITTEST_MS = 400;
-/** Place in front if a hit-test source never finds a plane. */
-export const AR_HIT_FALLBACK_MS = 1600;
+/**
+ * Ignore WebXR `select` for this long after an overlay button (Reset
+ * Anchor). Phone overlay taps also fire `transient-pointer` select.
+ */
+export const AR_OVERLAY_SELECT_GUARD_MS = 450;
+
+/** True while a DOM overlay click may still echo as a WebXR select. */
+export function arSelectIsOverlayEcho(now, ignoreUntil) {
+  const t = Number(now);
+  const until = Number(ignoreUntil);
+  if (!Number.isFinite(t) || !Number.isFinite(until)) return false;
+  return t < until;
+}
 
 /**
- * True when AR should stop waiting for a table hit and lock in front
- * of the viewer. A granted hit-test that never returns planes used to
- * leave the stage hidden for the whole session.
+ * Guard overlay chrome only. A tap on the overlay root (passthrough /
+ * canvas) must still place. A capture listener on `#xr-overlay` used
+ * to swallow every phone tap, so orbit never reached the canvas and
+ * WebXR `select` never locked.
  */
-export function shouldFallbackArPlace({ locked = false, hasHitTest = false, waitedMs = 0 } = {}) {
+export const AR_OVERLAY_GUARD_SEL =
+  "button, input, select, textarea, label, .stack, .transport, .ar-size, .ar-yaw, .ar-height, .ar-stand";
+
+export function arOverlaySelectShouldGuard(target, overlayRoot) {
+  if (!overlayRoot || target == null) return false;
+  if (target === overlayRoot) return false;
+  const node = target.nodeType === 1 ? target : target.parentElement;
+  if (!node) return false;
+  if (typeof overlayRoot.contains === "function" && !overlayRoot.contains(node)) {
+    return false;
+  }
+  if (typeof node.closest !== "function") return false;
+  return Boolean(node.closest(AR_OVERLAY_GUARD_SEL));
+}
+
+/**
+ * User-confirmed place only. Search must be armed. A visible reticle
+ * must not move the stage until confirm. Timeouts never lock. Without
+ * hit-test, a tap may lock the viewer-front preview.
+ */
+export function canConfirmArPlace({
+  locked = false,
+  searching = false,
+  reticleVisible = false,
+  hasHitTest = false,
+  hitTestResolved = true,
+} = {}) {
   if (locked) return false;
-  const t = Number(waitedMs);
-  const waited = Number.isFinite(t) && t > 0 ? t : 0;
-  if (!hasHitTest) return waited >= AR_NO_HITTEST_MS;
-  return waited >= AR_HIT_FALLBACK_MS;
+  if (!searching) return false;
+  if (!hitTestResolved) return false;
+  if (hasHitTest) return Boolean(reticleVisible);
+  return true;
+}
+
+/** Phone AR: no brick until lock. Headset may keep a viewer-front preview. */
+export function arVolumeVisible({ locked = false, headset = false, anchored = false } = {}) {
+  if (locked) return true;
+  return Boolean(headset && anchored);
+}
+
+export function arReticleAllowed({
+  presenting = false,
+  searching = false,
+  locked = false,
+  hasHitTest = false,
+} = {}) {
+  return Boolean(presenting && searching && !locked && hasHitTest);
+}
+
+/** Pose Y axis (WebXR hit normal) from a column-major 4×4. */
+export function matrix4YAxis(m) {
+  if (!m || m.length < 7) return { x: 0, y: 1, z: 0 };
+  return { x: Number(m[4]) || 0, y: Number(m[5]) || 0, z: Number(m[6]) || 0 };
+}
+
+/** Horizontal floor (or table): surface normal ≈ world +Y. Rejects walls. */
+export function isFloorHitMatrix(m, minDot = XR_FLOOR_UP_DOT) {
+  const { x, y, z } = matrix4YAxis(m);
+  const len = Math.hypot(x, y, z);
+  if (!(len > 0)) return false;
+  const dot = Number(minDot);
+  const need = Number.isFinite(dot) ? dot : XR_FLOOR_UP_DOT;
+  return y / len >= need;
+}
+
+export function firstFloorHitMatrix(matrices, minDot = XR_FLOOR_UP_DOT) {
+  if (!Array.isArray(matrices)) return null;
+  for (const m of matrices) {
+    if (isFloorHitMatrix(m, minDot)) return m;
+  }
+  return null;
 }
 
 /** Unit quaternion taking direction `from` onto `to`. */

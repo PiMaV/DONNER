@@ -44,7 +44,8 @@
       <div id="gizmo-slot" class="gizmo-slot">
         <div id="gizmo-hit" class="gizmo-hit" aria-label="Viewcube"></div>
       </div>
-      <button type="button" id="btn-show-planes" class="btn-show-planes is-on" aria-pressed="true" title="Show or hide the 3D playhead and clip frames. A viewcube cut still shows the current plane.">Planes</button>
+      <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
+      <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
     </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
@@ -52,16 +53,17 @@
         <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
         <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
       </section>
-      <section class="hud-source" aria-label="Source telemetry">
-        <h2 class="sheet-label">Source</h2>
-        <pre id="hud-src" class="hud-stats" aria-live="polite"></pre>
-      </section>
     </div>
     <div class="hud-time">
       <label class="ar-size" for="ar-mag">
         <span>Size</span>
         <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
           aria-label="AR volume size" />
+      </label>
+      <label class="ar-height" for="ar-height">
+        <span>Z</span>
+        <input id="ar-height" type="range" min="0" max="2" step="0.01" value="0"
+          aria-label="AR height off the floor" />
       </label>
       <label class="ar-yaw" for="ar-yaw">
         <span>Yaw</span>
@@ -126,7 +128,11 @@
       </aside>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false">Play</button>
+        <button type="button" id="btn-play-ar" class="btn btn-play" hidden aria-pressed="false">Play</button>
+        <button type="button" id="btn-ar-search" class="btn btn-ar-search" hidden
+          title="Look for a floor plane, then tap the gold square to place the volume.">Search Anchor</button>
+        <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
+          title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
@@ -134,125 +140,15 @@
   </div>
 
   <div class="fold-bar">
-    <button type="button" id="btn-fold-view" class="fold" aria-expanded="false" aria-controls="panel-view">View ▸</button>
     <button type="button" id="btn-fold-source" class="fold" aria-expanded="false" aria-controls="panel-source">Source ▸</button>
+    <button type="button" id="btn-fold-view" class="fold" aria-expanded="false" aria-controls="panel-view">View ▸</button>
   </div>
 
   <form id="controls" class="controls-root" autocomplete="off" onsubmit="return false">
-    <div id="panel-view" class="controls panel-view">
-    <p id="hint" class="hint">Orbit · pinch zoom</p>
-
-    <section class="sheet-block" data-slot="view" aria-labelledby="sheet-view">
-      <h2 id="sheet-view" class="sheet-label">View</h2>
-      <div class="btn-row">
-        <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
-        <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
-        <button type="button" id="btn-extent" class="btn" title="Reset the three clip planes to the full volume. Playhead stays.">Full</button>
-      </div>
-      <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
-        <input id="align-z" type="checkbox" checked />
-        <span>Align to Z</span>
-      </label>
-      <label class="check" title="Fade older time slices toward the back of the drawn Z window. Does not fade the X/Y slice.">
-        <input id="decay" type="checkbox" />
-        <span>Decay (fade along Z toward oldest drawn)</span>
-      </label>
-      <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
-        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
-        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid. Sparse volumes keep a ghost hull; dense cubes show the cut only.">Ghost</button>
-        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three cut planes only. No hull.">Triple</button>
-      </div>
-      <label id="depth-field" class="field">
-        <span>Depth <em id="history-val"></em></span>
-        <input id="history" type="range" min="8" max="128" step="1" />
-      </label>
-      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Full opens the clips again. Hold a playhead edge to peek the cut; clip edges keep the hull. Triple is three slices only.</p>
-      <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
-    </section>
-
-    <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
-      <h2 id="sheet-encoding" class="sheet-label">Encoding</h2>
-      <label class="field encoding-conway" title="How cube size encodes stability. Hover an option for details.">
-        <span>Stability</span>
-        <select id="stab-mode">
-          <option value="none"
-            title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
-            None
-          </option>
-          <option value="time"
-            title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
-            Time
-          </option>
-          <option value="focus"
-            title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
-            Focus
-          </option>
-        </select>
-      </label>
-      <p id="stab-hint" class="hint stab-hint encoding-conway"></p>
-      <ul class="legend encoding-conway" aria-label="Color encoding">
-        <li><i class="swatch still"></i> Still</li>
-        <li><i class="swatch osc"></i> Oscillator</li>
-        <li><i class="swatch flow"></i> Moving</li>
-        <li><i class="swatch unsettled"></i> Unsettled</li>
-        <li><i class="swatch base"></i> Base</li>
-      </ul>
-      <label class="check encoding-count" title="Cube size follows the integer count. Off: occupancy only, color carries the count.">
-        <input id="count-size" type="checkbox" />
-        <span>Size by count</span>
-      </label>
-      <p id="count-enc-hint" class="hint encoding-count">Color is events per pixel per Δt. Cyan = 1, gold = mid, coral = max.</p>
-      <ul class="legend encoding-count" aria-label="Count encoding">
-        <li><i class="swatch osc"></i> <span id="count-leg-lo">1</span></li>
-        <li><i class="swatch still"></i> <span id="count-leg-mid">mid</span></li>
-        <li><i class="swatch flow"></i> <span id="count-leg-hi">max</span></li>
-      </ul>
-    </section>
-
-    <section class="sheet-block" data-slot="bench" id="slot-bench" aria-labelledby="sheet-bench">
-      <h2 id="sheet-bench" class="sheet-label">Bench</h2>
-      <label class="field">
-        <span>Preset</span>
-        <select id="bench-preset"></select>
-      </label>
-      <p id="preset-hint" class="hint read-hint"></p>
-      <p class="hint" id="bench-cliff">CPU cliff is <strong>Neighborhood 5×5</strong>. Dynamics and Stability stay on for teaching. Cubes/GPU: Renderer Stress.</p>
-      <label class="check">
-        <input id="bench-dynamics" type="checkbox" checked />
-        <span>Dynamics</span>
-      </label>
-      <label class="field">
-        <span>Neighborhood</span>
-        <select id="bench-neighborhood">
-          <option value="0">None (default)</option>
-          <option value="1">3×3</option>
-          <option value="2">5×5 (CPU cliff)</option>
-        </select>
-      </label>
-      <label class="check">
-        <input id="bench-stab-scale" type="checkbox" checked />
-        <span>Stability scaling</span>
-      </label>
-      <label class="check">
-        <input id="bench-encoding-min" type="checkbox" />
-        <span>Encoding minimal</span>
-      </label>
-      <label class="check">
-        <input id="bench-full-rebuild" type="checkbox" />
-        <span>Force full rebuild</span>
-      </label>
-      <label class="field" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
-        <span>Cube cap</span>
-        <input id="cube-cap" type="number" min="20000" max="4000000" step="10000" value="200000" />
-      </label>
-      <pre id="hud-gpu" class="hud-stats hud-bench" aria-live="off"></pre>
-      <pre id="hud-bench" class="hud-stats hud-bench" aria-live="off"></pre>
-    </section>
-    </div>
-
     <div id="panel-source" class="controls panel-source">
-    <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="sheet-source">
-      <h2 id="sheet-source" class="sheet-label">Source</h2>
+    <button type="button" id="btn-rail-source" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="source-body" title="Collapse Source">Source ▾</button>
+    <div id="source-body" class="sheet-body">
+    <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
       <label class="field">
         <span>Source</span>
         <select id="source-kind">
@@ -262,22 +158,30 @@
           <option value="count">Count file / stream</option>
         </select>
       </label>
-      <label class="field">
+      <div class="btn-row btn-row-one source-play">
+        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false">Play</button>
+      </div>
+      <label id="speed-field" class="field">
         <span>Speed <em id="speed-val"></em></span>
         <input id="speed" type="range" min="1" max="60" step="1" />
       </label>
       <div id="source-conway">
+      <label class="field">
+        <span>Pattern</span>
+        <select id="pattern"></select>
+      </label>
+      <p id="read-hint" class="hint read-hint"></p>
+      <label id="random-fill-field" class="field" title="Random occupancy. Sparse to dense.">
+        <span>Fill <em id="random-fill-val"></em></span>
+        <input id="random-fill" type="range" min="0.05" max="0.9" step="0.01" value="0.28"
+          aria-label="Random fill" />
+      </label>
       <div class="btn-row">
         <button type="button" id="btn-step" class="btn">Step</button>
         <button type="button" id="btn-edit" class="btn btn-edit" aria-pressed="false">Edit</button>
         <button type="button" id="btn-reset" class="btn">Reset</button>
         <button type="button" id="btn-random" class="btn">Seed</button>
       </div>
-      <label class="field">
-        <span>Pattern</span>
-        <select id="pattern"></select>
-      </label>
-      <p id="read-hint" class="hint read-hint"></p>
       <label class="field">
         <span>Seed</span>
         <input id="seed" type="number" min="0" max="2147483647" step="1" />
@@ -316,7 +220,89 @@
         <p id="wolke-status" class="hint"></p>
         <p id="count-meta" class="hint"></p>
       </div>
+      <pre id="hud-src" class="hud-stats source-stats" aria-live="polite"></pre>
     </section>
+    </div>
+    </div>
+
+    <div id="panel-view" class="controls panel-view">
+    <button type="button" id="btn-rail-view" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="view-body" title="Collapse View">View ▾</button>
+    <div id="view-body" class="sheet-body">
+    <p id="hint" class="hint">Orbit · pinch zoom</p>
+
+    <section class="sheet-block" data-slot="view" aria-labelledby="btn-rail-view">
+      <div class="btn-row">
+        <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
+        <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
+        <button type="button" id="btn-extent" class="btn" title="Reset the three clip planes to the full volume. Playhead stays.">Full</button>
+        <button type="button" id="btn-reset-planes" class="btn" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
+      </div>
+      <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
+        <input id="align-z" type="checkbox" checked />
+        <span>Align to Z</span>
+      </label>
+      <label class="field" title="Visual spacing between voxels. 0 packs faces into a solid cube (MRI). Open it up for Conway.">
+        <span>Gap <em id="voxel-gap-val"></em></span>
+        <input id="voxel-gap" type="range" min="0" max="2" step="0.05" value="0"
+          aria-label="Voxel gap" />
+      </label>
+      <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
+        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
+        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid. Sparse volumes keep a ghost hull; dense cubes show the cut only.">Ghost</button>
+        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
+      </div>
+      <label id="depth-field" class="field">
+        <span>Depth <em id="history-val"></em></span>
+        <input id="history" type="range" min="8" max="128" step="1" />
+      </label>
+      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Full opens the clips again. Reset Planes opens the clips and centers the three playheads. Hold a playhead edge to peek the cut; clip edges keep the hull. Cuts is three slices only.</p>
+      <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
+      <label class="field" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
+        <span>Cube cap</span>
+        <input id="cube-cap" type="number" min="20000" max="4000000" step="10000" value="200000" />
+      </label>
+      <p id="view-fps" class="hint view-fps">— FPS</p>
+    </section>
+
+    <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
+      <h2 id="sheet-encoding" class="sheet-label">Color coding</h2>
+      <label class="check encoding-conway" title="Color cubes by occupancy class (still / oscillator / unsettled / base). Off: one occupancy color.">
+        <input id="color-coding" type="checkbox" checked />
+        <span>Color coding</span>
+      </label>
+      <ul class="legend encoding-conway" aria-label="Color encoding">
+        <li><i class="swatch still"></i> Still</li>
+        <li><i class="swatch osc"></i> Oscillator</li>
+        <li><i class="swatch flow"></i> Moving</li>
+        <li><i class="swatch unsettled"></i> Unsettled</li>
+        <li><i class="swatch base"></i> Base</li>
+      </ul>
+      <label class="field encoding-conway" title="How cube size encodes stability. Hover an option for details.">
+        <span>Stability</span>
+        <select id="stab-mode">
+          <option value="none"
+            title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
+            None
+          </option>
+          <option value="time"
+            title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
+            Time
+          </option>
+          <option value="focus"
+            title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
+            Focus
+          </option>
+        </select>
+      </label>
+      <p id="stab-hint" class="hint stab-hint encoding-conway"></p>
+      <p id="count-enc-hint" class="hint encoding-count">Color is events per pixel per Δt. Cyan = 1, gold = mid, coral = max.</p>
+      <ul class="legend encoding-count" aria-label="Count encoding">
+        <li><i class="swatch osc"></i> <span id="count-leg-lo">1</span></li>
+        <li><i class="swatch still"></i> <span id="count-leg-mid">mid</span></li>
+        <li><i class="swatch flow"></i> <span id="count-leg-hi">max</span></li>
+      </ul>
+    </section>
+    </div>
     </div>
   </form>
 

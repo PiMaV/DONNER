@@ -34,6 +34,7 @@ describe("encoding adapter", () => {
     assert.equal(lut[4], COUNT_RAMP_HEX[2]);
     assert.equal(lerpHex(0xff0000, 0x00ff00, 0), 0xff0000);
     assert.equal(encodingFill(3, 8, "none", -1), SCALE_UNIFORM);
+    assert.equal(SCALE_UNIFORM, 1);
   });
 
   it("looks up time-mode s on the focus generation", () => {

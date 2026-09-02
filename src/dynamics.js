@@ -1,21 +1,17 @@
 /**
- * Worldline dynamics class for a live cell at generation t.
+ * Worldline occupancy class for a live cell at generation t.
  *
- * Time stays on Z; color encodes still / oscillator / moving / unsettled /
- * base. Oscillation is occupancy along Z (cubes appear / vanish), not extra
- * hues.
- *
- * Occupancy alone is not enough: a glider crawls over the same cell for
- * several gens, which looks like still/osc on that pixel. Still and osc
- * require a neighborhood centroid to stay put (net shift over two
- * gens below MOTION_THRESH). Default is occupancy only (radius 0).
- * 3×3 or 5×5 is a special case so gliders become moving tubes.
+ * Time stays on Z; color encodes still / oscillator / unsettled / base.
+ * Oscillation is occupancy along Z (cubes appear / vanish), not extra
+ * hues. Translating ships (gliders) read as still/osc on the cells they
+ * cross — occupancy only, no motion gate.
  *
  * Conway-only. Event-camera color is a later adapter; do not assume this
  * legend for polarity streams.
  *
  * Gray **base**: generations 0 .. CLASSIFY_AFTER-1, and the first live cube
  * of each (x, y) worldline.
+ * KIND_MOVING remains a LUT index (Color coding off copies this class).
  */
 
 export const KIND_STILL = 0;
@@ -32,13 +28,10 @@ export const CLASSIFY_AFTER = 2;
 /** Occupancy oscillator and board-ash cycle cap (pulsar / pentadecathlon). */
 export const MAX_OSC_PERIOD = 15;
 
-/** Max motion window (5×5). 0 = occupancy only; 1 = 3×3; 2 = 5×5. */
-export const MOTION_RADIUS = 2;
-export const MOTION_THRESH = 0.3;
-
 /** Consecutive still/osc gens mapped to cube fill; moving/unsettled stay small. */
 export const MAX_STAB_GENS = 16;
-export const SCALE_UNIFORM = 0.86;
+/** Occupancy fill. 1 packs faces at View Gap 0; open seams with the Gap slider. */
+export const SCALE_UNIFORM = 1;
 export const SCALE_OPEN = 0.52;
 export const SCALE_STAB_MIN = 0.5;
 export const SCALE_STAB_MAX = 0.94;
@@ -78,67 +71,6 @@ export function occupancyPeriod(t, packed, isLive, maxP = MAX_OSC_PERIOD) {
   return 0;
 }
 
-function wrapIndex(i, n) {
-  return ((i % n) + n) % n;
-}
-
-function minImage(d, n) {
-  const half = n * 0.5;
-  if (d > half) return d - n;
-  if (d < -half) return d + n;
-  return d;
-}
-
-function neighborhoodCentroid(t, cx, cy, isLive, bounds, radius) {
-  const { width, height, wrap } = bounds;
-  const r = radius | 0;
-  let sx = 0;
-  let sy = 0;
-  let n = 0;
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) {
-      let x = cx + dx;
-      let y = cy + dy;
-      if (wrap) {
-        x = wrapIndex(x, width);
-        y = wrapIndex(y, height);
-      } else if (x < 0 || y < 0 || x >= width || y >= height) {
-        continue;
-      }
-      if (!isLive(t, y * width + x)) continue;
-      sx += wrap ? minImage(x - cx, width) : dx;
-      sy += wrap ? minImage(y - cy, height) : dy;
-      n += 1;
-    }
-  }
-  if (n === 0) return null;
-  return [sx / n, sy / n];
-}
-
-/**
- * Motion-window radius from fill/bench opts. Default 0 (occupancy only).
- * `neighborhood: false` keeps older tests; `true` means 5×5.
- */
-export function kindOptsRadius(opts = {}) {
-  if (opts.neighborhoodRadius != null) return Math.max(0, opts.neighborhoodRadius | 0);
-  if (opts.neighborhood === false) return 0;
-  if (opts.neighborhood === true) return MOTION_RADIUS;
-  return 0;
-}
-
-/** True when live activity around this cell translated (spaceship, debris). */
-export function neighborhoodTranslated(t, packed, isLive, bounds, radius = MOTION_RADIUS) {
-  if (!bounds || t < CLASSIFY_AFTER || radius < 1) return false;
-  const cx = packed % bounds.width;
-  const cy = (packed / bounds.width) | 0;
-  const now = neighborhoodCentroid(t, cx, cy, isLive, bounds, radius);
-  const then = neighborhoodCentroid(t - 2, cx, cy, isLive, bounds, radius);
-  if (!now || !then) return true;
-  const dx = now[0] - then[0];
-  const dy = now[1] - then[1];
-  return Math.hypot(dx, dy) > MOTION_THRESH;
-}
-
 /** True when this live cell is the first cube on its (x, y) worldline. */
 export function isWorldlineOrigin(t, packed, isLive) {
   const tt = t | 0;
@@ -149,30 +81,23 @@ export function isWorldlineOrigin(t, packed, isLive) {
   return true;
 }
 
-/**
- * @param {{ neighborhood?: boolean, neighborhoodRadius?: number }} [opts]
- */
-export function kindAt(t, packed, isLive, bounds, opts = {}) {
+export function kindAt(t, packed, isLive) {
   if (t < CLASSIFY_AFTER || isWorldlineOrigin(t, packed, isLive)) return KIND_BASE;
-  const radius = kindOptsRadius(opts);
-  if (radius > 0 && neighborhoodTranslated(t, packed, isLive, bounds, radius)) {
-    return KIND_MOVING;
-  }
   if (isLive(t - 1, packed)) return KIND_STILL;
   if (occupancyPeriod(t, packed, isLive) >= 2) return KIND_OSC;
   return KIND_UNSETTLED;
 }
 
 /** Run length of the same still/osc class ending at `t`. 0 if dead or open. */
-export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS, bounds, kindOpts = {}) {
+export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS) {
   if (!isLive(t, packed)) return 0;
-  const k0 = kindAt(t, packed, isLive, bounds, kindOpts);
+  const k0 = kindAt(t, packed, isLive);
   if (k0 === KIND_MOVING || k0 === KIND_UNSETTLED || k0 === KIND_BASE) return 0;
   let n = 1;
   while (n < cap) {
     const tp = t - n;
     if (!isLive(tp, packed)) break;
-    if (kindAt(tp, packed, isLive, bounds, kindOpts) !== k0) break;
+    if (kindAt(tp, packed, isLive) !== k0) break;
     n += 1;
   }
   return n;

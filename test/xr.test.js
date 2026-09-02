@@ -4,6 +4,10 @@ import { describe, it } from "node:test";
 import {
   XR_BOARD_CELLS,
   XR_BOARD_METERS,
+  XR_FLOOR_UP_DOT,
+  XR_HEIGHT_DEFAULT,
+  XR_HEIGHT_MAX,
+  XR_HEIGHT_MIN,
   XR_HIT_TEST,
   XR_MODE,
   immersiveArSessionInit,
@@ -13,14 +17,25 @@ import {
   withXrWebGLLayerOnly,
   isImmersiveArSupported,
   arBottomLift,
+  arReticleAllowed,
   arStandLift,
+  arVolumeVisible,
+  arWorldLift,
+  clampArHeight,
   clampArMag,
+  firstFloorHitMatrix,
+  isFloorHitMatrix,
+  matrix4YAxis,
   quatFromTo,
   rotateVecByQuat,
   standQuatFromAxis,
   volumeLocalAabb,
   requestViewerHitTestSource,
-  shouldFallbackArPlace,
+  AR_OVERLAY_SELECT_GUARD_MS,
+  AR_OVERLAY_GUARD_SEL,
+  arOverlaySelectShouldGuard,
+  arSelectIsOverlayEcho,
+  canConfirmArPlace,
   translationFromMatrix4,
   spaceDragAnchor,
   spaceDragOffset,
@@ -236,19 +251,163 @@ describe("space drag", () => {
   });
 });
 
-describe("shouldFallbackArPlace", () => {
-  it("waits a moment when hit-test was not granted", () => {
-    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: false, waitedMs: 0 }), false);
-    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: false, waitedMs: 400 }), true);
+describe("canConfirmArPlace", () => {
+  it("does not auto-commit a locked pose", () => {
+    assert.equal(canConfirmArPlace({ locked: true, searching: true, reticleVisible: true, hasHitTest: true }), false);
   });
 
-  it("waits longer when hit-test is granted but finds no plane", () => {
-    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: true, waitedMs: 400 }), false);
-    assert.equal(shouldFallbackArPlace({ locked: false, hasHitTest: true, waitedMs: 1600 }), true);
+  it("does not spawn until Search Anchor is pressed", () => {
+    assert.equal(
+      canConfirmArPlace({ locked: false, searching: false, reticleVisible: true, hasHitTest: true }),
+      false,
+    );
   });
 
-  it("does not move a locked volume", () => {
-    assert.equal(shouldFallbackArPlace({ locked: true, hasHitTest: false, waitedMs: 8000 }), false);
+  it("waits for a visible reticle when hit-test is granted", () => {
+    assert.equal(canConfirmArPlace({ locked: false, searching: true, reticleVisible: false, hasHitTest: true }), false);
+    assert.equal(canConfirmArPlace({ locked: false, searching: true, reticleVisible: true, hasHitTest: true }), true);
+  });
+
+  it("waits until the hit-test request settles", () => {
+    assert.equal(
+      canConfirmArPlace({
+        locked: false,
+        searching: true,
+        reticleVisible: true,
+        hasHitTest: true,
+        hitTestResolved: false,
+      }),
+      false,
+    );
+  });
+
+  it("allows a tap to lock viewer-front when hit-test is missing", () => {
+    assert.equal(canConfirmArPlace({ locked: false, searching: true, reticleVisible: false, hasHitTest: false }), true);
+  });
+});
+
+describe("arVolumeVisible", () => {
+  it("hides the phone brick until the pose is locked", () => {
+    assert.equal(arVolumeVisible({ locked: false, headset: false, anchored: true }), false);
+    assert.equal(arVolumeVisible({ locked: false, headset: false, anchored: false }), false);
+    assert.equal(arVolumeVisible({ locked: true, headset: false, anchored: true }), true);
+  });
+
+  it("allows a headset viewer-front preview before lock", () => {
+    assert.equal(arVolumeVisible({ locked: false, headset: true, anchored: true }), true);
+    assert.equal(arVolumeVisible({ locked: false, headset: true, anchored: false }), false);
+  });
+});
+
+describe("arReticleAllowed", () => {
+  it("stays off until search is armed and the pose is unlocked", () => {
+    assert.equal(arReticleAllowed({ presenting: true, searching: false, locked: false, hasHitTest: true }), false);
+    assert.equal(arReticleAllowed({ presenting: true, searching: true, locked: true, hasHitTest: true }), false);
+    assert.equal(arReticleAllowed({ presenting: true, searching: true, locked: false, hasHitTest: true }), true);
+  });
+});
+
+describe("clampArHeight", () => {
+  it("clamps height off the floor to meters", () => {
+    assert.equal(clampArHeight(0), 0);
+    assert.equal(clampArHeight(XR_HEIGHT_DEFAULT), 0);
+    assert.equal(clampArHeight(-1), XR_HEIGHT_MIN);
+    assert.equal(clampArHeight(9), XR_HEIGHT_MAX);
+    assert.equal(clampArHeight(Number.NaN), XR_HEIGHT_DEFAULT);
+  });
+});
+
+describe("arWorldLift", () => {
+  it("adds Z height on top of the sit-on-plane lift", () => {
+    assert.equal(arWorldLift(0.6, 0.2), 0.8);
+    assert.equal(arWorldLift(0.6, 0), 0.6);
+    assert.equal(arWorldLift(Number.NaN, 0.3), 0.3);
+  });
+});
+
+describe("floor hit-test", () => {
+  const floor = [
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0.1, 0, -0.4, 1,
+  ];
+  const wall = [
+    1, 0, 0, 0,
+    0, 0, 1, 0,
+    0, -1, 0, 0,
+    0.1, 1, -0.4, 1,
+  ];
+
+  it("reads the pose Y axis as the surface normal", () => {
+    assert.deepEqual(matrix4YAxis(floor), { x: 0, y: 1, z: 0 });
+    assert.deepEqual(matrix4YAxis(wall), { x: 0, y: 0, z: 1 });
+  });
+
+  it("accepts a world-up floor and rejects a wall", () => {
+    assert.equal(isFloorHitMatrix(floor), true);
+    assert.equal(isFloorHitMatrix(wall), false);
+    assert.ok(XR_FLOOR_UP_DOT > 0.5);
+  });
+
+  it("skips walls and keeps the first floor pose", () => {
+    assert.equal(firstFloorHitMatrix([wall, floor]), floor);
+    assert.equal(firstFloorHitMatrix([wall]), null);
+  });
+});
+
+describe("arSelectIsOverlayEcho", () => {
+  it("blocks select until the overlay guard elapses", () => {
+    assert.equal(arSelectIsOverlayEcho(100, 100 + AR_OVERLAY_SELECT_GUARD_MS), true);
+    assert.equal(arSelectIsOverlayEcho(100 + AR_OVERLAY_SELECT_GUARD_MS, 100 + AR_OVERLAY_SELECT_GUARD_MS), false);
+    assert.equal(arSelectIsOverlayEcho(Number.NaN, 500), false);
+  });
+});
+
+describe("arOverlaySelectShouldGuard", () => {
+  it("ignores a tap on the overlay root (passthrough / canvas)", () => {
+    const overlay = {
+      contains() {
+        return true;
+      },
+    };
+    assert.equal(arOverlaySelectShouldGuard(overlay, overlay), false);
+    assert.equal(arOverlaySelectShouldGuard(null, overlay), false);
+  });
+
+  it("guards overlay chrome such as Reset Anchor", () => {
+    const btn = {
+      nodeType: 1,
+      closest(sel) {
+        return String(sel).includes("button") ? btn : null;
+      },
+    };
+    const overlay = {
+      contains(node) {
+        return node === btn;
+      },
+    };
+    assert.equal(arOverlaySelectShouldGuard(btn, overlay), true);
+  });
+
+  it("guards the Z height slider class", () => {
+    assert.match(AR_OVERLAY_GUARD_SEL, /\.ar-height/);
+    assert.match(AR_OVERLAY_GUARD_SEL, /\.ar-size/);
+  });
+
+  it("does not guard nodes outside the overlay", () => {
+    const canvas = {
+      nodeType: 1,
+      closest() {
+        return null;
+      },
+    };
+    const overlay = {
+      contains() {
+        return false;
+      },
+    };
+    assert.equal(arOverlaySelectShouldGuard(canvas, overlay), false);
   });
 });
 

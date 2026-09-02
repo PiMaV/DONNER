@@ -18,6 +18,33 @@ export function zWorldY(t, tNow, timeScale) {
   return ((t | 0) - (tNow | 0)) * (Number(timeScale) || 1);
 }
 
+/**
+ * Lattice pitch for instance centers. Cube edge stays `cellSize`;
+ * `voxelGap` 0 packs faces. Same pitch is used for X, Y, and time.
+ */
+export function voxelPitch(cellSize = 1, voxelGap = 0) {
+  const cs = Number(cellSize);
+  const cell = Number.isFinite(cs) && cs > 0 ? cs : 1;
+  const g = Number(voxelGap);
+  const gap = Number.isFinite(g) && g > 0 ? g : 0;
+  return cell * (1 + gap);
+}
+
+/**
+ * Turntable-local center of voxel `(x, y, t)`. Product Y maps to world Z.
+ * Tests and picking use this; the instance hot path inlines the same math.
+ */
+export function voxelLocalCenter(x, y, t, width, height, cellSize, tNow, timeScale, voxelGap = 0) {
+  const pitch = voxelPitch(cellSize, voxelGap);
+  const ox = ((width | 0) - 1) * 0.5;
+  const oz = ((height | 0) - 1) * 0.5;
+  return {
+    x: (x - ox) * pitch,
+    y: zWorldY(t, tNow, voxelPitch(timeScale, voxelGap)),
+    z: (y - oz) * pitch,
+  };
+}
+
 /** World Y for a Z-rail back index (0 = Now). */
 export function zBackWorldY(back, timeScale) {
   const y = -(back | 0) * (Number(timeScale) || 1);
@@ -389,6 +416,32 @@ export function resetSlabClips(slabs, xMax, yMax, zMax) {
     y: axis(slabs?.y, yMax),
     z: axis(slabs?.z, zMax),
   };
+}
+
+/** Open clips to the brick and put each playhead at mid-volume. */
+export function resetPlanes(xMax, yMax, zMax) {
+  const axis = (max) => {
+    const m = Math.max(0, max | 0);
+    return { near: 0, focus: m >> 1, far: m };
+  };
+  return {
+    x: axis(xMax),
+    y: axis(yMax),
+    z: axis(zMax),
+  };
+}
+
+/**
+ * Default Inspect pose for a loaded volume: full clips, playheads at
+ * mid-volume. Same numbers as Reset Planes. A 1-voxel-thick axis
+ * (`max === 0`) still sits on both clips — that is expected.
+ */
+export function defaultInspectSlabs(width, height, tNewest, tOldest = 0) {
+  return resetPlanes(
+    Math.max(0, (width | 0) - 1),
+    Math.max(0, (height | 0) - 1),
+    Math.max(0, (tNewest | 0) - (tOldest | 0)),
+  );
 }
 
 /** Absolute generations for a slab given Now and back-offsets. */

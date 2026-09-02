@@ -7,16 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-02
+
+### Added
+
+- View **Gap** slider spaces voxels on the lattice (0 packs faces into a solid cube; higher values open air between cubes). Desktop frames, picking, and AR share that local pitch.
+- AR **Reset Anchor** (phone overlay, next to Play / Exit): despawns the brick and returns to floor search. The gold reticle tracks the floor again; the first detected plane is not taken automatically.
+- **Reset Planes** (View, next to Fit / Full): opens all clips to the full volume and moves the three playheads to the center. Does not move the camera. Does not run when switching shade.
+- **Hide center** and **Hide outer** under the viewcube (desktop) independently hide the playhead / slice grid versus the outer clip frames. A viewcube cut still shows the current plane.
+- Phone AR **Search Anchor**: enter AR is passthrough only (no brick). Press Search Anchor, then look at the **floor** until the gold square appears, then tap to spawn.
+- Phone AR **Z** slider: height off the floor (world-up). **Size** still scales the brick; **Yaw** still turns it.
+- Conway **Random** **Fill** slider (sparse ↔ dense occupancy) on the Source sheet. One Random pattern, not separate dense/sparse presets.
+
 ### Changed
 
-- Conway **stability** (`s`) is stamped per generation on the tape. None / Time / Focus and count **Size by count** are display (`setEvents`). Inspect playhead and those toggles no longer rerun `stabilityAge`. Neighborhood still restamps the tape once.
+- Chrome is one **Source / View** rail (desktop stacked accordion; phone the same two folds). No Bench tab, no Config tab. Color coding, Conway Stability, Cube cap, and a realtime FPS line live in **View**. Play/Pause and source stats (GEN / LIVE / RATE) live in **Source** for Conway and time-evolving stacks (AR overlay still has Play after spawn).
+- **Dynamics** is labeled **Color coding** (View). Occupancy class colors still / oscillator / unsettled / base. MRI / MNI does not show Conway Play/Speed.
+- Conway **stability** (`s`) is stamped per generation on the tape. None / Time / Focus is display (`setEvents`). Inspect playhead and those toggles no longer rerun `stabilityAge`. Count / MNI color the integer ramp only (no size-by-count).
+- Occupancy cube fill is 1 (was 0.86) so **Gap** 0 is a packed volume. Conway Stability still scales by age.
 - Phone orbit: one finger rotates and pinch zooms; playhead and clips move only on the stack sliders. Mouse still grabs a frame edge.
+- Phone AR placement: no viewer-front preview on enter. **Search Anchor** arms floor hit-test; tap locks. **Reset Anchor** despawns and returns to search (no auto-respawn, no timeout lock). Horizontal floor only (walls ignored).
+- Phone AR overlay hides **Stand** (kept in the renderer for Quest later). After spawn the overlay is Play, Z, Size, Yaw, Reset Anchor, Exit.
+- Phone AR forces **Hide outer** / bound clip frames off for the session and restores the desktop setting on Exit. Center / playhead frames still draw after spawn. Quest bound frames stay (grab-to-slide).
 - Quest AR no longer shows the in-world Play / stand / Exit plate (unreadable and out of reach). Thumbstick still yaws; both grips still pinch size. Grab a bounding frame to slide the volume in the room.
+- Inspect shade **Triple** is labeled **Cuts** (three orthogonal slices, no hull). The shade id is still `triple`.
+- The single **Planes** HUD toggle is **Hide center** and **Hide outer** (independent, viewcube only).
 
 ### Fixed
 
+- Default Inspect pose matches **Reset Planes**: full clips and playheads at mid-volume, so the center plane is not parked on the outer max face. Conway Live still locks Z to Now. A 1-slice axis can still coincide with a clip.
+- Phone orbit and AR: `#xr-overlay` no longer covers the WebGL canvas while orbiting (it was a full-viewport layer, so the canvas could be 0×0 or untouchable). Overlay tap-guard applies to chrome only, so a passthrough tap can still place the volume. Canvas size falls back to the visual viewport if layout reports 0×0.
+- Phone Source / Conway: the pattern picker is at the top of the Conway block; an open sheet restores `pointer-events` on the ancestor so iOS can open native `<select>`s; fold sheets also apply in landscape on a coarse short viewport; the stack hides while a sheet is open so the list is not covered. The WebGL canvas is no longer CSS-transformed (blank composited layer on some phones).
 - Quest Browser: do not request a fullscreen DOM overlay (it covers passthrough), fall back to `local` tracking if `local-floor` is missing, and use `XRWebGLLayer` instead of projection layers. The 2D panel skips the viewcube scissor and ignores a 0×0 first layout.
 - Quest XR layer is full resolution again. The first recovery pass had halved the framebuffer and pinned pixel ratio to 1, which made the panel and passthrough look blocky.
+
+### Removed
+
+- **Decay** checkbox from View. Z/time fade stays off (later opt-in).
+- **Hide center** / **Hide outer** checkboxes from the View sheet. The viewcube shortcuts remain.
+- **Stability scaling** checkbox. Conway **Stability** None / Time / Focus is enough; count / MNI do not show that dropdown.
+- **Size by count**. Event-camera counts use Color coding only; size stays Gap / Cube cap.
+- Separate Source HUD card on the right rail. GEN / LIVE / RATE (and count T / SUM / MAX) sit in the Source fold.
+- **Neighborhood** (none / 3×3 / 5×5 motion gate) from UI and runtime. Conway color is occupancy only.
+- **Bench** sheet, CPU/GPU stress starters, Encoding-minimal / Force-full-rebuild toggles, and the bottom-right Play FAB. Path timers stay internal; GPU software still warns on the FPS chip. Do not put Bench on the rAF HUD.
 
 ## [0.8.0] - 2026-09-01
 

@@ -236,7 +236,7 @@ describe("worldline color class", () => {
     assert.equal(kindAt(5, 4), KIND_OSC);
   });
 
-  it("tags a glider as moving, not still or oscillator", () => {
+  it("classifies glider occupancy as still or oscillator", () => {
     const n = 16;
     let grid = seedPattern("Glider", n, n, mulberry32(0));
     const ring = new GenerationRing(24, n * n);
@@ -245,63 +245,16 @@ describe("worldline color class", () => {
       ring.pushGrid(grid, n, n, t);
       grid = stepClassic(grid, n, n, true);
     }
-    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 2 });
-    let still = 0;
-    let osc = 0;
-    let moving = 0;
-    for (let i = 0; i < soa.count; i++) {
-      if (soa.t[i] < 8) continue;
-      const k = soa.k[i];
-      if (k === KIND_STILL) still += 1;
-      else if (k === KIND_OSC) osc += 1;
-      else if (k === KIND_MOVING) moving += 1;
-    }
-    assert.equal(still, 0);
-    assert.equal(osc, 0);
-    assert.ok(moving > 0);
-  });
-
-  it("leaves glider occupancy as still/osc when neighborhood is off", () => {
-    const n = 16;
-    let grid = seedPattern("Glider", n, n, mulberry32(0));
-    const ring = new GenerationRing(24, n * n);
-    const soa = new EventSoA(n * n * 24);
-    for (let t = 0; t < 16; t++) {
-      ring.pushGrid(grid, n, n, t);
-      grid = stepClassic(grid, n, n, true);
-    }
-    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 0 });
+    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true });
     let locked = 0;
+    let moving = 0;
     for (let i = 0; i < soa.count; i++) {
       if (soa.t[i] < 8) continue;
       if (soa.k[i] === KIND_STILL || soa.k[i] === KIND_OSC) locked += 1;
+      else if (soa.k[i] === KIND_MOVING) moving += 1;
     }
     assert.ok(locked > 0);
-  });
-
-  it("tags a glider as moving with a 3×3 neighborhood", () => {
-    const n = 16;
-    let grid = seedPattern("Glider", n, n, mulberry32(0));
-    const ring = new GenerationRing(24, n * n);
-    const soa = new EventSoA(n * n * 24);
-    for (let t = 0; t < 16; t++) {
-      ring.pushGrid(grid, n, n, t);
-      grid = stepClassic(grid, n, n, true);
-    }
-    ring.fillSoA(soa, 15, 16, n, { height: n, wrap: true, neighborhoodRadius: 1 });
-    let still = 0;
-    let osc = 0;
-    let moving = 0;
-    for (let i = 0; i < soa.count; i++) {
-      if (soa.t[i] < 8) continue;
-      const k = soa.k[i];
-      if (k === KIND_STILL) still += 1;
-      else if (k === KIND_OSC) osc += 1;
-      else if (k === KIND_MOVING) moving += 1;
-    }
-    assert.equal(still, 0);
-    assert.equal(osc, 0);
-    assert.ok(moving > 0);
+    assert.equal(moving, 0);
   });
 
   it("locks period-3 occupancy as oscillator, not unsettled", () => {

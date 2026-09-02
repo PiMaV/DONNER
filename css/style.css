@@ -48,12 +48,22 @@ body {
   font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/*
+ * Overlay chrome only. A viewport-sized fixed root paints over the
+ * WebGL canvas (0×0 canvas or no orbit) and, as a WebXR DOM overlay,
+ * covers passthrough. Stay `absolute` until AR so nested `fixed` HUD
+ * (Play, stack) is still viewport-relative on iOS. Children are fixed.
+ */
 .xr-overlay {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
   z-index: 2;
+  overflow: visible;
   pointer-events: none;
-  background: transparent;
+  background: none;
 }
 
 #view {
@@ -61,6 +71,7 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 0;
   display: block;
   touch-action: none;
   cursor: default;
@@ -253,8 +264,7 @@ body.is-ar .gizmo-hit {
   pointer-events: none;
 }
 
-.hud-engine,
-.hud-source {
+.hud-engine {
   pointer-events: auto;
   margin: 0;
   padding: 8px 10px 10px;
@@ -315,10 +325,6 @@ body.hud-view-collapsed .hud-engine {
   font-size: 0.72rem;
   line-height: 1.45;
   white-space: pre;
-}
-
-.hud-source .hud-stats {
-  color: var(--muted);
 }
 
 .stack {
@@ -687,15 +693,20 @@ body:not(.is-inspect) .z-clip {
 .controls-root {
   top: calc(76px + var(--safe-t));
   left: calc(12px + var(--safe-l));
-  width: min(280px, calc(100vw - 24px));
+  width: min(280px, calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 10px;
   max-height: calc(100dvh - 140px);
   overflow: auto;
 }
 
 .controls {
+  flex: 0 0 auto;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -703,7 +714,23 @@ body:not(.is-inspect) .z-clip {
   backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  min-width: 0;
+}
+
+.controls.is-collapsed .sheet-body {
+  display: none;
+}
+
+.controls.is-collapsed {
+  padding: 8px 12px;
+  gap: 0;
 }
 
 .sheet-label {
@@ -716,6 +743,7 @@ body:not(.is-inspect) .z-clip {
   color: var(--muted);
 }
 
+.panel-view > .rail-fold,
 [data-slot="view"] .sheet-label,
 .hud-engine .sheet-label {
   color: var(--dampf);
@@ -723,23 +751,6 @@ body:not(.is-inspect) .z-clip {
 
 [data-slot="encoding"] .sheet-label {
   color: var(--donner);
-}
-
-[data-slot="bench"] .sheet-label {
-  color: var(--muted);
-}
-
-.hud-bench {
-  margin: 0;
-  max-height: 14rem;
-  overflow: auto;
-  font-size: 0.62rem;
-  line-height: 1.35;
-}
-
-#bench-cliff strong {
-  color: var(--blitz);
-  font-weight: 650;
 }
 
 .is-hidden {
@@ -763,8 +774,17 @@ body.is-software .fps-chip {
   border-color: rgba(255, 90, 79, 0.55);
 }
 
-#hud-gpu.is-soft {
-  color: var(--blitz);
+#random-fill-field {
+  display: none;
+}
+
+body.pattern-random #random-fill-field {
+  display: flex;
+}
+
+body.source-static .source-play,
+body.source-static #speed-field {
+  display: none;
 }
 
 .sheet-block {
@@ -773,9 +793,16 @@ body.is-software .fps-chip {
   gap: 8px;
 }
 
-.controls > .sheet-block + .sheet-block {
+.sheet-body > .sheet-block + .sheet-block {
   padding-top: 10px;
   border-top: 1px solid var(--line);
+}
+
+.source-stats {
+  margin: 4px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
 }
 
 .hint {
@@ -834,6 +861,8 @@ body.is-software .fps-chip {
 }
 
 .btn-ar,
+.btn-ar-search,
+.btn-ar-reset,
 .btn-xr-exit {
   width: 100%;
 }
@@ -841,6 +870,22 @@ body.is-software .fps-chip {
 .btn-ar {
   border-color: rgba(0, 255, 242, 0.4);
   color: var(--dampf);
+}
+
+.btn-ar-search {
+  border-color: rgba(0, 255, 242, 0.45);
+  color: var(--dampf);
+}
+
+.btn-ar-search.is-on {
+  border-color: var(--donner);
+  color: var(--donner);
+  background: rgba(255, 197, 61, 0.12);
+}
+
+.btn-ar-reset {
+  border-color: rgba(255, 197, 61, 0.45);
+  color: var(--donner);
 }
 
 .btn-xr-exit {
@@ -854,6 +899,10 @@ body.is-ar {
 }
 
 html.is-ar .xr-overlay {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
   background: none;
 }
 
@@ -883,6 +932,7 @@ body.is-ar .stack,
 body.is-ar .transport,
 body.is-ar .ar-size,
 body.is-ar .ar-yaw,
+body.is-ar .ar-height,
 body.is-ar .ar-stand {
   pointer-events: auto;
 }
@@ -893,13 +943,14 @@ body.is-ar .stack-axis:not(.is-z) {
 
 .ar-size,
 .ar-yaw,
+.ar-height,
 .ar-stand {
   display: none;
 }
 
-body.is-ar .ar-size,
-body.is-ar .ar-yaw,
-body.is-ar .ar-stand {
+body.is-ar.is-ar-placed .ar-size,
+body.is-ar.is-ar-placed .ar-yaw,
+body.is-ar.is-ar-placed .ar-height {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -911,8 +962,18 @@ body.is-ar .ar-stand {
   letter-spacing: 0.08em;
 }
 
-body.is-ar .ar-size input,
-body.is-ar .ar-yaw input {
+body.is-ar .ar-stand {
+  display: none !important;
+}
+
+body.is-ar:not(.is-ar-placed) .stack,
+body.is-ar:not(.is-ar-placed) .btn-play {
+  display: none !important;
+}
+
+body.is-ar.is-ar-placed .ar-size input,
+body.is-ar.is-ar-placed .ar-yaw input,
+body.is-ar.is-ar-placed .ar-height input {
   flex: 1 1 auto;
   min-width: 0;
   accent-color: var(--donner);
@@ -1026,6 +1087,12 @@ body.is-ar .ar-yaw input {
   font-size: 0.72rem;
 }
 
+#source-conway {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 #source-count {
   display: none;
   flex-direction: column;
@@ -1044,7 +1111,6 @@ body.source-count #source-conway {
   display: none;
 }
 
-body.source-count .encoding-count.check,
 body.source-count .encoding-count.hint {
   display: flex;
 }
@@ -1113,7 +1179,7 @@ body.source-count .encoding-conway {
   color: var(--donner);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) and (max-height: 520px) {
   .fold-bar {
     display: flex;
     z-index: 3;
@@ -1145,22 +1211,46 @@ body.source-count .encoding-conway {
     gap: 0;
   }
 
+  /* iOS native <select> ignores pointer-events:auto on the panel when an
+   * ancestor is none. Open sheets must lift that ancestor. */
+  .controls-root:has(.is-open) {
+    pointer-events: auto;
+  }
+
+  body:has(.controls.is-open) .stack {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .controls {
     position: absolute;
     left: 0;
     right: 0;
     bottom: calc(118px + var(--safe-b));
+    flex: none;
     width: auto;
-    max-height: 38dvh;
+    max-height: min(62dvh, calc(100dvh - 132px - var(--safe-t) - var(--safe-b)));
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
     transform: translateY(100dvh);
     pointer-events: none;
+    touch-action: pan-y;
     transition: transform 0.22s ease;
   }
 
   .controls.is-open {
     transform: none;
     pointer-events: auto;
+    touch-action: pan-y;
+  }
+
+  .controls.is-collapsed .sheet-body {
+    display: flex;
+  }
+
+  .controls.is-collapsed {
+    padding: 12px;
+    gap: 8px;
   }
 
   .hud-rail {
@@ -1199,10 +1289,6 @@ body.source-count .encoding-conway {
     display: flex;
   }
 
-  .hud-source {
-    display: none;
-  }
-
   .hud-stats {
     font-size: 0.64rem;
   }
@@ -1221,9 +1307,9 @@ body.source-count .encoding-conway {
     align-items: center;
   }
 
-  body.is-ar .ar-size,
-  body.is-ar .ar-yaw,
-  body.is-ar .ar-stand {
+  body.is-ar.is-ar-placed .ar-size,
+  body.is-ar.is-ar-placed .ar-yaw,
+  body.is-ar.is-ar-placed .ar-height {
     order: -1;
   }
 
@@ -1392,6 +1478,8 @@ body.source-count .encoding-conway {
 
   .transport .btn-play,
   .transport .btn-ar,
+  .transport .btn-ar-search,
+  .transport .btn-ar-reset,
   .transport .btn-xr-exit {
     min-width: 4.6rem;
     width: auto;

@@ -202,23 +202,23 @@ If the LAN IP changes, `npm run cert` again.
 - B3/S23 Conway from BLITZ (rules, wrap, seeds)
 - Default seed: R-pentomino, started paused (Play to run). Blinker is the occupancy lesson if you pick it.
 - Instanced cubes, Depth along the time axis (product **Z**)
-- Decay, speed, Depth (wake length), play / pause / step / reset
+- Speed, Depth (wake length), **Gap** (lattice spacing; 0 packs faces), play / pause / step / reset
 - Playhead via the **slice stack** (default Z = time; X/Y optional). Desktop: beside the HUD, Now/max at top; phone: bottom timeline
 - Axis-colored playfield frames (inset playhead, smaller clips); grab an **edge** to move that plane (no numbered overlay, no hover hairlines)
 - CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; the same face pages the stack; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z pins XY and still pans along Z.
 - Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
-- Play / Pause outside the sheet (desktop under the Z rail; phone bottom center)
+- Play / Pause in the Source sheet (desktop and phone). AR overlay keeps Play after spawn.
 - Edit mode: tap cells inside the frame (Now only)
 - Orbit / zoom / pan, including touch
-- Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) separate from Conway source HUD (generation, live, rate); FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
+- Display HUD (FPS, AVG, 1%/0.1% lows, sparkline, instances) on the right; Conway source stats (generation, live, rate) in the Source fold. FPS uses raw frame time. Software rasterizers warn **SOFTWARE**.
 - **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; axis-colored planes and clips). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
-- Two left sheets: **View** (display + encoding + bench) and **Source** (Conway or count stack). Phone: View ▸ / Source ▸.
+- One left rail: **Source** then **View** (desktop stacked accordion; phone the same folds). View holds look, Color coding, Conway Stability, Cube cap, and FPS. Source holds data, Conway presets including Random + Fill, Play/Pause, and GEN / LIVE / RATE.
 - Source switch: Conway, **Ignition**, **MNI 152**, or Count file/stream. Demos are `data/*.npy` symlinks. **Load .npy** and **Stream** stay on Count file / stream.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
-- XR-A: WebXR `immersive-ar` passthrough; tap a table to place the volume (gold square reticle, tabletop scale). The first tap **locks** the pose; **Yaw** orients it on the table; **Stand** chooses which product plane sits on the table (default Z / time up). Bounding frames stay visible; poke a cube to isolate the standing plane. **AR** only if the device supports it. Viewer-front fallback if hit-test is missing. Phone chrome is the DOM overlay (IMU window). Quest (XR-C-0): no in-world menu; grab a frame to slide the volume; thumbstick yaws; both grips pinch size.
+- XR-A: WebXR `immersive-ar` passthrough. Phone: enter is passthrough only (no brick). **Search Anchor** starts floor hit-test; tap the gold square to spawn. **Reset Anchor** despawns and returns to search. No auto-lock, no timeout, no viewer-front preview. **Z** lifts off the floor; **Size** scales; **Yaw** turns. **Stand** is hidden on the phone overlay. Outer bound frames are off for the session. **AR** only if the device supports it. Phone chrome is the DOM overlay (IMU window). Quest (XR-C-0): no in-world menu and no Search / Reset Anchor button (Exit AR to place again); grab a frame to slide the volume; thumbstick yaws; both grips pinch size.
 
 **Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, Dataset Contract / ScalarVolume, NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B marker, XR-C-1 hands, QR door+spawn, points renderer. Public preview host `donner.mess.engineering` is later.
 
