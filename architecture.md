@@ -73,9 +73,10 @@ WebXR needs HTTPS. Lab door: `https://lab.ole.icu/` (Caddy →
 `start:lan`). Fallback: `npm run start:https` (mkcert). Servers send
 `Permissions-Policy: xr-spatial-tracking=(self)`.
 
-GitHub Pages: `.github/workflows/pages.yml` after the repo is public (or
-GitHub Pro). `.nojekyll` keeps vendor paths. Door: `?src=ignition`,
-`?src=mni152`, `?quality=high`.
+GitHub Pages is live at
+[https://donner.mess.engineering/](https://donner.mess.engineering/).
+Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
+Door: `?src=ignition`, `?src=mni152`, `?quality=high`.
 
 ## Layers
 

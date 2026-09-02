@@ -576,8 +576,9 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 
 ## Later
 
-- **Public preview (Phase 2):** Thin View before `donner.mess.engineering`.
-  Do not start Dataset Contract or a PointRenderer in that slice.
+- **Public preview (Phase 2):** Live at
+  [`https://donner.mess.engineering/`](https://donner.mess.engineering/).
+  Do not start Dataset Contract or a PointRenderer on that host.
 - **Source off the rail:** later, the Source fold leaves the viewer chrome;
   generator is its own surface.
 - **Thin View:** teaching View keeps Parallax / Align to Z / Quality / Gap / Depth (and maybe

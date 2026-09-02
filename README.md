@@ -5,6 +5,8 @@
 A browser tab is the app. No install, no plugin, no desktop wrap.
 Laptop, phone, headset — same page.
 
+**Live:** [https://donner.mess.engineering/](https://donner.mess.engineering/)
+
 AR and XR tested on **Pixel 11 Pro** and **Quest 3**.
 
 ![DONNER — Game of Life as a 3D volume](docs/Screen_Conway.png)
@@ -16,11 +18,12 @@ BLITZ is the 2D analysis sibling. They share datasets, not a GUI.
 
 ## Open it
 
-Three examples in Source. **Game of Life** starts with no download.
+Three examples in Source, on the left.
 
-- **Game of Life** — each cube is a living cell. Z is generations.
-- **Lighter Ignition** — event-camera counts of a lighter strike.
-- **Brain MRI** — example T1 atlas. Not a patient scan.
+- **Game of Life** — *live generator.* Each cube is a living cell. Z is
+  generations.
+- **Lighter Ignition** — static event-camera counts of a lighter strike.
+- **Brain MRI** — static example T1 atlas.
 
 Drag to orbit. Scroll to zoom. On a phone, pinch. On Quest, grab the
 volume in the room.

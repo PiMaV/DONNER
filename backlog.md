@@ -50,9 +50,10 @@ plate is retired — confirm the four device follow-ups below on hardware
 (WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
 **Phase 2 — public preview.** Thin View (Neighborhood is gone; **DEV Bench** is an
-opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos. Deploy
-`https://donner.mess.engineering` (GitHub Pages + custom domain). Add
-DONNER to the WETTER landing page (sibling repo `WETTER/`). Retire the
+opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos.
+**Live** at [`https://donner.mess.engineering`](https://donner.mess.engineering/)
+(GitHub Pages + custom domain). Still open: add DONNER to the WETTER
+landing page (sibling repo `WETTER/`). Retire the
 old M.E.S.S. Java/browser point-cloud showcase from the active site
 (archive OK). Connected / sidecar mode stays off that static host.
 

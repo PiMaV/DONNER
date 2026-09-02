@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-09-02
+
+### Added
+
+- First live host: [https://donner.mess.engineering/](https://donner.mess.engineering/).
+
+### Changed
+
+- README points at the live URL and marks Game of Life as the live generator versus the static examples.
+
 ## [0.12.1] - 2026-09-02
 
 ### Changed

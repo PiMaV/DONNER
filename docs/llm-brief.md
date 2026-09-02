@@ -187,7 +187,8 @@ advantage, not a deployment convenience.
 ## Pointers
 
 - Visitor README: [`README.md`](../README.md) — landing page, not a
-  developer wiki. Local serve is in architecture.
+  developer wiki. Live host: `https://donner.mess.engineering/`.
+  Local serve is in architecture.
 - Architecture: [`architecture.md`](../architecture.md)
 - Later / XR ladder: [`backlog.md`](../backlog.md)
   — Dataset Contract after public preview; MRI stays a dense count `.npy`
