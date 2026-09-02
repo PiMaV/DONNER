@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "0.11.0";
+export const VERSION = "0.12.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -84,7 +84,7 @@ export const DEFAULTS = {
   encodingMinimal: false,
   countCmap: "donner",
   forceFullRebuild: false,
-  viewQuality: "high",
+  viewQuality: "medium",
   maxTapeSlices: 4096,
   maxTapeEvents: 400_000,
   sourceKind: "conway",
@@ -94,10 +94,44 @@ export const DEFAULTS = {
   wolkeToken: "evt",
 };
 
-/** Count-cube demos in Source (local symlinks under `data/`). */
+/** Visitor-facing Source copy. Ids stay `conway` / `ignition` / `mni152`. */
+export const SOURCE_WELCOME =
+  "DONNER shows structured data as a 3D brick. Drag to orbit. Pick an example below; View is look, color, and quality. Starts at Medium. Choppy? Quality → Low. Pretty GPU? Quality → High.";
+
+export const SOURCE_GUIDE = {
+  conway: {
+    label: "Game of Life",
+    blurb: "A generator: each cube is a living cell, Z is generations. Starts paused. Play grows the stack.",
+    cite: "",
+  },
+  ignition: {
+    label: "Lighter Ignition",
+    blurb: "Event-camera count cube of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.",
+    cite: "Own recording. Cubes are event counts per pixel per Δt, not a video frame.",
+  },
+  mni152: {
+    label: "Brain MRI",
+    blurb: "Example T1 atlas. All three axes are space. Loop walks a cut. Not a patient scan.",
+    cite: "Derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). See data/NOTICE.md.",
+  },
+};
+
+export function sourceGuide(kind) {
+  return SOURCE_GUIDE[kind] || SOURCE_GUIDE.conway;
+}
+
+/** Count-cube demos under `data/` (committed copies for GitHub Pages). */
 export const COUNT_DEMOS = {
-  ignition: { url: "data/ignition_stack.npy", name: "ignition_stack", label: "Ignition" },
-  mni152: { url: "data/mni152_stack.npy", name: "mni152_stack", label: "MNI 152" },
+  ignition: {
+    url: "data/ignition_stack.npy",
+    name: "ignition_stack",
+    label: SOURCE_GUIDE.ignition.label,
+  },
+  mni152: {
+    url: "data/mni152_stack.npy",
+    name: "mni152_stack",
+    label: SOURCE_GUIDE.mni152.label,
+  },
 };
 
 export function isCountSourceKind(kind) {

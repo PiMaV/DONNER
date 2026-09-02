@@ -21,11 +21,12 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
 - Ghost / peek: hull InstancedMesh stays; only the solid plane refills (LRU)
-- View **Quality** Low / Medium / High (manual; default High)
+- View **Quality** Low / Medium / High (manual; default Medium)
+- Visitor Source labels (**Game of Life**, **Lighter Ignition**, **Brain MRI**), About, committed example cubes
 
 **Later / next candidates** (keep; do not implement in this slice):
 
-1. QR / URL spawn (0.10.0 epic seed) — next product epic
+1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR later list (inspect 3 sliders in AR, Search default on, remove AR Z
    slider, smaller MNI, remove AR Play, named shade not mystery hull,
    Hide center/outer in AR, gizmo top-right)
@@ -87,11 +88,11 @@ Anatomical MRI is not a NIfTI viewer. Same cube engine, later source
 addon. Until a dedicated kind exists, the public MNI stack is a count
 cube.
 
-- **Now:** Source → **MNI 152** loads `data/mni152_stack.npy` (symlink to
-  `datasets/MRT/`, native `(215, 256, 207)` uint16, intensity 1…32).
+- **Now:** Source → **Brain MRI** loads `data/mni152_stack.npy` (committed
+  example, native `(215, 256, 207)` uint16, intensity 1…32).
   Occupancy > 15 % → Inspect, Decay off, `fillSoA` skips 6-enclosed
-  voxels (~140k hull). Play/Loop walks the active playhead. Local
-  symlink, not a git blob. Check ICBM before redistributing the `.npy`.
+  voxels (~140k hull). Play/Loop walks the active playhead. Notices in
+  [`data/NOTICE.md`](data/NOTICE.md).
   Recipe in [`architecture.md`](architecture.md#mri-volume-later).
 - **Next:** Dataset Contract + `ScalarVolume` (intensity, spacing,
   affine) — not NiiVue, not a NIfTI-in-browser parser, not a DICOM
@@ -333,11 +334,11 @@ Print or HUD-share a QR that opens the lab door **`https://lab.ole.icu/`**
 (after `npm run start:lan`). Scan loads the viewer; **AR** stays the
 existing button when `immersive-ar` is supported.
 
-**URL spawn (0.10.0 epic seed).** A public door such as
-`https://donner.mess.engineering/<src>` (or `?src=`) picks the default
-source: Conway, Ignition, MNI 152. The QR encodes that URL, not a
-custom app payload. Optional query (`pattern=Blinker`) stays a known
-allow-list — no arbitrary local `.npy` paths on the public door.
+**URL spawn query is in.** `?src=` picks Game of Life / Lighter Ignition /
+Brain MRI (allow-list + aliases; no arbitrary `.npy` URLs). `?quality=`
+is low / medium / high (default medium). The address bar follows those
+controls. Path `/ignition`, printed QR, and AR-from-QR stay later.
+Optional `pattern=` allow-list is still later.
 
 **AR from the same QR.** Scanning in an AR-capable browser can place
 the volume using the QR / marker as the sit origin (the brick grows

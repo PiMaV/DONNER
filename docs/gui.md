@@ -141,7 +141,7 @@ flowchart TB
     bench[DEV Bench opt-in]
   end
   subgraph source [Source]
-    kind[Conway Ignition MNI]
+    kind[Game of Life Lighter Brain MRI]
     conway[Pattern Fill Seed Stop-stable]
     load[Loading spinner]
   end
@@ -253,7 +253,7 @@ rectangle select on the playfield).
 | Hide center | Viewcube (desktop): hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
 | Hide outer | Viewcube (desktop): hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. Phone AR forces these off for the session and restores this setting on Exit. |
 | Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (Size still maps cube edge, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
-| Quality | Manual **Low / Medium / High** (default High). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
+| Quality | Manual **Low / Medium / High** (default **Medium**). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
 | Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
@@ -287,7 +287,7 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Conway**, **Ignition**, **MNI 152** (Count file / stream is later live ingest, hidden) |
+| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI** (ids `conway` / `ignition` / `mni152`). Count file / stream is later live ingest, hidden. Each example has a one-line blurb. **About** is the visitor note (Source + footer). Door: `?src=ignition` / `?src=mni152` / `?src=conway` (allow-list; aliases `lighter`, `brain`). |
 | Play / Speed | Conway only: generator and generations/s. Not the View loop. |
 | Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
 
@@ -326,9 +326,20 @@ flowchart LR
 
 ### Count stack (EVT)
 
-Curated demos **Ignition** and **MNI 152** are Source options. **Load .npy**
-and the WOLKE **Stream** / Connect chrome are later live ingest (hidden;
-loaders stay in the tree). See [`backlog.md`](../backlog.md) Live later.
+Curated demos **Lighter Ignition** and **Brain MRI** are Source options.
+**Load .npy** and the WOLKE **Stream** / Connect chrome are later live
+ingest (hidden; loaders stay in the tree). See [`backlog.md`](../backlog.md)
+Live later. Visitor copy: [`docs/welcome.md`](welcome.md).
+
+```mermaid
+flowchart LR
+  life[Game of Life]
+  light[Lighter Ignition]
+  brain[Brain MRI]
+  life --> brick[3D brick]
+  light --> brick
+  brain --> brick
+```
 
 Count stacks open in Inspect (the recording is already complete). **Play**
 walks the marked loop axis (default Z) from oldest to Now and wraps
@@ -597,7 +608,6 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   and **without** the in-world Play/stand/Exit plate. Stick yaws; both grips
   pinch size. Grab a bounding frame to slide the volume in the room.
   Bounding frames stay on; poke a cube to isolate the
-  standing plane. XR-B marker, XR-C-1 hands / wrist attach, and a QR door
-  (`https://lab.ole.icu/` plus optional `?src=conway&pattern=Blinker` /
-  `?src=count&demo=ignition`) are later. Do not start a points renderer
+  standing plane. **URL door query is in** (`?src=` / `?quality=`). QR
+  print, path `/ignition`, and AR-from-QR stay later. Do not start a points renderer
   in the same slice as further XR work.

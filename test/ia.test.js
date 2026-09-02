@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, isCountSourceKind, isStaticSourceKind } from "../src/config.js";
+import { DEFAULTS, clampDensity, isCountSourceKind, isStaticSourceKind, sourceGuide, SOURCE_WELCOME } from "../src/config.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
@@ -67,7 +67,7 @@ describe("Source | View information architecture", () => {
     assert.match(view, /id="quality-low"/);
     assert.match(view, /id="quality-medium"/);
     assert.match(view, /id="quality-high"/);
-    assert.match(view, /id="quality-high"[^>]*is-on/);
+    assert.match(view, /id="quality-medium"[^>]*is-on/);
     assert.match(view, /id="view-fps"/);
     assert.doesNotMatch(view, /id="bench"/);
     assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);
@@ -201,9 +201,14 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="wolke-url"/);
     assert.match(html, /id="btn-wolke-connect"/);
     const src = sourcePanel();
-    assert.match(src, /<option value="conway"/);
-    assert.match(src, /<option value="ignition"/);
-    assert.match(src, /<option value="mni152"/);
+    assert.match(src, /<option value="conway"[^>]*>Game of Life</);
+    assert.match(src, /<option value="ignition">Lighter Ignition</);
+    assert.match(src, /<option value="mni152">Brain MRI</);
+    assert.match(src, /id="source-welcome"/);
+    assert.match(src, /id="source-blurb"/);
+    assert.match(src, /id="btn-about"/);
+    assert.match(html, /id="about-dialog"/);
+    assert.match(html, /id="btn-about-legal"/);
   });
 
   it("shows a Loading indicator on the Source fold and canvas", () => {
@@ -220,5 +225,19 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(sourcePanel(), /id="btn-play"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
+  });
+
+  it("uses visitor Source labels and About copy", () => {
+    assert.equal(sourceGuide("conway").label, "Game of Life");
+    assert.equal(sourceGuide("ignition").label, "Lighter Ignition");
+    assert.equal(sourceGuide("mni152").label, "Brain MRI");
+    assert.match(SOURCE_WELCOME, /Quality → Low/);
+    assert.match(html, /id="source-welcome"/);
+    assert.match(html, />Game of Life</);
+    assert.match(html, />Lighter Ignition</);
+    assert.match(html, />Brain MRI</);
+    assert.match(html, /id="about-dialog"/);
+    assert.match(html, /\?src=ignition/);
+    assert.match(css, /\.about-dialog/);
   });
 });

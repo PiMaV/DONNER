@@ -9,10 +9,10 @@ import {
 } from "../src/quality.js";
 
 describe("view quality", () => {
-  it("defaults unknown ids to high", () => {
-    assert.equal(DEFAULT_VIEW_QUALITY, "high");
-    assert.equal(normalizeViewQuality(""), "high");
-    assert.equal(normalizeViewQuality("potato"), "high");
+  it("defaults unknown ids to medium", () => {
+    assert.equal(DEFAULT_VIEW_QUALITY, "medium");
+    assert.equal(normalizeViewQuality(""), "medium");
+    assert.equal(normalizeViewQuality("potato"), "medium");
     assert.equal(normalizeViewQuality("LOW"), "low");
   });
 

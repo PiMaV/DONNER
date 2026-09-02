@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { lstatSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
@@ -411,12 +412,23 @@ describe("dense count slab", () => {
 });
 
 describe("count source demos", () => {
-  it("treats Ignition and MNI 152 as count sources", () => {
+  it("treats Lighter Ignition and Brain MRI as count sources", () => {
     assert.equal(isCountSourceKind("conway"), false);
     assert.equal(isCountSourceKind("count"), true);
     assert.equal(isCountSourceKind("ignition"), true);
     assert.equal(isCountSourceKind("mni152"), true);
     assert.equal(COUNT_DEMOS.mni152.url, "data/mni152_stack.npy");
     assert.equal(COUNT_DEMOS.ignition.url, "data/ignition_stack.npy");
+    assert.equal(COUNT_DEMOS.ignition.label, "Lighter Ignition");
+    assert.equal(COUNT_DEMOS.mni152.label, "Brain MRI");
+  });
+
+  it("ships real example cubes, not symlinks", () => {
+    const ign = lstatSync(new URL("../data/ignition_stack.npy", import.meta.url));
+    const mni = lstatSync(new URL("../data/mni152_stack.npy", import.meta.url));
+    assert.equal(ign.isSymbolicLink(), false);
+    assert.equal(mni.isSymbolicLink(), false);
+    assert.ok(ign.size > 3_000_000);
+    assert.ok(mni.size > 20_000_000);
   });
 });

@@ -1,0 +1,2 @@
+*.npy binary
+vendor/** linguist-vendored

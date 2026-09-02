@@ -120,16 +120,15 @@ adjacency matrix. Same rule, different pictures.
 
 ## MRI demo volume (data source, not a viewer)
 
-DONNER is not a NIfTI viewer. The public T1 used for a later MRI cube is
-only a **dataset pointer**.
+DONNER is not a NIfTI viewer. Source → **Brain MRI** is a converted
+example cube in `data/mni152_stack.npy`. Notices: [`data/NOTICE.md`](../data/NOTICE.md).
 
 - **NiiVue demo images** — [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
-  (BSD-2-Clause). Low-res `mni152.nii.gz` for browser/phone tests. Local
-  copy: `datasets/MRT/mni152.nii.gz`. Converted count cube:
-  `datasets/MRT/mni152_stack.npy` (native grid `(215, 256, 207)` uint16;
-  DONNER culls enclosed voxels). NiiVue itself is unrelated to DONNER’s event
-  viewer — do not embed it.
+  (BSD-2-Clause). Low-res `mni152.nii.gz`. Converted count cube:
+  `data/mni152_stack.npy` (native grid `(215, 256, 207)` uint16;
+  DONNER culls enclosed voxels). NiiVue itself is unrelated to DONNER —
+  do not embed it.
 - **ICBM 152 Nonlinear atlases version 2009** — McGill BIC
   ([atlas page](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
-  The NiiVue `mni152` file is derived from this atlas. Cite ICBM; check
-  terms before redistributing a derived `.npy`.
+  The NiiVue `mni152` file is derived from this atlas. The ICBM copyright
+  notice is in `data/NOTICE.md`.

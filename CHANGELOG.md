@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-02
+
+### Added
+
+- Visitor **About** (Source + footer) and per-example blurbs. Source labels: **Game of Life**, **Lighter Ignition**, **Brain MRI**.
+- Example cubes in `data/` (Lighter Ignition ~4 MB, Brain MRI ~23 MB) with [`data/NOTICE.md`](data/NOTICE.md) (ICBM + NiiVue BSD-2-Clause). GitHub Pages workflow.
+- Public door query: `?src=` (conway / ignition / mni152, plus aliases) and `?quality=`. Allow-list only; the address bar follows Source and Quality.
+
+### Changed
+
+- Desktop orbit hint is drag / scroll. Game of Life stays the default (no download). Live ingest stays hidden.
+- View Quality default is **Medium** (public start). High is `?quality=high`.
+
 ## [0.11.0] - 2026-09-02
 
 ### Added

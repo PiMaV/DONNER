@@ -4,7 +4,7 @@
  */
 
 export const VIEW_QUALITY_IDS = ["low", "medium", "high"];
-export const DEFAULT_VIEW_QUALITY = "high";
+export const DEFAULT_VIEW_QUALITY = "medium";
 
 export function normalizeViewQuality(id) {
   const k = String(id || "").toLowerCase();

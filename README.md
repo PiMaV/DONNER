@@ -43,24 +43,22 @@ around `index.html`. Do not fold DONNER into BLITZ/PyQtGraph.
 Exploration & Rendering) is a browser-native scientific 3D/XR explorer
 for structured data. It is not primarily an event-camera viewer.
 
-| Source | Shape today |
-|--------|-------------|
-| Conway (demo shell) | `x, y, generation, state` |
-| Count stack | `x, y, t, count` (EVT `.npy`) |
-| MNI 152 | dense `x, y, z` intensity (count-cube path) |
+| Source | Visitor label | Shape |
+|--------|---------------|-------|
+| `conway` | **Game of Life** | `x, y, generation, state` |
+| `ignition` | **Lighter Ignition** | `x, y, t, count` (EVT `.npy`) |
+| `mni152` | **Brain MRI** | dense `x, y, z` intensity (count-cube path) |
 
 MRI as a dedicated source kind / `ScalarVolume` is **later**. The public
-T1 is still a dense count cube: Source → **MNI 152**
-(`data/mni152_stack.npy`, symlink into `datasets/MRT/`). Native grid,
-occupancy ~47 %, enclosed voxels culled so INST stays a hull (~140k).
-Do not embed NiiVue. Do not add a NIfTI parser in the browser. SHIP
-volumes under `datasets/MRT/` stay local working data (not git). ICBM
-terms still apply — do not vendor the `.npy` on GitHub.
+example is still a dense count cube: Source → **Brain MRI**
+(`data/mni152_stack.npy`, committed copy). Native grid, occupancy ~47 %,
+enclosed voxels culled so INST stays a hull (~140k). Do not embed NiiVue.
+Do not add a NIfTI parser in the browser. SHIP volumes under
+`datasets/MRT/` stay local working data (not git). ICBM + NiiVue notices:
+[`data/NOTICE.md`](data/NOTICE.md).
 
-Conway is a teaching dataset, deterministic source, visual demo, and
-performance benchmark — not the product identity. A count stack is the
-first event-camera path. The renderer does not know whether a point came
-from a cellular automaton, a sensor, or a volume file.
+**Game of Life** is the teaching generator — not the product identity.
+Visitor copy lives in the Source sheet and [`docs/welcome.md`](docs/welcome.md).
 
 > Images aren't just pixels — they are structured data.
 
@@ -106,17 +104,20 @@ npm start
 # python3 scripts/serve-http.py --bind 127.0.0.1  (also GET /stream-npy)
 ```
 
-Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Ignition**
-loads `data/ignition_stack.npy`; **MNI 152** loads the native-grid T1 hull
-(`data/mni152_stack.npy`). Both are symlinks into `datasets/` in the
-WETTER-Suite layout. Load .npy and Stream are later live ingest (hidden
-from Source).
+Open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). Source → **Game of
+Life** is in-browser (no download). **Lighter Ignition** loads
+`data/ignition_stack.npy`; **Brain MRI** loads `data/mni152_stack.npy`.
+Both are committed example cubes (not symlinks) so GitHub Pages can
+serve them. Load .npy and Stream stay later live ingest (hidden).
+
+Local `datasets/` copies (WETTER-Suite layout) are still useful for
+re-convert:
 
 ```bash
-# from DONNER/, if a demo file is missing:
+# from DONNER/, only if you need to refresh the committed examples:
 mkdir -p data
-ln -sfn ../datasets/EVT/ignition_stack.npy data/ignition_stack.npy
-ln -sfn ../datasets/MRT/mni152_stack.npy data/mni152_stack.npy
+cp -L ../datasets/EVT/ignition_stack.npy data/ignition_stack.npy
+cp -L ../datasets/MRT/mni152_stack.npy data/mni152_stack.npy
 ```
 
 Re-convert the T1 from `mni152.nii.gz` (native stride) with the recipe in
@@ -146,7 +147,7 @@ hostname -I
 # or: ip -4 addr show
 ```
 
-Example: `http://192.168.178.30:8765/`
+Example: `http://<lan-host>:8765/` from `hostname -I`.
 
 Phone and desktop must be on the same WLAN. If the page does not load,
 check the firewall for port 8765, or that the address still matches
@@ -157,7 +158,7 @@ internet the app still runs, with system fonts.
 
 WebXR needs HTTPS. The lab door is **`https://lab.ole.icu/`**: a Caddy LXC
 with Let’s Encrypt, reverse-proxying the laptop `npm run start:lan`
-listener (`192.168.178.30:8765`). DNS `lab.ole.icu` is LAN-only. Do not
+listener (LAN `:8765`). DNS `lab.ole.icu` is LAN-only. Do not
 use `pve.ole.icu:8006`. The Caddyfile lives on the CT, not in this repo.
 
 ```mermaid
@@ -208,7 +209,7 @@ If the LAN IP changes, `npm run cert` again.
 - Axis-colored playfield frames (inset playhead, smaller clips); grab an **edge** to move that plane (no numbered overlay, no hover hairlines)
 - CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; the same face pages the stack; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z pins XY and still pans along Z.
-- Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider. View **Quality** Low / Medium / High (default High) drops to unlit cubes and a pixel-ratio cap on weak GPUs.
+- Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider. View **Quality** Low / Medium / High (default Medium). `?src=` / `?quality=` share the example.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
 - **Play / Loop** and **Speed** under the slice rails (above the footer). Conway Play is Live View; MNI / Ignition Loop walks the marked axis. AR overlay keeps Play after spawn.
 - Edit mode: tap cells inside the frame (Now only)
@@ -217,11 +218,22 @@ If the LAN IP changes, `npm run cert` again.
 - **Depth** is the live wake. **Pause** inspects the RAM tape (fog off; Z slab clips which gens are cubes; axis-colored planes and clips). **Fit** frames that slab; Z then moves only the plane. **Play** is Live View. **Stop when stable** pauses after five generations in a short cycle (period 1–15: stills and oscillators, not a wrapping glider).
 - Layers: display engine vs Conway source vs encoding slot (see architecture.md)
 - One left rail: **Source** then **View** (desktop stacked accordion; phone the same folds). View holds look, Color coding, Size by age, Cube cap, FPS (stays on the fold when collapsed). **DEV Bench** is on the right View HUD (costs performance; off until checked). Source holds data and Conway presets including Random + Fill. Loop axis X/Y/Z sits under the rails and highlights that plane.
-- Source switch: Conway, **Ignition**, **MNI 152**. **Load .npy** and **Stream** are later live ingest (hidden). Demos are `data/*.npy` symlinks.
+- Source switch: **Game of Life**, **Lighter Ignition**, **Brain MRI**.
+  **Load .npy** and **Stream** are later live ingest (hidden). Example
+  cubes are committed under `data/`. Visitor copy: Source sheet + About.
 - Dirty-state render loop: camera motion does not rebuild EventSoA
 - XR-A: WebXR `immersive-ar` passthrough. Phone: enter is passthrough only (no brick). **Search Anchor** starts floor hit-test; tap the gold square to spawn. **Reset Anchor** despawns and returns to search. No auto-lock, no timeout, no viewer-front preview. **Z** lifts off the floor; **Size** scales; **Yaw** turns. **Stand** is hidden on the phone overlay. Outer bound frames are off for the session. **AR** only if the device supports it. Phone chrome is the DOM overlay (IMU window). Quest (XR-C-0): no in-world menu and no Search / Reset Anchor button (Exit AR to place again); grab a frame to slide the volume; thumbstick yaws; both grips pinch size.
 
-**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, Dataset Contract / ScalarVolume, NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B marker, XR-C-1 hands, QR door+spawn, points renderer. Public preview host `donner.mess.engineering` is later.
+**Not in this tree yet:** Fibonacci, EVT3-in-browser, NPZ, polarity/occupancy/states encodings, Dataset Contract / ScalarVolume, NIfTI parser, DONNER backend, packed WOLKE selection / `viewer_index`, XR-B marker, XR-C-1 hands, QR door+spawn, points renderer. Public host `donner.mess.engineering` is a custom-domain step after GitHub Pages.
+
+## GitHub Pages
+
+Static HTML. Workflow `.github/workflows/pages.yml` publishes `index.html`,
+`css/`, `src/`, `vendor/`, `data/`. Enable **Settings → Pages → GitHub
+Actions** after the repo is **public** (or GitHub Pro on a private repo).
+`.nojekyll` keeps vendor paths. Notices: [`data/NOTICE.md`](data/NOTICE.md).
+Visitor guide: [`docs/welcome.md`](docs/welcome.md). Door: `?src=ignition`,
+`?src=mni152`, `?quality=high`.
 
 ## Architecture
 

@@ -93,7 +93,7 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
-| **Source** | Kind switch. Conway / Ignition / MNI 152. Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit. File/stream ingest later (hidden). Loading spinner on source/cube switch. | Sheet **Source** (config, top of the left rail) |
+| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI (ids `conway` / `ignition` / `mni152`). Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit. File/stream ingest later (hidden). Loading spinner on source/cube switch. Visitor blurb + About. | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); color only, no size-by-count. Polarity later. | Color coding + Scale in the **View** sheet. LUT in `src/encoding.js` |
 
 **Play / Loop** and **Speed** sit under the slice rails (above the footer),
@@ -147,7 +147,7 @@ flowchart TB
     bench[DEV Bench opt-in]
   end
   subgraph source [Source]
-    kind[Conway Ignition MNI]
+    kind[Game of Life Lighter Brain MRI]
     conway[Pattern Fill Seed Edit]
   end
   subgraph rails [Slice rails]
@@ -639,6 +639,7 @@ grow the DOM.
 | `src/turntable.js` | AR object yaw around product Z |
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/quality.js` | View Quality Low / Medium / High (DPR cap, unlit, ACES) |
+| `src/door.js` | Public `?src=` / `?quality=` allow-list (no arbitrary .npy URLs) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
@@ -932,10 +933,10 @@ rasterizers still warn **SOFTWARE** on the FPS chip.
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`
 or `ext`. Do not treat CPU `rend` as GPU time.
 
-View **Quality** is a manual preset (default **High** so the look does not
-flatten). `powerPreference: "high-performance"` is only a hint — Chrome
-on a hybrid laptop can still pick the Intel iGPU while Firefox reports
-NVIDIA.
+View **Quality** is a manual preset (default **Medium** on the public
+door). `?quality=high` is the prettier path. `powerPreference:
+"high-performance"` is only a hint — Chrome on a hybrid laptop can still
+pick the Intel iGPU while Firefox reports NVIDIA.
 
 ```mermaid
 flowchart LR
@@ -1010,13 +1011,12 @@ flowchart TB
 
 Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. **Ghost** keeps that hull on the glass InstancedMesh and only rebuilds the solid playhead plane (`fillPlaneSoA`, ring-cached). Peek (hold playhead) is the same split. **Cuts** is the three planes (no hull). Plane indices are an LRU of 48 cuts plus prefetch of neighbors — not a copy of every MRI slice at load. Ghost distance fade is a shader uniform so hull instance buffers stay put while scrubbing.
 
-**Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
+**Public demo** (in git for Pages): `data/mni152_stack.npy` from
 [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
 (BSD-2-Clause wrapper; derived from [ICBM 152 NLin 2009](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
-Converted file: `datasets/MRT/mni152_stack.npy` — **dense** native grid
-`(215, 256, 207)` uint16, intensity 1…32 (~23 MB). Do not vendor the
-binary in this repo (symlink `data/mni152_stack.npy`). Check ICBM terms
-before shipping a derived `.npy`.
+Dense native grid `(215, 256, 207)` uint16, intensity 1…32 (~23 MB).
+Visitor label **Brain MRI**. Notices in [`data/NOTICE.md`](data/NOTICE.md).
+Local working copy may still live at `datasets/MRT/mni152_stack.npy`.
 
 **SHIP working data** under `datasets/MRT/raw image/` and
 `Segmentierungen/` stays on disk only. Do not copy subject NIfTIs or
@@ -1028,6 +1028,8 @@ fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
 **and** inside the AABB, so idle Hull is ~140k surface cubes (under the
 200k default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
+Extra public `.npy` demos should stay sparse (many zeros), like Ignition.
+Dense atlas bricks stay the exception.
 Ghost keeps that hull on the GPU and rebuilds only the solid playhead
 plane (LRU + prefetch). Cuts is the three planes (no hull). Play/Loop
 steps the **loop-axis** playhead (default Z). Affine / RAS is ignored — the gizmo is array X/Y/Z.

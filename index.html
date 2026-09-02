@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>DONNER | 3D & XR Explore</title>
   <meta name="description"
-    content="DONNER is a browser-native scientific 3D/XR explorer for structured data. Conway, event-camera count stacks, and volumes share the same scene." />
+    content="DONNER is a browser-native scientific 3D/XR explorer. Examples: Game of Life, Lighter Ignition, and Brain MRI." />
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -183,15 +183,21 @@
     </div>
     <div id="source-body" class="sheet-body">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
+      <p id="source-welcome" class="hint source-welcome">DONNER shows structured data as a 3D brick. Drag to orbit. Pick an example below; View is look, color, and quality. Starts at Medium. Choppy? Quality → Low. Pretty GPU? Quality → High.</p>
       <label class="field">
         <span>Source</span>
         <select id="source-kind">
-          <option value="conway" selected>Conway</option>
-          <option value="ignition">Ignition</option>
-          <option value="mni152">MNI 152</option>
+          <option value="conway" selected>Game of Life</option>
+          <option value="ignition">Lighter Ignition</option>
+          <option value="mni152">Brain MRI</option>
           <option value="count" hidden>Count file / stream</option>
         </select>
       </label>
+      <p id="source-blurb" class="hint source-blurb">A generator: each cube is a living cell, Z is generations. Starts paused. Play grows the stack.</p>
+      <p id="source-cite" class="hint source-cite" hidden></p>
+      <p class="hint source-about-row">
+        <button type="button" id="btn-about" class="btn-link">About</button>
+      </p>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"
@@ -265,7 +271,7 @@
       <p id="view-fps" class="fold-fps" aria-live="polite">— FPS</p>
     </div>
     <div id="view-body" class="sheet-body">
-    <p id="hint" class="hint">Orbit · pinch zoom</p>
+    <p id="hint" class="hint">Drag to orbit · scroll zoom</p>
 
     <section class="sheet-block" data-slot="view" aria-labelledby="btn-rail-view">
       <div class="btn-row">
@@ -286,13 +292,13 @@
         <span>Quality</span>
         <div class="btn-row shade-modes" role="radiogroup" aria-label="View quality">
           <button type="button" id="quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Use on iGPU, phone, or when Bench says GPU fill.">Low</button>
-          <button type="button" id="quality-medium" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, pixel ratio capped at 1.25.">Medium</button>
-          <button type="button" id="quality-high" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU.">High</button>
+          <button type="button" id="quality-medium" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, pixel ratio capped at 1.25. Default public start.">Medium</button>
+          <button type="button" id="quality-high" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU. ?quality=high">High</button>
         </div>
       </div>
       <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
         <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
-        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for MRI and Ignition.">Ghost</button>
+        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
         <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
       </div>
       <label id="depth-field" class="field">
@@ -364,10 +370,32 @@
   <footer class="legal">
     <span id="version"></span>
     <span aria-hidden="true"> · </span>
+    <button type="button" id="btn-about-legal" class="btn-link">About</button>
+    <span aria-hidden="true"> · </span>
     <a href="https://mess.engineering" target="_blank" rel="noopener noreferrer">M.E.S.S.</a>
     <span aria-hidden="true"> · </span>
     <a href="https://wetter.mess.engineering" target="_blank" rel="noopener noreferrer">WETTER</a>
   </footer>
+
+  <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
+    <form method="dialog">
+      <h2 id="about-title">DONNER</h2>
+      <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
+      <h3>Examples</h3>
+      <ul>
+        <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape.</li>
+        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.</li>
+        <li><strong>Brain MRI</strong> — example T1 atlas (ICBM 152). All three axes are space. Loop walks a cut. Not a patient scan.</li>
+      </ul>
+      <h3>Look</h3>
+      <p>Drag to orbit, scroll to zoom. View is look and color. Hull / Ghost / Cuts. Grab a colored frame edge to peek. Quality starts at Medium. Low is for iGPU and phones. High needs a discrete GPU (<code>?quality=high</code>).</p>
+      <h3>Share</h3>
+      <p>The address bar follows the example: <code>?src=ignition</code>, <code>?src=mni152</code>, <code>?src=conway</code>. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
+      <h3>Credit</h3>
+      <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
+      <button type="submit" class="btn" value="close">Close</button>
+    </form>
+  </dialog>
 </body>
 
 </html>

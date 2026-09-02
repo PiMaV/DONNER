@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, isCountSourceKind, isStaticSourceKind } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, SOURCE_WELCOME, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, isCountSourceKind, isStaticSourceKind, sourceGuide } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
 import { countCmapCss, DEFAULT_COUNT_CMAP, normalizeCountCmap } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
@@ -368,6 +368,11 @@ export function bindUI(on) {
   const panelSource = $("panel-source");
   const hint = $("hint");
   const sourceKind = $("source-kind");
+  const sourceBlurb = $("source-blurb");
+  const sourceCite = $("source-cite");
+  const sourceWelcome = $("source-welcome");
+  const aboutDialog = $("about-dialog");
+  const aboutBtns = ["btn-about", "btn-about-legal"].map((id) => $(id));
   const countFile = $("count-file");
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
@@ -433,6 +438,16 @@ export function bindUI(on) {
   if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
   if (bench) bench.checked = DEFAULTS.bench;
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
+  const syncSourceCopy = () => {
+    const g = sourceGuide(sourceKind ? sourceKind.value : DEFAULTS.sourceKind);
+    if (sourceBlurb) sourceBlurb.textContent = g.blurb;
+    if (sourceCite) {
+      sourceCite.textContent = g.cite || "";
+      sourceCite.hidden = !g.cite;
+    }
+  };
+  if (sourceWelcome) sourceWelcome.textContent = SOURCE_WELCOME;
+  syncSourceCopy();
   if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
   if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
   document.body.classList.toggle("source-count", isCountSourceKind(DEFAULTS.sourceKind));
@@ -643,8 +658,15 @@ export function bindUI(on) {
   dyn?.addEventListener("change", onViewFlag);
   sourceKind?.addEventListener("change", () => {
     if (applying) return;
+    syncSourceCopy();
     on.sourceKind?.();
   });
+  const openAbout = () => {
+    if (typeof aboutDialog?.showModal === "function") aboutDialog.showModal();
+  };
+  for (const btn of aboutBtns) {
+    btn?.addEventListener("click", openAbout);
+  }
   countFile?.addEventListener("change", () => {
     const file = countFile.files && countFile.files[0];
     countFile.value = "";
@@ -913,6 +935,7 @@ export function bindUI(on) {
       if (playBtn && !playBtn.classList.contains("is-live")) playBtn.textContent = "Play";
       if (loopBtn) loopBtn.disabled = false;
       syncFillVisibility();
+      syncSourceCopy();
     },
     setCountMeta(text) {
       if (countMeta) countMeta.textContent = text || "";

@@ -1395,6 +1395,98 @@ body.source-count .encoding-conway {
   color: var(--donner);
 }
 
+.legal .btn-link {
+  color: var(--muted);
+  font-size: inherit;
+  text-decoration: none;
+}
+
+.legal .btn-link:hover {
+  color: var(--donner);
+}
+
+.btn-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dampf);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link:hover {
+  color: var(--donner);
+}
+
+.source-welcome,
+.source-blurb,
+.source-cite {
+  margin: 0 0 8px;
+}
+
+.source-cite {
+  font-size: 0.68rem;
+}
+
+.about-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(80vh, 640px);
+  padding: 16px 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #111720;
+  color: var(--text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.about-dialog::backdrop {
+  background: rgba(7, 10, 14, 0.62);
+}
+
+.about-dialog h2 {
+  margin: 0 0 8px;
+  font-family: Orbitron, sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+}
+
+.about-dialog h3 {
+  margin: 12px 0 6px;
+  font-family: Orbitron, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.about-dialog p,
+.about-dialog li {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.about-dialog ul {
+  margin: 0 0 8px;
+  padding-left: 1.1em;
+}
+
+.about-dialog a {
+  color: var(--dampf);
+}
+
+.about-dialog .btn {
+  margin-top: 8px;
+}
+
+body.is-ar .about-dialog {
+  display: none;
+}
+
 @media (max-width: 720px), (pointer: coarse) and (max-height: 520px) {
   .fold-bar {
     display: flex;

@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, isCountSourceKind } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
+import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
   PathTimer,
   formatBenchHud,
@@ -1270,6 +1271,7 @@ function exitAr() {
 async function onArSessionStart() {
   try {
     setArDocument(true);
+    document.getElementById("about-dialog")?.close?.();
     gizmo.clearHover();
     setViewCursor("");
     syncGizmoChrome();
@@ -1386,6 +1388,17 @@ function applyViewQuality(id) {
   syncFog();
   if (arPresenting()) refreshGpu();
   else resize();
+  syncStartUrl();
+}
+
+function syncStartUrl() {
+  const kind = ui.getConfig().sourceKind;
+  const source = isCountSourceKind(kind) && kind !== "count" ? kind : "conway";
+  const next = startSearchFromState({ source, quality: viewQuality });
+  const url = new URL(window.location.href);
+  if (url.search === next) return;
+  url.search = next;
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function syncViewRange() {
@@ -1748,6 +1761,7 @@ function bootCount(vol) {
   layoutPlayfield(vol.width, vol.height);
   cubes.setKindHex(currentCountLut(), -1);
   ui.setSourceKind(countKindForVolume(vol));
+  syncStartUrl();
   ui.setCountLegend(vol.ceiling);
   ui.setCountMeta(
     `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.ceiling} · ${vol.count} voxels`,
@@ -1837,15 +1851,19 @@ async function loadCountFromUrl(url, name, kind = "count") {
 }
 
 function switchSource(kind) {
+  const next =
+    kind === "conway" || COUNT_DEMOS[kind] ? kind : "conway";
+  ui.setSourceKind(next);
+  syncStartUrl();
   void withLoading("Loading…", async () => {
-    if (kind === "conway") {
+    if (next === "conway") {
       disconnectWolke();
       bootWorld(true);
       return;
     }
-    const demo = COUNT_DEMOS[kind];
+    const demo = COUNT_DEMOS[next];
     if (demo) {
-      await loadCountFromUrl(demo.url, demo.name, kind);
+      await loadCountFromUrl(demo.url, demo.name, next);
       return;
     }
     if (countVol) {
@@ -1854,7 +1872,7 @@ function switchSource(kind) {
       return;
     }
     ui.setSourceKind("count");
-    ui.setCountHint("File and stream ingest is later. Pick Ignition or MNI 152.");
+    ui.setCountHint("File and stream ingest is later. Pick Lighter Ignition or Brain MRI.");
     updateHint();
   });
 }
@@ -2388,7 +2406,7 @@ function updateHint() {
       `INST ${cubes.count} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
     );
   } else if (playing) {
-    ui.setHint("Live — Pause to inspect the cache · orbit · pinch zoom");
+    ui.setHint("Live — Pause to inspect the cache · drag to orbit · scroll zoom");
   } else {
     ui.setHint(
       coarse
@@ -3252,10 +3270,13 @@ function frame(now, xrFrame) {
   }
 }
 
-applyViewQuality(DEFAULTS.viewQuality);
+const start = parseStartSearch(window.location.search);
+ui.setSourceKind(start.source);
+applyViewQuality(start.quality);
 requestAnimationFrame(resize);
 try {
-  bootWorld(true);
+  if (start.source === "conway") bootWorld(true);
+  else switchSource(start.source);
 } catch (err) {
   console.warn("DONNER boot", err);
 }

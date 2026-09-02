@@ -20,7 +20,8 @@ advantage, not a deployment convenience.
   event-camera files exist — seeding, teaching, and a performance
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
   **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
-  **source addon** (Conway, Ignition, or MNI 152; WOLKE-contract stream
+  **source addon** (Game of Life, Lighter Ignition, or Brain MRI; ids
+  `conway` / `ignition` / `mni152`; WOLKE-contract stream
   and Load `.npy` are later live ingest, hidden from Source chrome),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
@@ -56,7 +57,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Same-face click pages the stack (no refit). Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default High). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Same-face click pages the stack (no refit). Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -158,7 +159,7 @@ advantage, not a deployment convenience.
 
 - Event-camera `.raw` / EVT3 decode in the browser
 - NIfTI / `.nii.gz` parser in the browser; embedding NiiVue. The public T1
-  is Source → **MNI 152** (`data/mni152_stack.npy`, native grid, enclosed
+  is Source → **Brain MRI** (`data/mni152_stack.npy`, native grid, enclosed
   voxels culled). Do not convert to a static surface. Do not build a
   DICOM / PACS / diagnostic workstation.
 - Treating `CountVolume` as a generic scalar volume
