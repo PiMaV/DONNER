@@ -46,6 +46,11 @@ describe("Source | View information architecture", () => {
     assert.match(view, /id="color-coding"/);
     assert.doesNotMatch(view, />Dynamics</);
     assert.match(html, /id="sheet-encoding"[^>]*>Color coding</);
+    assert.match(view, /id="count-cmap"/);
+    assert.match(view, /value="gray"/);
+    assert.match(view, /value="inferno"/);
+    assert.match(view, /value="plasma"/);
+    assert.match(view, /value="turbo"/);
   });
 
   it("puts Conway Play/Speed in Source and View Loop/Speed under the rails", () => {
@@ -59,6 +64,10 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
     assert.match(view, /id="cube-cap"/);
+    assert.match(view, /id="quality-low"/);
+    assert.match(view, /id="quality-medium"/);
+    assert.match(view, /id="quality-high"/);
+    assert.match(view, /id="quality-high"[^>]*is-on/);
     assert.match(view, /id="view-fps"/);
     assert.doesNotMatch(view, /id="bench"/);
     assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);

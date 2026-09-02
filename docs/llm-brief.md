@@ -46,7 +46,7 @@ advantage, not a deployment convenience.
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
   and the first cube of each worldline.
-  Count uses integer rungs (cyan → gold → coral).
+  Count uses integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo).
   Occupancy only (no neighborhood motion gate). Cube scale follows **Size by age**
   via stamped `s` on each generation (along Z). Start = fill at age 0; Tail = gens
   to full size. Off = equal cubes. Display (`setEvents`); do not rerun
@@ -56,7 +56,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Same-face click pages the stack (no refit). Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view). **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Same-face click pages the stack (no refit). Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default High). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -106,12 +106,13 @@ advantage, not a deployment convenience.
   Play / Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
   Hull+Loop grows a potato from the axis origin through the plane.
-  (Parallax, Align to Z, Light, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
+  (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
-  must not either (clip, Ghost, and Cuts still refill occupancy; clip uses the hull
-  cache plus AABB faces, not a full occupancy scan). Size by age / Start / Tail
-  must not call `fillSoA`.
+  must not either. Ghost / peek / Cuts rebuild only the solid plane
+  (`fillPlaneSoA`, LRU + neighbor prefetch); the glass hull mesh stays.
+  Clip uses the hull cache plus AABB faces, not a full occupancy scan.
+  Size by age / Start / Tail must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
   Visible volume lives on a `stage` group, then `stand` (which product
@@ -127,7 +128,8 @@ advantage, not a deployment convenience.
   **Z** (overlay slider) lifts the brick off the floor (world-up).
   **Yaw** turns the pillar around product Z. **Size** (0.4×–2.5×) scales
   the brick. Desktop orbit does not yaw the volume. Lighting is a
-  **headlamp** (key/fill follow the view in orbit and in AR walk).
+  **headlamp** (key/fill follow the view in orbit and in AR walk) on
+  Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
   Stand-axis math stays in the renderer for Quest; the phone HUD does not
   offer X/Y/Z stand. Outer bound frames are forced off while phone AR
   runs and restored on Exit. Center / playhead frames still draw after

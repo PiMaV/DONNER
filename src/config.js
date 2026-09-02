@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "0.10.0";
+export const VERSION = "0.11.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -82,7 +82,9 @@ export const DEFAULTS = {
   stabTail: MAX_STAB_GENS,
   dynamics: true,
   encodingMinimal: false,
+  countCmap: "donner",
   forceFullRebuild: false,
+  viewQuality: "high",
   maxTapeSlices: 4096,
   maxTapeEvents: 400_000,
   sourceKind: "conway",
@@ -115,9 +117,9 @@ export function clampDensity(n) {
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];
 
-/** View Gap slider: 0 packs MRI; 2 leaves two cube-widths of air. */
+/** View Gap slider: 0 packs MRI; 5 leaves five cube-widths of air. */
 export const VOXEL_GAP_MIN = 0;
-export const VOXEL_GAP_MAX = 2;
+export const VOXEL_GAP_MAX = 5;
 export const VOXEL_GAP_STEP = 0.05;
 
 export function clampVoxelGap(n) {

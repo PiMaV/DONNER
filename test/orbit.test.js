@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   fitOrbitDistance,
+  gapLimitOrbitRange,
   orthoFitHalfHeight,
   pinOrbitToAxis,
   pinOrbitToOriginXY,
@@ -80,5 +81,47 @@ describe("orbit pin", () => {
     assert.equal(wide, 20);
     const tall = orthoFitHalfHeight(10, 40, 1, 1);
     assert.equal(tall, 20);
+  });
+
+  it("sizes max zoom-out for the gap slider limit, not packed pitch", () => {
+    const aabb = { xLo: 0, xHi: 31, yLo: 0, yHi: 31, tLo: 0, tHi: 47 };
+    const packed = gapLimitOrbitRange({
+      width: 32,
+      height: 32,
+      aabb,
+      tNow: 47,
+      cellSize: 1,
+      timeScale: 1,
+      gapMax: 0,
+      fovDeg: 50,
+    });
+    const wide = gapLimitOrbitRange({
+      width: 32,
+      height: 32,
+      aabb,
+      tNow: 47,
+      cellSize: 1,
+      timeScale: 1,
+      gapMax: 5,
+      fovDeg: 50,
+    });
+    assert.ok(wide.radius > packed.radius * 5);
+    assert.ok(wide.maxDistance > packed.maxDistance * 3);
+    assert.ok(wide.minZoom < packed.minZoom);
+    assert.ok(wide.far > wide.maxDistance);
+  });
+
+  it("lets an MRI brick at gap 5 dolly past the old 2400 cap", () => {
+    const range = gapLimitOrbitRange({
+      width: 207,
+      height: 256,
+      aabb: { xLo: 0, xHi: 206, yLo: 0, yHi: 255, tLo: 0, tHi: 214 },
+      tNow: 214,
+      cellSize: 1,
+      timeScale: 1,
+      gapMax: 5,
+      fovDeg: 50,
+    });
+    assert.ok(range.maxDistance > 2400);
   });
 });

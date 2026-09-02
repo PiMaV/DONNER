@@ -286,10 +286,17 @@ export function fociFromSlabs(slabs, width, height, tNow) {
   };
 }
 
+/** Compact AABB id for occupancy / plane-cache keys. */
+export function aabbOccupancyKey(aabb) {
+  return aabb
+    ? `${aabb.xLo | 0}:${aabb.xHi | 0}:${aabb.yLo | 0}:${aabb.yHi | 0}:${aabb.tLo | 0}:${aabb.tHi | 0}`
+    : "live";
+}
+
 /**
- * SoA invalidation key for Inspect. Hull cubes do not depend on the
- * playhead — only the AABB crop and shade mode do. Ghost/Triple include
- * the plane(s) that must be solid.
+ * Combined occupancy key (tests / live span). Ghost still includes the
+ * solid plane. Prefer `inspectHullOccupancyKey` + `inspectPlaneOccupancyKey`
+ * on the inspect hot path so the glass hull is not rebuilt on scrub.
  */
 export function inspectRebuildKey({
   shade,
@@ -298,9 +305,7 @@ export function inspectRebuildKey({
   activeAxis = "z",
 } = {}) {
   const mode = normalizeShadeMode(shade);
-  const box = aabb
-    ? `${aabb.xLo | 0}:${aabb.xHi | 0}:${aabb.yLo | 0}:${aabb.yHi | 0}:${aabb.tLo | 0}:${aabb.tHi | 0}`
-    : "live";
+  const box = aabbOccupancyKey(aabb);
   if (mode === "hull") return `${box}:hull`;
   const f = foci || {};
   if (mode === "ghost" || mode === "slice") {
@@ -308,6 +313,43 @@ export function inspectRebuildKey({
     return `${box}:${mode}:${axis}:${f[axis] | 0}`;
   }
   return `${box}:triple:${f.x | 0}:${f.y | 0}:${f.z | 0}`;
+}
+
+/**
+ * Hull instance list. Playhead does not belong here. `glass` vs `solid`
+ * is which InstancedMesh the hull is uploaded to (Ghost vs Hull).
+ * Viewcube plane-lock and Cuts have no hull mesh.
+ */
+export function inspectHullOccupancyKey({
+  shade,
+  aabb,
+  sliceOnly = false,
+} = {}) {
+  const mode = normalizeShadeMode(shade);
+  const box = aabbOccupancyKey(aabb);
+  if (sliceOnly || mode === "slice" || mode === "triple") return `${box}:hull:none`;
+  return `${box}:hull:${mode === "ghost" ? "glass" : "solid"}`;
+}
+
+/**
+ * Solid cut plane(s). Ghost / Slice follow the highlighted playhead;
+ * Cuts follows all three. Hull idle has no plane mesh.
+ */
+export function inspectPlaneOccupancyKey({
+  shade,
+  aabb,
+  foci,
+  activeAxis = "z",
+} = {}) {
+  const mode = normalizeShadeMode(shade);
+  const box = aabbOccupancyKey(aabb);
+  if (mode === "hull") return `${box}:plane:none`;
+  const f = foci || {};
+  if (mode === "ghost" || mode === "slice") {
+    const axis = normalizeSliceAxis(activeAxis);
+    return `${box}:plane:${mode}:${axis}:${f[axis] | 0}`;
+  }
+  return `${box}:plane:triple:${f.x | 0}:${f.y | 0}:${f.z | 0}`;
 }
 
 export function shouldEmitVoxel(

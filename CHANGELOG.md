@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-02
+
+### Added
+
+- Count / MNI **Scale**: DONNER (cyan → gold → coral), Gray, Inferno, Plasma, Turbo. Conway occupancy classes stay under Color coding.
+- View **Quality** Low / Medium / High. Low is unlit cubes at pixel ratio 1. Medium is Lambert at 1.25. High is Lambert + ACES up to pixel ratio 2 (1.5 on phone / headset). Manual; no auto GPU class. Antialias stays whatever the WebGL context was created with.
+
+### Changed
+
+- Inspect Ghost / peek / Cuts no longer rewrite the glass hull on every playhead step. The hull InstancedMesh stays; only the solid cut is filled (plane-index LRU + neighbor prefetch). Ghost distance fade is a shader uniform. Full-volume prerender is not used (camera orbits).
+- Gap slider max is **5**. Orbit zoom-out, camera far, and ortho min-zoom are sized for that limit so a wide gap still fits on screen.
+
 ## [0.10.0] - 2026-09-02
 
 ### Added

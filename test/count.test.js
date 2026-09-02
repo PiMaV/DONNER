@@ -10,9 +10,10 @@ import {
   countVolumeFromNpy,
   DENSE_OCCUPANCY,
   isDenseCount,
+  PLANE_CACHE_MAX,
 } from "../src/count.js";
 import { parseNpy, serializeNpy } from "../src/npy.js";
-import { EventSoA } from "../src/spacetime.js";
+import { copyAnyPlanes, copyAxisPlane, EventSoA } from "../src/spacetime.js";
 import {
   COUNT_DEMOS,
   isCountSourceKind,
@@ -322,6 +323,78 @@ describe("count volume", () => {
       aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
     });
     assert.equal(soa.count, 19);
+  });
+
+  it("splits hull vs full plane so Ghost scrub does not recopy the hull", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const hull = new EventSoA(32);
+    const plane = new EventSoA(32);
+    const box = { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 };
+    const opts = {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      shade: "ghost",
+      activeAxis: "z",
+      foci: { x: 1, y: 1, z: 1 },
+      aabb: box,
+    };
+    vol.fillHullSoA(hull, 2, 8, 3, opts);
+    vol.fillPlaneSoA(plane, 2, 8, 3, opts);
+    assert.equal(hull.count, 26);
+    assert.equal(plane.count, 9);
+    for (let i = 0; i < plane.count; i++) assert.equal(plane.t[i], 1);
+    vol.fillHullSoA(hull, 2, 8, 3, { ...opts, foci: { x: 1, y: 1, z: 2 } });
+    assert.equal(hull.count, 26);
+    vol.fillPlaneSoA(plane, 2, 8, 3, { ...opts, foci: { x: 1, y: 1, z: 0 } });
+    assert.equal(plane.count, 9);
+    for (let i = 0; i < plane.count; i++) assert.equal(plane.t[i], 0);
+  });
+
+  it("reuses plane index lists in a bounded LRU", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const box = { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 };
+    const a = vol.cachedPlaneIndices(box, "z", 1, false);
+    const b = vol.cachedPlaneIndices(box, "z", 1, false);
+    assert.equal(a, b);
+    assert.equal(a.length, 9);
+    vol.prefetchPlanes(box, "z", 1, false, { radius: 1, lo: 0, hi: 2 });
+    assert.equal(vol.cachedPlaneIndices(box, "z", 0, false).length, 9);
+    const wide = new Uint16Array(10 * 10 * 10);
+    wide.fill(1);
+    const big = countVolumeFromDense(wide, [10, 10, 10]);
+    const full = { xLo: 0, xHi: 9, yLo: 0, yHi: 9, tLo: 0, tHi: 9 };
+    for (let x = 0; x < 10; x++) big.cachedPlaneIndices(full, "x", x, false);
+    for (let y = 0; y < 10; y++) big.cachedPlaneIndices(full, "y", y, false);
+    for (let z = 0; z < 10; z++) big.cachedPlaneIndices(full, "z", z, false);
+    for (let x = 0; x < 10; x++) big.cachedPlaneIndices(full, "x", x, true);
+    for (let y = 0; y < 10; y++) big.cachedPlaneIndices(full, "y", y, true);
+    for (let z = 0; z < 8; z++) big.cachedPlaneIndices(full, "z", z, true);
+    assert.ok(big._planeCache.size <= PLANE_CACHE_MAX);
+    assert.equal(big._planeCache.size, big._planeCacheOrder.length);
+  });
+});
+
+describe("SoA plane copy", () => {
+  it("copies one axis plane and Cuts union", () => {
+    const src = new EventSoA(8);
+    src.count = 4;
+    src.x.set([0, 1, 1, 2]);
+    src.y.set([0, 0, 1, 1]);
+    src.t.set([0, 1, 1, 2]);
+    src.k.set([1, 2, 3, 4]);
+    const dest = new EventSoA(8);
+    copyAxisPlane(src, dest, "z", 1);
+    assert.equal(dest.count, 2);
+    assert.equal(dest.k[0], 2);
+    assert.equal(dest.k[1], 3);
+    copyAnyPlanes(src, dest, { x: 2, y: 0, z: 1 });
+    assert.equal(dest.count, 4);
   });
 });
 

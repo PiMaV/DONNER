@@ -4,7 +4,7 @@
  * orbit height; Align to Z pins XY to that origin and still allows pan along Z.
  */
 
-import { zWorldY } from "./axes.js";
+import { voxelPitch, zWorldY } from "./axes.js";
 
 export function slabYRange(tNow, tLo, tHi, timeScale) {
   const a = zWorldY(tLo, tNow, timeScale);
@@ -43,6 +43,45 @@ export function fitOrbitDistance(fovDeg, radius, pad = 1.28) {
   const p = Number(pad) || 1.28;
   if (s < 1e-6) return r * p * 3;
   return (r * p) / s;
+}
+
+/**
+ * Dolly-out / far plane / ortho min-zoom sized for `gapMax`, not the
+ * current Gap. Opening the slider must still leave room to frame the brick.
+ */
+export function gapLimitOrbitRange({
+  width,
+  height,
+  aabb,
+  tNow,
+  cellSize = 1,
+  timeScale = 1,
+  gapMax = 0,
+  fovDeg = 50,
+} = {}) {
+  const pitch = voxelPitch(cellSize, gapMax);
+  const timePitch = voxelPitch(timeScale, gapMax);
+  const w = Math.max(1, width | 0);
+  const h = Math.max(1, height | 0);
+  const box = aabb || {};
+  const xLo = box.xLo == null ? 0 : box.xLo | 0;
+  const xHi = box.xHi == null ? w - 1 : box.xHi | 0;
+  const yLo = box.yLo == null ? 0 : box.yLo | 0;
+  const yHi = box.yHi == null ? h - 1 : box.yHi | 0;
+  const ox = (w - 1) * 0.5;
+  const oz = (h - 1) * 0.5;
+  const hx = Math.max(Math.abs(xLo - ox), Math.abs(xHi - ox)) * pitch;
+  const hz = Math.max(Math.abs(yLo - oz), Math.abs(yHi - oz)) * pitch;
+  const span = slabYRange(tNow, box.tLo, box.tHi, timePitch);
+  const radius = volumeRadius(hx, hz, span.yMin, span.yMax);
+  const dist = fitOrbitDistance(fovDeg, radius, 1.28);
+  const maxDistance = Math.max(220, dist * 1.4);
+  return {
+    radius,
+    maxDistance,
+    far: Math.max(400, maxDistance * 2.4, dist + radius * 3),
+    minZoom: Math.min(0.35, 1 / ((1 + Math.max(0, Number(gapMax) || 0)) * 1.2)),
+  };
 }
 
 export function frustumFromDistance(distance, fovDeg) {

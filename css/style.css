@@ -592,6 +592,10 @@ body.is-ar .conway-live {
   margin: 6px 0 2px;
 }
 
+.field > .shade-modes {
+  margin: 0;
+}
+
 .stack-cap {
   color: var(--muted);
   font-family: ui-monospace, "SF Mono", Consolas, monospace;
@@ -1304,8 +1308,31 @@ body.source-count .encoding-count.hint {
   display: flex;
 }
 
-body.source-count .encoding-count.legend {
+body.source-count .encoding-count.field {
   display: flex;
+}
+
+body.source-count .cmap-scale {
+  display: flex;
+}
+
+.cmap-scale {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cmap-bar {
+  height: 8px;
+  border-radius: 2px;
+  width: 100%;
+}
+
+.cmap-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--muted);
 }
 
 body.source-count .encoding-conway {

@@ -8,8 +8,11 @@
  * Product Z = 0 is Now (`tNow`). Engine Y-up stores that as world Y = 0.
  * The playhead (`tFocus`) is a plane that moves through that stack.
  * Live: slices with t > tFocus sit above as a transparent ghost.
- * Inspect: Hull / Ghost / Triple / Slice from `voxelShadeClass`. Ghost hull fades
- * toward the AABB faces along the active plane (`sliceDistanceFade`).
+ * Inspect: Hull / Ghost / Triple / Slice from `voxelShadeClass`. Ghost hull
+ * matrices stay on the GPU; playhead fade is a shader uniform
+ * (`sliceDistanceFade` in the vertex shader). The solid cut is a second
+ * upload. `setEvents(soa, view, layer)` with `hull` / `plane` / `solid`
+ * avoids rewriting the glass brick on every scrub.
  * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
  * View Gap (`voxelGap`) spreads instance centers; cube edge stays `cellSize × fill`.
  */
@@ -34,28 +37,121 @@ function seedInstanceColors(mesh, maxCount, color) {
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
 }
 
+/** CPU ghost hull tone at spatialW = 1 (`0.35 + 0.5`). Shader remaps from this. */
+const GHOST_HULL_TONE = 0.85;
+
+function attachGhostSliceFade(material) {
+  const uniforms = {
+    uGhostFade: { value: 0 },
+    uAxis: { value: 2 },
+    uFocus: { value: 0 },
+    uLo: { value: 0 },
+    uHi: { value: 1 },
+    uOx: { value: 0 },
+    uOz: { value: 0 },
+    uPitch: { value: 1 },
+    uTimePitch: { value: 1 },
+    uTNow: { value: 0 },
+  };
+  material.customProgramCacheKey = () => "donner-ghost-slice-fade-v1";
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "void main() {",
+        `varying float vGhostSliceW;
+uniform float uGhostFade;
+uniform float uAxis;
+uniform float uFocus;
+uniform float uLo;
+uniform float uHi;
+uniform float uOx;
+uniform float uOz;
+uniform float uPitch;
+uniform float uTimePitch;
+uniform float uTNow;
+void main() {`,
+      )
+      .replace(
+        "#include <color_vertex>",
+        `#include <color_vertex>
+vGhostSliceW = 1.0;
+#ifdef USE_INSTANCING
+if (uGhostFade > 0.5) {
+  vec3 origin = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float vx = origin.x / max(uPitch, 1e-6) + uOx;
+  float vy = origin.z / max(uPitch, 1e-6) + uOz;
+  float vt = origin.y / max(uTimePitch, 1e-6) + uTNow;
+  float along = mix(mix(vx, vy, step(0.5, uAxis)), vt, step(1.5, uAxis));
+  float d = along - uFocus;
+  if (abs(d) < 0.5) {
+    vGhostSliceW = 0.0;
+  } else {
+    float w;
+    if (d < 0.0) {
+      float span = uFocus - uLo;
+      w = span > 0.0 ? max(0.0, 1.0 + d / span) : 0.0;
+    } else {
+      float span = uHi - uFocus;
+      w = span > 0.0 ? max(0.0, 1.0 - d / span) : 0.0;
+    }
+    vGhostSliceW = w;
+#ifdef USE_INSTANCING_COLOR
+    vColor.xyz *= (0.35 + 0.5 * w) / 0.85;
+#endif
+  }
+}
+#endif
+`,
+      );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "void main() {",
+      `varying float vGhostSliceW;
+void main() {
+if (vGhostSliceW <= 0.0) discard;`,
+    );
+  };
+  return uniforms;
+}
+
+function makeSolidMaterial(unlit) {
+  if (unlit) return new THREE.MeshBasicMaterial();
+  return new THREE.MeshLambertMaterial({
+    emissive: new THREE.Color(0x0c0c0c),
+  });
+}
+
+function makeGhostMaterial(unlit) {
+  const shared = {
+    transparent: true,
+    opacity: GHOST_OPACITY,
+    depthWrite: false,
+  };
+  if (unlit) return new THREE.MeshBasicMaterial(shared);
+  return new THREE.MeshLambertMaterial({
+    ...shared,
+    emissive: new THREE.Color(0x0c0c0c),
+  });
+}
+
 export class CubeRenderer {
-  constructor(scene, { maxCount, cellSize = 1, kindHex = CONWAY_KIND_HEX, warmupK = CONWAY_WARMUP_K }) {
+  constructor(scene, { maxCount, cellSize = 1, kindHex = CONWAY_KIND_HEX, warmupK = CONWAY_WARMUP_K, unlit = false }) {
     this.scene = scene;
     this.maxCount = maxCount;
     this.cellSize = cellSize;
     this.count = 0;
     this._warmupK = warmupK;
+    this._unlit = Boolean(unlit);
+    this._ghostFadeView = null;
 
     const geoSolid = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
     const geoGhost = new THREE.BoxGeometry(cellSize, cellSize, cellSize);
     this._geoSolid = geoSolid;
     this._geoGhost = geoGhost;
 
-    const matSolid = new THREE.MeshLambertMaterial({
-      emissive: new THREE.Color(0x0c0c0c),
-    });
-    const matGhost = new THREE.MeshLambertMaterial({
-      emissive: new THREE.Color(0x0c0c0c),
-      transparent: true,
-      opacity: GHOST_OPACITY,
-      depthWrite: false,
-    });
+    const matSolid = makeSolidMaterial(this._unlit);
+    const matGhost = makeGhostMaterial(this._unlit);
+    this._ghostSlice = attachGhostSliceFade(matGhost);
 
     this.solid = new THREE.InstancedMesh(geoSolid, matSolid, maxCount);
     this.ghost = new THREE.InstancedMesh(geoGhost, matGhost, maxCount);
@@ -86,31 +182,123 @@ export class CubeRenderer {
     this._warmupK = warmupK;
   }
 
+  /** Low quality: MeshBasic (no lights). Medium/High: Lambert headlamp. */
+  setUnlit(unlit) {
+    const next = Boolean(unlit);
+    if (next === this._unlit) return;
+    this._unlit = next;
+    this.solid.material.dispose();
+    this.ghost.material.dispose();
+    this.solid.material = makeSolidMaterial(next);
+    this.ghost.material = makeGhostMaterial(next);
+    this._ghostSlice = attachGhostSliceFade(this.ghost.material);
+    this.setGhostSliceFade(this._ghostFadeView);
+  }
+
   /**
-   * @param {import("./spacetime.js").EventSoA} soa
-   * @param {{
-   *   tFocus: number,
-   *   tNow?: number,
-   *   decay: boolean,
-   *   fadeSpan: number,
-   *   timeScale: number,
-   *   width: number,
-   *   height: number,
-   *   stabMode?: "none" | "time",
-   *   stabStart?: number,
-   *   stabTail?: number,
-   *   cellSize?: number,
-   *   voxelGap?: number,
-   *   isolate?: { x: number, y: number } | null,
-   *   sliceOnly?: boolean,
-   *   activeAxis?: "x" | "y" | "z",
-   *   aabb?: { xLo?: number, xHi?: number, yLo?: number, yHi?: number, tLo?: number, tHi?: number } | null,
-   *   foci?: { x: number, y: number, z: number },
-   *   shade?: "hull" | "ghost" | "triple" | "slice" | null,
-   *   encodingMinimal?: boolean,
-   * }} view
+   * Ghost hull distance fade + hide glass on the solid playhead plane.
+   * `view` null disables the shader path (Hull, Cuts, live).
    */
-  setEvents(soa, view) {
+  setGhostSliceFade(view) {
+    this._ghostFadeView = view || null;
+    const u = this._ghostSlice;
+    if (!u) return;
+    const on = Boolean(view && view.shade === "ghost" && !view.sliceOnly);
+    u.uGhostFade.value = on ? 1 : 0;
+    if (!on) return;
+    const activeAxis = normalizeSliceAxis(view.activeAxis);
+    const aabb = view.aabb || {};
+    const foci = view.foci || { x: 0, y: 0, z: view.tFocus };
+    u.uAxis.value = activeAxis === "x" ? 0 : activeAxis === "y" ? 1 : 2;
+    u.uFocus.value = foci[activeAxis] == null ? 0 : Number(foci[activeAxis]);
+    const lo = activeAxis === "x" ? aabb.xLo : activeAxis === "y" ? aabb.yLo : aabb.tLo;
+    const hi = activeAxis === "x" ? aabb.xHi : activeAxis === "y" ? aabb.yHi : aabb.tHi;
+    u.uLo.value = lo == null ? 0 : Number(lo);
+    u.uHi.value = hi == null ? 0 : Number(hi);
+    u.uOx.value = ((view.width | 0) - 1) * 0.5;
+    u.uOz.value = ((view.height | 0) - 1) * 0.5;
+    u.uPitch.value = voxelPitch(view.cellSize ?? this.cellSize, view.voxelGap);
+    u.uTimePitch.value = voxelPitch(view.timeScale, view.voxelGap);
+    u.uTNow.value = view.tNow ?? view.tFocus;
+  }
+
+  _stampInspectLayer(layer, ctx) {
+    const {
+      soa,
+      n,
+      cell,
+      pitch,
+      timePitch,
+      ox,
+      oz,
+      tFocus,
+      tNow,
+      dummy,
+      color,
+      kinds,
+      uniformKind,
+      minimal,
+      stabMode,
+      stabOpts,
+      decayOn,
+      fadeSpan,
+    } = ctx;
+    const writeGhost = layer === "hull";
+    let iSolid = 0;
+    let iGhost = 0;
+    for (let i = 0; i < n; i++) {
+      const t = soa.t[i];
+      const x = soa.x[i];
+      const y = soa.y[i];
+      dummy.position.set((x - ox) * pitch, zWorldY(t, tNow, timePitch), (y - oz) * pitch);
+      const k = soa.k[i] | 0;
+      const kind = minimal ? uniformKind : kinds[k] || kinds[0];
+      const fill = minimal
+        ? SCALE_UNIFORM
+        : encodingFill(k, soa.s[i], stabMode, this._warmupK, stabOpts);
+      if (writeGhost) {
+        dummy.scale.setScalar(cell * fill * 0.88);
+        dummy.updateMatrix();
+        this.ghost.setMatrixAt(iGhost, dummy.matrix);
+        color.copy(kind).multiplyScalar(GHOST_HULL_TONE);
+        this.ghost.setColorAt(iGhost, color);
+        iGhost += 1;
+        continue;
+      }
+      const dt = t - tFocus;
+      const w = depthFade(Math.max(0, -dt), fadeSpan, decayOn);
+      const onFocus = Math.abs(dt) < 0.5;
+      dummy.scale.setScalar(cell * fill);
+      dummy.updateMatrix();
+      this.solid.setMatrixAt(iSolid, dummy.matrix);
+      color.copy(kind).multiplyScalar(onFocus ? 1 : w);
+      this.solid.setColorAt(iSolid, color);
+      iSolid += 1;
+    }
+    if (writeGhost) {
+      this.ghost.count = iGhost;
+      this.ghost.instanceMatrix.needsUpdate = true;
+      if (this.ghost.instanceColor) this.ghost.instanceColor.needsUpdate = true;
+    } else {
+      this.solid.count = iSolid;
+      this.solid.instanceMatrix.needsUpdate = true;
+      if (this.solid.instanceColor) this.solid.instanceColor.needsUpdate = true;
+      if (layer === "solid") {
+        this.ghost.count = 0;
+        this.ghost.instanceMatrix.needsUpdate = true;
+      }
+    }
+    this.count = this.solid.count + this.ghost.count;
+  }
+
+  /**
+   * @param {"both" | "hull" | "plane" | "solid"} layer
+   *   both — live / full rewrite (default)
+   *   hull — glass InstancedMesh only (Ghost hull, matrices sticky on scrub)
+   *   plane — solid InstancedMesh only (cut), leave glass
+   *   solid — solid mesh, ghost.count = 0 (Hull idle / Cuts / 2D lock)
+   */
+  setEvents(soa, view, layer = "both") {
     const cell = view.cellSize ?? this.cellSize;
     const timeScale = view.timeScale;
     const pitch = voxelPitch(cell, view.voxelGap);
@@ -141,6 +329,30 @@ export class CubeRenderer {
     const alongFocus = foci[activeAxis];
     const stabMode = view.stabMode || "none";
     const stabOpts = { start: view.stabStart, cap: view.stabTail };
+
+    if (layer === "hull" || layer === "plane" || layer === "solid") {
+      this._stampInspectLayer(layer, {
+        soa,
+        n,
+        cell,
+        pitch,
+        timePitch,
+        ox,
+        oz,
+        tFocus,
+        tNow,
+        dummy,
+        color,
+        kinds,
+        uniformKind,
+        minimal,
+        stabMode,
+        stabOpts,
+        decayOn,
+        fadeSpan,
+      });
+      return;
+    }
 
     let iSolid = 0;
     let iGhost = 0;

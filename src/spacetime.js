@@ -12,7 +12,7 @@
  */
 
 import { collectLive } from "./conway.js";
-import { inAabb } from "./axes.js";
+import { inAabb, normalizeSliceAxis, onAnyPlane, onAxisPlane } from "./axes.js";
 import { KIND_MOVING, kindAt, stabilityAge } from "./dynamics.js";
 
 export class EventSoA {
@@ -27,6 +27,57 @@ export class EventSoA {
     this.count = 0;
     this.truncated = false;
   }
+}
+
+function copySlot(src, dest, i, n) {
+  dest.x[n] = src.x[i];
+  dest.y[n] = src.y[i];
+  dest.t[n] = src.t[i];
+  dest.v[n] = src.v[i];
+  dest.k[n] = src.k[i];
+  dest.s[n] = src.s[i];
+}
+
+/** Occupied cells on one playhead plane (Conway / live SoA → solid mesh). */
+export function copyAxisPlane(src, dest, axis, focus) {
+  const a = normalizeSliceAxis(axis);
+  const f = focus | 0;
+  let n = 0;
+  dest.truncated = false;
+  const cap = dest.capacity;
+  const count = src.count;
+  for (let i = 0; i < count; i++) {
+    if (!onAxisPlane(src.x[i], src.y[i], src.t[i], a, f)) continue;
+    if (n >= cap) {
+      dest.truncated = true;
+      dest.count = n;
+      return dest;
+    }
+    copySlot(src, dest, i, n);
+    n += 1;
+  }
+  dest.count = n;
+  return dest;
+}
+
+/** Occupied cells on any of the three playhead planes (Cuts). */
+export function copyAnyPlanes(src, dest, foci) {
+  let n = 0;
+  dest.truncated = false;
+  const cap = dest.capacity;
+  const count = src.count;
+  for (let i = 0; i < count; i++) {
+    if (!onAnyPlane(src.x[i], src.y[i], src.t[i], foci)) continue;
+    if (n >= cap) {
+      dest.truncated = true;
+      dest.count = n;
+      return dest;
+    }
+    copySlot(src, dest, i, n);
+    n += 1;
+  }
+  dest.count = n;
+  return dest;
 }
 
 /** First event at `(x, y, t)`, or null. */

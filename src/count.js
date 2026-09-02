@@ -9,6 +9,7 @@
 
 import { MAX_STAB_GENS } from "./dynamics.js";
 import {
+  aabbOccupancyKey,
   inAabb,
   normalizeShadeMode,
   normalizeSliceAxis,
@@ -21,6 +22,12 @@ export const COUNT_LUT_CAP = 32;
 
 /** Occupancy above this is a dense brick (MRI), not a sparse event cloud. */
 export const DENSE_OCCUPANCY = 0.15;
+
+/** Bounded plane-index LRU (not a full 3-axis dump of the brick). */
+export const PLANE_CACHE_MAX = 48;
+
+/** Neighbor planes to build after the current cut (Ghost / Loop scrub). */
+export const PLANE_PREFETCH_RADIUS = 2;
 
 export function countOccupancy(vol) {
   const cells = (vol.width | 0) * (vol.height | 0) * (vol.nT | 0);
@@ -184,6 +191,8 @@ export class CountVolume {
       }
     }
     this._hull = Int32Array.from(hull);
+    this._planeCache = new Map();
+    this._planeCacheOrder = [];
   }
 
   oldestT() {
@@ -283,6 +292,66 @@ export class CountVolume {
     this._planeIndices(aabb, axis, focus, into, true);
   }
 
+  _planeCacheKey(aabb, axis, focus, enclosedOnly) {
+    return `${aabbOccupancyKey(aabb)}:${normalizeSliceAxis(axis)}:${focus | 0}:${enclosedOnly ? 1 : 0}`;
+  }
+
+  _planeCacheTouch(key) {
+    const order = this._planeCacheOrder;
+    const i = order.indexOf(key);
+    if (i >= 0) order.splice(i, 1);
+    order.push(key);
+  }
+
+  _planeCacheSet(key, arr) {
+    const cache = this._planeCache;
+    if (!cache.has(key)) {
+      const order = this._planeCacheOrder;
+      order.push(key);
+      while (order.length > PLANE_CACHE_MAX) {
+        const old = order.shift();
+        cache.delete(old);
+      }
+    }
+    cache.set(key, arr);
+  }
+
+  /**
+   * Occupied event indices on one plane, memoized (AABB + axis + focus).
+   * Ghost extras use `enclosedOnly`; the solid mesh wants the full plane.
+   */
+  cachedPlaneIndices(aabb, axis, focus, enclosedOnly = false) {
+    const key = this._planeCacheKey(aabb, axis, focus, enclosedOnly);
+    const hit = this._planeCache.get(key);
+    if (hit) {
+      this._planeCacheTouch(key);
+      return hit;
+    }
+    const into = [];
+    this._planeIndices(aabb, axis, focus, into, enclosedOnly);
+    const arr = Int32Array.from(into);
+    this._planeCacheSet(key, arr);
+    return arr;
+  }
+
+  /**
+   * Warm neighbor planes along the active axis. Bounded LRU — not every
+   * MRI slice at load.
+   */
+  prefetchPlanes(aabb, axis, focus, enclosedOnly = false, opts = {}) {
+    const a = normalizeSliceAxis(axis);
+    const f0 = focus | 0;
+    const radius = Math.max(0, opts.radius == null ? PLANE_PREFETCH_RADIUS : opts.radius | 0);
+    const lo = opts.lo == null ? -1e9 : opts.lo | 0;
+    const hi = opts.hi == null ? 1e9 : opts.hi | 0;
+    for (let d = 1; d <= radius; d++) {
+      const left = f0 - d;
+      const right = f0 + d;
+      if (left >= lo && left <= hi) this.cachedPlaneIndices(aabb, a, left, enclosedOnly);
+      if (right >= lo && right <= hi) this.cachedPlaneIndices(aabb, a, right, enclosedOnly);
+    }
+  }
+
   _hullHas(index) {
     const hull = this._hull;
     if (!hull || hull.length === 0) return false;
@@ -355,11 +424,7 @@ export class CountVolume {
     return ok;
   }
 
-  /**
-   * Newest-first fill, same windowing as the Conway ring.
-   * `s` is a 0…MAX_STAB_GENS stand-in so Stability Time scales with count.
-   */
-  fillSoA(soa, tRef, window, _width = 0, opts = {}) {
+  _soaWindow(tRef, window, opts) {
     const tFocus = opts.tFocus ?? tRef;
     const span =
       opts.tLo != null && opts.tHi != null
@@ -378,25 +443,125 @@ export class CountVolume {
       tLo: Math.max(tLo, src.tLo == null ? tLo : src.tLo | 0),
       tHi: Math.min(tHi, src.tHi == null ? tHi : src.tHi | 0),
     };
-    const foci = opts.foci || { x: -1, y: -1, z: tFocus };
-    const shade = normalizeShadeMode(opts.shade || "hull");
-    const activeAxis = opts.activeAxis || "z";
-    const hi = Math.max(1, this.ceiling);
+    return {
+      tFocus,
+      aabb,
+      foci: opts.foci || { x: -1, y: -1, z: tFocus },
+      shade: normalizeShadeMode(opts.shade || "hull"),
+      activeAxis: opts.activeAxis || "z",
+      hi: Math.max(1, this.ceiling),
+    };
+  }
+
+  _emitAt(soa, i, n, hi) {
+    if (n >= soa.capacity) return -1;
+    const v = this.v[i];
+    soa.x[n] = this.x[i];
+    soa.y[n] = this.y[i];
+    soa.t[n] = this.t[i];
+    soa.v[n] = v;
+    soa.k[n] = Math.min(hi, v);
+    soa.s[n] = (v / hi) * MAX_STAB_GENS;
+    return n + 1;
+  }
+
+  _emitHull(soa, aabb, hi) {
     let n = 0;
     let truncated = false;
     const emit = (i) => {
-      if (n >= soa.capacity) {
+      const next = this._emitAt(soa, i, n, hi);
+      if (next < 0) {
         truncated = true;
         return false;
       }
-      const v = this.v[i];
-      soa.x[n] = this.x[i];
-      soa.y[n] = this.y[i];
-      soa.t[n] = this.t[i];
-      soa.v[n] = v;
-      soa.k[n] = Math.min(hi, v);
-      soa.s[n] = (v / hi) * MAX_STAB_GENS;
-      n += 1;
+      n = next;
+      return true;
+    };
+    for (let h = this._hull.length - 1; h >= 0; h--) {
+      const i = this._hull[h];
+      if (!inAabb(this.x[i], this.y[i], this.t[i], aabb)) continue;
+      if (!emit(i)) return { n, truncated };
+    }
+    if (!countAabbCoversVolume(aabb, this.width, this.height, this.nT)) {
+      this._emitAabbFaceCuts(aabb, emit);
+    }
+    return { n, truncated };
+  }
+
+  /** Glass / solid hull only — playhead does not belong here. */
+  fillHullSoA(soa, tRef, window, _width = 0, opts = {}) {
+    const { aabb, shade, hi } = this._soaWindow(tRef, window, opts);
+    if (!this._hull || shade === "slice" || shade === "triple") {
+      soa.count = 0;
+      soa.truncated = false;
+      return soa;
+    }
+    const { n, truncated } = this._emitHull(soa, aabb, hi);
+    soa.count = n;
+    soa.truncated = truncated;
+    return soa;
+  }
+
+  /** Occupied voxels on the solid cut plane(s). Ghost uses the full plane. */
+  fillPlaneSoA(soa, tRef, window, _width = 0, opts = {}) {
+    const { aabb, foci, shade, activeAxis, hi } = this._soaWindow(tRef, window, opts);
+    soa.truncated = false;
+    if (!this._hull || shade === "hull") {
+      soa.count = 0;
+      return soa;
+    }
+    let n = 0;
+    const axis = normalizeSliceAxis(activeAxis);
+    if (shade === "ghost" || shade === "slice") {
+      const idx = this.cachedPlaneIndices(aabb, axis, foci[axis], false);
+      for (let k = 0; k < idx.length; k++) {
+        const next = this._emitAt(soa, idx[k], n, hi);
+        if (next < 0) {
+          soa.count = n;
+          soa.truncated = true;
+          return soa;
+        }
+        n = next;
+      }
+    } else {
+      const seen = new Set();
+      for (const a of ["x", "y", "z"]) {
+        const idx = this.cachedPlaneIndices(aabb, a, foci[a], false);
+        for (let k = 0; k < idx.length; k++) {
+          const i = idx[k];
+          if (seen.has(i)) continue;
+          seen.add(i);
+          const next = this._emitAt(soa, i, n, hi);
+          if (next < 0) {
+            soa.count = n;
+            soa.truncated = true;
+            return soa;
+          }
+          n = next;
+        }
+      }
+    }
+    soa.count = n;
+    return soa;
+  }
+
+  /**
+   * Newest-first fill, same windowing as the Conway ring.
+   * `s` is a 0…MAX_STAB_GENS stand-in so Stability Time scales with count.
+   * Combined hull+extras for tests; the inspect loop uses fillHullSoA /
+   * fillPlaneSoA so the glass hull is not recopied on every playhead step.
+   */
+  fillSoA(soa, tRef, window, _width = 0, opts = {}) {
+    const { aabb, foci, shade, activeAxis, hi } = this._soaWindow(tRef, window, opts);
+    let n = 0;
+    let truncated = false;
+    const emit = (i) => {
+      const next = this._emitAt(soa, i, n, hi);
+      if (next < 0) {
+        truncated = true;
+        return false;
+      }
+      n = next;
       return true;
     };
 
@@ -409,35 +574,42 @@ export class CountVolume {
     if (this._hull) {
       const cutsOnly = shade === "slice" || shade === "triple";
       if (!cutsOnly) {
-        for (let h = this._hull.length - 1; h >= 0; h--) {
-          const i = this._hull[h];
-          if (!inAabb(this.x[i], this.y[i], this.t[i], aabb)) continue;
-          if (!emit(i)) return finish();
-        }
-        if (!countAabbCoversVolume(aabb, this.width, this.height, this.nT)) {
-          if (!this._emitAabbFaceCuts(aabb, emit)) return finish();
-        }
-        if (shade === "hull") return finish();
+        const hull = this._emitHull(soa, aabb, hi);
+        n = hull.n;
+        truncated = hull.truncated;
+        if (truncated || shade === "hull") return finish();
       }
-      const extra = [];
-      if (shade === "ghost") {
-        this._enclosedOnAxis(aabb, activeAxis, foci[normalizeSliceAxis(activeAxis)], extra);
-      } else if (shade === "slice") {
-        this._planeIndices(aabb, activeAxis, foci[normalizeSliceAxis(activeAxis)], extra, false);
-      } else {
-        const seen = new Set();
-        const tmp = [];
-        this._planeIndices(aabb, "x", foci.x, tmp, false);
-        this._planeIndices(aabb, "y", foci.y, tmp, false);
-        this._planeIndices(aabb, "z", foci.z, tmp, false);
-        for (const i of tmp) {
+      const extra =
+        shade === "ghost"
+          ? this.cachedPlaneIndices(
+              aabb,
+              activeAxis,
+              foci[normalizeSliceAxis(activeAxis)],
+              true,
+            )
+          : shade === "slice"
+            ? this.cachedPlaneIndices(
+                aabb,
+                activeAxis,
+                foci[normalizeSliceAxis(activeAxis)],
+                false,
+              )
+            : null;
+      if (extra) {
+        for (let k = 0; k < extra.length; k++) {
+          if (!emit(extra[k])) return finish();
+        }
+        return finish();
+      }
+      const seen = new Set();
+      for (const a of ["x", "y", "z"]) {
+        const idx = this.cachedPlaneIndices(aabb, a, foci[a], false);
+        for (let k = 0; k < idx.length; k++) {
+          const i = idx[k];
           if (seen.has(i)) continue;
           seen.add(i);
-          extra.push(i);
+          if (!emit(i)) return finish();
         }
-      }
-      for (const i of extra) {
-        if (!emit(i)) return finish();
       }
       return finish();
     }

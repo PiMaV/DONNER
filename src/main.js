@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, clampVoxelGap } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap } from "./config.js";
+import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
 import {
   PathTimer,
   formatBenchHud,
@@ -11,8 +12,8 @@ import {
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
-import { countVolumeFromNpy, isDenseCount } from "./count.js";
-import { CONWAY_KIND_HEX, CONWAY_BASE_K, countKindHex } from "./encoding.js";
+import { countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { CONWAY_KIND_HEX, CONWAY_BASE_K, countKindHex, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
@@ -29,6 +30,8 @@ import {
 import {
   EventSoA,
   GenerationRing,
+  copyAnyPlanes,
+  copyAxisPlane,
   fadePastSpan,
   visibleTimeSpan,
 } from "./spacetime.js";
@@ -41,6 +44,8 @@ import {
   effectiveShade,
   fociFromSlabs,
   inspectRebuildKey,
+  inspectHullOccupancyKey,
+  inspectPlaneOccupancyKey,
   focusBackFromVoxel,
   normalizeSliceAxis,
   productViewDir,
@@ -66,6 +71,7 @@ import {
 } from "./frame.js";
 import {
   fitOrbitDistance,
+  gapLimitOrbitRange,
   orthoFitHalfHeight,
   pinOrbitToOriginXY,
   placeOnViewRay,
@@ -165,7 +171,11 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
 renderer.setPixelRatio(
-  Math.min(window.devicePixelRatio || 1, headsetBrowser || coarse ? 1.5 : 2),
+  pixelRatioForQuality(DEFAULTS.viewQuality, {
+    devicePixelRatio: window.devicePixelRatio || 1,
+    coarse,
+    headset: headsetBrowser,
+  }),
 );
 renderer.xr.enabled = true;
 renderer.autoClear = true;
@@ -269,6 +279,7 @@ const _headQuat = new THREE.Quaternion();
 const _headScale = new THREE.Vector3();
 
 let soa = new EventSoA(DEFAULTS.maxInstances);
+let soaPlane = new EventSoA(DEFAULTS.maxInstances);
 let cubes = new CubeRenderer(turntable, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
@@ -332,6 +343,7 @@ let loopPerSec = DEFAULTS.loopPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
 let voxelGap = DEFAULTS.voxelGap;
+let viewQuality = DEFAULTS.viewQuality;
 let stabMode = DEFAULTS.stabSize ? "time" : "none";
 let stabStart = DEFAULTS.stabStart;
 let stabTail = DEFAULTS.stabTail;
@@ -351,6 +363,9 @@ let dirtyView = true;
 let dirtyEncoding = true;
 let lastWork = "soa";
 let lastSpanKey = "";
+let lastHullOccKey = "";
+let lastPlaneOccKey = "";
+let lastLookKey = "";
 let stableStreak = 0;
 let stoppedStable = false;
 /** Newest-first copies of recent grids (`[0]` = t-1) for ash cycle detection. */
@@ -400,6 +415,7 @@ const ui = bindUI({
   activeAxis: (axis) => setActiveAxis(axis),
   loopAxis: (axis) => setLoopAxis(axis),
   shade: (mode) => setShadeMode(mode),
+  viewQuality: (id) => applyViewQuality(id),
   slab: (next) => {
     enterInspect();
     applySlab(next.axis, next, next.dragged || "focus");
@@ -440,6 +456,7 @@ const ui = bindUI({
   },
   history: () => applyRingCapacity(),
   voxelGap: () => applyVoxelGap(),
+  countCmap: () => applyCountCmap(),
   planeChrome: () => {
     const cfg = ui.getConfig();
     hideCenter = Boolean(cfg.hideCenter);
@@ -566,6 +583,7 @@ function applyVoxelGap() {
   voxelGap = clampVoxelGap(ui.getConfig().voxelGap);
   dirtyView = true;
   rebuildSliceVisuals();
+  syncViewRange();
   if (arPresenting()) applyArStagePose();
 }
 
@@ -1347,19 +1365,58 @@ function syncFog() {
   const inspect = inspectMode();
   const ar = arPresenting();
   scene.fog = !parallax || inspect || ar ? null : fog;
+  const spec = viewQualitySpec(viewQuality);
+  if (spec.unlit) {
+    hemi.intensity = 0;
+    key.intensity = 0;
+    fill.intensity = 0;
+    return;
+  }
   hemi.intensity = inspect || ar ? 1.08 : 0.72;
   key.intensity = inspect || ar ? 1.05 : 0.9;
+  fill.intensity = spec.fillLight ? 0.22 : 0;
+}
+
+function applyViewQuality(id) {
+  viewQuality = normalizeViewQuality(id ?? ui.getConfig().viewQuality);
+  const spec = viewQualitySpec(viewQuality);
+  cubes.setUnlit(spec.unlit);
+  renderer.toneMapping = spec.toneMapping ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  ui.setQuality(viewQuality);
+  syncFog();
+  if (arPresenting()) refreshGpu();
+  else resize();
 }
 
 function syncViewRange() {
-  if (inspectMode() && tape) {
-    const h = Math.max(24, (tape.newestT() - tape.oldestT() + 1) * layoutTime());
-    controls.maxDistance = Math.min(2400, Math.max(220, h * 1.85));
-    camera.far = Math.max(400, controls.maxDistance * 2.4);
-  } else {
+  if (!world) {
     controls.maxDistance = 160;
     camera.far = 400;
+    camera.updateProjectionMatrix();
+    return;
   }
+  const span = volumeSpan();
+  const box = cropAabb() || {
+    xLo: 0,
+    xHi: world.width - 1,
+    yLo: 0,
+    yHi: world.height - 1,
+    tLo: span.tLo,
+    tHi: span.tHi,
+  };
+  const range = gapLimitOrbitRange({
+    width: world.width,
+    height: world.height,
+    aabb: box,
+    tNow: viewNow(),
+    cellSize: DEFAULTS.cellSize,
+    timeScale: DEFAULTS.timeScale,
+    gapMax: VOXEL_GAP_MAX,
+    fovDeg: camera.fov,
+  });
+  controls.maxDistance = range.maxDistance;
+  controls.minZoom = range.minZoom;
+  camera.far = range.far;
   camera.updateProjectionMatrix();
   if (!parallax) {
     orthoCam.near = camera.near;
@@ -1428,16 +1485,15 @@ function fitVolume() {
     setOrthoFrustum(orthoCam, radius * 1.2, aspect, 0.1, Math.max(400, dist + radius * 4));
     orthoCam.zoom = 1;
     orthoCam.lookAt(controls.target);
-    controls.maxDistance = Math.min(2400, Math.max(220, dist * 1.4));
   } else {
     const dist = fitOrbitDistance(camera.fov, radius, 1.28);
     const pos = placeOnViewRay(camera.position, controls.target, dist);
     camera.position.set(pos.x, pos.y, pos.z);
-    controls.maxDistance = Math.min(2400, Math.max(controls.maxDistance, dist * 1.4, 220));
     camera.far = Math.max(camera.far, dist + radius * 3, 400);
     camera.updateProjectionMatrix();
   }
   pinOrbitPivot();
+  syncViewRange();
   controls.update();
 }
 
@@ -1451,6 +1507,7 @@ function resetPlanesToVolume() {
   slabs = inspectPoseSlabs();
   syncStackUi();
   syncClipPlanes();
+  syncViewRange();
   updateHint();
   dirtyView = true;
 }
@@ -1477,6 +1534,7 @@ function applySlab(axis, next, dragged = "focus") {
   syncStackUi();
   syncClipPlanes();
   updateHint();
+  if (dragged !== "focus") syncViewRange();
   const shade = inspectShade();
   const hullFocus =
     inspectMode() &&
@@ -1610,6 +1668,21 @@ function encodingBaseK() {
   return sourceId === "count" ? -1 : CONWAY_BASE_K;
 }
 
+function currentCountCmap() {
+  return normalizeCountCmap(ui.getConfig().countCmap);
+}
+
+function currentCountLut() {
+  return countKindHex(countVol.ceiling, currentCountCmap());
+}
+
+function applyCountCmap() {
+  if (sourceId !== "count" || !countVol) return;
+  cubes.setKindHex(currentCountLut(), -1);
+  ui.setCountLegend(countVol.ceiling);
+  dirtyEncoding = true;
+}
+
 function markGps() {
   const now = performance.now();
   if (lastStepAt) {
@@ -1673,7 +1746,7 @@ function bootCount(vol) {
   ring = null;
   tape = vol;
   layoutPlayfield(vol.width, vol.height);
-  cubes.setKindHex(countKindHex(vol.ceiling), -1);
+  cubes.setKindHex(currentCountLut(), -1);
   ui.setSourceKind(countKindForVolume(vol));
   ui.setCountLegend(vol.ceiling);
   ui.setCountMeta(
@@ -1703,6 +1776,9 @@ function bootCount(vol) {
   syncStackUi();
   syncOrbitPan();
   lastSpanKey = "";
+  lastHullOccKey = "";
+  lastPlaneOccKey = "";
+  lastLookKey = "";
   dirtySource = true;
   dirtyView = true;
   dirtyEncoding = true;
@@ -1892,6 +1968,9 @@ function bootWorld(resizeGrid) {
   syncStackUi();
   syncOrbitPan();
   lastSpanKey = "";
+  lastHullOccKey = "";
+  lastPlaneOccKey = "";
+  lastLookKey = "";
   dirtySource = true;
   dirtyView = true;
   dirtyEncoding = true;
@@ -2144,12 +2223,14 @@ function applyCubeCap() {
   const cap = clampCubeCap(ui.getConfig().maxInstances);
   if (soa.capacity === cap) return;
   soa = new EventSoA(cap);
+  soaPlane = new EventSoA(cap);
   cubes.dispose();
   cubes = new CubeRenderer(turntable, {
     maxCount: cap,
     cellSize: DEFAULTS.cellSize,
-    kindHex: sourceId === "count" && countVol ? countKindHex(countVol.ceiling) : CONWAY_KIND_HEX,
+    kindHex: sourceId === "count" && countVol ? currentCountLut() : CONWAY_KIND_HEX,
     warmupK: encodingBaseK(),
+    unlit: viewQualitySpec(viewQuality).unlit,
   });
   dirtySource = true;
 }
@@ -2352,34 +2433,24 @@ function stepOnce() {
   dirtySource = true;
 }
 
-function fillVolume() {
-  const store = viewStore();
-  if (!store || !world) return;
+function volumeFillOpts() {
   const span = inspectMode() || arPillar() ? volumeSpan() : null;
-  const aabb = inspectDrawAabb();
-  const foci = cropFoci();
-  const shade = inspectShade() || "hull";
-  store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
+  return {
     tFocus: tFocus(),
     stabMode: stabForFill(),
     height: world.height,
     wrap: world.wrap,
     dynamics: dynamicsOn,
-    aabb,
-    foci,
-    shade,
+    aabb: inspectDrawAabb(),
+    foci: cropFoci(),
+    shade: inspectShade() || "hull",
     activeAxis,
     ...(span ? { tLo: span.tLo, tHi: span.tHi } : {}),
-  });
+  };
 }
 
-function fadeSpan() {
-  return fadePastSpan(tFocus(), volumeSpan().tLo);
-}
-
-function uploadInstances() {
-  if (!world) return;
-  cubes.setEvents(soa, {
+function cubeView() {
+  return {
     tFocus: tFocus(),
     tNow: viewNow(),
     decay: arPresenting() ? false : decay,
@@ -2400,12 +2471,119 @@ function uploadInstances() {
     shade: inspectShade(),
     sliceOnly: sliceOnlyFromPlaneLock(planeLock),
     encodingMinimal,
-  });
+  };
+}
+
+function countStore() {
+  return Boolean(sourceId === "count" && countVol && viewStore() === countVol);
+}
+
+function alongRange(aabb, axis) {
+  const a = normalizeSliceAxis(axis);
+  if (!aabb) return { lo: 0, hi: 1e9 };
+  if (a === "x") return { lo: aabb.xLo | 0, hi: aabb.xHi | 0 };
+  if (a === "y") return { lo: aabb.yLo | 0, hi: aabb.yHi | 0 };
+  return { lo: aabb.tLo | 0, hi: aabb.tHi | 0 };
+}
+
+function fillHullVolume() {
+  const store = viewStore();
+  if (!store || !world) return;
+  const opts = volumeFillOpts();
+  if (!inspectShade()) {
+    store.fillSoA(soa, viewNow(), volumeWindow(), world.width, opts);
+    soaPlane.count = 0;
+    soaPlane.truncated = false;
+    return;
+  }
+  if (countStore()) {
+    const shade = inspectShade();
+    if (planeLock || shade === "slice" || shade === "triple") {
+      soa.count = 0;
+      soa.truncated = false;
+      return;
+    }
+    countVol.fillHullSoA(soa, viewNow(), volumeWindow(), world.width, opts);
+    return;
+  }
+  store.fillSoA(soa, viewNow(), volumeWindow(), world.width, { ...opts, shade: "hull" });
+}
+
+function fillPlaneVolume() {
+  const shade = inspectShade();
+  if (!world || !shade || shade === "hull") {
+    soaPlane.count = 0;
+    soaPlane.truncated = false;
+    return;
+  }
+  const opts = volumeFillOpts();
+  const aabb = inspectDrawAabb();
+  const foci = cropFoci();
+  if (countStore()) {
+    countVol.fillPlaneSoA(soaPlane, viewNow(), volumeWindow(), world.width, opts);
+    if (shade === "triple") {
+      for (const a of ["x", "y", "z"]) {
+        const { lo, hi } = alongRange(aabb, a);
+        countVol.prefetchPlanes(aabb, a, foci[a], false, { radius: 1, lo, hi });
+      }
+    } else {
+      const axis = normalizeSliceAxis(activeAxis);
+      const { lo, hi } = alongRange(aabb, axis);
+      countVol.prefetchPlanes(aabb, axis, foci[axis], false, {
+        radius: PLANE_PREFETCH_RADIUS,
+        lo,
+        hi,
+      });
+    }
+    return;
+  }
+  if (shade === "triple") copyAnyPlanes(soa, soaPlane, foci);
+  else copyAxisPlane(soa, soaPlane, activeAxis, foci[normalizeSliceAxis(activeAxis)]);
+}
+
+function fadeSpan() {
+  return fadePastSpan(tFocus(), volumeSpan().tLo);
+}
+
+function uploadLive() {
+  if (!world) return;
+  cubes.setEvents(soa, cubeView(), "both");
+  cubes.setGhostSliceFade(null);
+}
+
+function uploadInspect({ hull, plane }) {
+  if (!world) return;
+  const view = cubeView();
+  const shade = view.shade;
+  if (view.sliceOnly) {
+    cubes.setEvents(soaPlane.count ? soaPlane : soa, view, "solid");
+    cubes.setGhostSliceFade(null);
+    return;
+  }
+  if (shade === "ghost") {
+    if (hull) cubes.setEvents(soa, view, "hull");
+    if (plane) cubes.setEvents(soaPlane, view, "plane");
+    cubes.setGhostSliceFade(view);
+    return;
+  }
+  if (shade === "hull") {
+    if (hull) cubes.setEvents(soa, view, "solid");
+    cubes.setGhostSliceFade(null);
+    return;
+  }
+  if (plane || hull) cubes.setEvents(soaPlane, view, "solid");
+  cubes.setGhostSliceFade(null);
 }
 
 function fillAndUpload() {
-  paths.measure("soa", fillVolume);
-  paths.measure("inst", uploadInstances);
+  paths.measure("soa", () => {
+    fillHullVolume();
+    fillPlaneVolume();
+  });
+  paths.measure("inst", () => {
+    if (!inspectShade()) uploadLive();
+    else uploadInspect({ hull: true, plane: true });
+  });
   lastWork = "soa";
   dirtySource = false;
   dirtyView = false;
@@ -2428,28 +2606,84 @@ function spanKey() {
   });
 }
 
+function instanceLookKey() {
+  return `${voxelGap}:${encodingMinimal ? 1 : 0}:${stabForFill()}:${stabStart}:${stabTail}:${planeLock ? 1 : 0}:${viewNow()}:${sourceId === "count" ? currentCountCmap() : "conway"}`;
+}
+
 function syncVolume() {
-  if (forceFullRebuild) {
-    dirtySource = true;
-  }
-  const sk = spanKey();
-  if (sk !== lastSpanKey) {
-    lastSpanKey = sk;
-    dirtySource = true;
-  }
-  if (dirtySource || dirtyEncoding) {
-    fillAndUpload();
+  if (forceFullRebuild) dirtySource = true;
+  const shade = inspectShade();
+  if (!shade) {
+    const sk = spanKey();
+    if (sk !== lastSpanKey) {
+      lastSpanKey = sk;
+      dirtySource = true;
+    }
+    lastHullOccKey = "";
+    lastPlaneOccKey = "";
+    lastLookKey = "";
+    if (dirtySource || dirtyEncoding) {
+      fillAndUpload();
+      return;
+    }
+    paths.record("soa", 0);
+    if (dirtyView) {
+      paths.measure("inst", uploadLive);
+      lastWork = "inst";
+      dirtyView = false;
+      return;
+    }
+    paths.record("inst", 0);
+    lastWork = "rend";
     return;
   }
-  paths.record("soa", 0);
-  if (dirtyView) {
-    paths.measure("inst", uploadInstances);
+
+  const box = inspectDrawAabb();
+  const hullOcc = inspectHullOccupancyKey({
+    shade,
+    aabb: box,
+    sliceOnly: sliceOnlyFromPlaneLock(planeLock),
+  });
+  const planeOcc = inspectPlaneOccupancyKey({
+    shade,
+    aabb: box,
+    foci: cropFoci(),
+    activeAxis,
+  });
+  const look = instanceLookKey();
+  const hullOccChanged = hullOcc !== lastHullOccKey;
+  const planeOccChanged = planeOcc !== lastPlaneOccKey;
+  const lookChanged = look !== lastLookKey;
+  const fillHull = dirtySource || hullOccChanged;
+  const fillPlane = dirtySource || planeOccChanged;
+
+  if (fillHull || fillPlane) {
+    paths.measure("soa", () => {
+      if (fillHull) fillHullVolume();
+      if (fillPlane) fillPlaneVolume();
+    });
+  } else {
+    paths.record("soa", 0);
+  }
+
+  const uploadHull = fillHull || dirtyEncoding || lookChanged;
+  const uploadPlane = shade !== "hull" && (fillPlane || dirtyEncoding || lookChanged);
+
+  if (uploadHull || uploadPlane) {
+    paths.measure("inst", () => uploadInspect({ hull: uploadHull, plane: uploadPlane }));
     lastWork = "inst";
-    dirtyView = false;
-    return;
+  } else {
+    paths.record("inst", 0);
+    lastWork = "rend";
   }
-  paths.record("inst", 0);
-  lastWork = "rend";
+
+  lastHullOccKey = hullOcc;
+  lastPlaneOccKey = planeOcc;
+  lastLookKey = look;
+  lastSpanKey = spanKey();
+  dirtySource = false;
+  dirtyView = false;
+  dirtyEncoding = false;
 }
 
 function hitCell(event, cubesToo = false) {
@@ -2651,6 +2885,13 @@ function clearHover() {
 
 function resize() {
   if (arPresenting()) return;
+  renderer.setPixelRatio(
+    pixelRatioForQuality(viewQuality, {
+      devicePixelRatio: window.devicePixelRatio || 1,
+      coarse,
+      headset: headsetBrowser,
+    }),
+  );
   let w = canvas.clientWidth;
   let h = canvas.clientHeight;
   if (w < 2 || h < 2) {
@@ -2962,7 +3203,7 @@ function frame(now, xrFrame) {
           low01Fps: clock.displayLow01 || clock.low01Fps,
           ms,
           instances: cubes.count,
-          truncated: soa.truncated,
+          truncated: soa.truncated || soaPlane.truncated,
           focus: foc,
           playing,
           looping,
@@ -3011,7 +3252,7 @@ function frame(now, xrFrame) {
   }
 }
 
-resize();
+applyViewQuality(DEFAULTS.viewQuality);
 requestAnimationFrame(resize);
 try {
   bootWorld(true);

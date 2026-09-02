@@ -208,7 +208,7 @@ If the LAN IP changes, `npm run cert` again.
 - Axis-colored playfield frames (inset playhead, smaller clips); grab an **edge** to move that plane (no numbered overlay, no hover hairlines)
 - CAD viewcube, rail slot left of the View card (desktop orbit only): a face is a fitted 2D ortho cut with that plane's frame and grid; wheel zooms, Shift+wheel pages; the same face pages the stack; zoom/pan stay in the cut; **B** restores 3D. **Planes** under the cube (default on) shows or hides 3D frames.
 - Parallax on/off (perspective vs orthographic at the current look). Align to Z pins XY and still pans along Z.
-- Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider.
+- Lighting is a **headlamp**: key/fill follow the view (orbit and AR walk). No Light slider. View **Quality** Low / Medium / High (default High) drops to unlit cubes and a pixel-ratio cap on weak GPUs.
 - **Yaw** (AR): after place, overlay Yaw / swipe orients the pillar, then walk.
 - **Play / Loop** and **Speed** under the slice rails (above the footer). Conway Play is Live View; MNI / Ignition Loop walks the marked axis. AR overlay keeps Play after spawn.
 - Edit mode: tap cells inside the frame (Now only)

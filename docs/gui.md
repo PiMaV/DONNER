@@ -113,7 +113,7 @@ flowchart LR
 ```
 
 The left chrome is one rail — **Source** on top (kind, Conway pattern
-including Random + Fill) and **View** below (Parallax, Align to Z, Light,
+including Random + Fill) and **View** below (Parallax, Align to Z, Quality,
 Gap, Depth live-only, cache, shade, Color coding, Size by age, Cube
 cap, realtime FPS). **DEV Bench** lives on the right View HUD (costs
 performance; off until checked). **Play / Loop**, **Speed**, and loop axis **X / Y / Z**
@@ -130,7 +130,7 @@ flowchart TB
     bird[Parallax]
     align[Align to Z]
     fit[Fit slab]
-    win[Depth live Gap shade Hull Ghost Cuts Cache]
+    win[Depth live Gap Quality shade Hull Ghost Cuts Cache]
     color[Color coding]
     stab[Size by age]
     cap[Cube cap]
@@ -238,7 +238,7 @@ rectangle select on the playfield).
 | Loop | Under the slice rails. Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
 | Loop axis | **X / Y / Z** directly under the three rails (default **Z**). Independent of the viewcube / camera. |
 | Loop Speed | Same cluster as Loop, under the rails (slices/s). |
-| Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: integer ramp (cyan → gold → coral); no second size mapping. |
+| Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); no second size mapping. |
 | Stability | Conway only. **Size by age** (default on): cubes grow with still/osc run length. **Start** is cube fill at age 0 (down to a speck). **Tail** is generations along Z until full. Two sliders — fill vs length. Hidden for MNI and other sources with no stability metric. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
 | Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
@@ -252,7 +252,8 @@ rectangle select on the playfield).
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
 | Hide center | Viewcube (desktop): hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
 | Hide outer | Viewcube (desktop): hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. Phone AR forces these off for the session and restores this setting on Exit. |
-| Gap | Visual lattice spacing (0–2 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. AR uses the same local layout (Size still maps cube edge, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
+| Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (Size still maps cube edge, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
+| Quality | Manual **Low / Medium / High** (default High). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
 | Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
@@ -331,20 +332,21 @@ loaders stay in the tree). See [`backlog.md`](../backlog.md) Live later.
 
 Count stacks open in Inspect (the recording is already complete). **Play**
 walks the marked loop axis (default Z) from oldest to Now and wraps
-inside the inspect clips. Color is 1 = cyan … max = coral. Empty pixels
-(count 0) are not cubes.
+inside the inspect clips. Color is the **Scale** ramp (default DONNER:
+1 = cyan … max = coral). Empty pixels (count 0) are not cubes.
 
 ## Color coding (View)
 
 Color and cube fill are display. Conway supplies still / osc / unsettled /
 base (Moving remains a LUT slot when Color coding is off). A count stack
-supplies integer rungs (cyan → gold → coral); color owns that semantic,
-size stays Gap / Cube cap. Polarity is later. Source stats stay in
+supplies integer rungs; **Scale** picks DONNER / Gray / Inferno / Plasma /
+Turbo. Size stays Gap / Cube cap. Polarity is later. Source stats stay in
 **Source**.
 
 | Control | Meaning |
 |---------|---------|
 | Color coding | On: occupancy class colors. Off: one occupancy color. Conway only. |
+| Scale | Count / MNI integer ramp. DONNER is cyan → gold → coral. Gray / Inferno / Plasma / Turbo are the usual scientific palettes. |
 | Stability | Conway **Size by age**. Off: equal cubes. On: **Start** fill at age 0, **Tail** gens along Z to full size. Hidden for MNI / count. |
 
 The **axis-colored frames** are the three slice planes (X `#5b8cff`, Y
@@ -366,7 +368,8 @@ edge and the volume stays hull so you can stake the crop. **Loop** in Hull
 grows a potato: hull from the axis origin through the playhead, current
 plane as the cut, +side and clip edges hidden. **Ghost** is
 the glass hull plus the **highlighted** plane (Loop X/Y/Z or grab a frame
-picks that plane). **Cuts** is three orthogonal
+picks that plane). Scrubbing that plane keeps the glass mesh; only the
+solid cut is rebuilt. **Cuts** is three orthogonal
 slices only, no hull. Both persist in the View sheet. **Decay** is off
 (later / opt-in Z/time fade on sparse stacks). The CAD viewcube (desktop,
 left of the View card) enters a
@@ -553,8 +556,9 @@ Moving and Unsettled stay at Start. Base cubes
 stay full size so the first slices are not a false “shrink”.
 
 These classes fill the Conway demonstrator. A
-count stack uses a different LUT: integer rungs cyan → gold → coral.
-Polarity (and occupancy / states) will not reuse still/osc/unsettled.
+count stack uses a different LUT: **Scale** (DONNER / Gray / Inferno /
+Plasma / Turbo). Polarity (and occupancy / states) will not reuse
+still/osc/unsettled.
 
 The gold **frame** is the playfield edge. The cell lattice sits on the
 **active** cyan plane.
@@ -565,7 +569,7 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   Do not start Dataset Contract or a PointRenderer in that slice.
 - **Source off the rail:** later, the Source fold leaves the viewer chrome;
   generator is its own surface.
-- **Thin View:** teaching View keeps Parallax / Align to Z / Light / Gap / Depth (and maybe
+- **Thin View:** teaching View keeps Parallax / Align to Z / Quality / Gap / Depth (and maybe
   cache). Dense Encoding can still slim further.
 - **Isolation later:** rectangle select on the playfield (not cube double-click). AR poke already isolates the standing plane. Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)

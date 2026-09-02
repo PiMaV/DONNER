@@ -1,5 +1,7 @@
 import { PATTERN_NAMES } from "./conway.js";
 import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, isCountSourceKind, isStaticSourceKind } from "./config.js";
+import { normalizeViewQuality } from "./quality.js";
+import { countCmapCss, DEFAULT_COUNT_CMAP, normalizeCountCmap } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
@@ -313,6 +315,9 @@ export function bindUI(on) {
   const shadeHull = $("shade-hull");
   const shadeGhost = $("shade-ghost");
   const shadeTriple = $("shade-triple");
+  const qualityLow = $("quality-low");
+  const qualityMedium = $("quality-medium");
+  const qualityHigh = $("quality-high");
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
   const viewFps = $("view-fps");
@@ -373,6 +378,8 @@ export function bindUI(on) {
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
   const countLegHi = $("count-leg-hi");
+  const countCmap = $("count-cmap");
+  const countCmapBar = $("count-cmap-bar");
   const dyn = $("color-coding");
   const fill = $("random-fill");
   const fillVal = $("random-fill-val");
@@ -414,6 +421,8 @@ export function bindUI(on) {
     stabTail.value = String(DEFAULTS.stabTail);
   }
   if (dyn) dyn.checked = DEFAULTS.dynamics;
+  if (countCmap) countCmap.value = DEFAULTS.countCmap || DEFAULT_COUNT_CMAP;
+  if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap ? countCmap.value : DEFAULT_COUNT_CMAP);
   if (fill) {
     fill.min = String(DEFAULTS.densityMin);
     fill.max = String(DEFAULTS.densityMax);
@@ -515,6 +524,24 @@ export function bindUI(on) {
   shadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
   shadeTriple?.addEventListener("click", () => on.shade?.("triple"));
   syncShadeButtons(DEFAULTS.shadeMode);
+  const syncQualityButtons = (id) => {
+    const q = normalizeViewQuality(id);
+    const map = [
+      [qualityLow, "low"],
+      [qualityMedium, "medium"],
+      [qualityHigh, "high"],
+    ];
+    for (const [el, name] of map) {
+      if (!el) continue;
+      const onBtn = name === q;
+      el.classList.toggle("is-on", onBtn);
+      el.setAttribute("aria-pressed", onBtn ? "true" : "false");
+    }
+  };
+  qualityLow?.addEventListener("click", () => on.viewQuality?.("low"));
+  qualityMedium?.addEventListener("click", () => on.viewQuality?.("medium"));
+  qualityHigh?.addEventListener("click", () => on.viewQuality?.("high"));
+  syncQualityButtons(DEFAULTS.viewQuality);
   cubeCap?.addEventListener("change", () => {
     if (applying) return;
     cubeCap.value = String(clampCubeCap(cubeCap.value));
@@ -582,6 +609,10 @@ export function bindUI(on) {
   voxelGap?.addEventListener("input", () => {
     syncLabels();
     on.voxelGap?.();
+  });
+  countCmap?.addEventListener("change", () => {
+    if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap.value);
+    on.countCmap?.();
   });
   const hidePressed = (btn) => btn?.getAttribute("aria-pressed") === "true";
   const syncPlaneChrome = () => {
@@ -694,6 +725,11 @@ export function bindUI(on) {
           : shadeTriple?.classList.contains("is-on")
             ? "triple"
             : "hull",
+        viewQuality: qualityLow?.classList.contains("is-on")
+          ? "low"
+          : qualityMedium?.classList.contains("is-on")
+            ? "medium"
+            : "high",
         slabs: {
           x: rails.x?.get() || { focusBack: 0, clipNearBack: 0, clipFarBack: 0 },
           y: rails.y?.get() || { focusBack: 0, clipNearBack: 0, clipFarBack: 0 },
@@ -709,6 +745,7 @@ export function bindUI(on) {
         dynamics: dyn ? dyn.checked : DEFAULTS.dynamics,
         density: fill ? clampDensity(fill.value) : DEFAULTS.density,
         encodingMinimal: DEFAULTS.encodingMinimal,
+        countCmap: countCmap ? normalizeCountCmap(countCmap.value) : DEFAULT_COUNT_CMAP,
         forceFullRebuild: DEFAULTS.forceFullRebuild,
         sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: false,
@@ -805,6 +842,9 @@ export function bindUI(on) {
     setShade(mode) {
       syncShadeButtons(mode);
     },
+    setQuality(id) {
+      syncQualityButtons(id);
+    },
     setActiveAxis(axis) {
       const a = axis === "x" || axis === "y" ? axis : "z";
       for (const id of ["x", "y", "z"]) {
@@ -895,6 +935,9 @@ export function bindUI(on) {
       if (countLegLo) countLegLo.textContent = "1";
       if (countLegMid) countLegMid.textContent = String(mid);
       if (countLegHi) countLegHi.textContent = String(hi);
+      if (countCmapBar) {
+        countCmapBar.style.background = countCmapCss(countCmap ? countCmap.value : DEFAULT_COUNT_CMAP);
+      }
     },
     setHint(text) {
       if (hint) hint.textContent = text;

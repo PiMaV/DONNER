@@ -92,9 +92,9 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
 | **Source** | Kind switch. Conway / Ignition / MNI 152. Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit. File/stream ingest later (hidden). Loading spinner on source/cube switch. | Sheet **Source** (config, top of the left rail) |
-| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs (cyan → gold → coral); color only, no size-by-count. Polarity later. | Color coding block inside the **View** sheet. LUT in `src/encoding.js` |
+| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); color only, no size-by-count. Polarity later. | Color coding + Scale in the **View** sheet. LUT in `src/encoding.js` |
 
 **Play / Loop** and **Speed** sit under the slice rails (above the footer),
 not in Source. AR overlay still has Play after spawn. Loop axis X/Y/Z
@@ -136,7 +136,7 @@ flowchart TB
   subgraph view [View display]
     bird[Parallax]
     align[Align to Z]
-    win[Depth live Gap shade Hull Ghost Cuts Cache]
+    win[Depth live Gap Quality shade Hull Ghost Cuts Cache]
     color[Color coding]
     stab[Size by age]
     cap[Cube cap]
@@ -515,8 +515,9 @@ second camera orbit.
 **Light** is a **headlamp**: key and fill sit in camera space, so the
 facing side of the brick stays lit in desktop orbit and in AR walk.
 Hemisphere stays world sky-up. There is no Light slider and no Shift-drag
-azimuth. AR **Yaw** after place is unchanged. A visible sun gizmo is later
-(backlog).
+azimuth. View **Quality** Low turns the cubes unlit (`MeshBasic`) and
+zeros the lights; Medium/High keep the headlamp. AR **Yaw** after place
+is unchanged. A visible sun gizmo is later (backlog).
 
 ```mermaid
 flowchart TB
@@ -637,6 +638,7 @@ grow the DOM.
 | `src/orbit.js` | Fit / XY pin; world Y anchored at Now |
 | `src/turntable.js` | AR object yaw around product Z |
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
+| `src/quality.js` | View Quality Low / Medium / High (DPR cap, unlit, ACES) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
@@ -672,7 +674,9 @@ and does not import Conway dynamics.
 
 View **Gap** (`voxelGap`) is display lattice spacing: pitch =
 `cellSize × (1 + gap)`. Cube edge stays `cellSize × fill`. Gap **0**
-packs faces (occupancy fill is 1). Frames and picking use the same pitch.
+packs faces (occupancy fill is 1). Slider max is **5**. Orbit dolly-out
+(and camera far / ortho min-zoom) is computed at that limit so a wide
+Gap still fits. Frames and picking use the same pitch.
 AR places that same local layout; Size still maps 32 cube edges to 40 cm,
 so opening Gap grows the brick on the table.
 
@@ -868,28 +872,36 @@ frame. XR frames come from the same callback.
 flowchart TB
   raf[setAnimationLoop]
   cam[camera dirty]
-  view[view dirty]
+  look[instance look]
+  hull[hull occupancy]
+  plane[plane occupancy]
   src[source dirty]
   enc[encoding dirty]
   data[dataset dirty]
   raf --> cam
-  raf --> view
+  raf --> look
+  raf --> hull
+  raf --> plane
   raf --> src
   raf --> enc
   raf --> data
   cam --> renderOnly[render only]
-  view --> setEv[setEvents no fillSoA]
-  src --> fill[fillSoA plus setEvents]
-  enc --> fill
+  look --> setEv[re-stamp instances from cached SoA]
+  hull --> fillHull[fillHullSoA plus hull mesh]
+  plane --> fillPlane[fillPlaneSoA plus solid mesh]
+  src --> fill[live fillSoA plus setEvents]
+  enc --> setEv
   data --> boot[bootWorld]
 ```
 
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Size by age / Start / Tail, Inspect **Hull** playhead | `setEvents` when instances or fill change; Hull + Decay off skips even that (clip meshes only) |
-| source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Cuts** | `fillSoA` copies stamped `k`/`s`; Ghost/Cuts still rebuild the occupancy list |
-| encoding | Color coding on/off | Color coding: fill copies vs zeros `k`/`s`. **Not** Stability |
+| instance look | Gap, Size by age / Start / Tail | Re-stamp hull and/or plane meshes from the cached SoAs. Inspect Hull playhead does not. |
+| hull occupancy | Clip, Hull↔Ghost, Hull+Loop potato | `fillHullSoA` + hull InstancedMesh. Not the playhead in Ghost. |
+| plane occupancy | Ghost / Cuts / peek playhead | `fillPlaneSoA` (LRU + prefetch ±2) + solid mesh. Ghost fade is a shader uniform. |
+| source | Conway step, paint, live wake | Live `fillSoA` + full `setEvents`. |
+| encoding | Color coding on/off | Re-stamp from cached SoAs |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
 | ring | Depth | wake `GenerationRing.resize` (keep newest slices) |
 
@@ -905,7 +917,10 @@ Path-timer `now` is **this frame**. Skipped paths record 0 (`work rend` ⇒ `soa
 0). `bound CPU soa` vs `bound GPU fill`
 compares wall-clock frame time to the CPU paths. A paused 50k-cube volume
 on a retina canvas (DPR 2, ~2500²) can sit at ~24 FPS with `rend` CPU
-0.3 ms: that is fill-rate, not classification.
+0.3 ms: that is fill-rate, not classification. View **Quality** Low drops
+pixel ratio to 1 and switches cubes to unlit `MeshBasic`; it does not
+change SoA work. Antialias is frozen at WebGL context create (recreate is
+XR-unsafe). Auto quality from Bench metrics is later.
 
 ## Performance envelope
 
@@ -916,6 +931,25 @@ rasterizers still warn **SOFTWARE** on the FPS chip.
 
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`
 or `ext`. Do not treat CPU `rend` as GPU time.
+
+View **Quality** is a manual preset (default **High** so the look does not
+flatten). `powerPreference: "high-performance"` is only a hint — Chrome
+on a hybrid laptop can still pick the Intel iGPU while Firefox reports
+NVIDIA.
+
+```mermaid
+flowchart LR
+  q[View Quality]
+  q --> low[Low unlit DPR 1]
+  q --> med[Medium Lambert DPR 1.25]
+  q --> high[High Lambert ACES DPR 2]
+```
+
+| Preset | Cubes | Pixel ratio cap | Tone map | Fill light |
+|--------|-------|-----------------|----------|------------|
+| Low | Unlit `MeshBasic` | 1 | Off | Off |
+| Medium | Lambert headlamp | 1.25 | ACES | On |
+| High | Lambert headlamp | 2 (1.5 coarse / headset) | ACES | On |
 
 If the unmasked renderer string matches llvmpipe, SwiftShader, Microsoft
 Basic Render Driver, or GDI Generic, the View HUD and FPS chip warn
@@ -962,14 +996,19 @@ flowchart TB
   dense[Dense mni152_stack npy]
   hull[Hull index cache at load]
   aabb[AABB crop]
-  soa[EventSoA]
-  cubes[Instanced cubes]
-  dense --> hull --> soa --> cubes
+  hullSoA[hull EventSoA]
+  planeSoA[plane EventSoA]
+  cache[plane index LRU]
+  ghost[ghost InstancedMesh]
+  solid[solid InstancedMesh]
+  dense --> hull --> hullSoA --> ghost
   aabb -->|clip window| faces[Hull cache plus AABB faces]
-  faces --> soa
+  faces --> hullSoA
+  aabb --> cache
+  cache --> planeSoA --> solid
 ```
 
-Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. Sparse Ghost copies that hull plus the active plane. Dense Ghost / Cuts emit only the cut plane(s).
+Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. **Ghost** keeps that hull on the glass InstancedMesh and only rebuilds the solid playhead plane (`fillPlaneSoA`, ring-cached). Peek (hold playhead) is the same split. **Cuts** is the three planes (no hull). Plane indices are an LRU of 48 cuts plus prefetch of neighbors — not a copy of every MRI slice at load. Ghost distance fade is a shader uniform so hull instance buffers stay put while scrubbing.
 
 **Public demo** (local, not git): `datasets/MRT/mni152.nii.gz` from
 [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
@@ -989,9 +1028,9 @@ fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
 **and** inside the AABB, so idle Hull is ~140k surface cubes (under the
 200k default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
-Dense **Ghost** is the active plane only; **Cuts** is the three planes
-(no hull). Sparse Ghost still adds the hull as glass. Play/Loop steps the
-**loop-axis** playhead (default Z). Affine / RAS is ignored — the gizmo is array X/Y/Z.
+Ghost keeps that hull on the GPU and rebuilds only the solid playhead
+plane (LRU + prefetch). Cuts is the three planes (no hull). Play/Loop
+steps the **loop-axis** playhead (default Z). Affine / RAS is ignored — the gizmo is array X/Y/Z.
 
 Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
 root:

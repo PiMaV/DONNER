@@ -279,9 +279,17 @@
       </label>
       <label class="field" title="Visual spacing between voxels. 0 packs faces into a solid cube (MRI). Open it up for Conway.">
         <span>Gap <em id="voxel-gap-val"></em></span>
-        <input id="voxel-gap" type="range" min="0" max="2" step="0.05" value="0"
+        <input id="voxel-gap" type="range" min="0" max="5" step="0.05" value="0"
           aria-label="Voxel gap" />
       </label>
+      <div class="field">
+        <span>Quality</span>
+        <div class="btn-row shade-modes" role="radiogroup" aria-label="View quality">
+          <button type="button" id="quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Use on iGPU, phone, or when Bench says GPU fill.">Low</button>
+          <button type="button" id="quality-medium" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, pixel ratio capped at 1.25.">Medium</button>
+          <button type="button" id="quality-high" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU.">High</button>
+        </div>
+      </div>
       <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
         <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
         <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for MRI and Ignition.">Ghost</button>
@@ -329,12 +337,25 @@
         </label>
         <p class="hint stab-hint">Start is fill. Tail is gens along Z.</p>
       </div>
-      <p id="count-enc-hint" class="hint encoding-count">Color is events per pixel per Δt. Cyan = 1, gold = mid, coral = max.</p>
-      <ul class="legend encoding-count" aria-label="Count encoding">
-        <li><i class="swatch osc"></i> <span id="count-leg-lo">1</span></li>
-        <li><i class="swatch still"></i> <span id="count-leg-mid">mid</span></li>
-        <li><i class="swatch flow"></i> <span id="count-leg-hi">max</span></li>
-      </ul>
+      <p id="count-enc-hint" class="hint encoding-count">Color is the integer ramp (count or T1). Pick a scale.</p>
+      <label class="field encoding-count" title="Palette for the integer ramp. Conway occupancy classes stay under Color coding.">
+        <span>Scale</span>
+        <select id="count-cmap" aria-label="Count color scale">
+          <option value="donner">DONNER</option>
+          <option value="gray">Gray</option>
+          <option value="inferno">Inferno</option>
+          <option value="plasma">Plasma</option>
+          <option value="turbo">Turbo</option>
+        </select>
+      </label>
+      <div class="cmap-scale encoding-count">
+        <div id="count-cmap-bar" class="cmap-bar" aria-hidden="true"></div>
+        <div class="cmap-ticks">
+          <span id="count-leg-lo">1</span>
+          <span id="count-leg-mid">mid</span>
+          <span id="count-leg-hi">max</span>
+        </div>
+      </div>
     </section>
     </div>
     </div>

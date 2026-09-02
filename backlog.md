@@ -20,6 +20,8 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Neighborhood gone
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
+- Ghost / peek: hull InstancedMesh stays; only the solid plane refills (LRU)
+- View **Quality** Low / Medium / High (manual; default High)
 
 **Later / next candidates** (keep; do not implement in this slice):
 
@@ -30,8 +32,11 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 3. Live ingest UI (Streamer + Load npy)
 4. Decay opt-in
 5. Dataset Contract / ScalarVolume
-6. Performance follow-up after using Bench (500k voxel note under DATA)
+6. 500k voxel note / volume-texture pass under DATA
 7. Visible sun, isolation, numbered axes, XR-B / XR-C-1
+8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
+   iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
+   for antialias.
 
 ## Product roadmap
 

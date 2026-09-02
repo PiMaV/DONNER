@@ -15,6 +15,8 @@ import {
   formatZTick,
   inAabb,
   inspectRebuildKey,
+  inspectHullOccupancyKey,
+  inspectPlaneOccupancyKey,
   onAxisPlane,
   productToWorld,
   relativeTimeTicks,
@@ -302,6 +304,45 @@ describe("AABB crop and shade", () => {
       activeAxis: "z",
     });
     assert.notEqual(g0, g1);
+    const hullA = inspectHullOccupancyKey({
+      shade: "ghost",
+      aabb,
+      sliceOnly: false,
+    });
+    const hullB = inspectHullOccupancyKey({
+      shade: "ghost",
+      aabb,
+      sliceOnly: false,
+    });
+    assert.equal(hullA, hullB);
+    assert.equal(
+      inspectHullOccupancyKey({ shade: "hull", aabb }),
+      inspectHullOccupancyKey({
+        shade: "hull",
+        aabb,
+      }),
+    );
+    assert.notEqual(
+      inspectHullOccupancyKey({ shade: "hull", aabb }),
+      inspectHullOccupancyKey({ shade: "ghost", aabb }),
+    );
+    const p0 = inspectPlaneOccupancyKey({
+      shade: "ghost",
+      aabb,
+      foci: { x: 1, y: 1, z: 2 },
+      activeAxis: "z",
+    });
+    const p1 = inspectPlaneOccupancyKey({
+      shade: "ghost",
+      aabb,
+      foci: { x: 1, y: 1, z: 3 },
+      activeAxis: "z",
+    });
+    assert.notEqual(p0, p1);
+    assert.equal(
+      inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 0, y: 0, z: 2 } }),
+      inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 9, y: 9, z: 8 } }),
+    );
   });
 
   it("keeps the AABB from the axis origin through the playhead", () => {
@@ -403,9 +444,10 @@ describe("voxel gap lattice", () => {
     assert.equal(voxelPitch(1, -4), 1);
   });
 
-  it("clamps the View slider to 0…2", () => {
+  it("clamps the View slider to 0…5", () => {
     assert.equal(clampVoxelGap(-1), 0);
     assert.equal(clampVoxelGap(9), VOXEL_GAP_MAX);
+    assert.equal(VOXEL_GAP_MAX, 5);
     assert.equal(clampVoxelGap("0.5"), 0.5);
     assert.equal(clampVoxelGap("no"), 0);
   });
