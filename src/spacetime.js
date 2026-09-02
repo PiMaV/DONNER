@@ -242,7 +242,7 @@ export class GenerationRing {
   /**
    * Newest-first fill so the present is never dropped when SoA capacity hits.
    * Copies `k` / `s` stamped on each slice (worldline class and stability
-   * along Z). Display modes None / Time / Focus do not belong here.
+   * along Z). Size by age / Start / Tail do not belong here.
    * `width` is needed to copy classification; omit to skip (k = moving).
    * @param {number} [width]
    * @param {{

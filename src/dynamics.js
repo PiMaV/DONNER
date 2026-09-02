@@ -28,13 +28,19 @@ export const CLASSIFY_AFTER = 2;
 /** Occupancy oscillator and board-ash cycle cap (pulsar / pentadecathlon). */
 export const MAX_OSC_PERIOD = 15;
 
-/** Consecutive still/osc gens mapped to cube fill; moving/unsettled stay small. */
+/** Consecutive still/osc gens mapped to cube fill; moving/unsettled stay at Start. */
 export const MAX_STAB_GENS = 16;
+/** Tape stamp cap so the Tail slider can stretch past the default 16. */
+export const STAB_TAIL_MAX = 64;
+export const STAB_TAIL_MIN = 2;
 /** Occupancy fill. 1 packs faces at View Gap 0; open seams with the Gap slider. */
 export const SCALE_UNIFORM = 1;
 export const SCALE_OPEN = 0.52;
 export const SCALE_STAB_MIN = 0.5;
-export const SCALE_STAB_MAX = 0.94;
+export const SCALE_STAB_MAX = 1;
+export const STAB_START_MIN = 0.02;
+export const STAB_START_MAX = 1;
+export const STAB_START_STEP = 0.02;
 
 export function classifyWorldline(alive1, alive2, alive3) {
   if (alive1 && alive2) return KIND_STILL;
@@ -89,7 +95,7 @@ export function kindAt(t, packed, isLive) {
 }
 
 /** Run length of the same still/osc class ending at `t`. 0 if dead or open. */
-export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS) {
+export function stabilityAge(t, packed, isLive, cap = STAB_TAIL_MAX) {
   if (!isLive(t, packed)) return 0;
   const k0 = kindAt(t, packed, isLive);
   if (k0 === KIND_MOVING || k0 === KIND_UNSETTLED || k0 === KIND_BASE) return 0;
@@ -103,15 +109,23 @@ export function stabilityAge(t, packed, isLive, cap = MAX_STAB_GENS) {
   return n;
 }
 
-export function stabilityScale(stab, cap = MAX_STAB_GENS) {
-  if (stab <= 0) return SCALE_OPEN;
-  const u = Math.min(stab, cap) / cap;
-  return SCALE_STAB_MIN + (SCALE_STAB_MAX - SCALE_STAB_MIN) * u;
+export function stabilityScale(
+  stab,
+  cap = MAX_STAB_GENS,
+  minFill = SCALE_STAB_MIN,
+  maxFill = SCALE_STAB_MAX,
+) {
+  const lo = Math.min(STAB_START_MAX, Math.max(STAB_START_MIN, Number(minFill) || 0));
+  const hi = Math.min(1, Math.max(lo, Number(maxFill) || 1));
+  const c = Math.max(1, cap | 0);
+  if (stab <= 0) return lo;
+  const u = Math.min(stab, c) / c;
+  return lo + (hi - lo) * u;
 }
 
 /** Cube fill on the focus slice; 0 if there is no event. */
-export function cubeFill(event, stabMode) {
+export function cubeFill(event, stabMode, opts = {}) {
   if (!event) return 0;
   if (stabMode === "none" || (event.k | 0) === KIND_BASE) return SCALE_UNIFORM;
-  return stabilityScale(event.s);
+  return stabilityScale(event.s, opts.cap, opts.start, opts.max);
 }

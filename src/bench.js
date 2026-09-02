@@ -32,6 +32,7 @@ export class PathTimer {
   constructor(keys = BENCH_KEYS, capacity = 120) {
     this.keys = keys.slice();
     this.capacity = capacity;
+    this.enabled = false;
     /** @type {Record<string, { last: number, max: number, samples: Float32Array, head: number, count: number }>} */
     this.tracks = Object.fromEntries(
       keys.map((k) => [
@@ -47,7 +48,15 @@ export class PathTimer {
     );
   }
 
+  setEnabled(on) {
+    const next = Boolean(on);
+    if (this.enabled === next) return;
+    this.enabled = next;
+    if (!next) this.reset();
+  }
+
   record(key, ms) {
+    if (!this.enabled) return;
     const t = this.tracks[key];
     if (!t) return;
     const v = ms > 0 ? ms : 0;
@@ -59,6 +68,7 @@ export class PathTimer {
   }
 
   measure(key, fn) {
+    if (!this.enabled) return fn();
     const t0 = performance.now();
     const out = fn();
     this.record(key, performance.now() - t0);
@@ -110,7 +120,7 @@ export class PathTimer {
 }
 
 /**
- * Compact path-timer copy (internal, not a View sheet). `work` is soa / inst / rend for the last frame.
+ * Compact path-timer copy for the opt-in View Bench checkbox. `work` is soa / inst / rend for the last frame.
  * `now` is this frame only (0 if that path did not run). Reset timers on preset
  * or the rolling avg/max still show the previous load.
  * @param {{

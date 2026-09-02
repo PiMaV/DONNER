@@ -135,6 +135,7 @@ export function formatViewHud({
   truncated,
   focus,
   playing,
+  looping = false,
   ortho = false,
   isolating = false,
   isolate = null,
@@ -149,7 +150,7 @@ export function formatViewHud({
     `FR   ${ms.toFixed(1)} ms`,
     `INST ${instances}${trunc}`,
     `FOC  ${focus}`,
-    playing ? "PLAY" : "PAUSE",
+    looping ? "LOOP" : playing ? "PLAY" : "PAUSE",
   ];
   if (software) lines.push("SOFTWARE");
   if (ortho) lines.push("ORTHO");

@@ -76,4 +76,22 @@ describe("desktop Source | View sheets", () => {
     assert.match(html, /id="btn-rail-source"/);
     assert.match(html, /id="btn-rail-view"/);
   });
+
+  it("keeps View FPS on the fold when the sheet is collapsed", () => {
+    assert.match(html, /class="fold-meter"/);
+    assert.match(html, /id="view-fps"[^>]*class="[^"]*fold-fps/);
+    assert.match(html, /id="hud-view-fps"/);
+    assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);
+    assert.match(html, /class="check hud-dev"/);
+    const fps = html.indexOf('id="view-fps"');
+    const body = html.indexOf('id="view-body"');
+    assert.ok(fps > 0 && fps < body);
+    assert.match(css, /\.fold-meter\s*\{[^}]*display:\s*flex/s);
+    assert.match(css, /\.fold-fps\s*\{[^}]*white-space:\s*nowrap/s);
+    const collapsed = css.match(/\.controls\.is-collapsed \.sheet-body\s*\{[^}]*\}/)?.[0] || "";
+    assert.match(collapsed, /display:\s*none/);
+    assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*#view-fps/);
+    assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*\.fold-fps/);
+    assert.match(css, /@media[^{]+\{[\s\S]*\.controls\.is-collapsed \.sheet-body\s*\{[^}]*display:\s*flex/s);
+  });
 });

@@ -52,30 +52,13 @@ export function countKindHex(ceiling) {
   return hex;
 }
 
-export function encodingFill(k, s, stabMode, baseK = CONWAY_BASE_K) {
+export function encodingFill(k, s, stabMode, baseK = CONWAY_BASE_K, opts = {}) {
   if (stabMode === "none" || (k | 0) === baseK) return SCALE_UNIFORM;
-  return stabilityScale(s);
-}
-
-/**
- * Time-mode `s` on the focus generation, keyed by packed `(x, y)`.
- * Focus display paints the whole worldline with this value — no restamp.
- * @param {{ count: number, x: Float32Array, y: Float32Array, t: Float32Array, s: Float32Array }} soa
- */
-export function focusSByPacked(soa, tFocus, width) {
-  const w = Math.max(1, width | 0);
-  const tf = tFocus | 0;
-  const map = new Map();
-  const n = soa.count;
-  for (let i = 0; i < n; i++) {
-    if ((soa.t[i] | 0) !== tf) continue;
-    map.set((soa.y[i] | 0) * w + (soa.x[i] | 0), soa.s[i]);
-  }
-  return map;
+  return stabilityScale(s, opts.cap, opts.start, opts.max);
 }
 
 /** Cube fill on the focus slice; 0 if there is no event. */
-export function encodingCubeFill(event, stabMode, baseK = CONWAY_BASE_K) {
+export function encodingCubeFill(event, stabMode, baseK = CONWAY_BASE_K, opts = {}) {
   if (!event) return 0;
-  return encodingFill(event.k, event.s, stabMode, baseK);
+  return encodingFill(event.k, event.s, stabMode, baseK, opts);
 }

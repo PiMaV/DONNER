@@ -1,6 +1,17 @@
 /** DONNER defaults and M.E.S.S. / WETTER palette. */
 
-export const VERSION = "0.9.0";
+import {
+  MAX_STAB_GENS,
+  STAB_START_MAX,
+  STAB_START_MIN,
+  STAB_START_STEP,
+  STAB_TAIL_MAX,
+  STAB_TAIL_MIN,
+} from "./dynamics.js";
+
+export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
+
+export const VERSION = "0.10.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -52,15 +63,23 @@ export const DEFAULTS = {
   /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. */
   voxelGap: 0,
   maxInstances: 200_000,
+  /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
+  bench: false,
   cubeCapMin: 20_000,
   cubeCapMax: 4_000_000,
   alignZ: true,
   parallax: true,
   sliceAxis: "z",
+  /** Axis View Loop walks on a volume. Not the viewcube / camera axis. */
+  loopAxis: "z",
+  /** Playhead steps per second while View Loop is on. */
+  loopPerSec: 8,
   shadeMode: "hull",
   maxVisible: 128,
   maxStepCatchUp: 8,
-  stabMode: "time",
+  stabSize: true,
+  stabStart: 0.5,
+  stabTail: MAX_STAB_GENS,
   dynamics: true,
   encodingMinimal: false,
   forceFullRebuild: false,
@@ -111,4 +130,16 @@ export function clampCubeCap(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return DEFAULTS.maxInstances;
   return Math.min(DEFAULTS.cubeCapMax, Math.max(DEFAULTS.cubeCapMin, Math.round(v)));
+}
+
+export function clampStabStart(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULTS.stabStart;
+  return Math.min(STAB_START_MAX, Math.max(STAB_START_MIN, v));
+}
+
+export function clampStabTail(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULTS.stabTail;
+  return Math.min(STAB_TAIL_MAX, Math.max(STAB_TAIL_MIN, Math.round(v)));
 }

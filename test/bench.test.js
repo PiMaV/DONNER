@@ -28,6 +28,7 @@ describe("isSoftwareRenderer", () => {
 describe("PathTimer", () => {
   it("records last, rolling average, max, and p95", () => {
     const t = new PathTimer(["soa"], 8);
+    t.setEnabled(true);
     t.record("soa", 2);
     t.record("soa", 4);
     t.record("soa", 6);
@@ -43,13 +44,52 @@ describe("PathTimer", () => {
 
   it("measure wraps a function", () => {
     const t = new PathTimer(["sim"]);
+    t.setEnabled(true);
     const out = t.measure("sim", () => 7);
     assert.equal(out, 7);
     assert.ok(t.tracks.sim.last >= 0);
   });
 
+  it("skips timers when disabled and still runs the function", () => {
+    const t = new PathTimer(["sim"]);
+    assert.equal(t.enabled, false);
+    const origNow = performance.now.bind(performance);
+    let nowCalls = 0;
+    performance.now = (...args) => {
+      nowCalls += 1;
+      return origNow(...args);
+    };
+    try {
+      let ran = 0;
+      const out = t.measure("sim", () => {
+        ran += 1;
+        return 9;
+      });
+      assert.equal(out, 9);
+      assert.equal(ran, 1);
+      assert.equal(nowCalls, 0);
+      assert.equal(t.tracks.sim.last, 0);
+      assert.equal(t.tracks.sim.count, 0);
+      t.record("sim", 12);
+      assert.equal(t.tracks.sim.last, 0);
+    } finally {
+      performance.now = origNow;
+    }
+  });
+
+  it("setEnabled(false) resets tracks", () => {
+    const t = new PathTimer(["soa"], 8);
+    t.setEnabled(true);
+    t.record("soa", 40);
+    t.setEnabled(false);
+    assert.equal(t.enabled, false);
+    assert.equal(t.tracks.soa.last, 0);
+    assert.equal(t.tracks.soa.count, 0);
+  });
+
   it("reset clears rolling avg and max", () => {
     const t = new PathTimer(["soa"], 8);
+    t.setEnabled(true);
     t.record("soa", 40);
     t.reset();
     assert.equal(t.tracks.soa.last, 0);
@@ -62,6 +102,7 @@ describe("PathTimer", () => {
 describe("formatBenchHud / formatGpuHud", () => {
   it("includes work and path rows", () => {
     const t = new PathTimer(["sim", "soa"]);
+    t.setEnabled(true);
     t.record("sim", 1.2);
     t.record("soa", 3.4);
     const text = formatBenchHud({

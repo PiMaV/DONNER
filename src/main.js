@@ -1,9 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, clampVoxelGap, isStaticSourceKind } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, clampCubeCap, clampVoxelGap } from "./config.js";
 import {
   PathTimer,
+  formatBenchHud,
+  formatGpuHud,
+  inferBound,
   probeGpu,
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
@@ -31,23 +34,22 @@ import {
 } from "./spacetime.js";
 import {
   aabbFromSlabs,
+  aabbKeepUpToFocus,
   axisIndexFromBack,
   clampSlab,
   defaultInspectSlabs,
-  denseGhostToSlice,
   effectiveShade,
   fociFromSlabs,
   inspectRebuildKey,
   focusBackFromVoxel,
   normalizeSliceAxis,
   productViewDir,
-  resetSlabClips,
   lockedFaceAction,
   lockedFacePageStep,
   slabGenerations,
   sliceMaxBack,
   sliceOnlyFromPlaneLock,
-  stepFocusBack,
+  stepFocusBackClipped,
   voxelPitch,
   zBackWorldY,
 } from "./axes.js";
@@ -136,7 +138,7 @@ import {
 
 const canvas = document.getElementById("view");
 const hudViewEl = document.getElementById("hud-view");
-const hudSrcEl = document.getElementById("hud-src");
+const conwayLiveEl = document.getElementById("conway-live");
 const hudSparkEl = document.getElementById("hud-spark");
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
@@ -303,14 +305,17 @@ let sourceId = "conway";
 let countVol = null;
 const wolke = new WolkeViewer({ io });
 const COUNT_HINT =
-  "EVT count cube (T × H × W). Integer events per pixel per Δt. Stream: sidecar Send as counts.";
+  "EVT count cube (T × H × W). Integer events per pixel per Δt.";
 let focusSurfaces = { x: null, y: null, z: null };
 let nowGrid;
 let playing = false;
+let looping = false;
 let editing = false;
 let parallax = DEFAULTS.parallax;
 let alignZ = DEFAULTS.alignZ;
 let activeAxis = DEFAULTS.sliceAxis;
+let loopAxis = DEFAULTS.loopAxis;
+let loadSeq = 0;
 let shadeMode = DEFAULTS.shadeMode;
 let shadeHeld = false;
 let planeLock = false;
@@ -323,10 +328,13 @@ let slabs = {
   z: { near: 0, focus: 0, far: 0 },
 };
 let gensPerSec = DEFAULTS.gensPerSec;
+let loopPerSec = DEFAULTS.loopPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
 let voxelGap = DEFAULTS.voxelGap;
-let stabMode = DEFAULTS.stabMode;
+let stabMode = DEFAULTS.stabSize ? "time" : "none";
+let stabStart = DEFAULTS.stabStart;
+let stabTail = DEFAULTS.stabTail;
 let dynamicsOn = DEFAULTS.dynamics;
 let encodingMinimal = DEFAULTS.encodingMinimal;
 let forceFullRebuild = DEFAULTS.forceFullRebuild;
@@ -368,16 +376,17 @@ let yawDrag = null;
 
 const clock = new FrameClock();
 const paths = new PathTimer();
+paths.setEnabled(false);
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let gpuInfo = null;
 
 const ui = bindUI({
   togglePlay,
+  toggleLoop,
   toggleEdit,
   toggleParallax,
   fitVolume,
-  resetClips: resetClipExtent,
   resetPlanes: resetPlanesToVolume,
   alignZ: () => {
     alignZ = ui.getConfig().alignZ;
@@ -389,6 +398,7 @@ const ui = bindUI({
   },
   sliceAxis: (axis) => setActiveAxis(axis),
   activeAxis: (axis) => setActiveAxis(axis),
+  loopAxis: (axis) => setLoopAxis(axis),
   shade: (mode) => setShadeMode(mode),
   slab: (next) => {
     enterInspect();
@@ -396,10 +406,14 @@ const ui = bindUI({
   },
   slabHold: (held) => setShadeHeld(held),
   cubeCap: () => applyCubeCap(),
+  bench: () => {
+    const on = Boolean(ui.getConfig().bench);
+    paths.setEnabled(on);
+    if (!on) ui.setBenchHud("");
+  },
   step: () => {
     if (sourceId === "count") {
-      playing = false;
-      ui.setPlaying(false);
+      stopLoop();
       stepCountPlayhead();
       updateHint();
       return;
@@ -409,10 +423,16 @@ const ui = bindUI({
     stepOnce();
     updateHint();
   },
-  reset: () => (sourceId === "count" ? resetCountView() : bootWorld(false)),
-  rebuild: () => bootWorld(true),
+  reset: () => {
+    if (sourceId === "count") resetCountView();
+    else void withLoading("Loading…", () => bootWorld(false));
+  },
+  rebuild: () => void withLoading("Loading…", () => bootWorld(true)),
   speed: () => {
     gensPerSec = ui.getConfig().gensPerSec;
+  },
+  loopSpeed: () => {
+    loopPerSec = ui.getConfig().loopPerSec;
   },
   decay: () => {
     decay = ui.getConfig().decay;
@@ -427,13 +447,11 @@ const ui = bindUI({
     if (hideCenter && hideOuter) setFrameHover(null);
     syncClipPlanes();
   },
-  focusNow: () => {
-    if (stackLiveLocked()) return;
-    slabs.z.near = 0;
-    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
-  },
   stabMode: () => {
-    stabMode = ui.getConfig().stabMode;
+    const cfg = ui.getConfig();
+    stabMode = cfg.stabMode;
+    stabStart = cfg.stabStart;
+    stabTail = cfg.stabTail;
     dirtyView = true;
   },
   viewFlags: () => {
@@ -447,7 +465,7 @@ const ui = bindUI({
     switchSource(ui.getConfig().sourceKind);
   },
   countFile: (file) => {
-    loadCountFromFile(file);
+    void withLoading(`Loading ${file.name}…`, () => loadCountFromFile(file));
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -587,9 +605,22 @@ function inspectShade() {
   if (!inspectMode()) return null;
   if (arPresenting() && !arPlanePoke) return null;
   if (planeDrag && planeDrag.handle !== "focus") return "hull";
-  const dense = sourceId === "count" && isDenseCount(countVol);
-  if (arPlanePoke) return denseGhostToSlice("ghost", dense);
-  return denseGhostToSlice(effectiveShade(shadeMode, shadeHeld), dense);
+  if (arPlanePoke) return "ghost";
+  return effectiveShade(shadeMode, shadeHeld);
+}
+
+function hullLooping() {
+  return Boolean(looping && inspectMode() && inspectShade() === "hull");
+}
+
+/** Crop AABB, or the growing potato (origin → playhead) while Hull loops. */
+function inspectDrawAabb() {
+  if (!inspectMode()) return null;
+  const box = cropAabb();
+  if (!box) return null;
+  if (!hullLooping()) return box;
+  const foci = cropFoci();
+  return aabbKeepUpToFocus(box, activeAxis, foci[activeAxis]);
 }
 
 function railUi(axis) {
@@ -618,6 +649,7 @@ function syncStackUi() {
     z: railUi("z"),
   });
   ui.setActiveAxis(activeAxis);
+  ui.setLoopAxis(loopAxis);
   ui.setShade(shadeMode);
 }
 
@@ -1414,20 +1446,6 @@ function inspectPoseSlabs() {
   return defaultInspectSlabs(world.width, world.height, maxTimeBack(), 0);
 }
 
-function resetClipExtent() {
-  if (!world) return;
-  slabs = resetSlabClips(
-    slabs,
-    Math.max(0, world.width - 1),
-    Math.max(0, world.height - 1),
-    maxTimeBack(),
-  );
-  syncStackUi();
-  syncClipPlanes();
-  updateHint();
-  dirtyView = true;
-}
-
 function resetPlanesToVolume() {
   if (!world) return;
   slabs = inspectPoseSlabs();
@@ -1465,14 +1483,16 @@ function applySlab(axis, next, dragged = "focus") {
     shade === "hull" &&
     dragged === "focus" &&
     !decay &&
-    !planeLock;
-  dirtyView = !hullFocus || (sourceId !== "count" && stabMode === "focus");
+    !planeLock &&
+    !looping;
+  dirtyView = !hullFocus;
 }
 
 function enterInspect() {
   if (tapeMode && !playing) return;
   playing = false;
   tapeMode = true;
+  stopLoop();
   if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
     slabs.z.near = 0;
     slabs.z.far = maxTimeBack();
@@ -1489,6 +1509,7 @@ function enterLive() {
   arPlanePoke = false;
   tapeMode = false;
   playing = true;
+  looping = false;
   editing = false;
   stoppedStable = false;
   acc = 0;
@@ -1497,6 +1518,7 @@ function enterLive() {
   clearHover();
   applySlab("z", slabs.z, "focus");
   ui.setPlaying(true);
+  ui.setLooping(false);
   ui.setEditing(false);
   dirtySource = true;
   syncFog();
@@ -1627,11 +1649,11 @@ function resetCountView() {
 }
 
 function stepCountPlayhead() {
-  const a = inspectMode() ? activeAxis : "z";
-  const max = axisMaxBack(a);
-  if (max <= 0) return;
-  const next = stepFocusBack(slabs[a].focus, max, -1);
-  applySlab(a, { ...slabs[a], focus: next }, "focus");
+  const a = normalizeSliceAxis(loopAxis);
+  const s = slabs[a];
+  const next = stepFocusBackClipped(s.focus, s.near, s.far, -1);
+  if (next === s.focus) return;
+  applySlab(a, { ...s, focus: next }, "focus");
   markGps();
 }
 
@@ -1639,9 +1661,11 @@ function bootCount(vol) {
   sourceId = "count";
   countVol = vol;
   gensPerSec = ui.getConfig().gensPerSec;
+  loopPerSec = ui.getConfig().loopPerSec;
   decay = ui.getConfig().decay;
   historyLen = ui.getConfig().history;
   playing = false;
+  looping = false;
   editing = false;
   tapeMode = true;
   stoppedStable = false;
@@ -1673,6 +1697,7 @@ function bootCount(vol) {
   }
   pinOrbitPivot();
   ui.setPlaying(false);
+  ui.setLooping(false);
   ui.setEditing(false);
   ui.setParallax(parallax);
   syncStackUi();
@@ -1697,6 +1722,24 @@ function countKindForVolume(vol) {
   return "count";
 }
 
+function yieldPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
+async function withLoading(label, fn) {
+  loadSeq += 1;
+  const mine = loadSeq;
+  ui.setLoading(true, label || "Loading…");
+  await yieldPaint();
+  try {
+    await fn();
+  } finally {
+    if (mine === loadSeq) ui.setLoading(false);
+  }
+}
+
 async function loadCountFromUrl(url, name, kind = "count") {
   ui.setSourceKind(kind);
   ui.setCountHint(`Loading ${name}…`);
@@ -1708,7 +1751,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
     ui.setCountHint(COUNT_HINT);
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
-    ui.setCountHint(`Could not load ${name}. Use Load .npy (${msg}).`);
+    ui.setCountHint(`Could not load ${name} (${msg}).`);
     if (!countVol) {
       ui.setSourceKind("conway");
       sourceId = "conway";
@@ -1718,24 +1761,26 @@ async function loadCountFromUrl(url, name, kind = "count") {
 }
 
 function switchSource(kind) {
-  if (kind === "conway") {
-    disconnectWolke();
-    bootWorld(true);
-    return;
-  }
-  const demo = COUNT_DEMOS[kind];
-  if (demo) {
-    loadCountFromUrl(demo.url, demo.name, kind);
-    return;
-  }
-  if (countVol) {
+  void withLoading("Loading…", async () => {
+    if (kind === "conway") {
+      disconnectWolke();
+      bootWorld(true);
+      return;
+    }
+    const demo = COUNT_DEMOS[kind];
+    if (demo) {
+      await loadCountFromUrl(demo.url, demo.name, kind);
+      return;
+    }
+    if (countVol) {
+      ui.setSourceKind("count");
+      bootCount(countVol);
+      return;
+    }
     ui.setSourceKind("count");
-    bootCount(countVol);
-    return;
-  }
-  ui.setSourceKind("count");
-  ui.setCountHint("Load a .npy cube or Connect to the sidecar.");
-  updateHint();
+    ui.setCountHint("File and stream ingest is later. Pick Ignition or MNI 152.");
+    updateHint();
+  });
 }
 
 async function loadCountFromFile(file) {
@@ -1794,11 +1839,15 @@ function bootWorld(resizeGrid) {
   const cfg = ui.getConfig();
   sourceId = "conway";
   gensPerSec = cfg.gensPerSec;
+  loopPerSec = cfg.loopPerSec;
   decay = cfg.decay;
   historyLen = cfg.history;
   stabMode = cfg.stabMode;
+  stabStart = cfg.stabStart;
+  stabTail = cfg.stabTail;
   dynamicsOn = cfg.dynamics;
   tapeMode = !playing;
+  looping = false;
 
   world = new ConwayWorld({
     width: cfg.width,
@@ -1837,6 +1886,7 @@ function bootWorld(resizeGrid) {
   }
   pinOrbitPivot();
   ui.setPlaying(playing);
+  ui.setLooping(false);
   ui.setEditing(editing);
   ui.setParallax(parallax);
   syncStackUi();
@@ -1852,24 +1902,48 @@ function bootWorld(resizeGrid) {
   updateHint();
 }
 
-function togglePlay() {
-  if (isStaticSourceKind(ui.getConfig().sourceKind)) return;
-  if (sourceId === "count") {
-    if (playing) {
-      playing = false;
-      ui.setPlaying(false);
-    } else {
-      playing = true;
-      ui.setPlaying(true);
-      if (activeAxis === "z" && slabs.z.focus === 0 && !(countVol && isDenseCount(countVol))) {
-        applySlab("z", { ...slabs.z, focus: maxTimeBack() }, "focus");
-      } else if (slabs[activeAxis].focus === 0 && !(countVol && isDenseCount(countVol))) {
-        applySlab(activeAxis, { ...slabs[activeAxis], focus: axisMaxBack(activeAxis) }, "focus");
-      }
-    }
-    updateHint();
+function stopLoop() {
+  if (!looping) {
+    ui.setLooping(false);
     return;
   }
+  looping = false;
+  ui.setLooping(false);
+  syncClipPlanes();
+  applyGridLook();
+  dirtyView = true;
+}
+
+function toggleLoop() {
+  if (sourceId !== "count" && playing) {
+    editing = false;
+    ui.setEditing(false);
+    enterInspect();
+    applySlab("z", { ...slabs.z, focus: 0 }, "focus");
+  }
+  if (looping) {
+    stopLoop();
+  } else {
+    if (sourceId !== "count" && !tapeMode) enterInspect();
+    looping = true;
+    acc = 0;
+    ui.setLooping(true);
+    setActiveAxis(loopAxis);
+    const a = normalizeSliceAxis(loopAxis);
+    const dense = countVol && isDenseCount(countVol);
+    if (!dense && slabs[a].focus === slabs[a].near) {
+      applySlab(a, { ...slabs[a], focus: slabs[a].far }, "focus");
+    }
+  }
+  updateHint();
+}
+
+function togglePlay() {
+  if (sourceId === "count") {
+    toggleLoop();
+    return;
+  }
+  stopLoop();
   if (playing) {
     editing = false;
     ui.setEditing(false);
@@ -2048,6 +2122,10 @@ function setActiveAxis(next, opts = {}) {
   }
   const changed = a !== activeAxis;
   activeAxis = a;
+  if (loopAxis !== a) {
+    loopAxis = a;
+    ui.setLoopAxis(a);
+  }
   if (editing && a !== "z") {
     editing = false;
     ui.setEditing(false);
@@ -2056,6 +2134,10 @@ function setActiveAxis(next, opts = {}) {
   if (changed) rebuildSliceVisuals();
   else syncClipPlanes();
   dirtyView = true;
+}
+
+function setLoopAxis(next) {
+  setActiveAxis(next);
 }
 
 function applyCubeCap() {
@@ -2077,6 +2159,7 @@ function applyGridLook() {
   const arChrome = arLockedChrome();
   const chrome = (!planeLock && !arPresenting()) || arChrome;
   const cut = planeLock && !arPresenting();
+  const grow = hullLooping();
   if (nowGrid) {
     nowGrid.visible =
       (!arPresenting() && chrome && centerChromeVisible(hideCenter, { cut })) || cut;
@@ -2086,7 +2169,9 @@ function applyGridLook() {
     const surf = focusSurfaces[a];
     const showFrame = cut
       ? a === activeAxis
-      : chrome && centerChromeVisible(hideCenter) && (arChrome || a === "z" || inspect);
+      : grow
+        ? a === activeAxis
+        : chrome && centerChromeVisible(hideCenter) && (arChrome || a === "z" || inspect);
     if (surf) {
       const pickEdit = editing && a === "z" && chrome && !arPresenting();
       const pickCut = cut && a === activeAxis;
@@ -2105,7 +2190,7 @@ function applyGridLook() {
           : "idle"
         : inspect && a === activeAxis
           ? "active"
-          : a === "z"
+          : !inspect && a === "z"
             ? "active"
             : "idle",
     );
@@ -2117,11 +2202,14 @@ function syncClipPlanes() {
   const { yMin, yMax } = brickYRange();
   const arChrome = arLockedChrome();
   const chrome = (!planeLock && !arPresenting()) || arChrome;
-  const showClips = chrome && outerChromeVisible(hideOuter, {
-    inspect: inspectMode(),
-    liveLocked: stackLiveLocked(),
-    arHideOuter: phoneArSession(),
-  });
+  const showClips =
+    chrome &&
+    !hullLooping() &&
+    outerChromeVisible(hideOuter, {
+      inspect: inspectMode(),
+      liveLocked: stackLiveLocked(),
+      arHideOuter: phoneArSession(),
+    });
   const cs = layoutCell();
   const w = world.width;
   const h = world.height;
@@ -2189,12 +2277,12 @@ function updateHint() {
   } else if (sourceId === "count") {
     ui.setHint(
       countVol && isDenseCount(countVol)
-        ? "Dense cube — sliders move planes · Play walks the playhead"
-        : playing
-          ? "Count stack — Play scrubs Z through the recording · Pause to inspect"
+        ? "Dense cube — sliders move planes · Loop walks the marked axis"
+        : looping
+          ? "Count stack — Loop walks the axis · Pause Loop to stop"
           : coarse
             ? "Count stack — sliders move planes · drag to orbit · pinch zoom"
-            : "Count stack — grab a frame edge to move that plane · Play scrubs the active axis",
+            : "Count stack — grab a frame edge to move that plane · Loop walks the marked axis",
     );
   } else if (tapeMode && stoppedStable) {
     ui.setHint(
@@ -2205,13 +2293,13 @@ function updateHint() {
   } else if (tapeMode) {
     ui.setHint(
       coarse
-        ? "Inspect — sliders move planes · drag to orbit · pinch zoom · Play returns to live"
-        : "Inspect — hover a frame edge to grab it · clips crop the AABB · Play returns to live",
+        ? "Inspect — sliders move planes · Loop walks the tape · Source Play is live"
+        : "Inspect — hover a frame edge to grab it · Loop walks the tape · Source Play is live",
     );
   } else if (editing && atNow) {
     ui.setHint("Edit — tap a cell inside the frame · drag to orbit");
   } else if (editing && !atNow) {
-    ui.setHint("Focus is in the past — Now on the Z stack (or Home), then tap to paint");
+    ui.setHint("Focus is in the past — Home or the Z slider, then tap to paint");
   } else if (!parallax) {
     ui.setHint("Ortho — no parallax · gizmo snaps views · B restores perspective");
   } else if (playing && cubes.count > 20000) {
@@ -2268,7 +2356,7 @@ function fillVolume() {
   const store = viewStore();
   if (!store || !world) return;
   const span = inspectMode() || arPillar() ? volumeSpan() : null;
-  const aabb = inspectMode() ? cropAabb() : null;
+  const aabb = inspectDrawAabb();
   const foci = cropFoci();
   const shade = inspectShade() || "hull";
   store.fillSoA(soa, viewNow(), volumeWindow(), world.width, {
@@ -2301,11 +2389,13 @@ function uploadInstances() {
     height: world.height,
     history: volumeWindow(),
     stabMode: stabForFill(),
+    stabStart,
+    stabTail,
     cellSize: DEFAULTS.cellSize,
     voxelGap,
     isolate: null,
     activeAxis,
-    aabb: inspectMode() ? cropAabb() : null,
+    aabb: inspectDrawAabb(),
     foci: cropFoci(),
     shade: inspectShade(),
     sliceOnly: sliceOnlyFromPlaneLock(planeLock),
@@ -2324,7 +2414,7 @@ function fillAndUpload() {
 
 function spanKey() {
   const span = volumeSpan();
-  const box = cropAabb();
+  const box = inspectDrawAabb();
   const shade = inspectShade();
   if (!shade) {
     const s = slabs[activeAxis];
@@ -2748,8 +2838,7 @@ window.addEventListener("keydown", (e) => {
     else if (!parallax) toggleParallax();
   } else if (e.code === "Period" || e.code === "KeyN") {
     if (sourceId === "count") {
-      playing = false;
-      ui.setPlaying(false);
+      stopLoop();
       stepCountPlayhead();
       updateHint();
       return;
@@ -2784,14 +2873,24 @@ if (window.visualViewport) {
 function frame(now, xrFrame) {
   try {
     const dt = clock.tick(now);
-    if (playing) {
+    if (playing && sourceId !== "count") {
       acc += dt * gensPerSec;
       let steps = 0;
       paths.measure("sim", () => {
         while (playing && acc >= 1 && steps < DEFAULTS.maxStepCatchUp) {
           acc -= 1;
-          if (sourceId === "count") stepCountPlayhead();
-          else stepOnce();
+          stepOnce();
+          steps += 1;
+        }
+      });
+      if (acc > 1) acc = 1;
+    } else if (looping) {
+      acc += dt * loopPerSec;
+      let steps = 0;
+      paths.measure("sim", () => {
+        while (looping && acc >= 1 && steps < DEFAULTS.maxStepCatchUp) {
+          acc -= 1;
+          stepCountPlayhead();
           steps += 1;
         }
       });
@@ -2866,21 +2965,32 @@ function frame(now, xrFrame) {
           truncated: soa.truncated,
           focus: foc,
           playing,
+          looping,
           ortho: !parallax,
           software: Boolean(gpuInfo && gpuInfo.software),
         });
       }
       ui.setFps(fps);
-      if (hudSrcEl && store && world) {
-        hudSrcEl.textContent = formatSourceHud({
+      if (paths.enabled) {
+        const rows = paths.snapshot();
+        ui.setBenchHud(
+          `${formatBenchHud({
+            rows,
+            work: lastWork,
+            forceFull: forceFullRebuild,
+            frameMs: ms,
+            bound: inferBound(rows, ms, lastWork),
+          })}\n${formatGpuHud(gpuInfo)}`,
+        );
+      }
+      if (conwayLiveEl && store && world && sourceId === "conway" && playing) {
+        conwayLiveEl.textContent = formatSourceHud({
           generation: tapeMode ? foc : world.generation,
           live: store.liveAt(foc),
-          gps: playing ? measuredGps || gensPerSec : 0,
+          gps: measuredGps || gensPerSec,
           editing,
           tape: tapeMode,
-          kind: sourceId,
-          sum: sourceId === "count" && countVol ? countVol.sumAt(foc) : 0,
-          ceiling: sourceId === "count" && countVol ? countVol.ceiling : 0,
+          kind: "conway",
         });
       }
       if (tape) {
@@ -2909,6 +3019,7 @@ try {
   console.warn("DONNER boot", err);
 }
 ui.setPlaying(playing);
+ui.setLooping(looping);
 renderer.xr.addEventListener("sessionstart", onArSessionStart);
 renderer.xr.addEventListener("sessionend", onArSessionEnd);
 isImmersiveArSupported().then((ok) => ui.setArAvailable(ok));

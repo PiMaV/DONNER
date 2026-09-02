@@ -20,8 +20,8 @@ advantage, not a deployment convenience.
   event-camera files exist — seeding, teaching, and a performance
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
   **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
-  **source addon** (Conway **or** EVT count stack `.npy` from file,
-  ignition demo, WOLKE-contract stream, or MNI 152 as a dense count cube),
+  **source addon** (Conway, Ignition, or MNI 152; WOLKE-contract stream
+  and Load `.npy` are later live ingest, hidden from Source chrome),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
   count fills integer rungs, color only).
@@ -47,12 +47,12 @@ advantage, not a deployment convenience.
   (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
   and the first cube of each worldline.
   Count uses integer rungs (cyan → gold → coral).
-  Occupancy only (no neighborhood motion gate). Cube scale follows Stability mode (`none` / `time` / `focus`)
-  via stamped `s` on each generation (along Z). None / Time / Focus are
-  display (`setEvents`); do not rerun
+  Occupancy only (no neighborhood motion gate). Cube scale follows **Size by age**
+  via stamped `s` on each generation (along Z). Start = fill at age 0; Tail = gens
+  to full size. Off = equal cubes. Display (`setEvents`); do not rerun
   `stabilityAge` on playhead or toggle. Count / MNI color the integer ramp
   only (no size-by-count). Oscillators encode as occupancy along Z, not extra
-  hues. Default seed: R-pentomino, started paused; default Stability: Time.
+  hues. Default seed: R-pentomino, started paused; Size by age on.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
@@ -88,25 +88,29 @@ advantage, not a deployment convenience.
   (units later). Grab the axis-colored frame edges in the volume
   (playhead full size, clips well inside; coincident clip hidden; ~28 px
   screen rim to grab; drag in screen space along the axis). Clip grab
-  keeps Hull; playhead grab peeks Ghost (dense count: the cut only). **Cuts**
-  is three orthogonal planes, no hull (shade id `triple`). **Full** (next to Fit) opens the clip box again.
-  **Reset Planes** (same row) opens clips and centers the three playheads; it does not run when toggling Cuts.
+  keeps Hull; playhead grab peeks Ghost (glass hull + solid plane; same
+  for MRI and Ignition). **Cuts**
+  is three orthogonal planes, no hull (shade id `triple`).
+  **Reset Planes** (same row as Fit) opens clips and centers the three playheads; it does not run when toggling Cuts.
   Load / source change start on that pose.
   Playhead and clip bars scale with the brick span, not the cell.
   **Hide center** / **Hide outer** (under the viewcube on desktop)
-  hide playhead+grid vs clip frames independently. A cut still shows the current plane. Display HUD (FPS, AVG, 1%/0.1% lows,
-  sparkline, INST, FOC) stays separate from Conway source stats (GEN,
-  LIVE, RATE) in the Source fold. HUD shows **ORTHO** when parallax is off.
-  On a phone the HUD is an FPS chip (tap for the View card); source stats
-  stay in the Source sheet. There is no viewcube. FPS/sparkline use raw frame time; the 100 ms
+  hide playhead+grid vs clip frames independently. A cut still shows the current plane.   Display HUD (FPS, AVG, 1%/0.1% lows,
+  sparkline, INST, FOC) stays separate from Conway live overlay (GEN,
+  LIVE, RATE) which appears only while Conway Play is on. HUD shows **ORTHO** when parallax is off.
+  Opt-in **DEV Bench** (costs performance) sits on that same right HUD card.
+  On a phone the HUD is an FPS chip (tap for the View card). There is no viewcube. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is one left
-  rail: **Source** (kind, Play/Pause, Conway Pattern first, Random Fill, stats) then **View**
-  (Parallax, Align to Z, Light, Depth, Gap, Color coding, Conway Stability, Cube cap, FPS).
+  rail: **Source** (kind, Conway Pattern first, Random Fill) then **View**.
+  Play / Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
+  Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
+  Hull+Loop grows a potato from the axis origin through the plane.
+  (Parallax, Align to Z, Light, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
   must not either (clip, Ghost, and Cuts still refill occupancy; clip uses the hull
-  cache plus AABB faces, not a full occupancy scan). Stability None/Time/Focus
+  cache plus AABB faces, not a full occupancy scan). Size by age / Start / Tail
   must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.

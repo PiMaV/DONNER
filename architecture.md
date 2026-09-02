@@ -92,19 +92,36 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Stability, Cube cap | Sheet **View** + right display HUD |
-| **Source** | Kind switch. Conway / Ignition / MNI 152 / Count file-stream. Play/Pause (Conway and time stacks). Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit; stats GEN / LIVE / RATE. Count: `.npy` / WOLKE stream; stats T / LIVE / SUM / MAX | Sheet **Source** (config + stats, top of the left rail) |
-| **Encoding** | Color LUT (`k`) and fill (`s` + modes). Conway: still/osc/unsettled/base + None/Time/Focus. Count: integer rungs (cyan → gold → coral); color only, no size-by-count. Polarity later. | Color coding block inside the **View** sheet. LUT in `src/encoding.js` |
+| **Display** | Orbit, Parallax, Align to Z, headlamp (view-locked), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
+| **Source** | Kind switch. Conway / Ignition / MNI 152. Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit. File/stream ingest later (hidden). Loading spinner on source/cube switch. | Sheet **Source** (config, top of the left rail) |
+| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs (cyan → gold → coral); color only, no size-by-count. Polarity later. | Color coding block inside the **View** sheet. LUT in `src/encoding.js` |
 
-**Play** is on the Source sheet (Conway and time-evolving stacks; hidden
-for static MNI). AR overlay still has Play after spawn.
-For Conway, **Play** is Live View: the generator runs, the playhead stays
-at Now, the Z stack is locked (`LIVE`). **Pause** is Inspect: the viewer
-opens its RAM tape, Z is gen 0 … cached Now, and **every cached slice is
-drawn**. Play from Inspect jumps to live Now (no tape replay). A **count
-stack** loads already-complete, so it opens in Inspect; **Play** scrubs
-the **active** playhead (X, Y, or Z). Dense MRI gold starts at full
-extent. **Depth** is live-only GPU wake (hidden
+**Play / Loop** and **Speed** sit under the slice rails (above the footer),
+not in Source. AR overlay still has Play after spawn. Loop axis X/Y/Z
+is the **highlighted** playhead (same as grabbing that plane). Ghost
+solids that plane. Hull+Loop grows a potato from the axis origin through
+the playhead and hides the +side plus clip edges. Cuts already shows
+three slices. For Conway, **Play** is Live View:
+the generator runs, the playhead stays at Now, the Z stack is locked
+(`LIVE`); GEN / LIVE / RATE appear in a small overlay only while that
+Play is on. **Pause** is Inspect. A **count stack** or **MNI 152** opens
+in Inspect; the button reads **Loop** and scrubs the marked axis inside
+the clips. Dense MRI gold starts at full extent. Shade (Hull / Ghost /
+Cuts) is the same peek logic for MRI and Ignition.
+
+```mermaid
+flowchart LR
+  xyz[Loop X Y or Z]
+  grab[Grab a plane]
+  axis[Highlighted playhead]
+  xyz --> axis
+  grab --> axis
+  axis --> ghost[Ghost: that plane solid]
+  axis --> hull[Hull loop: potato origin to plane]
+  axis --> cuts[Cuts: three slices, loop walks one]
+```
+
+**Depth** is live-only GPU wake (hidden
 in Inspect). **Decay** is off (Z/time fade later / opt-in; cache is
 viewer-owned). When on it would fade toward the oldest drawn slice
 (live: back of Depth; inspect: tape start).
@@ -121,31 +138,35 @@ flowchart TB
     align[Align to Z]
     win[Depth live Gap shade Hull Ghost Cuts Cache]
     color[Color coding]
-    stab[Stability Conway]
+    stab[Size by age]
     cap[Cube cap]
     fps[Realtime FPS]
   end
+  subgraph hud [Right View HUD]
+    telemetry[FPS AVG spark]
+    bench[DEV Bench opt-in]
+  end
   subgraph source [Source]
-    kind[Conway or Count]
-    play[Play Pause]
-    gen[GEN LIVE RATE or T LIVE SUM]
-    conway[Pattern Fill Seed Speed Edit]
-    npy[npy cube]
-    stream[WOLKE stream]
+    kind[Conway Ignition MNI]
+    conway[Pattern Fill Seed Edit]
+  end
+  subgraph rails [Slice rails]
+    play[Play Loop Speed]
+    axes[Loop X Y Z]
+    gen[Conway live overlay]
   end
   view --> volume[Volume]
+  hud --> volume
   play --> volume
   source --> volume
-  kind --> play
   kind --> conway
-  kind --> npy
-  npy --> stream
+  axes --> play
 ```
 
 ```mermaid
 flowchart TB
   subgraph rail [Left rail]
-    srcFold[Source fold config plus stats]
+    srcFold[Source fold config]
     viewFold[View fold inspect plus color]
     srcFold --> viewFold
   end
@@ -302,9 +323,9 @@ color. A still life is a gold pillar. Soup and one-shot births are violet
 **unsettled**. Occupancy classifies each `(x, y)` worldline in place.
 Translating ships read as still/osc on the cells they cross. **Base** (gray) is
 generations `t = 0, 1` and the first cube of each `(x, y)` worldline.
-Cube **scale** follows Stability **None / Time / Focus** from `s`
-stamped on each Conway slice (run-length along Z). Toggles and Focus are
-`setEvents` lookups, not a `stabilityAge` rebuild. Count / MNI keep
+Cube **scale** follows **Size by age** from `s` stamped on each Conway
+slice (run-length along Z). **Start** is fill at age 0; **Tail** is gens
+until full. Off = equal cubes. Count / MNI keep
 uniform occupancy size; color carries the integer ramp.
 Decay is brightness only (off in the UI).
 
@@ -320,7 +341,7 @@ flowchart TD
   per -->|no| unset[Unsettled violet]
 ```
 
-Default seed is **R-pentomino**, started **paused**. Stability **Time**.
+Default seed is **R-pentomino**, started **paused**. Size by age on.
 Oscillator lesson if you pick it: Blinker → Toad / Beacon → Glider.
 
 ```mermaid
@@ -416,15 +437,15 @@ flowchart TB
 
 | Mode | Idle | Playhead drag | Clip drag |
 |------|------|---------------|-----------|
-| **Hull** (default) | AABB outer hull solid | Temporary peek (Ghost, or Slice on dense count) | Stays hull (stake the box) |
-| **Ghost** | Sparse: AABB ghost, active plane solid. Dense: the cut only | unchanged | Hull while dragging |
+| **Hull** (default) | AABB outer hull solid | Temporary peek (ghost hull + solid plane) | Stays hull (stake the box) |
+| **Ghost** | AABB ghost, active plane solid | unchanged | Hull while dragging |
 | **Cuts** (`triple`) | Three cut planes solid, no hull | unchanged | Hull while dragging |
 
 Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
-shows the hull so the crop is readable. Dense MRI never instantiates interior
-voxels (6-neighbor cull against the AABB). Ghost/Cuts emit interiors
-only if they sit on a playhead plane. Cuts never emits the hull; dense Ghost
-is that one plane only.
+shows the hull so the crop is readable. Shade does **not** change by source
+(MRI vs Ignition): dense volumes still emit the cached hull as glass during
+a peek, plus occupied voxels on the active plane. Ghost/Cuts emit interiors
+only if they sit on a playhead plane. Cuts never emits the hull.
 
 ```mermaid
 flowchart LR
@@ -437,20 +458,20 @@ flowchart LR
   end
   subgraph draw [Solid vs ghost]
     hullMode[Hull: hull solid]
-    ghostMode[Ghost sparse: hull ghost, active plane solid]
-    sliceMode[Ghost dense / Slice: active plane only]
+    ghostMode[Ghost: hull ghost, active plane solid]
+    sliceMode[Slice: active plane only]
     tripleMode[Cuts: three planes solid, no hull]
   end
   emit --> draw
 ```
 
-Desktop: three vertical rails on the right, **Now at the top of Z**.
-Phone: three horizontal tracks (Z with Now at the right). AR overlay
-stays Z-only.
+Desktop: three vertical rails on the right, **max at the top of Z**.
+Phone: three horizontal tracks (max at the right). AR overlay
+stays Z-only. Count / MNI **Play** walks the Source **loop axis**
+(default Z), independent of the viewcube.
 
 Inspect generations outside the AABB are **not drawn**. **Fit** frames
-that box. **Full** opens the three clip windows again (playhead stays).
-**Reset Planes** opens the clips and centers the three playheads (does not
+that box. **Reset Planes** opens the clips and centers the three playheads (does not
 move the camera; does not run when switching to Cuts). Load, pattern
 change, and source change start on that pose.
 Live: only the Z playhead exists (locked at Now). Fog
@@ -555,10 +576,11 @@ or cube hover outlines. Edit paint on the Z playfield is unchanged.
 ## Display HUD vs source HUD
 
 Desktop: one View telemetry card plus **three** slice rails to their right.
-Play and source stats live in the Source fold (top of the left rail).
+Play / Loop, Speed, and loop axis sit under the rails. Conway live stats
+appear only while Conway Play is on.
 The View card heading collapses the display stats.
 Phone: FPS chip (tap expands the View card); three horizontal tracks
-and Source | View folds; source stats in the Source sheet. No viewcube.
+and Source | View folds. No viewcube.
 
 ```mermaid
 flowchart TB
@@ -572,7 +594,7 @@ flowchart TB
   end
   subgraph phone [Phone]
     volP[Volume]
-    zP[Three horizontal tracks Z Now at right]
+    zP[Three horizontal tracks Z max at right]
     barP[Source and View folds]
     chipP[FPS chip]
     volP --> zP
@@ -586,15 +608,15 @@ flowchart TB
   times are raw; the 100 ms clamp is simulation catch-up only, so FPS is
   not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
   Cliff-finder: scale Depth until FPS and 1% low hold. A clear
-  software rasterizer adds **SOFTWARE**. Path timers stay internal
-  (`src/bench.js`); they are not a View sheet.
-- **Source** — Conway: GEN, LIVE, RATE (generations/s, not frame rate),
-  EDIT. Count: T, LIVE, SUM, MAX, RATE (playhead/s while Play scrubs).
-  Those lines live in the Source fold, not a second right-rail card.
+  software rasterizer adds **SOFTWARE**. Path timers are an opt-in **DEV
+  Bench** checkbox on the right View HUD (`src/bench.js`), off the hot
+  path until checked. The left View sheet stays display controls.
+- **Source overlay** — Conway Play only: GEN, LIVE, RATE (generations/s,
+  not frame rate), EDIT. Ignition / MNI do not show those lines.
 
-The Z stack is a tick rail, not a HUD card: **Now**, the bar, the
-generation beside the handle. Ends are **absolute** generations (oldest
-kept … Now), not −N. Live, that span is the wake (Depth). Viewing the
+The Z stack is a tick rail, not a HUD card: the bar and the generation
+beside the handle. Ends are **absolute** generations (oldest
+kept … live end), not −N. Live, that span is the wake (Depth). Viewing the
 tape, that span is the recording. Ticks stride so a long tape does not
 grow the DOM.
 
@@ -834,7 +856,8 @@ wake ring only. The instance cap (View **Cube cap**, default 200 000)
 still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
 envelope.
 
-Color coding defaults on for teaching. Conway Stability defaults to Time.
+Color coding defaults on for teaching. Conway **Size by age** defaults on
+(Start 0.5, Tail 16).
 
 ## Dirty state
 
@@ -864,7 +887,7 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| view | Stability None/Time/Focus, Inspect **Hull** playhead (Focus still needs `setEvents`) | `setEvents` when instances or fill change; Hull + Decay off + Time/None skips even that (clip meshes only) |
+| view | Size by age / Start / Tail, Inspect **Hull** playhead | `setEvents` when instances or fill change; Hull + Decay off skips even that (clip meshes only) |
 | source | Conway step, paint, live wake moved, enter Inspect, **clip / Ghost / Cuts** | `fillSoA` copies stamped `k`/`s`; Ghost/Cuts still rebuild the occupancy list |
 | encoding | Color coding on/off | Color coding: fill copies vs zeros `k`/`s`. **Not** Stability |
 | dataset | Grid, pattern, reset | `bootWorld` (new tape) |
@@ -929,7 +952,8 @@ the Dataset Contract, not as a medical-imaging product.
 
 There is **no** NIfTI parser in the browser. The public T1 is a one-shot
 convert to the count interchange `(T, H, W)` uint16. Source → **MNI 152**
-loads it. Count **Play** walks the **active** playhead (X, Y, or Z).
+loads it. Count **Play** walks the **loop-axis** playhead (X, Y, or Z;
+default Z; not the viewcube).
 Clips start at **full extent**, focus in the
 middle. Decay is off on dense stacks (a time-fade on anatomy is wrong).
 
@@ -966,7 +990,8 @@ fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
 200k default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
 Dense **Ghost** is the active plane only; **Cuts** is the three planes
-(no hull). Sparse Ghost still adds the hull as glass. Play/Loop steps the **active** playhead. Affine / RAS is ignored — the gizmo is array X/Y/Z.
+(no hull). Sparse Ghost still adds the hull as glass. Play/Loop steps the
+**loop-axis** playhead (default Z). Affine / RAS is ignored — the gizmo is array X/Y/Z.
 
 Re-run the convert (numpy + gzip, no nibabel). From the WETTER-Suite
 root:

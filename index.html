@@ -27,6 +27,10 @@
 
 <body>
   <canvas id="view" aria-label="3D volume"></canvas>
+  <div id="load-overlay" class="load-overlay" hidden>
+    <span class="load-spin" aria-hidden="true"></span>
+    <span class="load-overlay-label">Loading…</span>
+  </div>
 
   <header class="brand">
     <div class="brand-mark" aria-hidden="true">D</div>
@@ -49,9 +53,18 @@
     </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
-        <button type="button" id="btn-hud-view" class="sheet-label sheet-fold" aria-expanded="true" title="Collapse the View card">View ▾</button>
+        <div class="fold-meter">
+          <button type="button" id="btn-hud-view" class="sheet-label sheet-fold" aria-expanded="true" title="Collapse the View card">View ▾</button>
+          <p id="hud-view-fps" class="fold-fps" aria-live="polite">— FPS</p>
+        </div>
         <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
         <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
+        <label class="check hud-dev" title="CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Off the hot path until checked. Costs performance.">
+          <input id="bench" type="checkbox" />
+          <span>DEV Bench</span>
+        </label>
+        <p class="hint hud-dev-note">Costs performance</p>
+        <pre id="view-bench" class="hud-stats view-bench" hidden></pre>
       </section>
     </div>
     <div class="hud-time">
@@ -76,6 +89,7 @@
         <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
         <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
       </div>
+      <div class="stack-block">
       <aside class="stack" aria-label="Slice stack">
         <div class="stack-axis" data-axis="x" id="stack-axis-x">
           <span class="stack-axis-label">X</span>
@@ -109,14 +123,14 @@
           </div>
           <span id="stack-bot-y" class="stack-cap">0</span>
         </div>
-        <div class="stack-axis is-z is-active" data-axis="z" id="stack-axis-z">
-          <button type="button" id="btn-stack-now" class="btn-stack-now" aria-pressed="true">Now</button>
+        <div class="stack-axis is-z is-active is-loop" data-axis="z" id="stack-axis-z">
+          <span class="stack-axis-label">Z</span>
           <div id="stack-track-z" class="stack-track">
             <div id="stack-ticks-z" class="stack-ticks" aria-hidden="true"></div>
             <div class="stack-rail" aria-hidden="true"></div>
             <div id="stack-slab-z" class="stack-slab" aria-hidden="true"></div>
-            <button type="button" id="z-clip-near-z" class="z-handle z-clip" aria-label="Slab toward Now"></button>
-            <button type="button" id="z-clip-far-z" class="z-handle z-clip" aria-label="Slab toward past"></button>
+            <button type="button" id="z-clip-near-z" class="z-handle z-clip" aria-label="Z slab toward max"></button>
+            <button type="button" id="z-clip-far-z" class="z-handle z-clip" aria-label="Z slab toward min"></button>
             <button type="button" id="z-focus-z" class="z-handle z-focus" aria-label="Focus plane"></button>
             <input id="stack-slider-z" class="stack-range" type="range" min="0" max="48" step="1" value="0"
               orient="vertical" aria-orientation="vertical"
@@ -126,6 +140,22 @@
           <span id="stack-bot-z" class="stack-cap">−0</span>
         </div>
       </aside>
+      <div class="loop-axes" role="group" aria-label="Loop axis">
+        <button type="button" id="loop-axis-x" class="btn-loop" data-axis="x" aria-pressed="false" title="Loop walks X">X</button>
+        <button type="button" id="loop-axis-y" class="btn-loop" data-axis="y" aria-pressed="false" title="Loop walks Y">Y</button>
+        <button type="button" id="loop-axis-z" class="btn-loop is-on" data-axis="z" aria-pressed="true" title="Loop walks Z (default)">Z</button>
+      </div>
+      </div>
+      <pre id="conway-live" class="conway-live" hidden aria-live="polite"></pre>
+      <div id="inspect-transport" class="inspect-transport">
+        <button type="button" id="btn-loop" class="btn btn-loop-run" aria-pressed="false"
+          title="Walk the marked axis through the volume. Independent of Conway Play. Pause Conway first to scan the tape.">Loop</button>
+        <label id="loop-speed-field" class="field" title="How fast the playhead walks the loop axis (slices per second). Not Conway generation speed.">
+          <span>Speed <em id="loop-speed-val"></em></span>
+          <input id="loop-speed" type="range" min="1" max="60" step="1"
+            aria-label="Loop playhead steps per second" />
+        </label>
+      </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
         <button type="button" id="btn-play-ar" class="btn btn-play" hidden aria-pressed="false">Play</button>
@@ -147,6 +177,10 @@
   <form id="controls" class="controls-root" autocomplete="off" onsubmit="return false">
     <div id="panel-source" class="controls panel-source">
     <button type="button" id="btn-rail-source" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="source-body" title="Collapse Source">Source ▾</button>
+    <div id="source-load" class="source-load" hidden aria-live="polite">
+      <span class="load-spin" aria-hidden="true"></span>
+      <span id="source-load-label">Loading…</span>
+    </div>
     <div id="source-body" class="sheet-body">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
       <label class="field">
@@ -155,17 +189,18 @@
           <option value="conway" selected>Conway</option>
           <option value="ignition">Ignition</option>
           <option value="mni152">MNI 152</option>
-          <option value="count">Count file / stream</option>
+          <option value="count" hidden>Count file / stream</option>
         </select>
       </label>
-      <div class="btn-row btn-row-one source-play">
-        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false">Play</button>
-      </div>
-      <label id="speed-field" class="field">
-        <span>Speed <em id="speed-val"></em></span>
-        <input id="speed" type="range" min="1" max="60" step="1" />
-      </label>
       <div id="source-conway">
+      <div class="btn-row source-play">
+        <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"
+          title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
+      </div>
+      <label id="speed-field" class="field" title="How fast the Conway source generates (generations per second). Not the View loop.">
+        <span>Speed <em id="speed-val"></em></span>
+        <input id="speed" type="range" min="1" max="60" step="1" aria-label="Conway generations per second" />
+      </label>
       <label class="field">
         <span>Pattern</span>
         <select id="pattern"></select>
@@ -199,7 +234,7 @@
         <span>Stop when stable</span>
       </label>
       </div>
-      <div id="source-count">
+      <div id="source-count" hidden>
         <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt. Stream from the EVT sidecar or WOLKE (Send as counts).</p>
         <div class="btn-row">
           <label class="btn file-btn">Load .npy
@@ -220,13 +255,15 @@
         <p id="wolke-status" class="hint"></p>
         <p id="count-meta" class="hint"></p>
       </div>
-      <pre id="hud-src" class="hud-stats source-stats" aria-live="polite"></pre>
     </section>
     </div>
     </div>
 
     <div id="panel-view" class="controls panel-view">
-    <button type="button" id="btn-rail-view" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="view-body" title="Collapse View">View ▾</button>
+    <div class="fold-meter">
+      <button type="button" id="btn-rail-view" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="view-body" title="Collapse View">View ▾</button>
+      <p id="view-fps" class="fold-fps" aria-live="polite">— FPS</p>
+    </div>
     <div id="view-body" class="sheet-body">
     <p id="hint" class="hint">Orbit · pinch zoom</p>
 
@@ -234,7 +271,6 @@
       <div class="btn-row">
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
         <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
-        <button type="button" id="btn-extent" class="btn" title="Reset the three clip planes to the full volume. Playhead stays.">Full</button>
         <button type="button" id="btn-reset-planes" class="btn" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
       </div>
       <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
@@ -248,20 +284,19 @@
       </label>
       <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
         <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
-        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid. Sparse volumes keep a ghost hull; dense cubes show the cut only.">Ghost</button>
+        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for MRI and Ignition.">Ghost</button>
         <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
       </div>
       <label id="depth-field" class="field">
         <span>Depth <em id="history-val"></em></span>
         <input id="history" type="range" min="8" max="128" step="1" />
       </label>
-      <p id="inspect-depth-note" class="hint inspect-only">Inspect lights the brick (no fog). Hover a frame edge to grab it. Clips crop the AABB. Fit frames that box. Full opens the clips again. Reset Planes opens the clips and centers the three playheads. Hold a playhead edge to peek the cut; clip edges keep the hull. Cuts is three slices only.</p>
+      <p id="inspect-depth-note" class="hint inspect-only">Grab a frame · clips crop · hold playhead to peek</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
       <label class="field" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
         <span>Cube cap</span>
         <input id="cube-cap" type="number" min="20000" max="4000000" step="10000" value="200000" />
       </label>
-      <p id="view-fps" class="hint view-fps">— FPS</p>
     </section>
 
     <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
@@ -277,24 +312,23 @@
         <li><i class="swatch unsettled"></i> Unsettled</li>
         <li><i class="swatch base"></i> Base</li>
       </ul>
-      <label class="field encoding-conway" title="How cube size encodes stability. Hover an option for details.">
-        <span>Stability</span>
-        <select id="stab-mode">
-          <option value="none"
-            title="Same size for every live cell. Occupancy only — nothing hidden by scaling.">
-            None
-          </option>
-          <option value="time"
-            title="Fill = how long this cell had already been still or oscillating at that generation. Pillars taper where they lock in. Gliders stay small.">
-            Time
-          </option>
-          <option value="focus"
-            title="Fill = stability on the focus plane, copied down that column. Highlights attractors at the playhead. Unstable-at-focus cells shrink along the whole worldline.">
-            Focus
-          </option>
-        </select>
+      <label class="check encoding-conway" title="Still and oscillator cubes grow with age. Off: equal cubes.">
+        <input id="stab-size" type="checkbox" checked />
+        <span>Size by age</span>
       </label>
-      <p id="stab-hint" class="hint stab-hint encoding-conway"></p>
+      <div id="stab-ramp" class="stab-ramp encoding-conway">
+        <label class="field" title="Cube fill at age 0. Unsettled and new stills. Down to a speck.">
+          <span>Start <em id="stab-start-val"></em></span>
+          <input id="stab-start" type="range" min="0.02" max="1" step="0.02" value="0.5"
+            aria-label="Start cube fill" />
+        </label>
+        <label class="field" title="Generations along Z until full size. Not cube fill.">
+          <span>Tail <em id="stab-tail-val"></em></span>
+          <input id="stab-tail" type="range" min="2" max="64" step="1" value="16"
+            aria-label="Tail generations" />
+        </label>
+        <p class="hint stab-hint">Start is fill. Tail is gens along Z.</p>
+      </div>
       <p id="count-enc-hint" class="hint encoding-count">Color is events per pixel per Δt. Cyan = 1, gold = mid, coral = max.</p>
       <ul class="legend encoding-count" aria-label="Count encoding">
         <li><i class="swatch osc"></i> <span id="count-leg-lo">1</span></li>

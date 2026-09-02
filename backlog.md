@@ -4,6 +4,35 @@ Shipped work is in [`CHANGELOG.md`](CHANGELOG.md). Remaining product
 stages live under **Later** in [`architecture.md`](architecture.md) and
 [`docs/gui.md`](docs/gui.md).
 
+## Now vs later
+
+**Already in this tree** (do not list as next work):
+
+- Source | View accordion (desktop rail + phone folds)
+- Gap
+- Reset Planes
+- Hide center / Hide outer on the viewcube
+- Source Play vs View Loop
+- Hull / Ghost universal (same peek for MRI and Ignition)
+- Mid-volume playhead catch
+- Loading spinner
+- Streamer / Load npy hidden from Source
+- Neighborhood gone
+- Decay UI gone
+- Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
+
+**Later / next candidates** (keep; do not implement in this slice):
+
+1. QR / URL spawn (0.10.0 epic seed) — next product epic
+2. AR later list (inspect 3 sliders in AR, Search default on, remove AR Z
+   slider, smaller MNI, remove AR Play, named shade not mystery hull,
+   Hide center/outer in AR, gizmo top-right)
+3. Live ingest UI (Streamer + Load npy)
+4. Decay opt-in
+5. Dataset Contract / ScalarVolume
+6. Performance follow-up after using Bench (500k voxel note under DATA)
+7. Visible sun, isolation, numbered axes, XR-B / XR-C-1
+
 ## Product roadmap
 
 Do not rewrite DONNER. Do not merge it into BLITZ. Do not start a
@@ -14,8 +43,8 @@ DOM overlay, `local` tracking, `XRWebGLLayer`). The in-world Play/stand/Exit
 plate is retired — confirm the four device follow-ups below on hardware
 (WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
-**Phase 2 — public preview.** Thin View (Bench and Neighborhood are already
-off the chrome). Curated Conway + EVT + volume demos. Deploy
+**Phase 2 — public preview.** Thin View (Neighborhood is gone; **DEV Bench** is an
+opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos. Deploy
 `https://donner.mess.engineering` (GitHub Pages + custom domain). Add
 DONNER to the WETTER landing page (sibling repo `WETTER/`). Retire the
 old M.E.S.S. Java/browser point-cloud showcase from the active site
@@ -87,8 +116,8 @@ empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meine
 
 ## Conway encoding cost
 
-Conway `s` is stamped per generation (along Z). None / Time / Focus are
-display. Occupancy classification only. Count / MNI color the integer
+Conway `s` is stamped per generation (along Z). **Size by age**, Start,
+and Tail are display. Occupancy classification only. Count / MNI color the integer
 ramp; they do not size-by-count.
 
 Ghost/Triple still refill the occupancy list on playhead — next cut after
@@ -120,13 +149,16 @@ Z/time fade toward the oldest drawn slice is still in the renderer
 Bring it back only as an explicit opt-in (sparse stacks). Dense MNI
 must keep it off. Do not put a dead toggle in View.
 
-## Bench (later / opt-in debug)
+## Bench (opt-in debug)
 
-Path timers in `src/bench.js` are internal. Always-on bench on the
-frame / rAF HUD stuttered; FPS recovered after it left the chrome.
-Later: an optional debug bench the human can open to diagnose, which
-**must not run on the hot path unless that sheet is open**. Do not
-put Bench back in Source/View chrome or the FPS card.
+The right View HUD has an opt-in **DEV Bench** checkbox (costs
+performance). Path timers (`src/bench.js`) stay off the hot path until it
+is checked (`PathTimer.enabled` default false; `measure` calls the work
+with no `performance.now()` when off). Always-on bench on the frame / rAF
+HUD stuttered; FPS recovered after it left the always-on stats. Do not
+add a Bench tab, starters, `slot-bench` / `sheet-bench`, or put timers
+on the left View sheet. After using Bench, performance follow-up is
+later (see DATA ~500k voxels).
 
 ## Legacy — Neighborhood
 
@@ -265,6 +297,30 @@ inspect model. These items are backlog, not Unreleased shipped intent.
   plane is the ground or table the voxels sit on, not only “any
   horizontal surface.” Walls stay ignored; among horizontal hits, pick
   which plane is the sit surface.
+- **MNI / brain in AR is far too large.** When the MNI dataset is
+  placed, the spawned brick must be much smaller than today’s tabletop
+  scale. Desktop size is not the AR size.
+- **Remove the AR Play button.** Phone overlay Play is Conway / sim
+  transport, not an AR gesture. Drop it in a later cut (Search / Reset
+  Anchor / Exit stay).
+- **Brain in AR looks like an unexplained transparent hull.** The
+  spawned volume is neither Ghost nor Cuts nor Hull — an unknown shade.
+  Later: AR must use a named, explainable view (or the same shade as
+  desktop), not this mystery transparency.
+- **Hide center / Hide outer in AR.** Phone AR should be able to hide
+  playhead/slice chrome and clip frames independently, same idea as the
+  desktop viewcube shortcuts. Today those toggles are desktop-only (no
+  gizmo on phone AR).
+- **Viewcube / gizmo in AR, top-right.** Desktop inspect gizmo (face
+  snaps, hide shortcuts) should be available in phone AR, parked
+  top-right of the overlay so placement/search chrome can stay bottom.
+
+## Live (later)
+
+- **Streamer + Load NumPy** as live ingest (WOLKE-contract stream and
+  `.npy` file). Hidden from the current desktop Source chrome; the
+  loaders stay in the tree. Not a live stream UI this slice. The Source
+  **Loading…** spinner is the seed for “something is arriving.”
 
 ## QR door (later)
 
@@ -272,12 +328,20 @@ Print or HUD-share a QR that opens the lab door **`https://lab.ole.icu/`**
 (after `npm run start:lan`). Scan loads the viewer; **AR** stays the
 existing button when `immersive-ar` is supported.
 
-Optional spawn suffix (query or hash) picks a **known** source, e.g.
-`?src=conway&pattern=Blinker` or `?src=count&demo=ignition`. Arbitrary
-local `.npy` paths and WOLKE URLs come after that (they are not public
-behind the lab door). A Share control that draws the current door+query
-as a QR waits on the URL parser. Not this slice: auto-enter AR, marker
-prints (XR-B), a QR library.
+**URL spawn (0.10.0 epic seed).** A public door such as
+`https://donner.mess.engineering/<src>` (or `?src=`) picks the default
+source: Conway, Ignition, MNI 152. The QR encodes that URL, not a
+custom app payload. Optional query (`pattern=Blinker`) stays a known
+allow-list — no arbitrary local `.npy` paths on the public door.
+
+**AR from the same QR.** Scanning in an AR-capable browser can place
+the volume using the QR / marker as the sit origin (the brick grows
+out of the code), instead of a separate floor search. Desktop scan
+still just opens the matching Source. Marker prints (XR-B) and
+auto-enter AR stay related but distinct.
+
+A Share control that draws the current door+query as a QR waits on the
+URL parser. Not this slice: auto-enter AR, a QR library.
 
 ## Isolation (later)
 

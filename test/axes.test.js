@@ -3,11 +3,14 @@ import { describe, it } from "node:test";
 
 import {
   aabbFromSlabs,
+  aabbKeepUpToFocus,
   axisIndexFromBack,
   clampSlab,
   defaultInspectSlabs,
   denseGhostToSlice,
   effectiveShade,
+  playheadCrossesMid,
+  playheadMidBack,
   fociFromSlabs,
   formatZTick,
   inAabb,
@@ -23,6 +26,7 @@ import {
   stackThumbFrac,
   stackTickMarks,
   stepFocusBack,
+  stepFocusBackClipped,
   visibleTimeRange,
   voxelShadeClass,
   worldToProduct,
@@ -86,6 +90,7 @@ describe("axis ticks", () => {
     assert.equal(marks[0].frac, 0);
     assert.equal(marks[12].frac, 1);
     assert.ok(marks.filter((m) => m.major).length > 2);
+    assert.ok(marks.some((m) => m.mid));
     assert.equal(stackTickMarks(0).length, 1);
   });
 
@@ -257,8 +262,16 @@ describe("AABB crop and shade", () => {
     assert.equal(effectiveShade("ghost", true), "ghost");
     assert.equal(effectiveShade("triple", true), "triple");
     assert.equal(denseGhostToSlice("ghost", false), "ghost");
-    assert.equal(denseGhostToSlice("ghost", true), "slice");
+    assert.equal(denseGhostToSlice("ghost", true), "ghost");
     assert.equal(denseGhostToSlice("triple", true), "triple");
+  });
+
+  it("snaps the playhead onto mid-volume when the drag crosses it", () => {
+    assert.equal(playheadMidBack(10), 5);
+    assert.equal(playheadCrossesMid(4, 6, 10), true);
+    assert.equal(playheadCrossesMid(5, 6, 10), false);
+    assert.equal(playheadCrossesMid(4, 5, 10), true);
+    assert.equal(playheadCrossesMid(0, 1, 1), false);
   });
 
   it("Hull SoA key ignores the playhead; Ghost includes the active plane", () => {
@@ -289,6 +302,28 @@ describe("AABB crop and shade", () => {
       activeAxis: "z",
     });
     assert.notEqual(g0, g1);
+  });
+
+  it("keeps the AABB from the axis origin through the playhead", () => {
+    const box = { xLo: 0, xHi: 8, yLo: 1, yHi: 7, tLo: 2, tHi: 20 };
+    assert.deepEqual(aabbKeepUpToFocus(box, "x", 3), {
+      xLo: 0,
+      xHi: 3,
+      yLo: 1,
+      yHi: 7,
+      tLo: 2,
+      tHi: 20,
+    });
+    assert.deepEqual(aabbKeepUpToFocus(box, "z", 5), {
+      xLo: 0,
+      xHi: 8,
+      yLo: 1,
+      yHi: 7,
+      tLo: 2,
+      tHi: 5,
+    });
+    assert.equal(aabbKeepUpToFocus(box, "y", 0).yHi, 1);
+    assert.equal(aabbKeepUpToFocus(null, "z", 4), null);
   });
 
   it("classifies hull, ghost, and triple voxels", () => {
@@ -336,6 +371,13 @@ describe("AABB crop and shade", () => {
     assert.equal(stepFocusBack(10, 10, 1), 0);
     assert.equal(stepFocusBack(4, 10, -1), 3);
     assert.equal(stepFocusBack(0, 0, -1), 0);
+  });
+
+  it("wraps the playhead inside the inspect clip window", () => {
+    assert.equal(stepFocusBackClipped(2, 2, 8, -1), 8);
+    assert.equal(stepFocusBackClipped(8, 2, 8, 1), 2);
+    assert.equal(stepFocusBackClipped(5, 2, 8, -1), 4);
+    assert.equal(stepFocusBackClipped(3, 3, 3, -1), 3);
   });
 });
 

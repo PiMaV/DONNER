@@ -1,14 +1,8 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampVoxelGap, isCountSourceKind, isStaticSourceKind } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, isCountSourceKind, isStaticSourceKind } from "./config.js";
 import { formatCacheStatus } from "./spacetime.js";
-import { clampSlab, stackThumbFrac, stackTickMarks } from "./axes.js";
+import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
-
-const STAB_HINT = {
-  none: "None: equal cubes. Occupancy only — start here if size is confusing.",
-  time: "Time: each slice is as full as that cell already was at that generation. Bottom of a new run is smaller until it locks.",
-  focus: "Focus: one size from the cyan plane, copied down the whole column. Unstable-at-focus cells look tiny all the way down. Learn Time first.",
-};
 
 const PATTERN_HINT = {
   Blinker:
@@ -53,6 +47,9 @@ function bindAxisRail(axis, { on, narrow }) {
   let clipNearBack = 0;
   let clipFarBack = 0;
   let stackDrag = null;
+  let midLatch = false;
+  let midLatchPos = 0;
+  const MID_LATCH_PX = 12;
 
   const goldOn = () => document.body.classList.contains("is-inspect");
 
@@ -142,11 +139,32 @@ function bindAxisRail(axis, { on, narrow }) {
     return "far";
   };
 
-  const applyDrag = (kind, back) => {
+  const pointerAlong = (e) => (narrow.matches ? e.clientX : e.clientY);
+
+  const snapFocus = (back, ptr) => {
+    const max = Number(stack.max) || 0;
+    if (max < 2) return back;
+    const prev = Number(stack.value) || 0;
+    const mid = playheadMidBack(max);
+    if (!midLatch && playheadCrossesMid(prev, back, max)) {
+      midLatch = true;
+      midLatchPos = ptr != null ? pointerAlong(ptr) : midLatchPos;
+      return mid;
+    }
+    if (midLatch) {
+      const pos = ptr != null ? pointerAlong(ptr) : midLatchPos;
+      if (Math.abs(pos - midLatchPos) < MID_LATCH_PX) return mid;
+      midLatch = false;
+    }
+    return back;
+  };
+
+  const applyDrag = (kind, back, ptr) => {
     const foc = Number(stack.value) || 0;
-    if (kind === "near") commitSlab(back, foc, clipFarBack, "near");
-    else if (kind === "far") commitSlab(clipNearBack, foc, back, "far");
-    else commitSlab(clipNearBack, back, clipFarBack, "focus");
+    const next = kind === "focus" ? snapFocus(back, ptr) : back;
+    if (kind === "near") commitSlab(next, foc, clipFarBack, "near");
+    else if (kind === "far") commitSlab(clipNearBack, foc, next, "far");
+    else commitSlab(clipNearBack, next, clipFarBack, "focus");
   };
 
   stackTrack.addEventListener("pointerdown", (e) => {
@@ -155,14 +173,15 @@ function bindAxisRail(axis, { on, narrow }) {
     if (!kind) return;
     e.preventDefault();
     stackDrag = kind;
+    midLatch = false;
     on.activeAxis?.(axis);
     on.slabHold?.(true);
     stackTrack.setPointerCapture(e.pointerId);
-    applyDrag(kind, backFromPointer(e));
+    applyDrag(kind, backFromPointer(e), e);
   });
   stackTrack.addEventListener("pointermove", (e) => {
     if (!stackDrag) return;
-    applyDrag(stackDrag, backFromPointer(e));
+    applyDrag(stackDrag, backFromPointer(e), e);
   });
   const endDrag = () => {
     if (!stackDrag) return;
@@ -179,7 +198,15 @@ function bindAxisRail(axis, { on, narrow }) {
       e.preventDefault();
       on.activeAxis?.(axis);
       const dir = Math.sign(e.deltaY) || 1;
-      applyDrag("focus", (Number(stack.value) || 0) + dir);
+      const foc = Number(stack.value) || 0;
+      const raw = foc + dir;
+      const max = Number(stack.max) || 0;
+      const next =
+        playheadCrossesMid(foc, raw, max) && raw !== playheadMidBack(max)
+          ? playheadMidBack(max)
+          : raw;
+      midLatch = false;
+      applyDrag("focus", next);
     },
     { passive: false },
   );
@@ -250,6 +277,7 @@ function bindAxisRail(axis, { on, narrow }) {
         for (const mark of stackTickMarks(max)) {
           const el = document.createElement("span");
           el.className = mark.major ? "stack-tick is-major" : "stack-tick";
+          if (mark.mid) el.classList.add("is-mid");
           el.style.setProperty("--frac", mark.frac.toFixed(4));
           frag.appendChild(el);
         }
@@ -264,6 +292,7 @@ function bindAxisRail(axis, { on, narrow }) {
 
 export function bindUI(on) {
   const playBtn = $("btn-play");
+  const loopBtn = $("btn-loop");
   const playArBtn = $("btn-play-ar");
   const arBtn = $("btn-ar");
   const xrExit = $("btn-xr-exit");
@@ -277,7 +306,6 @@ export function bindUI(on) {
   const editBtn = $("btn-edit");
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
-  const extentBtn = $("btn-extent");
   const resetPlanesBtn = $("btn-reset-planes");
   const alignZ = $("align-z");
   const arYaw = $("ar-yaw");
@@ -288,11 +316,16 @@ export function bindUI(on) {
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
   const viewFps = $("view-fps");
+  const hudViewFps = $("hud-view-fps");
+  const bench = $("bench");
+  const viewBench = $("view-bench");
   const hudViewFold = $("btn-hud-view");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
   const speedVal = $("speed-val");
+  const loopSpeed = $("loop-speed");
+  const loopSpeedVal = $("loop-speed-val");
   const cacheStatus = $("cache-status");
   const history = $("history");
   const historyVal = $("history-val");
@@ -300,7 +333,11 @@ export function bindUI(on) {
   const voxelGapVal = $("voxel-gap-val");
   const btnHideCenter = $("btn-hide-center");
   const btnHideOuter = $("btn-hide-outer");
-  const stackNow = $("btn-stack-now");
+  const loopAxisBtns = ["x", "y", "z"].map((axis) => $(`loop-axis-${axis}`));
+  const sourceLoad = $("source-load");
+  const sourceLoadLabel = $("source-load-label");
+  const loadOverlay = $("load-overlay");
+  const conwayLive = $("conway-live");
   const narrow = window.matchMedia("(max-width: 720px)");
   const rails = {
     x: bindAxisRail("x", { on, narrow }),
@@ -311,8 +348,12 @@ export function bindUI(on) {
   const grid = $("grid");
   const wrap = $("wrap");
   const stopStable = $("stop-stable");
-  const stabMode = $("stab-mode");
-  const stabHint = $("stab-hint");
+  const stabSize = $("stab-size");
+  const stabRamp = $("stab-ramp");
+  const stabStart = $("stab-start");
+  const stabStartVal = $("stab-start-val");
+  const stabTail = $("stab-tail");
+  const stabTailVal = $("stab-tail-val");
   const readHint = $("read-hint");
   const foldView = $("btn-fold-view");
   const foldSource = $("btn-fold-source");
@@ -349,6 +390,7 @@ export function bindUI(on) {
 
   seed.value = String(DEFAULTS.seed);
   speed.value = String(DEFAULTS.gensPerSec);
+  if (loopSpeed) loopSpeed.value = String(DEFAULTS.loopPerSec);
   history.value = String(DEFAULTS.history);
   if (voxelGap) {
     voxelGap.min = String(VOXEL_GAP_MIN);
@@ -358,7 +400,19 @@ export function bindUI(on) {
   }
   wrap.checked = DEFAULTS.wrap;
   if (stopStable) stopStable.checked = DEFAULTS.stopWhenStable;
-  stabMode.value = DEFAULTS.stabMode;
+  if (stabSize) stabSize.checked = DEFAULTS.stabSize;
+  if (stabStart) {
+    stabStart.min = String(STAB_START_MIN);
+    stabStart.max = String(STAB_START_MAX);
+    stabStart.step = String(STAB_START_STEP);
+    stabStart.value = String(DEFAULTS.stabStart);
+  }
+  if (stabTail) {
+    stabTail.min = String(STAB_TAIL_MIN);
+    stabTail.max = String(STAB_TAIL_MAX);
+    stabTail.step = "1";
+    stabTail.value = String(DEFAULTS.stabTail);
+  }
   if (dyn) dyn.checked = DEFAULTS.dynamics;
   if (fill) {
     fill.min = String(DEFAULTS.densityMin);
@@ -368,15 +422,15 @@ export function bindUI(on) {
   }
   if (alignZ) alignZ.checked = DEFAULTS.alignZ;
   if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
+  if (bench) bench.checked = DEFAULTS.bench;
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
   if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
   if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
   document.body.classList.toggle("source-count", isCountSourceKind(DEFAULTS.sourceKind));
   document.body.classList.toggle("source-static", isStaticSourceKind(DEFAULTS.sourceKind));
-  const syncStabHint = () => {
-    const key = stabMode.value;
-    stabHint.textContent = STAB_HINT[key] || STAB_HINT.none;
-    stabMode.title = STAB_HINT[key] || STAB_HINT.none;
+  const syncStabRamp = () => {
+    const on = Boolean(stabSize?.checked);
+    if (stabRamp) stabRamp.hidden = !on;
   };
   const syncReadHint = () => {
     readHint.textContent =
@@ -385,16 +439,24 @@ export function bindUI(on) {
   const syncFillVisibility = () => {
     document.body.classList.toggle("pattern-random", pattern.value === "Random");
   };
-  syncStabHint();
+  syncStabRamp();
   syncReadHint();
   syncFillVisibility();
 
   const syncLabels = () => {
     speedVal.textContent = `${speed.value}/s`;
+    if (loopSpeedVal && loopSpeed) loopSpeedVal.textContent = `${loopSpeed.value}/s`;
     historyVal.textContent = history.value;
     if (voxelGapVal && voxelGap) {
       const g = Number(voxelGap.value);
       voxelGapVal.textContent = !Number.isFinite(g) || g === 0 ? "0" : g.toFixed(2);
+    }
+    if (stabStartVal && stabStart) {
+      const s = clampStabStart(stabStart.value);
+      stabStartVal.textContent = s.toFixed(2);
+    }
+    if (stabTailVal && stabTail) {
+      stabTailVal.textContent = String(clampStabTail(stabTail.value));
     }
     if (fillVal && fill) {
       const d = clampDensity(fill.value);
@@ -404,6 +466,7 @@ export function bindUI(on) {
   syncLabels();
 
   playBtn?.addEventListener("click", () => on.togglePlay());
+  loopBtn?.addEventListener("click", () => on.toggleLoop?.());
   playArBtn?.addEventListener("click", () => on.togglePlay());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
@@ -425,7 +488,6 @@ export function bindUI(on) {
   editBtn.addEventListener("click", () => on.toggleEdit());
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
-  extentBtn?.addEventListener("click", () => on.resetClips?.());
   resetPlanesBtn?.addEventListener("click", () => on.resetPlanes?.());
   alignZ?.addEventListener("change", () => on.alignZ?.());
   arYaw?.addEventListener("input", (e) => {
@@ -458,6 +520,10 @@ export function bindUI(on) {
     cubeCap.value = String(clampCubeCap(cubeCap.value));
     on.cubeCap?.();
   });
+  bench?.addEventListener("change", () => {
+    if (applying) return;
+    on.bench?.();
+  });
   randBtn.addEventListener("click", () => {
     seed.value = String((Math.random() * 0x7fffffff) | 0);
     on.reset();
@@ -489,13 +555,25 @@ export function bindUI(on) {
     if (applying) return;
     on.reset();
   });
-  stabMode.addEventListener("change", () => {
-    syncStabHint();
-    on.stabMode();
+  stabSize?.addEventListener("change", () => {
+    syncStabRamp();
+    on.stabMode?.();
+  });
+  stabStart?.addEventListener("input", () => {
+    syncLabels();
+    on.stabMode?.();
+  });
+  stabTail?.addEventListener("input", () => {
+    syncLabels();
+    on.stabMode?.();
   });
   speed.addEventListener("input", () => {
     syncLabels();
     on.speed();
+  });
+  loopSpeed?.addEventListener("input", () => {
+    syncLabels();
+    on.loopSpeed?.();
   });
   history.addEventListener("input", () => {
     syncLabels();
@@ -542,7 +620,9 @@ export function bindUI(on) {
     if (file) on.countFile?.(file);
   });
   wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
-  stackNow?.addEventListener("click", () => on.focusNow());
+  for (const btn of loopAxisBtns) {
+    btn?.addEventListener("click", () => on.loopAxis?.(btn.dataset.axis));
+  }
   const setFold = (which) => {
     const viewOpen = which === "view";
     const sourceOpen = which === "source";
@@ -603,6 +683,7 @@ export function bindUI(on) {
         pattern: pattern.value || DEFAULTS.pattern,
         seed: Number.parseInt(seed.value, 10) || 0,
         gensPerSec: Number(speed.value) || DEFAULTS.gensPerSec,
+        loopPerSec: loopSpeed ? Number(loopSpeed.value) || DEFAULTS.loopPerSec : DEFAULTS.loopPerSec,
         decay: DEFAULTS.decay,
         history: Number.parseInt(history.value, 10) || DEFAULTS.history,
         voxelGap: voxelGap ? clampVoxelGap(voxelGap.value) : DEFAULTS.voxelGap,
@@ -622,7 +703,9 @@ export function bindUI(on) {
         height: g,
         wrap: wrap.checked,
         stopWhenStable: stopStable ? stopStable.checked : DEFAULTS.stopWhenStable,
-        stabMode: stabMode.value,
+        stabMode: stabSize?.checked ? "time" : "none",
+        stabStart: stabStart ? clampStabStart(stabStart.value) : DEFAULTS.stabStart,
+        stabTail: stabTail ? clampStabTail(stabTail.value) : DEFAULTS.stabTail,
         dynamics: dyn ? dyn.checked : DEFAULTS.dynamics,
         density: fill ? clampDensity(fill.value) : DEFAULTS.density,
         encodingMinimal: DEFAULTS.encodingMinimal,
@@ -633,16 +716,27 @@ export function bindUI(on) {
         wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
         alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
         maxInstances: cubeCap ? clampCubeCap(cubeCap.value) : DEFAULTS.maxInstances,
+        bench: bench ? bench.checked : DEFAULTS.bench,
       };
     },
     setPlaying(playing) {
-      const label = playing ? "Pause" : "Play";
+      const live = Boolean(playing);
+      document.body.classList.toggle("is-live", live);
+      if (conwayLive) conwayLive.hidden = !live || document.body.classList.contains("source-count");
+      if (loopBtn) loopBtn.disabled = live && !document.body.classList.contains("source-count");
       for (const btn of [playBtn, playArBtn]) {
         if (!btn) continue;
-        btn.textContent = label;
-        btn.setAttribute("aria-pressed", playing ? "true" : "false");
-        btn.classList.toggle("is-live", playing);
+        btn.textContent = live ? "Pause" : "Play";
+        btn.setAttribute("aria-pressed", live ? "true" : "false");
+        btn.classList.toggle("is-live", live);
       }
+    },
+    setLooping(on) {
+      const live = Boolean(on);
+      if (!loopBtn) return;
+      loopBtn.textContent = live ? "Pause" : "Loop";
+      loopBtn.setAttribute("aria-pressed", live ? "true" : "false");
+      loopBtn.classList.toggle("is-live", live);
     },
     setDecay() {},
     setPlaneChrome({ hideCenter: hc = false, hideOuter: ho = false } = {}) {
@@ -718,20 +812,44 @@ export function bindUI(on) {
         el?.classList.toggle("is-active", id === a);
       }
     },
+    setLoopAxis(axis) {
+      const a = axis === "x" || axis === "y" ? axis : "z";
+      for (const btn of loopAxisBtns) {
+        if (!btn) continue;
+        const onBtn = btn.dataset.axis === a;
+        btn.classList.toggle("is-on", onBtn);
+        btn.setAttribute("aria-pressed", onBtn ? "true" : "false");
+      }
+      for (const id of ["x", "y", "z"]) {
+        $(`stack-axis-${id}`)?.classList.toggle("is-loop", id === a);
+      }
+    },
+    setLoading(on, label = "Loading…") {
+      const busy = Boolean(on);
+      document.body.classList.toggle("is-loading", busy);
+      if (sourceLoad) sourceLoad.hidden = !busy;
+      if (loadOverlay) loadOverlay.hidden = !busy;
+      if (sourceLoadLabel && label) sourceLoadLabel.textContent = label;
+      const overlayLabel = loadOverlay?.querySelector(".load-overlay-label");
+      if (overlayLabel && label) overlayLabel.textContent = label;
+    },
     setFps(fps) {
       const text = `${Number(fps).toFixed(0)} FPS`;
       if (fpsChip) fpsChip.textContent = text;
       if (viewFps) viewFps.textContent = text;
+      if (hudViewFps) hudViewFps.textContent = text;
+    },
+    setBenchHud(text) {
+      if (!viewBench) return;
+      const on = Boolean(text);
+      viewBench.hidden = !on;
+      if (on) viewBench.textContent = text;
     },
     setSlabs({ activeAxis = "z", x, y, z }) {
       const a = activeAxis === "x" || activeAxis === "y" ? activeAxis : "z";
       if (x) rails.x?.set({ ...x, active: a === "x" });
       if (y) rails.y?.set({ ...y, active: a === "y" });
       if (z) rails.z?.set({ ...z, active: a === "z" });
-      const zLive = Boolean(z?.live);
-      const zNow = zLive || (z && (z.back | 0) === 0);
-      stackNow?.classList.toggle("is-on", zNow);
-      stackNow?.setAttribute("aria-pressed", zNow ? "true" : "false");
     },
     setCache({ gens, events, full, inspect, atNow = true, tick = "gen", source = "conway" }) {
       cacheStatus.textContent = formatCacheStatus({
@@ -751,6 +869,9 @@ export function bindUI(on) {
       if (sourceKind) sourceKind.value = k;
       document.body.classList.toggle("source-count", isCountSourceKind(k));
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
+      if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
+      if (playBtn && !playBtn.classList.contains("is-live")) playBtn.textContent = "Play";
+      if (loopBtn) loopBtn.disabled = false;
       syncFillVisibility();
     },
     setCountMeta(text) {

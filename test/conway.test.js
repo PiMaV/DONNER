@@ -18,7 +18,7 @@ import {
   KIND_UNSETTLED,
   MAX_OSC_PERIOD,
   MAX_STAB_GENS,
-  SCALE_OPEN,
+  SCALE_STAB_MIN,
   SCALE_UNIFORM,
   classifyWorldline,
   cubeFill,
@@ -29,7 +29,6 @@ import {
 } from "../src/dynamics.js";
 import { clampFocusBack, focusGeneration } from "../src/focus.js";
 import { EventSoA, eventAt, GenerationRing } from "../src/spacetime.js";
-import { focusSByPacked } from "../src/encoding.js";
 
 describe("Conway B3/S23 (BLITZ parity)", () => {
   it("blinker oscillates with period 2 on a torus", () => {
@@ -276,13 +275,15 @@ describe("worldline color class", () => {
 describe("stability age", () => {
   it("counts consecutive still gens and caps", () => {
     const isLive = (t) => t >= 0 && t <= 40;
-    assert.equal(stabilityAge(40, 0, isLive), MAX_STAB_GENS);
+    assert.equal(stabilityAge(40, 0, isLive, MAX_STAB_GENS), MAX_STAB_GENS);
     assert.equal(stabilityAge(3, 0, isLive) >= 1, true);
     assert.equal(stabilityScale(0) < stabilityScale(8), true);
     assert.equal(stabilityScale(16), stabilityScale(99));
+    assert.equal(stabilityScale(0, 16, 0.02), 0.02);
+    assert.ok(stabilityScale(8, 16, 0.02, 1) > 0.02);
   });
 
-  it("stamps per-generation s; focus is a lookup, not a fillSoA rewrite", () => {
+  it("stamps per-generation s; fillSoA does not rewrite it", () => {
     const rng = mulberry32(0);
     let grid = seedPattern("Blinker", 9, 9, rng);
     const ring = new GenerationRing(8, 81);
@@ -303,11 +304,6 @@ describe("stability age", () => {
       if (soa.x[i] === 4 && soa.y[i] === 4) again.push(soa.s[i]);
     }
     assert.deepEqual(again, timeS);
-    const map = focusSByPacked(soa, 2, 9);
-    const packed = 4 * 9 + 4;
-    assert.ok(map.has(packed));
-    const projected = timeS.map(() => map.get(packed));
-    assert.ok(projected.every((s) => s === projected[0]));
   });
 });
 
@@ -335,8 +331,8 @@ describe("focus-slice hover lookup", () => {
     assert.equal(cubeFill(null, "time"), 0);
     assert.equal(cubeFill({ k: KIND_BASE, s: 0 }, "time"), SCALE_UNIFORM);
     assert.equal(cubeFill({ k: KIND_STILL, s: 8 }, "none"), SCALE_UNIFORM);
-    assert.equal(cubeFill({ k: KIND_MOVING, s: 0 }, "time"), SCALE_OPEN);
-    assert.equal(cubeFill({ k: KIND_UNSETTLED, s: 0 }, "time"), SCALE_OPEN);
+    assert.equal(cubeFill({ k: KIND_MOVING, s: 0 }, "time"), SCALE_STAB_MIN);
+    assert.equal(cubeFill({ k: KIND_UNSETTLED, s: 0 }, "time"), SCALE_STAB_MIN);
     assert.ok(
       cubeFill({ k: KIND_STILL, s: 16 }, "time") >
         cubeFill({ k: KIND_STILL, s: 2 }, "time"),

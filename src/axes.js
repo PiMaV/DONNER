@@ -137,7 +137,7 @@ export function lockedFacePageStep(sign) {
   return sign >= 0 ? 1 : -1;
 }
 
-/** Inspect display: outer hull, ghost brick, three cuts, or one dense cut. */
+/** Inspect display: outer hull, ghost brick, three cuts, or one slice. */
 export function normalizeShadeMode(mode) {
   const m = String(mode || "hull").toLowerCase();
   return m === "ghost" || m === "triple" || m === "slice" ? m : "hull";
@@ -151,13 +151,49 @@ export function effectiveShade(mode, held = false) {
 }
 
 /**
- * Dense count Ghost is the active cut only (no 140k ghost hull).
- * Sparse Conway / Ignition keep the glass brick.
+ * Shade is source-agnostic. Dense MRI uses the same Ghost hull + solid
+ * plane as sparse Ignition. Kept so older tests/callers still import it.
  */
-export function denseGhostToSlice(mode, dense = false) {
-  const m = normalizeShadeMode(mode);
-  if (dense && m === "ghost") return "slice";
-  return m;
+export function denseGhostToSlice(mode, _dense = false) {
+  return normalizeShadeMode(mode);
+}
+
+/** Mid-volume playhead (same index as Reset Planes). */
+export function playheadMidBack(maxBack) {
+  return Math.max(0, maxBack | 0) >> 1;
+}
+
+/** True when a playhead step crosses or lands on mid-volume. */
+export function playheadCrossesMid(from, to, maxBack) {
+  const max = Math.max(0, maxBack | 0);
+  if (max < 2) return false;
+  const mid = playheadMidBack(max);
+  const a = from | 0;
+  const b = to | 0;
+  if (b === mid) return true;
+  return (a < mid && b > mid) || (a > mid && b < mid);
+}
+
+/**
+ * Keep the AABB from the axis origin through `focus` (inclusive).
+ * Hull+Loop uses this so the potato grows and the +side stays hidden.
+ */
+export function aabbKeepUpToFocus(aabb, axis, focus) {
+  if (!aabb) return null;
+  const a = normalizeSliceAxis(axis);
+  const f = focus | 0;
+  const box = {
+    xLo: aabb.xLo | 0,
+    xHi: aabb.xHi | 0,
+    yLo: aabb.yLo | 0,
+    yHi: aabb.yHi | 0,
+    tLo: aabb.tLo | 0,
+    tHi: aabb.tHi | 0,
+  };
+  if (a === "x") box.xHi = Math.min(box.xHi, Math.max(box.xLo, f));
+  else if (a === "y") box.yHi = Math.min(box.yHi, Math.max(box.yLo, f));
+  else box.tHi = Math.min(box.tHi, Math.max(box.tLo, f));
+  return box;
 }
 
 export function inAabb(x, y, t, aabb) {
@@ -328,6 +364,15 @@ export function stepFocusBack(focusBack, maxBack, step = -1) {
   return next;
 }
 
+/** Wrap the playhead inside the inspect clip window (does not move clips). */
+export function stepFocusBackClipped(focusBack, near, far, step = -1) {
+  const lo = Math.min(near | 0, far | 0);
+  const hi = Math.max(near | 0, far | 0);
+  if (hi <= lo) return lo;
+  const cur = Math.min(hi, Math.max(lo, focusBack | 0));
+  return lo + stepFocusBack(cur - lo, hi - lo, step);
+}
+
 
 /** Tick indices along a grid axis of length `n` (inclusive 0 .. n-1). */
 export function spatialTicks(n) {
@@ -458,7 +503,16 @@ export function slabGenerations(tNow, topBack, botBack) {
  */
 export function stackTickMarks(maxBack) {
   const max = Math.max(0, maxBack | 0);
-  if (max === 0) return [{ frac: 0, major: true }];
+  if (max === 0) return [{ frac: 0, major: true, mid: true }];
+  const mid = playheadMidBack(max);
+  const markMid = (out) => {
+    const frac = max === 0 ? 0 : mid / max;
+    const hit = out.find((m) => Math.abs(m.frac - frac) < 1e-6);
+    if (hit) hit.mid = true;
+    else out.push({ frac, major: true, mid: true });
+    out.sort((a, b) => a.frac - b.frac);
+    return out;
+  };
   if (max > 128) {
     const stride = max > 512 ? 32 : 16;
     const out = [{ frac: 0, major: true }];
@@ -466,7 +520,7 @@ export function stackTickMarks(maxBack) {
       out.push({ frac: i / max, major: i % (stride * 4) === 0 });
     }
     out.push({ frac: 1, major: true });
-    return out;
+    return markMid(out);
   }
   const stride = max > 48 ? 8 : max > 24 ? 4 : 1;
   const out = [];
@@ -474,7 +528,7 @@ export function stackTickMarks(maxBack) {
     const major = i === max || i % stride === 0;
     out.push({ frac: i / max, major });
   }
-  return out;
+  return markMid(out);
 }
 
 function uniqueSorted(arr) {

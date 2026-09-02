@@ -27,11 +27,13 @@ open to the full volume, playheads at mid-volume (floor of half-span).
 **Reset Planes** is then a no-op until a handle moves. Conway **Play**
 still locks Z to Now (live generator). A 1-voxel-thick axis (Conway Z at
 generation 0) can still sit on the outer clip. **Play** = Live View
-(generator runs, Z locked at Now); for a count stack it scrubs the
-**active playhead**. **Pause** = Inspect the RAM tape (Z from 0).
-**Pause** lights the brick (fog off, camera far fits the tape). Three
-rails clip an **AABB** crop (outside not drawn). Conway Play from Inspect
-jumps to live Now. MRI / **MNI 152** does not show Play or Speed.
+(generator runs, Z locked at Now); for a count stack or **MNI 152** it
+scrubs the **loop-axis playhead** (X / Y / Z under the rails, default Z —
+not the viewcube / camera axis). **Pause** = Inspect the RAM tape
+(Z from 0). **Pause** lights the brick (fog off, camera far fits the
+tape). Three rails clip an **AABB** crop (outside not drawn). Conway Play
+from Inspect jumps to live Now. MRI / MNI uses the same Play as a
+slice-scan.
 
 In an **AR session** Play stays on the overlay after the volume is
 placed; brand, View/Source sheets, and the FPS chip hide. The viewcube
@@ -110,13 +112,17 @@ flowchart LR
   lock2 --> reset2 --> search2
 ```
 
-The left chrome is one rail — **Source** on top (kind, Play/Pause,
-Conway pattern including Random + Fill, count load, GEN / LIVE / RATE)
-and **View** below (Parallax, Align to Z, Light, Gap, Depth live-only,
-cache, shade, Color coding, Conway Stability, Cube cap, realtime FPS).
-Generator controls do not share a panel with View. Desktop stacks both
-folds; collapse Source after setup and live in View. Phone uses the same
-two folds (bottom bar, one sheet at a time).
+The left chrome is one rail — **Source** on top (kind, Conway pattern
+including Random + Fill) and **View** below (Parallax, Align to Z, Light,
+Gap, Depth live-only, cache, shade, Color coding, Size by age, Cube
+cap, realtime FPS). **DEV Bench** lives on the right View HUD (costs
+performance; off until checked). **Play / Loop**, **Speed**, and loop axis **X / Y / Z**
+sit under the slice rails, not in Source. Conway **GEN / LIVE / RATE**
+only while Conway Play is on. Generator controls do not share a panel
+with View. Desktop stacks both folds; collapse Source after setup and
+live in View. Phone uses the same two folds (bottom bar, one sheet at a
+time). A short **Loading…** spinner (Source fold + canvas overlay) runs
+while a source, pattern, grid, or cube is switching.
 
 ```mermaid
 flowchart TB
@@ -126,47 +132,53 @@ flowchart TB
     fit[Fit slab]
     win[Depth live Gap shade Hull Ghost Cuts Cache]
     color[Color coding]
-    stab[Stability Conway]
+    stab[Size by age]
     cap[Cube cap]
     fps[Realtime FPS]
   end
+  subgraph hud [Right View HUD]
+    telemetry[FPS AVG spark]
+    bench[DEV Bench opt-in]
+  end
   subgraph source [Source]
-    kind[Conway or Count]
-    play[Play Pause]
-    gen[GEN LIVE RATE or T LIVE SUM]
-    conway[Pattern Fill Seed Speed Stop-stable]
-    npy[npy file ignition demo]
-    stream[WOLKE stream]
+    kind[Conway Ignition MNI]
+    conway[Pattern Fill Seed Stop-stable]
+    load[Loading spinner]
+  end
+  subgraph rails [Slice rails]
+    play[Play Loop Speed]
+    axes[Loop X Y Z]
+    gen[Conway live GEN overlay]
   end
   view --> volume[Volume]
+  hud --> volume
   play --> volume
   source --> volume
-  kind --> play
   kind --> conway
-  kind --> npy
-  npy --> stream
+  kind --> load
+  axes --> play
 ```
 
 ```mermaid
 flowchart TB
   subgraph rail [Left rail]
-    srcFold[Source fold config plus stats]
+    srcFold[Source fold config]
     viewFold[View fold inspect plus color]
     srcFold --> viewFold
   end
-```
+  subgraph desktop [Desktop]
     srcD[Source fold]
     viewD[View fold]
     volD[Volume]
     hudD[View HUD]
-    zD[Z vertical Now at top]
+    zD[Z vertical max at top]
     srcD --> volD
     viewD --> volD
     hudD --> zD
   end
   subgraph phone [Phone]
     volP[Volume]
-    zP[Z horizontal Now at right]
+    zP[Z horizontal max at right]
     barP[Source and View folds]
     chipP[FPS chip]
     volP --> zP
@@ -201,7 +213,7 @@ rectangle select on the playfield).
 | Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
 | Wheel / pinch | Zoom. **Shift+wheel** pages the **active** axis (3D and viewcube cut). |
 | Right-drag / two-finger | Pan. **Align to Z** keeps XY on the time axis and still slides along Z. Off = free XY pan. In a viewcube cut, pan stays in that plane. |
-| **Slice stack** | Three rails (X / Y / Z). Playhead plus two clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent clips, hull cull against the AABB. After **Fit**, the brick stays put; X/Y **and Z** playheads move through it. Desktop: three vertical rails, Now on Z at top. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. AR: Z only. |
+| **Slice stack** | Three rails (X / Y / Z). Playhead plus two clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent clips, hull cull against the AABB. After **Fit**, the brick stays put; X/Y **and Z** playheads move through it. Desktop: three vertical rails, max at the top of Z. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. AR: Z only. **Loop** walks the highlighted plane (rail **X / Y / Z** or grab a frame). Ghost solids that plane. Hull+Loop grows from the axis origin through the playhead (potato) and hides the +side and clip edges. Cuts already shows three slices. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
@@ -215,16 +227,19 @@ rectangle select on the playfield).
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
 | `]` / `↑` | Focus toward Now |
-| Home | Focus Now |
+| Home | Jump Z playhead to the live end (Conway edit). Reset Planes / sliders / gizmo still set the slice. |
 | `R` | Reset |
 
 ## Display (DONNER)
 
 | Control | Meaning |
 |---------|---------|
-| Play / Pause | **Source** sheet (Conway and time-evolving stacks; hidden for MNI). **Play** = Live View (generator + Now). **Pause** = Inspect: whole cache as cubes; after **Fit**, the plane moves through a still brick. Play jumps to live Now. AR overlay keeps Play after spawn. Key Space. |
+| Play / Pause | Conway **Source** only: run the generator. Pause inspects the tape. Key Space on Conway. AR overlay Play still maps here. |
+| Loop | Under the slice rails. Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
+| Loop axis | **X / Y / Z** directly under the three rails (default **Z**). Independent of the viewcube / camera. |
+| Loop Speed | Same cluster as Loop, under the rails (slices/s). |
 | Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: integer ramp (cyan → gold → coral); no second size mapping. |
-| Stability | Conway only. Cube fill from stamped `s`: **None** / **Time** (default) / **Focus**. Hidden for MNI and other sources with no stability metric. |
+| Stability | Conway only. **Size by age** (default on): cubes grow with still/osc run length. **Start** is cube fill at age 0 (down to a speck). **Tail** is generations along Z until full. Two sliders — fill vs length. Hidden for MNI and other sources with no stability metric. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
 | Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
@@ -234,26 +249,36 @@ rectangle select on the playfield).
 | Reset Anchor | AR overlay only (phone, next to Play / Exit): despawn and search again on the floor. |
 | Search Anchor | AR overlay only (phone): start floor hit-test. Enter AR does not search until this press. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
-| Full | Reset the three clip planes to the full volume. Playhead stays. |
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
 | Hide center | Viewcube (desktop): hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
 | Hide outer | Viewcube (desktop): hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. Phone AR forces these off for the session and restores this setting on Exit. |
-| Gap | Visual lattice spacing (0–2 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. AR uses the same local layout (Size still maps cube edge, so a large Gap grows the brick on the table). Conway Stability still scales cubes inside each cell. |
-| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; clip edges stay hull), **Ghost** (sparse: volume ghost + active plane; dense: the cut only), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). |
+| Gap | Visual lattice spacing (0–2 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. AR uses the same local layout (Size still maps cube edge, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
+| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | View instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
-| FPS | Realtime frame rate in the View sheet (and the display HUD / phone chip). Not a lab panel. |
-| **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. **Now** snaps Z to the high end of the rail. Z matches X/Y: the volume stays put. |
+| FPS | Realtime frame rate. Stays on the View fold when that sheet is collapsed (desktop analog of the phone FPS chip). The HUD View fold shows a compact FPS when collapsed; the expanded HUD already lists FPS/AVG/1%. Phone chip unchanged. |
+| DEV Bench | Opt-in checkbox on the **right** View HUD (not the left View sheet). CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. Phone: tap the FPS chip to open the same card. |
+| **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
+
+```mermaid
+flowchart LR
+  xyz[Loop X Y or Z]
+  grab[Grab a plane]
+  axis[Highlighted playhead]
+  xyz --> axis
+  grab --> axis
+  axis --> ghost[Ghost: that plane solid]
+  axis --> hull[Hull loop: potato origin to plane]
+  axis --> cuts[Cuts: three slices, loop walks one]
+```
 
 ```mermaid
 flowchart LR
   lost[Lost in the volume]
   fit[Fit: camera only]
-  full[Full: clips open, playhead stays]
   planes[Reset Planes: clips open, playheads centered]
   lost --> fit
-  lost --> full
   lost --> planes
 ```
 
@@ -261,10 +286,19 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Conway**, **Ignition**, **MNI 152**, or Count file / stream |
-| Play / Pause | Conway and time-evolving stacks. Hidden for static MRI / MNI 152. AR overlay keeps Play after spawn. |
-| Speed | Conway: generations/s. Count: playhead steps/s while Play scrubs the **active** axis |
-| Stats | Conway: GEN / LIVE / RATE. Count: T / LIVE / SUM / MAX / RATE. Same fold as the config, not a second column. |
+| Source | **Conway**, **Ignition**, **MNI 152** (Count file / stream is later live ingest, hidden) |
+| Play / Speed | Conway only: generator and generations/s. Not the View loop. |
+| Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
+
+```mermaid
+flowchart LR
+  pick[Loop X Y or Z]
+  play[Play]
+  pause[Pause]
+  pick --> play
+  play --> scan[Advance playhead wrap in clips]
+  pause --> stop[Playhead stays]
+```
 
 ### Conway addon
 
@@ -291,17 +325,14 @@ flowchart LR
 
 ### Count stack (EVT)
 
-| Control | Meaning |
-|---------|---------|
-| Source | Conway, **Ignition**, **MNI 152**, or Count file / stream |
-| Load .npy | Any EVT count cube `(T, H, W)` or `(T, H, W, 1)`; ON/OFF `(T, H, W, 2)` is summed to activity. Shown under Count file / stream. |
-| Stream | WOLKE contract. Default `http://127.0.0.1:5055` / token `evt` (EVT sidecar). Connect listens for `send_file_message`; the cube GET is same-origin `/stream-npy` (DONNER’s static server pulls the sidecar). Send as **counts**. Restart `npm start` / `start:lan` so the proxy exists. `https://lab.ole.icu` works when Caddy reverse-proxies that laptop server. |
-| Token | Sidecar / WOLKE token (sidecar default `evt`) |
-| Connect | Toggle the Socket.IO viewer. A new send replaces the cube. 2D/RGB is rejected with a hint; the previous volume stays. |
+Curated demos **Ignition** and **MNI 152** are Source options. **Load .npy**
+and the WOLKE **Stream** / Connect chrome are later live ingest (hidden;
+loaders stay in the tree). See [`backlog.md`](../backlog.md) Live later.
 
 Count stacks open in Inspect (the recording is already complete). **Play**
-scrubs the cyan plane from oldest to Now and loops. Color is 1 = cyan …
-max = coral. Empty pixels (count 0) are not cubes.
+walks the marked loop axis (default Z) from oldest to Now and wraps
+inside the inspect clips. Color is 1 = cyan … max = coral. Empty pixels
+(count 0) are not cubes.
 
 ## Color coding (View)
 
@@ -314,7 +345,7 @@ size stays Gap / Cube cap. Polarity is later. Source stats stay in
 | Control | Meaning |
 |---------|---------|
 | Color coding | On: occupancy class colors. Off: one occupancy color. Conway only. |
-| Stability | Conway `s` (not a rebuild). **None** — equal size. **Time** (default) — fill already reached at that generation. **Focus** — fill on the focus plane, whole column. Hidden for MNI / count. |
+| Stability | Conway **Size by age**. Off: equal cubes. On: **Start** fill at age 0, **Tail** gens along Z to full size. Hidden for MNI / count. |
 
 The **axis-colored frames** are the three slice planes (X `#5b8cff`, Y
 `#e8c547`, Z `#3ecf8e`). Inspect also draws **clip rings** on all three
@@ -323,16 +354,19 @@ sit further in so they do not share a side with a playhead. Playhead bars are th
 and brighter than clips. A clip on the playhead index is hidden. Hover a
 **frame edge** (about 28 px rim, **move** cursor) to light that whole ring
 and drag it along the axis in screen space; the fill is not a hit target. Three
-HUD rails stay as a dimmer second path (Now/max at the top of Z). **Hide
+HUD rails stay as a dimmer second path (max at the top of Z). **Hide
 center** hides playhead frames and the slice grid; **Hide outer** hides
 clip / bound frames. Both live under the viewcube on desktop. Default is
 both visible. A viewcube cut still shows the
 current plane. Crop is
 the intersection of the three clip windows. **Hull** (default) draws the
-outer hull solid; grab a **playhead** edge to peek the cut (sparse volumes
-keep a ghost hull). Grab a **clip**
-edge and the volume stays hull so you can stake the crop. **Ghost** is
-the active plane (dense cubes: that cut only). **Cuts** is three orthogonal
+outer hull solid; grab a **playhead** edge (or the rail) to peek the cut
+through a glass hull — same for Ignition and MRI. Grab a **clip**
+edge and the volume stays hull so you can stake the crop. **Loop** in Hull
+grows a potato: hull from the axis origin through the playhead, current
+plane as the cut, +side and clip edges hidden. **Ghost** is
+the glass hull plus the **highlighted** plane (Loop X/Y/Z or grab a frame
+picks that plane). **Cuts** is three orthogonal
 slices only, no hull. Both persist in the View sheet. **Decay** is off
 (later / opt-in Z/time fade on sparse stacks). The CAD viewcube (desktop,
 left of the View card) enters a
@@ -393,8 +427,8 @@ Inspect **Z slab** (3D-slicer):
 
 ```mermaid
 flowchart TB
-  now[Now top]
-  hi[Gold clip toward Now]
+  now[Max live end at top]
+  hi[Gold clip toward max]
   foc[Cyan playhead]
   lo[Gold clip toward past]
   past[Oldest bottom]
@@ -422,12 +456,12 @@ flowchart TB
 ```
 
 On narrow viewports **Source ▸** and **View ▸** are separate folds (same
-IA as desktop). Play is in the Source sheet, not a bottom-center FAB. The
-same fold sheets apply in landscape on a phone
+IA as desktop). Play / Loop sits under the slice rails, not a FAB and not
+in Source. The same fold sheets apply in landscape on a phone
 (coarse pointer, short viewport) so Source does not jump into a third
 layout. The Z stack is a bottom timeline, and telemetry
-collapses to an **FPS chip** (tap to open the View card). Source GEN /
-LIVE / RATE stay in the Source sheet. Conway **Pattern** is the first
+collapses to an **FPS chip** (tap to open the View card). Conway GEN /
+LIVE / RATE appear only while Conway Play is on. Conway **Pattern** is the first
 control in that block; **Random** shows **Fill**. While a sheet is open the stack hides so the
 picker is not covered.
 
@@ -444,11 +478,13 @@ flowchart LR
 
 ## HUD (right rail)
 
-Desktop: one View telemetry card, then a thin Z stack to its right. Play
-and source stats live in the Source fold, not under the stack. Click
-**View ▾** on the display card to collapse the stats. Display is cyan;
-source stats in the left rail are muted. Phone: FPS chip top-right; tap
-to expand the View card. Source stats live in the Source sheet. No viewcube.
+Desktop: one View telemetry card, then a thin Z stack to its right. Play /
+Loop, Speed, and loop axis sit under the rails, above the footer. Conway
+live stats (GEN / LIVE / RATE) pop in only while Conway Play is on.
+Click **View ▾** on the display card to collapse the stats; a compact FPS
+stays on that fold. The View sheet fold on the left rail also keeps FPS
+when collapsed. Display is cyan.
+Phone: FPS chip top-right; tap to expand the View card. No viewcube.
 
 | Line | Block |
 |------|-------|
@@ -458,19 +494,16 @@ to expand the View card. Source stats live in the Source sheet. No viewcube.
 | FOC | Display — playhead generation (also beside the Z-stack handle) |
 | PLAY / PAUSE | Display |
 | ORTHO | Display — parallax off |
-| GEN | Source Conway — simulation head |
-| T | Source count — bin index |
-| LIVE | Source — live cells / voxels on the focus slice |
-| SUM | Source count — event sum on the focus slice |
-| MAX | Source count — count ceiling (color ramp top) |
-| RATE | Source — measured generation or playhead rate while playing |
-| COUNT | Source — count stack is active |
-| EDIT | Source Conway — present in edit mode |
+| GEN | Conway live overlay — simulation head (only while Play) |
+| LIVE | Conway live overlay — live cells on the focus slice |
+| RATE | Conway live overlay — generations/s while playing |
+| EDIT | Conway live overlay — present in edit mode |
 
-**Slice stack:** three rails — **Now** on Z, a tick per stored step, label
-beside the handle. Desktop: Now/max at the top. Phone: three tracks,
-Now/max at the right. Wheel over a rail (or Shift+wheel on the canvas)
-scrubs the **active** axis.
+**Slice stack:** three rails — max at the top of Z, a tick per stored
+step, label beside the handle. Desktop: max at the top. Phone: three
+tracks, max at the right. Wheel over a rail (or Shift+wheel on the canvas)
+scrubs the **active** inspect axis. **Play** on a volume walks the
+**loop** axis (Source X/Y/Z), which can differ from the viewcube.
 
 If INST hits the cap (`trunc`), live: lower Depth or Grid; inspect: the
 tape is denser than the 200 000-cube envelope (newest slices kept). RATE is
@@ -511,12 +544,12 @@ A glider reads as gold/cyan occupancy on the cells it crosses.
 
 Decay is off (later / opt-in). When on it only darkens older **Z** slices;
 it does not change hue or cube size.
-**Size / fill** (Conway) reads stamped stability along Z. **None / Time /
-Focus** only change how that stored `s` is shown (Focus = value on the
-playhead, whole column). Count / MNI keep occupancy size; color carries
-the integer ramp. Stability does not rebuild the tape.
+**Size / fill** (Conway) reads stamped stability along Z. **Size by age**
+on: **Start** is cube fill at age 0; **Tail** is gens along Z to full size.
+Off: equal cubes. Count / MNI keep occupancy size; color carries
+the integer ramp. Size sliders do not rebuild the tape.
 
-Cap is 16 generations. Moving and Unsettled stay smaller in Time/Focus. Base cubes
+Moving and Unsettled stay at Start. Base cubes
 stay full size so the first slices are not a false “shrink”.
 
 These classes fill the Conway demonstrator. A
@@ -537,6 +570,7 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 - **Isolation later:** rectangle select on the playfield (not cube double-click). AR poke already isolates the standing plane. Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, packed WOLKE selection / `viewer_index`, BLITZ widget sync, in-browser EVT3
+- **Live ingest later:** Streamer + Load NumPy (hidden from Source chrome now)
 - **MRI / scalar volume later.** Dense count `.npy` (occupancy > 15 %)
   already opens a mid-volume slab with enclosed voxels hidden. Dedicated
   kind + `ScalarVolume` wait on the Dataset Contract. Do not embed

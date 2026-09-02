@@ -30,9 +30,12 @@ function gizmoCol() {
 
 describe("Source | View information architecture", () => {
   it("has no Bench tab, Config tab, or Neighborhood control", () => {
-    assert.doesNotMatch(html, /id="slot-bench"|id="sheet-bench"|Bench/);
+    assert.doesNotMatch(html, /id="slot-bench"|id="sheet-bench"/);
     assert.doesNotMatch(html, /id="bench-preset"|id="bench-neighborhood"|id="bench-dynamics"/);
     assert.doesNotMatch(html, /Neighborhood|Config tab|btn-start/i);
+    assert.match(html, /<input id="bench" type="checkbox"/);
+    assert.match(html, />DEV Bench</);
+    assert.equal(DEFAULTS.bench, false);
     assert.equal((html.match(/id="panel-view"/g) || []).length, 1);
     assert.equal((html.match(/id="panel-source"/g) || []).length, 1);
   });
@@ -45,15 +48,32 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="sheet-encoding"[^>]*>Color coding</);
   });
 
-  it("puts Play and Random fill in Source, cube cap in View", () => {
+  it("puts Conway Play/Speed in Source and View Loop/Speed under the rails", () => {
     const src = sourcePanel();
     const view = viewPanel();
     assert.match(src, /id="btn-play"/);
+    assert.match(src, /id="speed"/);
     assert.match(src, /id="random-fill"/);
-    assert.match(src, />Fill /);
     assert.doesNotMatch(view, /id="btn-play"/);
+    assert.doesNotMatch(view, /id="btn-loop"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
     assert.match(view, /id="cube-cap"/);
     assert.match(view, /id="view-fps"/);
+    assert.doesNotMatch(view, /id="bench"/);
+    assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);
+    assert.match(html, />DEV Bench</);
+    const fps = html.indexOf('id="view-fps"');
+    const body = html.indexOf('id="view-body"');
+    const fold = html.indexOf('id="btn-rail-view"');
+    assert.ok(fold > 0 && fps > fold && fps < body);
+  });
+
+  it("keeps the inspect hint short", () => {
+    const m = html.match(/id="inspect-depth-note"[^>]*class="hint inspect-only"[^>]*>([^<]*)</);
+    assert.ok(m);
+    assert.ok(m[1].length < 80);
+    assert.doesNotMatch(m[1], /AABB|fog/i);
   });
 
   it("keeps Source before View in the form and the phone fold bar", () => {
@@ -73,12 +93,13 @@ describe("Source | View information architecture", () => {
     assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.btn-play/);
   });
 
-  it("puts source stats in the Source fold, not a second HUD card", () => {
+  it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {
     const src = sourcePanel();
-    assert.match(src, /id="hud-src"/);
-    assert.match(src, /class="hud-stats source-stats"/);
-    assert.doesNotMatch(html, /class="hud-source"/);
-    assert.doesNotMatch(viewPanel(), /id="hud-src"/);
+    assert.doesNotMatch(src, /id="hud-src"/);
+    assert.doesNotMatch(src, /id="conway-live"/);
+    assert.match(html, /id="conway-live"/);
+    assert.match(css, /body\.is-ar \.conway-live/);
+    assert.doesNotMatch(viewPanel(), /id="conway-live"/);
   });
 });
 
@@ -93,7 +114,7 @@ describe("View sheet vs gizmo chrome", () => {
     assert.doesNotMatch(view, />Hide outer</);
   });
 
-  it("has no Decay control and no Stability scaling checkbox", () => {
+  it("has no Decay control and no Size-by-count", () => {
     const view = viewPanel();
     assert.doesNotMatch(html, /id="decay"/);
     assert.doesNotMatch(view, /Decay/);
@@ -103,14 +124,17 @@ describe("View sheet vs gizmo chrome", () => {
     assert.doesNotMatch(html, /Size by count/);
   });
 
-  it("shows Stability color options for Conway and hides them for count / MNI", () => {
+  it("shows Size by age for Conway and hides it for count / MNI", () => {
     const view = viewPanel();
-    assert.match(view, /class="field encoding-conway"/);
-    assert.match(view, /id="stab-mode"/);
-    assert.match(view, />\s*None\s*</);
-    assert.match(view, />\s*Time\s*</);
-    assert.match(view, />\s*Focus\s*</);
+    assert.match(view, /id="stab-size"/);
+    assert.match(view, />Size by age</);
+    assert.match(view, /id="stab-start"/);
+    assert.match(view, /id="stab-tail"/);
+    assert.doesNotMatch(view, /id="stab-mode"/);
+    assert.doesNotMatch(view, />\s*Focus\s*</);
+    assert.doesNotMatch(html, /id="btn-extent"/);
     assert.match(css, /body\.source-count \.encoding-conway\s*\{[^}]*display:\s*none/s);
+    assert.equal(DEFAULTS.stabSize, true);
     assert.equal(isCountSourceKind("mni152"), true);
     assert.equal(isCountSourceKind("ignition"), true);
     assert.equal(isCountSourceKind("conway"), false);
@@ -138,5 +162,54 @@ describe("Random fill and static sources", () => {
     assert.equal(isStaticSourceKind("mni152"), true);
     assert.equal(isStaticSourceKind("conway"), false);
     assert.equal(isStaticSourceKind("ignition"), false);
+  });
+});
+
+describe("desktop loop, load, and live-ingest chrome", () => {
+  it("has no Now control on the Z stack", () => {
+    assert.doesNotMatch(html, /id="btn-stack-now"/);
+    assert.doesNotMatch(html, />Now</);
+    assert.match(html, /id="stack-axis-z"[\s\S]*class="stack-axis-label">Z</);
+  });
+
+  it("picks the loop axis under the slice rails (default Z)", () => {
+    const src = sourcePanel();
+    assert.doesNotMatch(src, /id="loop-axis-x"/);
+    assert.match(html, /class="loop-axes"[\s\S]*id="loop-axis-x"/);
+    assert.match(html, /id="loop-axis-y"/);
+    assert.match(html, /id="loop-axis-z"/);
+    assert.match(html, /aria-label="Loop axis"/);
+    assert.match(html, /id="loop-axis-z"[^>]*aria-pressed="true"/);
+    assert.equal(DEFAULTS.loopAxis, "z");
+    assert.doesNotMatch(html, /id="loop-axis-x"[^>]*aria-pressed="true"/);
+  });
+
+  it("masks Streamer and Load NumPy from Source chrome", () => {
+    assert.match(html, /<option value="count" hidden>/);
+    assert.match(html, /id="source-count"[^>]*\bhidden\b/);
+    assert.match(css, /body\.source-count #source-count\s*\{[^}]*display:\s*none/s);
+    assert.match(html, /id="count-file"/);
+    assert.match(html, /id="wolke-url"/);
+    assert.match(html, /id="btn-wolke-connect"/);
+    const src = sourcePanel();
+    assert.match(src, /<option value="conway"/);
+    assert.match(src, /<option value="ignition"/);
+    assert.match(src, /<option value="mni152"/);
+  });
+
+  it("shows a Loading indicator on the Source fold and canvas", () => {
+    assert.match(html, /id="load-overlay"/);
+    assert.match(html, /id="source-load"/);
+    assert.match(html, /class="load-spin"/);
+    assert.match(css, /body\.is-loading \.load-overlay/);
+    assert.match(css, /body\.is-loading \.source-load/);
+    assert.match(css, /@keyframes load-spin/);
+  });
+
+  it("keeps View Loop under the rails for MNI (static volumes slice-scan)", () => {
+    assert.doesNotMatch(css, /body\.source-static \.inspect-transport/);
+    assert.match(sourcePanel(), /id="btn-play"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
   });
 });

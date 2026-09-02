@@ -254,6 +254,22 @@ describe("count volume", () => {
     assert.equal(soa.count, 26);
   });
 
+  it("Hull fill of a cropped AABB includes the knife-face interiors", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 1,
+      tFocus: 1,
+      stabScale: false,
+      shade: "hull",
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 1 },
+    });
+    assert.equal(soa.count, 18);
+  });
+
   it("Ghost on X uses the hull cache plus the enclosed column", () => {
     const dense = new Uint16Array(27);
     dense.fill(1);

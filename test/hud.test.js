@@ -133,6 +133,24 @@ describe("HUD copy", () => {
     assert.doesNotMatch(src, /1%/);
   });
 
+  it("prints LOOP instead of PLAY when the view loop is walking", () => {
+    const view = formatViewHud({
+      fps: 60,
+      avgFps: 60,
+      low1Fps: 60,
+      low01Fps: 60,
+      ms: 16,
+      instances: 10,
+      truncated: false,
+      focus: 3,
+      playing: false,
+      looping: true,
+    });
+    assert.match(view, /LOOP/);
+    assert.doesNotMatch(view, /PLAY/);
+    assert.doesNotMatch(view, /PAUSE/);
+  });
+
   it("prints count-stack stats without Conway GEN/EDIT", () => {
     const src = formatSourceHud({
       generation: 12,

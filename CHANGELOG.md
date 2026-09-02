@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-02
+
+### Added
+
+- Conway **Size by age** checkbox with **Start** (cube fill at age 0, down to a speck) and **Tail** (generations along Z until full). Start and Tail are two sliders because fill and length are different units.
+- Opt-in **DEV Bench** on the right View HUD: CPU path timers and GPU probe stay off the hot path until checked. Not a tab, not on the left View sheet.
+- Short **Loading…** spinner on the Source fold and a canvas overlay when switching source, Conway pattern/grid, or a count / MNI cube.
+
+### Changed
+
+- Inspect hint is one short line (`Grab a frame · clips crop · hold playhead to peek`). Fit / Reset Planes / Cuts stay on button titles.
+- FPS stays on the collapsed View fold (left rail) and on the collapsed HUD View fold. Phone FPS chip is unchanged.
+- DEV Bench readout sits in the HUD card with no inner scroll; the card grows.
+- Loop **X / Y / Z** (and grabbing a plane) select the highlighted playhead. Ghost loops that plane. Hull+Loop grows a potato from the axis origin through the playhead and hides the +side plus clip edges.
+- Inspect **Hull / Ghost** is the same for every source: idle hull (or ghost hull + solid plane), playhead drag peeks the cut through glass, release returns to hull. Dense MRI no longer collapses Ghost to a lone slice.
+- **Source Play** (Conway only, with generation Speed) grows the tape. **View Loop** + axis X/Y/Z + loop Speed sit under the rails and walk that tape (or any volume). Two speeds, two jobs.
+- Conway **GEN / LIVE / RATE** appear only in a live overlay while Conway Play is on — not in the Source sheet, not for Ignition / MNI.
+- Axis playheads **catch at mid-volume** (same index as Reset Planes) with a short notch, then release.
+
+### Removed
+
+- **Full** (open clips, playhead stays). **Reset Planes** covers crop reset and centers the playheads.
+- Conway Stability **Focus** and the None/Time/Focus dropdown. Size is the **Size by age** checkbox.
+- **Now** button on the Z stack. Home still jumps Z to the live end for Conway edit.
+- **Streamer** and **Load .npy** from the Source chrome (live ingest later; loaders stay in the tree). Count file / stream is not a Source option.
+
 ## [0.9.0] - 2026-09-02
 
 ### Added
