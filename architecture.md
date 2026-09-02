@@ -59,6 +59,24 @@ WETTER Viewer Contract (packed selection / `viewer_index`). See
 Do not start that contract, `ScalarVolume`, or a PointRenderer in the
 same slice as finishing XR-C or shipping a public preview.
 
+## Serve
+
+Static files. ES modules need HTTP (`file://` will not load).
+
+```bash
+npm start             # http://127.0.0.1:8765/
+npm run start:lan     # phone on the same Wi-Fi
+npm test
+```
+
+WebXR needs HTTPS. Lab door: `https://lab.ole.icu/` (Caddy →
+`start:lan`). Fallback: `npm run start:https` (mkcert). Servers send
+`Permissions-Policy: xr-spatial-tracking=(self)`.
+
+GitHub Pages: `.github/workflows/pages.yml` after the repo is public (or
+GitHub Pro). `.nojekyll` keeps vendor paths. Door: `?src=ignition`,
+`?src=mni152`, `?quality=high`.
+
 ## Layers
 
 DONNER is the **display engine**. Conway is a **source addon**. Color and
@@ -259,8 +277,7 @@ only; it does not drive that spatial fade).
 
 Product axes **default for Conway and EVT count stacks** are **X, Y =
 playfield**, **Z = time**. Three.js is Y-up, so the engine stores product
-`(X, Y, Z)` as world `(X, Z, Y)`. UI copy always uses product names. See
-README *Axes*.
+`(X, Y, Z)` as world `(X, Z, Y)`. UI copy always uses product names.
 
 This is an XYT **source default**, not a core invariant. Dense MRI is
 spatial on X, Y, and Z; the playhead can already walk any axis. Do not

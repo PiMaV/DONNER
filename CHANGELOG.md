@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-02
+
+### Changed
+
+- README is a visitor landing page (hero screenshot, browser-only, AR/XR on Pixel 11 Pro and Quest 3). Local serve lives in `architecture.md`.
+
 ## [0.12.0] - 2026-09-02
 
 ### Added

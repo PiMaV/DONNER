@@ -191,7 +191,7 @@ DONNER from `pve.ole.icu:8006`. The Caddyfile stays on the CT, not in
 this git.
 
 **Fallback:** local mkcert — `npm run cert` then `npm run start:https`
-(see README) when the LXC is down. Trust the mkcert CA on the phone
+(see architecture.md *Serve*) when the LXC is down. Trust the mkcert CA on the phone
 once. Re-issue if the LAN IP changes.
 
 ## XR ladder
