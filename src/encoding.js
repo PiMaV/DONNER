@@ -1,7 +1,7 @@
 /**
  * Encoding adapter: color LUT and fill for packed `k` / `s`.
- * Conway LUT still / osc / moving / unsettled / base; a count stack fills integer rungs.
- * Moving is a LUT index (Color coding off), not a motion gate.
+ * Conway LUT still / osc / moving / unsettled / base; a count stack maps a
+ * value window onto Scale rungs. Moving is a LUT index (Color coding off), not a motion gate.
  */
 
 import { COLOR, hexCss } from "./config.js";
@@ -58,6 +58,9 @@ export const COUNT_CMAPS = {
 
 export const COUNT_CMAP_IDS = Object.keys(COUNT_CMAPS);
 export const DEFAULT_COUNT_CMAP = "donner";
+/** Display rungs for the count / MNI ramp. Not a data-max cap. */
+export const COUNT_LUT_RUNGS = 256;
+export const DEFAULT_COUNT_TRIM = 1;
 
 export function normalizeCountCmap(id) {
   const key = String(id || "").toLowerCase();
@@ -92,9 +95,25 @@ export function lerpHex(a, b, t) {
   return (r << 16) | (g << 8) | bc;
 }
 
-/** LUT indexed by integer count `k` (0 unused / base gray). */
-export function countKindHex(ceiling, cmap = DEFAULT_COUNT_CMAP) {
-  const hi = Math.max(1, ceiling | 0);
+/** Stretch 0…255 gray to RGBA via a count cmap (ingest preview). */
+export function grayToCmapRgba(gray, cmap = "plasma") {
+  const src = gray || [];
+  const stops = COUNT_CMAPS[normalizeCountCmap(cmap)].stops;
+  const rgba = new Uint8ClampedArray(src.length * 4);
+  for (let i = 0; i < src.length; i++) {
+    const hex = sampleStops(stops, src[i] / 255);
+    const o = i * 4;
+    rgba[o] = (hex >> 16) & 255;
+    rgba[o + 1] = (hex >> 8) & 255;
+    rgba[o + 2] = hex & 255;
+    rgba[o + 3] = 255;
+  }
+  return rgba;
+}
+
+/** LUT indexed by display rung `k` (0 unused / base gray). */
+export function countKindHex(rungs, cmap = DEFAULT_COUNT_CMAP) {
+  const hi = Math.max(1, rungs | 0);
   const stops = COUNT_CMAPS[normalizeCountCmap(cmap)].stops;
   const hex = new Array(hi + 1);
   hex[0] = COLOR.base;
@@ -103,6 +122,90 @@ export function countKindHex(ceiling, cmap = DEFAULT_COUNT_CMAP) {
     hex[k] = sampleStops(stops, t);
   }
   return hex;
+}
+
+export function normalizeCountTrim(value) {
+  const n = Number(value);
+  if (n === -1) return -1;
+  if (n === 2) return 2;
+  if (n === 1) return 1;
+  if (n === 0) return 0;
+  return DEFAULT_COUNT_TRIM;
+}
+
+/** Position of `v` in [winLo, winHi], clamped to 0…1. */
+export function countWindowT(v, winLo, winHi) {
+  const x = Number(v);
+  const lo = Number(winLo);
+  const hi = Number(winHi);
+  if (!Number.isFinite(x)) return 0;
+  const span = hi - lo;
+  if (!(span > 0)) return x >= hi ? 1 : 0;
+  if (x <= lo) return 0;
+  if (x >= hi) return 1;
+  return (x - lo) / span;
+}
+
+/** Map a raw count onto LUT rungs 1…rungs. */
+export function countValueToRung(v, winLo, winHi, rungs = COUNT_LUT_RUNGS) {
+  const n = Math.max(1, rungs | 0);
+  const t = countWindowT(v, winLo, winHi);
+  return 1 + Math.round(t * (n - 1));
+}
+
+export function percentileAt(sorted, p) {
+  const n = sorted && sorted.length ? sorted.length | 0 : 0;
+  if (n === 0) return 0;
+  if (n === 1) return Number(sorted[0]) || 0;
+  const u = Math.min(100, Math.max(0, Number(p) || 0));
+  const idx = (u / 100) * (n - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(n - 1, Math.ceil(idx));
+  const a = Number(sorted[lo]) || 0;
+  if (lo === hi) return a;
+  const b = Number(sorted[hi]) || 0;
+  return a + (b - a) * (idx - lo);
+}
+
+/**
+ * Color-window from positive values. `percentile` 0 is min/max;
+ * 1 clips p1…p99 (both tails).
+ */
+export function countTrimLevels(values, percentile = 0) {
+  const src = values || [];
+  const n = src.length | 0;
+  if (n === 0) return { lo: 1, hi: 1 };
+  let min = Number(src[0]) || 0;
+  let max = min;
+  for (let i = 1; i < n; i++) {
+    const v = Number(src[i]) || 0;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (max < min) max = min;
+  const p = Number(percentile) || 0;
+  if (p <= 0 || n < 2) return { lo: min, hi: max };
+  const pct = Math.min(49, Math.max(0, p));
+  const sorted = src instanceof Uint16Array ? Uint16Array.from(src) : Float64Array.from(src);
+  sorted.sort();
+  const lo = Math.round(percentileAt(sorted, pct));
+  let hi = Math.round(percentileAt(sorted, 100 - pct));
+  if (hi < lo) hi = lo;
+  return { lo, hi };
+}
+
+export function clampCountWindow(lo, hi, dataMin, dataMax) {
+  const dLo = Number.isFinite(Number(dataMin)) ? Number(dataMin) : 1;
+  const dHi = Math.max(dLo, Number.isFinite(Number(dataMax)) ? Number(dataMax) : dLo);
+  let a = Number(lo);
+  let b = Number(hi);
+  if (!Number.isFinite(a)) a = dLo;
+  if (!Number.isFinite(b)) b = dHi;
+  a = Math.min(dHi, Math.max(dLo, a));
+  b = Math.min(dHi, Math.max(dLo, b));
+  if (b < a) b = a;
+  if (b === a && dHi > a) b = Math.min(dHi, a + 1);
+  return { lo: a, hi: b };
 }
 
 export function encodingFill(k, s, stabMode, baseK = CONWAY_BASE_K, opts = {}) {

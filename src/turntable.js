@@ -1,5 +1,6 @@
 /**
- * Object yaw around product Z (engine Y): AR table / cyan playfield.
+ * Object yaw around the floor normal (engine / table +Y).
+ * Scene graph: stage (placement) → turntable (this yaw) → stand (floor axis).
  * Lighting is a view-locked headlamp (`src/headlamp.js`), not this yaw.
  */
 
@@ -69,7 +70,7 @@ export function yawProductDir(dir, yaw) {
   return { x: x * c + z * s, y, z: -x * s + z * c };
 }
 
-/** AR placement quat, then local yaw around table +Y. */
+/** AR placement quat, then local yaw around the floor normal (table +Y). */
 export function composeArYaw(anchor, yaw) {
   const a = anchor && Number.isFinite(anchor.w) ? anchor : { x: 0, y: 0, z: 0, w: 1 };
   return mulQuat(a, yawQuatY(yaw));

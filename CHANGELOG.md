@@ -9,20 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Load a `.npy` count cube from Source → **Load NumPy** (file picker + ingest dialog) or by dropping onto the volume. Header-first gate shows shape, dtype, payload, and cell count. Comfort cap is about **500k** voxels (warn + recommend reduce, or analyze in BLITZ). Hard cap still refuses a huge native grid. Optional 2/4/8 binning skips axes shorter than the factor (a single Z plane still bins X/Y), uses **mean** or **max**, and previews the first output plane.
+- Count / MNI **Min / Max**, **Trim** (0% / 1% / 2%, default 1% of positive values), and **Hide**. Hide drops cubes below a value; dense volumes rebuild the hull so the surface shrinks, sparse clouds skip those cubes.
+- Load a `.npy` count cube from Source → **Load NumPy** (file picker + ingest dialog) or by dropping onto the volume. Header-first gate shows shape, dtype, payload, and cell count. Comfort cap is about **500k** voxels (warn + recommend reduce, or analyze in BLITZ). Hard cap still refuses a huge native grid. Optional 2/4/8 binning skips axes shorter than the factor (a single Z plane still bins X/Y), uses **mean** or **max**, and shows a **Plasma** preview of the first output plane scaled to the dialog width.
 - Opt-in **Guide** button to the right of the brand chip (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect, Look). Arrows point at the controls; Source and View unfold. Does not open on its own.
 - Game of Life default boot runs **12** generations then stays paused, so the brick has depth on first look (no special URL).
 - Phone AR inspect overlay after place: three stack rails, Loop, Hull / Ghost / Cuts, and Hide center / Hide outer (top-right, no viewcube).
+- Phone Game of Life **Play / Pause** next to **AR** (orbit and AR overlay). Loop stays under the rails.
 
 ### Changed
 
+- Count color uses the dataset max, not a 32-rung cap. The Scale maps the Min/Max window onto 256 LUT rungs. Legend ticks and HUD **MAX** show the real range.
 - Backlog and living docs: the public host is already live. Own-data file drop is the first ingest path; Streamer stays hidden (no sidecar on GitHub Pages).
 - Source no longer shows the always-on welcome paragraph. The one-line example blurb stays. **About Data** sits on the Source fold (next to the heading); footer **About** stays. **Guide** is Look.
 - Own-cube load is a Source dropdown action (**Load NumPy**), not a Drop .npy control on Game of Life. Drag-and-drop onto the volume still works from any source.
 - Game of Life Source chrome matches the other examples: kind, blurb, **Play**. Pattern, generator Speed, seed, and grid sit in a **Setup** fold.
 - Phone AR searches for a floor as soon as the session starts (no Search Anchor). The brick sits on the plane; there is no Z-height slider.
-- AR scale fits the longest volume edge to 40 cm (MNI is tabletop). Size is still 0.4×–2.5× on that fit.
-- Phone AR uses the desktop inspect crop and named shade. Overlay Conway Play is gone; Loop walks the marked axis.
+- AR scale fits the table footprint (the two axes on the plane) to 40 cm. Play grows the standing axis up; it does not shrink the cells or drop gen 0 through the floor. Size is 0.4×–5× on that fit (table stays comfortable near 2.5×; floor can be larger).
+- Phone AR uses the desktop inspect crop and named shade. Conway Play sits next to AR; Loop walks the marked axis.
+- Phone stack rails stop short of the right edge so a thumb at max does not fire the system back-swipe.
+- AR **Floor** X / Y / Z picks which product axis grows out of the plane. **Yaw** spins around that standing axis (floor normal).
+
+### Fixed
+
+- AR Play sat the live slice on the floor and refit scale to the growing Z edge, so the pillar shrank and sank. Gen 0 stays on the plane; new generations grow up.
 
 ### Removed
 

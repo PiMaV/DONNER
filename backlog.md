@@ -26,7 +26,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Opt-in **Guide** button to the right of the brand chip (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect, Look; arrows on the controls)
 - Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
 - Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
-- Phone AR search on enter (no Search Anchor), no Z-height slider, AABB-fit scale
+- Phone AR search on enter (no Search Anchor), no Z-height slider, footprint-fit scale
 
 **Later / next candidates** (keep; do not implement in this slice):
 
@@ -36,7 +36,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 4. Decay opt-in
 5. Dataset Contract / ScalarVolume
 6. 500k voxel note / volume-texture pass under DATA
-7. Visible sun, isolation, numbered axes, XR-B / XR-C-1
+7. Visible sun, isolation, numbered axes, XR-B (incl. physical-head overlay) / XR-C-1
 8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
@@ -75,8 +75,9 @@ Contract (packed `__selection__.npy`, `viewer_index`). NPZ + optional
 first). VolumeTextureRenderer only if dense volumes justify it.
 
 **Phase 6 — integration.** XR-B AprilTag (dataset id + spatial origin;
-no secrets in the marker). Quest interaction. WOLKE. Domain adapters
-(CT/MRI) only when needed.
+no secrets in the marker). Teaching overlay: one or two tags on a
+physical head so Brain MRI locks onto the model. Quest interaction.
+WOLKE. Domain adapters (CT/MRI) only when needed.
 
 **Later detail:** polarity / occupancy / states encodings on the same
 `EventSoA`, packed WOLKE selection / `viewer_index`, then the XR ladder
@@ -121,15 +122,18 @@ würde eigentlich sehr gut passen
 
 ## DATA
 
-wir könnten beim einladen der daten einen schwellwert oder filter einstelllen; unterhabl wird kein cube dargestellt
+Display **Hide** (View → Color coding) drops cubes below a value.
+Dense bricks rebuild the hull. That is not the ingest comfort cap.
+
+A load-time threshold (throw voxels away before RAM) is still later
+if own-cube drops stay above ~500k occupied.
 
 empirisch zeigt, das ab ca 500k Voxel die performance schlechter wird (auf meinem sehr performanten Laptop)
 
 ## Conway encoding cost
 
 Conway `s` is stamped per generation (along Z). **Size by age**, Start,
-and Tail are display. Occupancy classification only. Count / MNI color the integer
-ramp; they do not size-by-count.
+and Tail are display. Occupancy classification only. Count / MNI color the windowed Scale; they do not size-by-count.
 
 Ghost/Triple still refill the occupancy list on playhead — next cut after
 stored `s`.
@@ -246,6 +250,17 @@ flowchart TB
    Z). Same phone AR session; the marker also serves Quest later. Not a
    blocker for XR-C.
 
+   **Teaching overlay — physical head.** Stick one or two AprilTags (QR
+   only if it can serve as a pose marker) onto a physical head already
+   on the table (Styrofoam, plastic skull, whatever). Start DONNER on a
+   tablet, lock onto the tags, and register Brain MRI to that pose so
+   the current inspect / playhead is visible both in the volume and on
+   the model — true overlay, “we are here.” Two tags beat one for yaw
+   and tilt; metric scale comes from the marker geometry, not from a
+   floor hit-test. Same XR-B contract (dataset id + origin; no secrets
+   in the tag). Not a custom head mesh in git, not projection mapping,
+   not a second renderer.
+
 3. **XR-C — Quest passthrough (parallel chrome fork).** Same
    `immersive-ar` session and placement as XR-A. Quest Browser must not
    request `dom-overlay` (a fullscreen root covers passthrough). The
@@ -290,7 +305,7 @@ Confirm on hardware after the session-fix (WWM). In this tree:
 ## AR (later)
 
 Phone AR inspect is in: search on enter, sit-on-plane (no Z height),
-AABB-fit scale (longest edge → 40 cm), three rails + Loop, named
+footprint-fit scale (floor axes → 40 cm; Play grows up), three rails + Loop, named
 Hull / Ghost / Cuts, Hide center / Hide outer. Viewcube face snaps stay
 desktop. Remaining:
 

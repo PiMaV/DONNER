@@ -87,7 +87,7 @@
     <div class="hud-time">
       <label class="ar-size" for="ar-mag">
         <span>Size</span>
-        <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
+        <input id="ar-mag" type="range" min="0.4" max="5" step="0.05" value="1"
           aria-label="AR volume size" />
       </label>
       <label class="ar-yaw" for="ar-yaw">
@@ -95,8 +95,8 @@
         <input id="ar-yaw" type="range" min="0" max="360" step="1" value="0"
           aria-label="Turntable yaw" disabled />
       </label>
-      <div class="ar-stand" role="group" aria-label="AR stand axis">
-        <span>Stand</span>
+      <div class="ar-stand" role="group" aria-label="AR floor axis">
+        <span>Floor</span>
         <button type="button" id="ar-stand-x" class="btn-stand" data-axis="x">X</button>
         <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
         <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
@@ -170,6 +170,8 @@
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
+        <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
+          title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
@@ -350,7 +352,7 @@
         </label>
         <p class="hint stab-hint">Start is fill. Tail is gens along Z.</p>
       </div>
-      <p id="count-enc-hint" class="hint encoding-count">Color is the integer ramp (count or T1). Pick a scale.</p>
+      <p id="count-enc-hint" class="hint encoding-count">Color maps a Min/Max window onto the scale. Trim clips outliers. Hide drops cubes below a value.</p>
       <label class="field encoding-count" title="Palette for the integer ramp. Conway occupancy classes stay under Color coding.">
         <span>Scale</span>
         <select id="count-cmap" aria-label="Count color scale">
@@ -364,11 +366,35 @@
       <div class="cmap-scale encoding-count">
         <div id="count-cmap-bar" class="cmap-bar" aria-hidden="true"></div>
         <div class="cmap-ticks">
-          <span id="count-leg-lo">1</span>
-          <span id="count-leg-mid">mid</span>
+          <span id="count-leg-lo">min</span>
+          <span id="count-leg-mid">window</span>
           <span id="count-leg-hi">max</span>
         </div>
       </div>
+      <div class="count-win-row encoding-count">
+        <label class="field encoding-count" title="Low end of the color window. Values at or below this map to the first scale color.">
+          <span>Min</span>
+          <input id="count-win-lo" type="number" step="1" value="1" aria-label="Color window minimum" />
+        </label>
+        <label class="field encoding-count" title="High end of the color window. Values at or above this map to the last scale color.">
+          <span>Max</span>
+          <input id="count-win-hi" type="number" step="1" value="1" aria-label="Color window maximum" />
+        </label>
+      </div>
+      <label class="field encoding-count" title="Clip both tails of the positive values when fitting the window. 0% is strict min/max. Custom is a manual Min/Max.">
+        <span>Trim</span>
+        <select id="count-trim" aria-label="Color window trim">
+          <option value="0">0%</option>
+          <option value="1" selected>1%</option>
+          <option value="2">2%</option>
+          <option value="-1">Custom</option>
+        </select>
+      </label>
+      <label class="field encoding-count" title="Cubes below this value are not drawn. 0 keeps every occupied voxel. Dense volumes rebuild the hull.">
+        <span>Hide <em id="count-hide-val">0</em></span>
+        <input id="count-hide" type="range" min="0" max="1" step="1" value="0"
+          aria-label="Hide cubes below value" />
+      </label>
     </section>
     </div>
     </div>

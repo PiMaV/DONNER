@@ -1,7 +1,7 @@
 import { PATTERN_NAMES } from "./conway.js";
 import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
-import { countCmapCss, DEFAULT_COUNT_CMAP, grayToCmapRgba, normalizeCountCmap } from "./encoding.js";
+import { countCmapCss, DEFAULT_COUNT_CMAP, DEFAULT_COUNT_TRIM, grayToCmapRgba, normalizeCountCmap, normalizeCountTrim } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
@@ -294,6 +294,7 @@ function bindAxisRail(axis, { on, narrow }) {
 
 export function bindUI(on) {
   const playBtn = $("btn-play");
+  const playDock = $("btn-play-dock");
   const loopBtn = $("btn-loop");
   const arBtn = $("btn-ar");
   const xrExit = $("btn-xr-exit");
@@ -396,11 +397,15 @@ export function bindUI(on) {
   const ingestBinList = $("ingest-bin-list");
   const ingestReduce = $("ingest-reduce");
   const ingestPreviewWrap = $("ingest-preview-wrap");
-  const ingestPreviewFrame = $("ingest-preview-frame");
   const ingestPreview = $("ingest-preview");
   const ingestPreviewCap = $("ingest-preview-cap");
   const ingestLoad = $("ingest-load");
   const ingestCancel = $("ingest-cancel");
+  const dismissIngest = () => {
+    if (ingestPreviewWrap) ingestPreviewWrap.hidden = true;
+    ingestDialog?.classList.remove("has-preview");
+    if (ingestDialog?.open) ingestDialog.close();
+  };
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
   const wolkeUrl = $("wolke-url");
@@ -412,6 +417,11 @@ export function bindUI(on) {
   const countLegHi = $("count-leg-hi");
   const countCmap = $("count-cmap");
   const countCmapBar = $("count-cmap-bar");
+  const countWinLo = $("count-win-lo");
+  const countWinHi = $("count-win-hi");
+  const countTrim = $("count-trim");
+  const countHide = $("count-hide");
+  const countHideVal = $("count-hide-val");
   const dyn = $("color-coding");
   const fill = $("random-fill");
   const fillVal = $("random-fill-val");
@@ -455,6 +465,8 @@ export function bindUI(on) {
   if (dyn) dyn.checked = DEFAULTS.dynamics;
   if (countCmap) countCmap.value = DEFAULTS.countCmap || DEFAULT_COUNT_CMAP;
   if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap ? countCmap.value : DEFAULT_COUNT_CMAP);
+  if (countTrim) countTrim.value = String(DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM);
+  if (countHide) countHide.value = String(DEFAULTS.countHide || 0);
   if (fill) {
     fill.min = String(DEFAULTS.densityMin);
     fill.max = String(DEFAULTS.densityMax);
@@ -513,10 +525,14 @@ export function bindUI(on) {
       const d = clampDensity(fill.value);
       fillVal.textContent = `${Math.round(d * 100)}%`;
     }
+    if (countHideVal && countHide) {
+      countHideVal.textContent = String(Math.max(0, countHide.value | 0));
+    }
   };
   syncLabels();
 
   playBtn?.addEventListener("click", () => on.togglePlay());
+  playDock?.addEventListener("click", () => on.togglePlay());
   loopBtn?.addEventListener("click", () => on.toggleLoop?.());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
@@ -659,6 +675,28 @@ export function bindUI(on) {
     if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap.value);
     on.countCmap?.();
   });
+  countTrim?.addEventListener("change", () => {
+    if (applying) return;
+    on.countTrim?.();
+  });
+  countWinLo?.addEventListener("change", () => {
+    if (applying) return;
+    on.countWindow?.();
+  });
+  countWinHi?.addEventListener("change", () => {
+    if (applying) return;
+    on.countWindow?.();
+  });
+  countHide?.addEventListener("input", () => {
+    syncLabels();
+    if (applying) return;
+    on.countHide?.(false);
+  });
+  countHide?.addEventListener("change", () => {
+    syncLabels();
+    if (applying) return;
+    on.countHide?.(true);
+  });
   const hidePressed = (btn) => btn?.getAttribute("aria-pressed") === "true";
   const syncPlaneChrome = () => {
     const hc = hidePressed(btnHideCenter);
@@ -699,7 +737,8 @@ export function bindUI(on) {
   });
   const openAbout = () => {
     guideOverlay?.dismiss?.();
-    ingestDialog?.close?.();
+    dismissIngest();
+    on.ingestCancel?.();
     if (typeof aboutDialog?.showModal === "function") aboutDialog.showModal();
   };
   for (const btn of aboutBtns) {
@@ -743,7 +782,7 @@ export function bindUI(on) {
     if (file) on.countFile?.(file);
   });
   ingestCancel?.addEventListener("click", () => {
-    ingestDialog?.close?.();
+    dismissIngest();
     on.ingestCancel?.();
   });
   const ingestPicks = () => {
@@ -762,6 +801,7 @@ export function bindUI(on) {
   });
   ingestReduce?.addEventListener("change", emitIngestPreview);
   ingestDialog?.addEventListener("cancel", () => {
+    dismissIngest();
     on.ingestCancel?.();
   });
   wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
@@ -976,7 +1016,7 @@ export function bindUI(on) {
       return;
     }
     aboutDialog?.close?.();
-    ingestDialog?.close?.();
+    dismissIngest();
     on.ingestCancel?.();
     guideOpen = true;
     guideIndex = 0;
@@ -1056,6 +1096,10 @@ export function bindUI(on) {
         density: fill ? clampDensity(fill.value) : DEFAULTS.density,
         encodingMinimal: DEFAULTS.encodingMinimal,
         countCmap: countCmap ? normalizeCountCmap(countCmap.value) : DEFAULT_COUNT_CMAP,
+        countTrim: countTrim ? normalizeCountTrim(countTrim.value) : DEFAULT_COUNT_TRIM,
+        countWinLo: countWinLo ? Number(countWinLo.value) : 1,
+        countWinHi: countWinHi ? Number(countWinHi.value) : 1,
+        countHide: countHide ? Math.max(0, countHide.value | 0) : 0,
         forceFullRebuild: DEFAULTS.forceFullRebuild,
         sourceKind: sourceKind && sourceKind.value !== "npy" ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: false,
@@ -1071,10 +1115,11 @@ export function bindUI(on) {
       document.body.classList.toggle("is-live", live);
       if (conwayLive) conwayLive.hidden = !live || document.body.classList.contains("source-count");
       if (loopBtn) loopBtn.disabled = live && !document.body.classList.contains("source-count");
-      if (playBtn) {
-        playBtn.textContent = live ? "Pause" : "Play";
-        playBtn.setAttribute("aria-pressed", live ? "true" : "false");
-        playBtn.classList.toggle("is-live", live);
+      for (const btn of [playBtn, playDock]) {
+        if (!btn) continue;
+        btn.textContent = live ? "Pause" : "Play";
+        btn.setAttribute("aria-pressed", live ? "true" : "false");
+        btn.classList.toggle("is-live", live);
       }
     },
     setLooping(on) {
@@ -1209,7 +1254,9 @@ export function bindUI(on) {
       document.body.classList.toggle("source-count", isCountSourceKind(k));
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
       if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
-      if (playBtn && !playBtn.classList.contains("is-live")) playBtn.textContent = "Play";
+      for (const btn of [playBtn, playDock]) {
+        if (btn && !btn.classList.contains("is-live")) btn.textContent = "Play";
+      }
       if (loopBtn) loopBtn.disabled = false;
       syncFillVisibility();
       syncSourceCopy();
@@ -1282,11 +1329,11 @@ export function bindUI(on) {
       else if (ingestPreviewWrap) ingestPreviewWrap.hidden = true;
     },
     closeIngest() {
-      ingestDialog?.close?.();
+      dismissIngest();
     },
     setIngestPreview(shot) {
       if (!ingestPreview || !ingestPreviewWrap) return;
-      if (!shot || !shot.width || !shot.height || !shot.gray) {
+      if (!shot || !shot.width || !shot.height || !shot.gray || !ingestDialog?.open) {
         ingestPreviewWrap.hidden = true;
         return;
       }
@@ -1298,16 +1345,10 @@ export function bindUI(on) {
         return;
       }
       const img = ctx.createImageData(shot.width, shot.height);
-      const gray = shot.gray;
-      for (let i = 0; i < gray.length; i++) {
-        const g = gray[i];
-        const o = i * 4;
-        img.data[o] = g;
-        img.data[o + 1] = g;
-        img.data[o + 2] = g;
-        img.data[o + 3] = 255;
-      }
+      img.data.set(grayToCmapRgba(shot.gray, "plasma"));
       ctx.putImageData(img, 0, 0);
+      ingestPreview.style.width = "100%";
+      ingestPreview.style.height = "auto";
       ingestPreviewWrap.hidden = false;
       if (ingestPreviewCap) {
         ingestPreviewCap.textContent = shot.frames > 1
@@ -1324,18 +1365,52 @@ export function bindUI(on) {
     setWolkeStatus(text) {
       if (wolkeStatus) wolkeStatus.textContent = text || "";
     },
-    setCountLegend(ceiling) {
-      const hi = Math.max(1, ceiling | 0);
-      const mid = Math.max(1, Math.round((1 + hi) / 2));
-      if (countLegLo) countLegLo.textContent = "1";
-      if (countLegMid) countLegMid.textContent = String(mid);
-      if (countLegHi) countLegHi.textContent = String(hi);
+    setCountLegend(spec) {
+      const dataMin = Math.max(1, (spec && spec.dataMin) != null ? spec.dataMin | 0 : spec | 0 || 1);
+      const dataMax = Math.max(dataMin, (spec && spec.dataMax) != null ? spec.dataMax | 0 : spec | 0 || dataMin);
+      const winLo = spec && spec.winLo != null ? spec.winLo : dataMin;
+      const winHi = spec && spec.winHi != null ? spec.winHi : dataMax;
+      if (countLegLo) countLegLo.textContent = String(dataMin);
+      if (countLegMid) countLegMid.textContent = `${winLo}–${winHi}`;
+      if (countLegHi) countLegHi.textContent = String(dataMax);
       if (countCmapBar) {
         countCmapBar.style.background = countCmapCss(countCmap ? countCmap.value : DEFAULT_COUNT_CMAP);
       }
     },
+    setCountScale(spec) {
+      const s = spec || {};
+      const dataMin = Math.max(1, s.dataMin | 0 || 1);
+      const dataMax = Math.max(dataMin, s.dataMax | 0 || dataMin);
+      const winLo = s.winLo != null ? s.winLo : dataMin;
+      const winHi = s.winHi != null ? s.winHi : dataMax;
+      const hide = Math.max(0, s.hideBelow | 0);
+      const trim = normalizeCountTrim(s.trim != null ? s.trim : DEFAULT_COUNT_TRIM);
+      applying = true;
+      if (countWinLo) {
+        countWinLo.min = String(dataMin);
+        countWinLo.max = String(dataMax);
+        countWinLo.value = String(winLo);
+      }
+      if (countWinHi) {
+        countWinHi.min = String(dataMin);
+        countWinHi.max = String(dataMax);
+        countWinHi.value = String(winHi);
+      }
+      if (countTrim) countTrim.value = String(trim);
+      if (countHide) {
+        countHide.min = "0";
+        countHide.max = String(dataMax);
+        countHide.value = String(Math.min(dataMax, hide));
+      }
+      applying = false;
+      syncLabels();
+      this.setCountLegend({ dataMin, dataMax, winLo, winHi });
+    },
     setHint(text) {
       if (hint) hint.textContent = text;
+    },
+    collapsePhoneSourceFold() {
+      if (phoneFolds()) setFold("");
     },
   };
 }

@@ -37,6 +37,7 @@ import {
   spaceDragOffset,
   viewerFrontPosition,
   xrExtentCells,
+  xrFootprintCells,
   xrStageScale,
 } from "../src/xr.js";
 
@@ -60,6 +61,14 @@ describe("xrStageScale", () => {
     assert.equal(xrStageScale(1, 1, 256), XR_BOARD_METERS / 256);
     assert.equal(xrExtentCells(215, 256, 207), 256);
     assert.equal(xrExtentCells(32, 32, 1), 32);
+  });
+
+  it("keeps the table footprint when the standing tape grows", () => {
+    assert.equal(xrFootprintCells(32, 32, 12, "z"), 32);
+    assert.equal(xrFootprintCells(32, 32, 80, "z"), 32);
+    assert.equal(xrStageScale(1, 1, xrFootprintCells(32, 32, 80, "z")), XR_BOARD_METERS / 32);
+    assert.equal(xrFootprintCells(32, 32, 80, "x"), 80);
+    assert.equal(xrFootprintCells(32, 32, 80, "y"), 80);
   });
 });
 
@@ -91,13 +100,21 @@ describe("stand axis", () => {
     const box = volumeLocalAabb(32, 32, -48, 0, 1);
     assert.equal(arStandLift("z", box, 0.0125), arBottomLift(-48, 0.0125));
   });
+
+  it("lifts a taller tape more so gen 0 stays on the table", () => {
+    const s = XR_BOARD_METERS / XR_BOARD_CELLS;
+    const short = volumeLocalAabb(32, 32, -12, 0, 1);
+    const tall = volumeLocalAabb(32, 32, -80, 0, 1);
+    assert.equal(arStandLift("z", short, s), 12 * s);
+    assert.equal(arStandLift("z", tall, s), 80 * s);
+  });
 });
 
 describe("clampArMag", () => {
   it("clamps to the allowed range", () => {
     assert.equal(clampArMag(1), 1);
     assert.equal(clampArMag(0.1), 0.4);
-    assert.equal(clampArMag(9), 2.5);
+    assert.equal(clampArMag(9), 5);
   });
 });
 

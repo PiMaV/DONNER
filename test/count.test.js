@@ -15,6 +15,7 @@ import {
 } from "../src/count.js";
 import { parseNpy, parseNpyHeader, peekNpyBlob, serializeNpy } from "../src/npy.js";
 import { copyAnyPlanes, copyAxisPlane, EventSoA } from "../src/spacetime.js";
+import { COUNT_LUT_RUNGS } from "../src/encoding.js";
 import {
   COUNT_DEMOS,
   isCountSourceKind,
@@ -67,6 +68,8 @@ describe("count volume", () => {
     assert.equal(vol.nT, 2);
     assert.equal(vol.count, 3);
     assert.equal(vol.ceiling, 3);
+    assert.equal(vol.dataMax, 3);
+    assert.equal(vol.dataMin, 1);
     assert.equal(vol.liveAt(0), 2);
     assert.equal(vol.liveAt(1), 1);
     assert.equal(vol.sumAt(0), 3);
@@ -82,16 +85,18 @@ describe("count volume", () => {
     assert.equal(vol.y[0], 0);
   });
 
-  it("fills EventSoA newest-first with count k", () => {
+  it("fills EventSoA newest-first with windowed color rungs", () => {
     const dense = Uint16Array.from([1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0]);
     const vol = countVolumeFromDense(dense, [2, 2, 3]);
     const soa = new EventSoA(8);
     vol.fillSoA(soa, 1, 8, 3, { tFocus: 1, stabMode: "time", stabScale: true });
     assert.equal(soa.count, 2);
     assert.equal(soa.t[0], 1);
-    assert.equal(soa.k[0], 4);
+    assert.equal(soa.v[0], 4);
+    assert.equal(soa.k[0], COUNT_LUT_RUNGS);
     assert.ok(soa.s[0] > 0);
     assert.equal(soa.t[1], 0);
+    assert.equal(soa.v[1], 1);
     assert.equal(soa.k[1], 1);
   });
 
@@ -102,9 +107,23 @@ describe("count volume", () => {
     assert.equal(vol.name, "unit");
     assert.equal(vol.count, 2);
     assert.equal(vol.ceiling, 5);
+    assert.equal(vol.dataMax, 5);
     assert.deepEqual(countAxes([1, 2, 2, 1]), { t: 1, h: 2, w: 2, c: 1 });
     assert.equal(countCeiling(9), 9);
-    assert.equal(countCeiling(99), 32);
+    assert.equal(countCeiling(99), 99);
+  });
+
+  it("keeps dataMax above the old 32 LUT cap", () => {
+    const dense = new Uint16Array(8);
+    dense[0] = 99;
+    const vol = countVolumeFromDense(dense, [2, 2, 2]);
+    assert.equal(vol.dataMax, 99);
+    assert.equal(vol.ceiling, 99);
+    vol.setWindow(1, 80);
+    const soa = new EventSoA(8);
+    vol.fillSoA(soa, 1, 8, 2, { tLo: 0, tHi: 1, tFocus: 1 });
+    assert.equal(soa.v[0], 99);
+    assert.equal(soa.k[0], COUNT_LUT_RUNGS);
   });
 
   it("treats a missing AABB as the whole brick", () => {
@@ -274,6 +293,48 @@ describe("count volume", () => {
     });
     assert.equal(n0, 26);
     assert.equal(soa.count, 26);
+  });
+
+  it("rebuilds the hull so Hide reveals interior high values", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    dense[1 * 9 + 1 * 3 + 1] = 10;
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    assert.equal(vol._hull.length, 26);
+    const soa = new EventSoA(32);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 26);
+    assert.equal(vol.setHideBelow(5), true);
+    assert.equal(vol._hull.length, 1);
+    vol.fillSoA(soa, 2, 8, 3, {
+      tLo: 0,
+      tHi: 2,
+      tFocus: 1,
+      stabScale: false,
+      aabb: { xLo: 0, xHi: 2, yLo: 0, yHi: 2, tLo: 0, tHi: 2 },
+    });
+    assert.equal(soa.count, 1);
+    assert.equal(soa.v[0], 10);
+  });
+
+  it("skips cubes below Hide on a sparse cloud", () => {
+    const dense = new Uint16Array(10 * 10 * 10);
+    dense[0] = 1;
+    dense[1] = 2;
+    dense[2] = 4;
+    const vol = countVolumeFromDense(dense, [10, 10, 10]);
+    assert.equal(isDenseCount(vol), false);
+    vol.setHideBelow(3);
+    const soa = new EventSoA(8);
+    vol.fillSoA(soa, 9, 10, 10, { tLo: 0, tHi: 9, tFocus: 0 });
+    assert.equal(soa.count, 1);
+    assert.equal(soa.v[0], 4);
   });
 
   it("Hull fill of a cropped AABB includes the knife-face interiors", () => {

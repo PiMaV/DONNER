@@ -76,8 +76,8 @@ Load a `(T × H × W)` `.npy` count cube from Source → **Load NumPy**, or
 drop the file onto the volume from any source. The gate shows shape,
 dtype, payload, and cell count. About 500k cells is the comfort cap —
 reduce, or analyze in BLITZ. Binning skips a short axis (one Z plane still
-bins X/Y). Mean downsamples; max keeps peaks. The gate previews the first
-output plane. Streamer / sidecar Connect is not on this static host.
+bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
+preview of the first output plane, scaled to the dialog width. Streamer / sidecar Connect is not on this static host.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
 Ignition ~3 % occupancy). Dense bricks like Brain MRI are the expensive

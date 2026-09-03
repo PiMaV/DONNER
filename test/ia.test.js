@@ -47,6 +47,10 @@ describe("Source | View information architecture", () => {
     assert.doesNotMatch(view, />Dynamics</);
     assert.match(html, /id="sheet-encoding"[^>]*>Color coding</);
     assert.match(view, /id="count-cmap"/);
+    assert.match(view, /id="count-win-lo"/);
+    assert.match(view, /id="count-win-hi"/);
+    assert.match(view, /id="count-trim"/);
+    assert.match(view, /id="count-hide"/);
     assert.match(view, /value="gray"/);
     assert.match(view, /value="inferno"/);
     assert.match(view, /value="plasma"/);
@@ -104,9 +108,11 @@ describe("Source | View information architecture", () => {
     assert.ok(panelSource > 0 && panelSource < panelView);
   });
 
-  it("keeps AR overlay Loop, not Conway Play", () => {
+  it("puts Conway Play next to AR on phone and keeps Loop on the overlay", () => {
+    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-play-dock"/);
     assert.doesNotMatch(html, /id="btn-play-ar"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
+    assert.match(css, /body\.is-ar:not\(\.source-count\)\s+\.btn-play-dock/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
   });
 
@@ -213,6 +219,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="ingest-dialog"/);
     assert.match(html, /id="ingest-reduce"/);
     assert.match(html, /id="ingest-preview"/);
+    assert.match(html, /id="ingest-preview-frame"/);
+    assert.match(css, /dialog\.ingest-dialog:not\(:open\)\s*\{[^}]*display:\s*none\s*!important/s);
     assert.doesNotMatch(html, /id="ingest-chip"/);
     assert.doesNotMatch(html, /id="ingest-open"/);
     const src = sourcePanel();

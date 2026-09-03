@@ -63,12 +63,15 @@ plane, then **tap** to spawn. Walls are ignored. The first detected
 plane is not taken automatically, and a timeout does not lock. **Reset
 Anchor** (phone overlay, next to Exit) despawns the brick and returns to
 search. Scene tap is not used for reset. Once locked the brick **sits**
-on the plane; **Size** scales it; **Yaw** turns it. Scale fits the
-longest volume edge to 40 cm. **Stand** is hidden on the phone overlay
-(Quest may use stand later). Walk with the phone after that. Three
-inspect rails, **Loop**, **Hull / Ghost / Cuts**, and **Hide center /
+on the plane; **Size** scales it; **Yaw** turns it around the standing
+axis. Scale fits the table footprint to 40 cm; **Play** grows the
+standing axis up from the plane (gen 0 stays put). **Floor** X / Y / Z
+picks which product axis grows out of the plane (default Z). Walk with
+the phone after that. Three inspect rails, **Loop**, Conway **Play /
+Pause** next to AR, **Hull / Ghost / Cuts**, and **Hide center /
 Hide outer** (top-right) match desktop inspect. On a **phone** in orbit,
-fingers rotate and pinch-zoom; the stack **sliders** move planes. On a
+fingers rotate and pinch-zoom; the stack **sliders** move planes and stop
+short of the right edge (system back-swipe). On a
 **headset**, grab a frame edge to slide the whole volume in the room.
 Point at a **cube** to isolate the standing plane (Ghost). **Exit** (or
 Escape) returns to orbit. On a **phone** the WebXR DOM overlay is
@@ -132,7 +135,8 @@ and **View** below (Parallax, Align to Z, Quality,
 Gap, Depth live-only, cache, shade, Color coding, Size by age, Cube
 cap, realtime FPS). **DEV Bench** lives on the right View HUD (costs
 performance; off until checked). **Loop**, loop **Speed**, and loop axis **X / Y / Z**
-sit under the slice rails. Conway **Play** stays in Source. Conway **GEN / LIVE / RATE**
+sit under the slice rails. Conway **Play** stays in Source on desktop;
+on phone it also sits next to **AR**. Conway **GEN / LIVE / RATE**
 only while Conway Play is on. Generator setup does not share a panel
 with View. Desktop stacks both folds; collapse Source after setup and
 live in View. Phone uses the same two folds (bottom bar, one sheet at a
@@ -238,7 +242,7 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves. **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone orbit. Phone AR after place shows Hide center / Hide outer (no cube). |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**, tap the gold square to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns. Longest volume edge maps to 40 cm. **Stand** is hidden on the phone overlay. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**, tap the gold square to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
 | **Exit** | End the AR session; orbit returns. Visible in AR only. |
 | **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Does not steal a scene tap. Hidden until a pose is locked. |
 | `.` or `N` | Simulation step |
@@ -251,23 +255,24 @@ rectangle select on the playfield).
 
 | Control | Meaning |
 |---------|---------|
-| Play / Pause | Conway **Source** only: run the generator. Pause inspects the tape. Key Space on Conway. Not on the phone AR overlay. |
+| Play / Pause | Conway **Source** on desktop. On phone (orbit and AR overlay) also next to **AR**. Run the generator. Pause inspects the tape. Key Space on Conway. Play collapses the phone Source sheet. |
 | Loop | Under the slice rails (and on the phone AR overlay after spawn). Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
 | Loop axis | **X / Y / Z** directly under the three rails (default **Z**). Independent of the viewcube / camera. |
 | Loop Speed | Same cluster as Loop, under the rails (slices/s). |
-| Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); no second size mapping. |
+| Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale**, Min/Max, Trim, Hide. |
 | Stability | Conway only. **Size by age** (default on): cubes grow with still/osc run length. **Start** is cube fill at age 0 (down to a speck). **Tail** is generations along Z until full. Two sliders — fill vs length. Hidden for MNI and other sources with no stability metric. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
 | Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
-| Yaw | AR overlay only (after spawn): turn the pillar on the floor, then walk. |
-| Size | AR overlay only (after spawn): uniform scale of the brick (0.4×–2.5× on the AABB fit). |
+| Yaw | AR overlay only (after spawn): turn the pillar around the standing axis (floor normal), then walk. |
+| Size | AR overlay only (after spawn): uniform scale of the brick (0.4×–5× on the table-footprint fit). Tabletop stays comfortable near 2.5×; floor placement can go larger. Play grows up without changing this cell scale. |
+| Floor | AR overlay only (after spawn): which product axis grows out of the plane (X / Y / Z, default Z). Yaw always spins around that axis. |
 | Reset Anchor | AR overlay only (phone, next to Exit): despawn and search again on the floor. |
 | Fit | Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
 | Hide center | Viewcube (desktop) and phone AR overlay: hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
 | Hide outer | Viewcube (desktop) and phone AR overlay: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. |
-| Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (longest edge maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
+| Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | Manual **Low / Medium / High** (default **Medium**). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
 | Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). Phone AR overlay uses the same three buttons. |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
@@ -347,7 +352,8 @@ drop it onto the volume. A header-first gate shows shape, dtype, payload,
 and cell count. About **500k** occupied-scale cells is the comfort cap
 (warn; reduce or analyze in BLITZ). Optional 2/4/8 binning skips an axis
 shorter than the factor (one Z plane still bins X/Y), uses **mean**
-(downsample) or **max** (keep peaks), and previews the first output plane.
+(downsample) or **max** (keep peaks), and a **Plasma** preview of the
+first output plane scaled to the dialog width.
 Curated demos skip the gate.
 The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
 Pages). See [`backlog.md`](../backlog.md). Visitor copy:
@@ -397,21 +403,34 @@ flowchart LR
 
 Count stacks open in Inspect (the recording is already complete). **Play**
 walks the marked loop axis (default Z) from oldest to Now and wraps
-inside the inspect clips. Color is the **Scale** ramp (default DONNER:
-1 = cyan … max = coral). Empty pixels (count 0) are not cubes.
+inside the inspect clips. Color maps the **Min/Max** window onto **Scale**
+(default DONNER: window-low = cyan … window-high = coral). Trim 1% on
+load clips outliers. **Hide** drops cubes below a value (dense hull
+rebuilds). Empty pixels (count 0) are not cubes.
 
 ## Color coding (View)
 
 Color and cube fill are display. Conway supplies still / osc / unsettled /
 base (Moving remains a LUT slot when Color coding is off). A count stack
-supplies integer rungs; **Scale** picks DONNER / Gray / Inferno / Plasma /
-Turbo. Size stays Gap / Cube cap. Polarity is later. Source stats stay in
-**Source**.
+supplies a color window onto **Scale** (DONNER / Gray / Inferno / Plasma /
+Turbo). **Hide** is occupancy, not the window. Size stays Gap / Cube cap.
+Polarity is later. Source stats stay in **Source**.
+
+```mermaid
+flowchart TB
+  v[Voxel v] --> hide{"v less than Hide"}
+  hide -->|yes| gone[No cube]
+  hide -->|no| win[Map through Min Max window]
+  win --> scale[Scale LUT]
+```
 
 | Control | Meaning |
 |---------|---------|
 | Color coding | On: occupancy class colors. Off: one occupancy color. Conway only. |
-| Scale | Count / MNI integer ramp. DONNER is cyan → gold → coral. Gray / Inferno / Plasma / Turbo are the usual scientific palettes. |
+| Scale | Count / MNI palette. DONNER is cyan → gold → coral. Gray / Inferno / Plasma / Turbo are the usual scientific palettes. |
+| Min / Max | Color window. Values at the ends saturate. Legend ticks show dataset min/max; the middle label is this window. |
+| Trim | 0% = strict dataset min/max. 1% (default) / 2% clip both tails of positive `v` once at load. Manual Min/Max sets Custom. |
+| Hide | Drop cubes with `v` below this value (`0` = off). Dense bricks rebuild the hull so the surface shrinks; sparse clouds skip those cubes. Not an ingest cap. |
 | Stability | Conway **Size by age**. Off: equal cubes. On: **Start** fill at age 0, **Tail** gens along Z to full size. Hidden for MNI / count. |
 
 The **axis-colored frames** are the three slice planes (X `#5b8cff`, Y
@@ -524,8 +543,8 @@ flowchart TB
 ```
 
 On narrow viewports **Source ▸** and **View ▸** are separate folds (same
-IA as desktop). Play / Loop sits under the slice rails, not a FAB and not
-in Source. The same fold sheets apply in landscape on a phone
+IA as desktop). Conway **Play** sits next to **AR**; **Loop** stays under
+the slice rails. Play collapses the Source sheet. The same fold sheets apply in landscape on a phone
 (coarse pointer, short viewport) so Source does not jump into a third
 layout. The Z stack is a bottom timeline, and telemetry
 collapses to an **FPS chip** (tap to open the View card). Conway GEN /
@@ -615,15 +634,15 @@ Decay is off (later / opt-in). When on it only darkens older **Z** slices;
 it does not change hue or cube size.
 **Size / fill** (Conway) reads stamped stability along Z. **Size by age**
 on: **Start** is cube fill at age 0; **Tail** is gens along Z to full size.
-Off: equal cubes. Count / MNI keep occupancy size; color carries
-the integer ramp. Size sliders do not rebuild the tape.
+Off: equal cubes. Count / MNI keep occupancy size; color maps the
+Min/Max window onto Scale. Hide drops low-value cubes. Size sliders do not rebuild the tape.
 
 Moving and Unsettled stay at Start. Base cubes
 stay full size so the first slices are not a false “shrink”.
 
 These classes fill the Conway demonstrator. A
-count stack uses a different LUT: **Scale** (DONNER / Gray / Inferno /
-Plasma / Turbo). Polarity (and occupancy / states) will not reuse
+count stack uses a different LUT: **Scale** plus a Min/Max window
+(DONNER / Gray / Inferno / Plasma / Turbo). Polarity (and occupancy / states) will not reuse
 still/osc/unsettled.
 
 The gold **frame** is the playfield edge. The cell lattice sits on the
@@ -652,10 +671,12 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   reticle on a horizontal floor plane; tap to spawn). **Reset Anchor**
   despawns and returns to search. No auto-lock, no timeout, no
   viewer-front preview. The brick sits on the plane; **Size** scales;
-  **Yaw** turns. Longest volume edge maps to 40 cm. **Stand** is hidden
-  on the phone overlay. Phone chrome after spawn is three inspect rails,
-  Loop, Hull / Ghost / Cuts, Hide center / Hide outer, Size, Yaw, Reset
-  Anchor, Exit on `#xr-overlay`. **AR** only if `navigator.xr` supports
+  **Yaw** turns around the standing axis. Table footprint maps to
+  40 cm; **Play** grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the
+  plane. Phone chrome after spawn is three inspect rails, Loop, Conway
+  Play next to AR, Hull / Ghost / Cuts, Hide center / Hide outer, Size,
+  Yaw, Floor, Reset Anchor, Exit on `#xr-overlay`. **AR** only if
+  `navigator.xr` supports
   it. Phone HTTPS is `https://lab.ole.icu/` (`start:lan` upstream);
   mkcert is fallback. After a Chrome update, check site **Augmented
   reality** (not blocked) and that the response has

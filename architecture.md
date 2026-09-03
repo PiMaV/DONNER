@@ -113,7 +113,7 @@ flowchart LR
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
 | **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI (ids `conway` / `ignition` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
-| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); color only, no size-by-count. Polarity later. | Color coding + Scale in the **View** sheet. LUT in `src/encoding.js` |
+| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Scale**, **Min/Max**, **Trim** (default 1%), and **Hide** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Scale / window / Hide in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
 Conway **Play** stays in Source. AR overlay still has Loop after spawn. Loop axis X/Y/Z
@@ -146,7 +146,16 @@ viewer-owned). When on it would fade toward the oldest drawn slice
 (live: back of Depth; inspect: tape start).
 
 The cube renderer indexes `k` through `src/encoding.js` (`CONWAY_KIND_HEX` or
-`countKindHex`, `encodingFill`). Do not move GEN into Encoding.
+`countKindHex`, `encodingFill`). Count `k` is a windowed display rung
+(256 slots), not the raw max clipped to 32. Do not move GEN into Encoding.
+
+```mermaid
+flowchart TB
+  v[Voxel v] --> hide{"v less than Hide"}
+  hide -->|yes| gone[No cube]
+  hide -->|no| win[Map through Min Max window]
+  win --> scale[Scale LUT 256 rungs]
+```
 
 The left chrome is one stacked rail, not two persistent columns:
 
@@ -315,7 +324,7 @@ flowchart LR
 | Spatial | cell `x, y` | sensor `x, y` | X, Y | world X, Z |
 | Time | generation | bin index (Δt slice) | Z (Now at 0; playhead walks the stack) | world Y |
 | Value | alive = 1 | integer count | — | `v` |
-| Color coding | still / osc / unsettled / base | count rung (not this classifier) | `k` (color); time stays on Z | `k` |
+| Color coding | still / osc / unsettled / base | windowed count rung (not this classifier) | `k` (color); time stays on Z | `k` |
 
 Conway **seeds** the volume and is a GPU/browser load generator. It is
 not the destination. The first event-camera path is an EVT **count** cube
@@ -349,7 +358,7 @@ This split matches the later event-camera design:
   position on the tape. Count **Play** auto-scrubs that playhead.
 - **Decay** — later / opt-in Z fade. Off: even brick.
 - **Encoding** — color and fill from the source adapter (Conway: worldline
-  class still / oscillator / unsettled / base; count: integer rungs)
+  class still / oscillator / unsettled / base; count: windowed Scale + Hide)
 
 Hue is not used for time. An oscillator **oscillates in occupancy** along
 Z: cyan cubes appear and vanish; the off phase is empty, not a second
@@ -360,7 +369,8 @@ generations `t = 0, 1` and the first cube of each `(x, y)` worldline.
 Cube **scale** follows **Size by age** from `s` stamped on each Conway
 slice (run-length along Z). **Start** is fill at age 0; **Tail** is gens
 until full. Off = equal cubes. Count / MNI keep
-uniform occupancy size; color carries the integer ramp.
+uniform occupancy size; color maps the Min/Max window onto Scale.
+Hide drops cubes below a value and rebuilds a dense hull.
 Decay is brightness only (off in the UI).
 
 ```mermaid
@@ -542,10 +552,11 @@ telemetry (`View ▾` / `View ▸`).
 sets the height. Right-drag still translates along Z. Off allows
 screen-space pan. Ortho always pans.
 
-**Yaw** is **AR-only**: after place, rotate the pillar on the table around
-product Z (overlay slider or swipe). Gen 0 stays put. Then walk with the
-phone. Desktop orbit does **not** yaw the volume — that looked like a
-second camera orbit.
+**Yaw** is **AR-only**: after place, rotate the pillar around the
+standing axis (floor normal; overlay slider or swipe). **Floor** X / Y /
+Z picks which product axis grows out of the plane. Gen 0 stays put.
+Then walk with the phone. Desktop orbit does **not** yaw the volume —
+that looked like a second camera orbit.
 
 **Light** is a **headlamp**: key and fill sit in camera space, so the
 facing side of the brick stays lit in desktop orbit and in AR walk.
@@ -560,13 +571,15 @@ flowchart TB
   hemi[hemi sky up]
   lights[key fill headlamp]
   stage[stage AR pose]
-  turntable[turntable AR yaw]
+  turntable[turntable yaw around floor +Y]
+  stand[stand floor axis]
   vol[cubes frames]
   scene --> hemi
   scene --> lights
   scene --> stage
   stage --> turntable
-  turntable --> vol
+  turntable --> stand
+  stand --> vol
 ```
 
 ```mermaid
@@ -671,7 +684,7 @@ grow the DOM.
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
 | `src/fade.js` | Decay along Z (time); ghost-hull fade along the active plane |
 | `src/orbit.js` | Fit / XY pin; world Y anchored at Now |
-| `src/turntable.js` | AR object yaw around product Z |
+| `src/turntable.js` | AR object yaw around the floor normal (parent of stand) |
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/quality.js` | View Quality Low / Medium / High (DPR cap, unlit, ACES) |
 | `src/door.js` | Public `?src=` / `?quality=` allow-list (no arbitrary .npy URLs) |
@@ -706,17 +719,18 @@ setEvents(soa, { tFocus, decay, fadeSpan, timeScale, width, height, cellSize, vo
 ```
 
 Color `k` and fill `s` are encoding fields. The renderer indexes
-`src/encoding.js` (`CONWAY_KIND_HEX` or `countKindHex`, `encodingFill`)
-and does not import Conway dynamics.
+`src/encoding.js` (`CONWAY_KIND_HEX` or `countKindHex` with 256 count rungs,
+`encodingFill`) and does not import Conway dynamics.
 
 View **Gap** (`voxelGap`) is display lattice spacing: pitch =
 `cellSize × (1 + gap)`. Cube edge stays `cellSize × fill`. Gap **0**
 packs faces (occupancy fill is 1). Slider max is **5**. Orbit dolly-out
 (and camera far / ortho min-zoom) is computed at that limit so a wide
 Gap still fits. Frames and picking use the same pitch.
-AR places that same local layout; stage scale fits the longest volume
-edge to 40 cm (Conway 32-cell board stays 40 cm; MNI is tabletop). Size
-is still 0.4×–2.5× on that fit, so opening Gap grows the brick on the table.
+AR places that same local layout; stage scale fits the table footprint
+(the two axes on the plane) to 40 cm (Conway 32-cell board stays 40 cm;
+MNI is tabletop). Play grows the standing axis up from the floor.
+Size is 0.4×–5× on that fit, so a floor placement can grow larger than a table.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
@@ -1132,11 +1146,12 @@ flowchart LR
    are guarded so Reset does not immediately re-place; a passthrough tap
    still places). After lock the brick **sits** on the plane (no extra
    height slider). **Size** scales; **Yaw** turns it on the floor. Stage
-   scale fits the longest AABB edge to 40 cm. Phone overlay after spawn
-   is the desktop inspect model: three rails + Loop, Hull / Ghost / Cuts,
-   Hide center / Hide outer (top-right, no viewcube), Size, Yaw, Reset
-   Anchor, Exit on `#xr-overlay`. **Stand** stays hidden on the phone
-   overlay (renderer stand-axis stays for Quest). Overlay is 0×0 in orbit
+   scale fits the table footprint to 40 cm; Play grows up from the plane.
+   Phone overlay after spawn
+   is the desktop inspect model: three rails + Loop, Conway Play next to
+   AR, Hull / Ghost / Cuts, Hide center / Hide outer (top-right, no
+   viewcube), Size, Yaw, Floor X/Y/Z, Reset Anchor, Exit on
+   `#xr-overlay`. Overlay is 0×0 in orbit
    so it does not cover the WebGL canvas; it expands for the session.
    Overlay tap-guard is chrome only (passthrough taps still place).
    **Quest must not request `dom-overlay`:** a fullscreen overlay root
@@ -1204,8 +1219,8 @@ flowchart TB
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Passthrough only on enter (no brick); hit-test armed immediately; tap gold reticle to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; sit-on-plane (no Z height); Size, Yaw; AABB-fit scale; three inspect rails + Loop; Hull/Ghost/Cuts and Hide center/outer top-right (no viewcube); Stand hidden on phone overlay. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
-| **XR-B** | AprilTag or printed playfield (optional Conway seed) | Later; same phone AR; marker reused on Quest. Not a gate for C0. |
+| **XR-A** | Passthrough only on enter (no brick); hit-test armed immediately; tap gold reticle to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; sit-on-plane (no Z height); Size, Yaw, Floor X/Y/Z; footprint-fit scale (Size 0.4×–5×); Play grows up from the plane; three inspect rails + Loop; Conway Play next to AR; Hull/Ghost/Cuts and Hide center/outer top-right (no viewcube). Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
 

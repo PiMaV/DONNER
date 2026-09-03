@@ -13,10 +13,10 @@ import {
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
-import { countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { COUNT_HIDE_DEBOUNCE_MS, countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
 import { peekNpyBlob } from "./npy.js";
 import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
-import { CONWAY_KIND_HEX, CONWAY_BASE_K, countKindHex, normalizeCountCmap } from "./encoding.js";
+import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
 import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
@@ -128,7 +128,7 @@ import {
   volumeLocalAabb,
   volumeLocalAabbFromCrop,
   withXrWebGLLayerOnly,
-  xrExtentCells,
+  xrFootprintCells,
   xrStageScale,
 } from "./xr.js";
 import {
@@ -188,12 +188,13 @@ scene.fog = fog;
 const stage = new THREE.Group();
 stage.name = "stage";
 scene.add(stage);
-const stand = new THREE.Group();
-stand.name = "stand";
-stage.add(stand);
+/** Yaw around the floor normal (stage +Y). Parent of stand so spin stays table-flat. */
 const turntable = new THREE.Group();
 turntable.name = "turntable";
-stand.add(turntable);
+stage.add(turntable);
+const stand = new THREE.Group();
+stand.name = "stand";
+turntable.add(stand);
 const reticle = createArReticle();
 scene.add(reticle);
 let xrHud;
@@ -282,27 +283,27 @@ const _headScale = new THREE.Vector3();
 
 let soa = new EventSoA(DEFAULTS.maxInstances);
 let soaPlane = new EventSoA(DEFAULTS.maxInstances);
-let cubes = new CubeRenderer(turntable, {
+let cubes = new CubeRenderer(stand, {
   maxCount: DEFAULTS.maxInstances,
   cellSize: DEFAULTS.cellSize,
 });
 const playfields = {
-  x: new FocusFrame(turntable, AXIS_COLOR.x, "focus"),
-  y: new FocusFrame(turntable, AXIS_COLOR.y, "focus"),
-  z: new FocusFrame(turntable, AXIS_COLOR.z, "focus"),
+  x: new FocusFrame(stand, AXIS_COLOR.x, "focus"),
+  y: new FocusFrame(stand, AXIS_COLOR.y, "focus"),
+  z: new FocusFrame(stand, AXIS_COLOR.z, "focus"),
 };
 const clipFrames = {
   x: {
-    near: new FocusFrame(turntable, AXIS_COLOR.x, "near"),
-    far: new FocusFrame(turntable, AXIS_COLOR.x, "far"),
+    near: new FocusFrame(stand, AXIS_COLOR.x, "near"),
+    far: new FocusFrame(stand, AXIS_COLOR.x, "far"),
   },
   y: {
-    near: new FocusFrame(turntable, AXIS_COLOR.y, "near"),
-    far: new FocusFrame(turntable, AXIS_COLOR.y, "far"),
+    near: new FocusFrame(stand, AXIS_COLOR.y, "near"),
+    far: new FocusFrame(stand, AXIS_COLOR.y, "far"),
   },
   z: {
-    near: new FocusFrame(turntable, AXIS_COLOR.z, "near"),
-    far: new FocusFrame(turntable, AXIS_COLOR.z, "far"),
+    near: new FocusFrame(stand, AXIS_COLOR.z, "near"),
+    far: new FocusFrame(stand, AXIS_COLOR.z, "far"),
   },
 };
 for (const a of ["x", "y", "z"]) {
@@ -460,6 +461,9 @@ const ui = bindUI({
   history: () => applyRingCapacity(),
   voxelGap: () => applyVoxelGap(),
   countCmap: () => applyCountCmap(),
+  countTrim: () => applyCountTrim(),
+  countWindow: () => applyCountWindow(),
+  countHide: (immediate) => applyCountHide(immediate),
   planeChrome: () => {
     const cfg = ui.getConfig();
     hideCenter = Boolean(cfg.hideCenter);
@@ -824,24 +828,27 @@ function arLockedChrome() {
 }
 
 function arExtentCells() {
-  if (!world) return xrExtentCells();
+  if (!world) return xrFootprintCells();
   const store = viewStore();
   const timeCells = store ? Math.max(1, viewNow() - store.oldestT() + 1) : 1;
-  return xrExtentCells(world.width, world.height, timeCells);
+  return xrFootprintCells(world.width, world.height, timeCells, arStandAxis);
 }
 
 function arVolumeBox() {
   const cs = layoutCell();
   const store = viewStore();
   if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, cs);
-  const box = cropAabb();
-  const y = box
-    ? slabYRange(viewNow(), box.tLo, box.tHi, layoutTime())
-    : slabYRange(viewNow(), store.oldestT(), viewNow(), layoutTime());
-  if (box) {
-    return volumeLocalAabbFromCrop(box, world.width, world.height, y.yMin, y.yMax, cs);
+  const oldest = store.oldestT();
+  const newest = viewNow();
+  const yFull = slabYRange(newest, oldest, newest, layoutTime());
+  if (inspectMode()) {
+    const box = cropAabb();
+    if (box) {
+      const y = slabYRange(newest, box.tLo, box.tHi, layoutTime());
+      return volumeLocalAabbFromCrop(box, world.width, world.height, y.yMin, y.yMax, cs);
+    }
   }
-  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, cs);
+  return volumeLocalAabb(world.width, world.height, yFull.yMin, yFull.yMax, cs);
 }
 
 function applyStandQuat() {
@@ -912,7 +919,7 @@ function lockArPlacement() {
   arLocked = true;
   arPlaced = true;
   arSearching = false;
-  enterInspect();
+  if (!playing) enterInspect();
   applyArStagePose();
   ui.setArYawEnabled(true);
   setArPlacedDocument(true);
@@ -1086,7 +1093,7 @@ function pokeArVoxel(origin, dir) {
   const hits = raycaster.intersectObjects([cubes.solid, cubes.ghost], false);
   if (!hits.length) return false;
   _hitLocal.copy(hits[0].point);
-  turntable.worldToLocal(_hitLocal);
+  stand.worldToLocal(_hitLocal);
   const voxel = voxelFromLocal(
     _hitLocal.x,
     _hitLocal.y,
@@ -1580,7 +1587,6 @@ function enterInspect() {
 }
 
 function enterLive() {
-  if (arPresenting()) return;
   arPlanePoke = false;
   tapeMode = false;
   playing = true;
@@ -1649,7 +1655,7 @@ function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   for (const a of ["x", "y", "z"]) {
     disposeObject3(focusSurfaces[a]);
     focusSurfaces[a] = createFocusSurface(width, height, cs, a, yMin, yMax, AXIS_COLOR[a], "focus");
-    turntable.add(focusSurfaces[a]);
+    stand.add(focusSurfaces[a]);
     playfields[a].setSize(width, height, cs, a, yMin, yMax);
     for (const handle of ["near", "far"]) {
       clipFrames[a][handle].setSize(width, height, cs, a, yMin, yMax);
@@ -1657,7 +1663,7 @@ function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   }
   disposeObject3(nowGrid);
   nowGrid = createSliceGrid(width, height, cs, activeAxis, yMin, yMax);
-  turntable.add(nowGrid);
+  stand.add(nowGrid);
   syncClipPlanes();
   applyGridLook();
 }
@@ -1690,14 +1696,70 @@ function currentCountCmap() {
 }
 
 function currentCountLut() {
-  return countKindHex(countVol.ceiling, currentCountCmap());
+  return countKindHex(COUNT_LUT_RUNGS, currentCountCmap());
+}
+
+function countScaleSpec(vol = countVol, extra = {}) {
+  if (!vol) return extra;
+  return {
+    dataMin: vol.dataMin,
+    dataMax: vol.dataMax,
+    winLo: vol.winLo,
+    winHi: vol.winHi,
+    hideBelow: vol.hideBelow,
+    trim: extra.trim != null ? extra.trim : ui.getConfig().countTrim,
+    ...extra,
+  };
 }
 
 function applyCountCmap() {
   if (sourceId !== "count" || !countVol) return;
   cubes.setKindHex(currentCountLut(), -1);
-  ui.setCountLegend(countVol.ceiling);
+  ui.setCountLegend(countScaleSpec());
   dirtyEncoding = true;
+}
+
+function applyCountTrim() {
+  if (sourceId !== "count" || !countVol) return;
+  const pct = ui.getConfig().countTrim;
+  if (pct < 0) return;
+  countVol.applyTrim(pct);
+  ui.setCountScale(countScaleSpec(countVol, { trim: pct }));
+  cubes.setKindHex(currentCountLut(), -1);
+  dirtySource = true;
+  dirtyEncoding = true;
+}
+
+function applyCountWindow() {
+  if (sourceId !== "count" || !countVol) return;
+  const cfg = ui.getConfig();
+  countVol.setWindow(cfg.countWinLo, cfg.countWinHi);
+  ui.setCountScale(countScaleSpec(countVol, { trim: -1 }));
+  cubes.setKindHex(currentCountLut(), -1);
+  dirtySource = true;
+  dirtyEncoding = true;
+}
+
+let countHideTimer = 0;
+
+function applyCountHide(immediate = false) {
+  if (sourceId !== "count" || !countVol) return;
+  const run = () => {
+    countHideTimer = 0;
+    if (sourceId !== "count" || !countVol) return;
+    countVol.setHideBelow(ui.getConfig().countHide);
+    lastHullOccKey = "";
+    lastPlaneOccKey = "";
+    lastSpanKey = "";
+    dirtySource = true;
+    dirtyEncoding = true;
+  };
+  if (countHideTimer) {
+    clearTimeout(countHideTimer);
+    countHideTimer = 0;
+  }
+  if (immediate) run();
+  else countHideTimer = setTimeout(run, COUNT_HIDE_DEBOUNCE_MS);
 }
 
 function markGps() {
@@ -1763,12 +1825,14 @@ function bootCount(vol) {
   ring = null;
   tape = vol;
   layoutPlayfield(vol.width, vol.height);
+  vol.setHideBelow(0);
+  vol.applyTrim(DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM);
   cubes.setKindHex(currentCountLut(), -1);
   ui.setSourceKind(countKindForVolume(vol));
   syncStartUrl();
-  ui.setCountLegend(vol.ceiling);
+  ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
   ui.setCountMeta(
-    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.ceiling} · ${vol.count} voxels`,
+    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.dataMax} · ${vol.count} voxels`,
   );
   acc = 0;
   if (isDenseCount(vol)) {
@@ -2126,6 +2190,7 @@ function togglePlay() {
     applySlab("z", { ...slabs.z, focus: 0 }, "focus");
   } else {
     enterLive();
+    ui.collapsePhoneSourceFold?.();
   }
   syncCacheUi();
   updateHint();
@@ -2321,7 +2386,7 @@ function applyCubeCap() {
   soa = new EventSoA(cap);
   soaPlane = new EventSoA(cap);
   cubes.dispose();
-  cubes = new CubeRenderer(turntable, {
+  cubes = new CubeRenderer(stand, {
     maxCount: cap,
     cellSize: DEFAULTS.cellSize,
     kindHex: sourceId === "count" && countVol ? currentCountLut() : CONWAY_KIND_HEX,
@@ -2522,6 +2587,7 @@ function stepOnce() {
   rememberGrid(world.grid);
   markGps();
   dirtySource = true;
+  if (arPresenting()) applyArStagePose();
 }
 
 function volumeFillOpts() {
@@ -2698,7 +2764,7 @@ function spanKey() {
 }
 
 function instanceLookKey() {
-  return `${voxelGap}:${encodingMinimal ? 1 : 0}:${stabForFill()}:${stabStart}:${stabTail}:${planeLock ? 1 : 0}:${viewNow()}:${sourceId === "count" ? currentCountCmap() : "conway"}`;
+  return `${voxelGap}:${encodingMinimal ? 1 : 0}:${stabForFill()}:${stabStart}:${stabTail}:${planeLock ? 1 : 0}:${viewNow()}:${sourceId === "count" && countVol ? `${currentCountCmap()}:${countVol.winLo}:${countVol.winHi}:${countVol.hideBelow}` : "conway"}`;
 }
 
 function syncVolume() {
@@ -2788,7 +2854,7 @@ function hitCell(event, cubesToo = false) {
   const hits = raycaster.intersectObjects(objs, false);
   if (!hits.length) return null;
   _hitLocal.copy(hits[0].point);
-  turntable.worldToLocal(_hitLocal);
+  stand.worldToLocal(_hitLocal);
   return cellFromWorldXZ(
     _hitLocal.x,
     _hitLocal.z,

@@ -4,7 +4,7 @@
  * EVT `counts` send-as is a gray `(T, H, W)` or `(T, H, W, 1)` uint16
  * stack: events per pixel per Δt. A trailing ON/OFF pair `(T, H, W, 2)`
  * is summed to activity. Zeros are empty (no cube). `v` is the integer
- * count; `k` is that count clipped to the volume ceiling (color rung).
+ * count; `k` is a display rung from the color window, not a clipped max.
  */
 
 import { MAX_STAB_GENS } from "./dynamics.js";
@@ -15,10 +15,18 @@ import {
   normalizeSliceAxis,
   shouldEmitVoxel,
 } from "./axes.js";
+import {
+  COUNT_LUT_RUNGS,
+  clampCountWindow,
+  countTrimLevels,
+  countValueToRung,
+  countWindowT,
+} from "./encoding.js";
 import { parseNpy } from "./npy.js";
 import { visibleTimeSpan } from "./spacetime.js";
 
-export const COUNT_LUT_CAP = 32;
+/** Debounce for Hide so a dense hull rebuild is not per mouse pixel. */
+export const COUNT_HIDE_DEBOUNCE_MS = 150;
 
 /** Occupancy above this is a dense brick (MRI), not a sparse event cloud. */
 export const DENSE_OCCUPANCY = 0.15;
@@ -108,8 +116,7 @@ export function countAxes(shape) {
 }
 
 export function countCeiling(maxValue) {
-  const hi = Math.max(1, maxValue | 0);
-  return Math.min(COUNT_LUT_CAP, hi);
+  return Math.max(1, maxValue | 0);
 }
 
 /**
@@ -126,7 +133,9 @@ export class CountVolume {
    *   y: Uint16Array,
    *   t: Uint16Array,
    *   v: Uint16Array,
-   *   ceiling: number,
+   *   ceiling?: number,
+   *   dataMin?: number,
+   *   dataMax?: number,
    *   name?: string,
    * }} spec
    */
@@ -142,7 +151,27 @@ export class CountVolume {
     this.eventCount = this.count;
     this.size = this.nT;
     this.stopped = true;
-    this.ceiling = countCeiling(spec.ceiling);
+    let dataMax = spec.dataMax != null ? spec.dataMax : spec.ceiling;
+    let dataMin = spec.dataMin;
+    if (dataMin == null || dataMax == null) {
+      let mn = Infinity;
+      let mx = 0;
+      for (let i = 0; i < this.v.length; i++) {
+        const vv = this.v[i];
+        if (vv <= 0) continue;
+        if (vv < mn) mn = vv;
+        if (vv > mx) mx = vv;
+      }
+      if (dataMin == null) dataMin = Number.isFinite(mn) ? mn : 1;
+      if (dataMax == null) dataMax = mx;
+    }
+    this.dataMin = Math.max(1, dataMin | 0);
+    this.dataMax = countCeiling(dataMax);
+    if (this.dataMax < this.dataMin) this.dataMax = this.dataMin;
+    this.ceiling = this.dataMax;
+    this.winLo = this.dataMin;
+    this.winHi = this.dataMax;
+    this.hideBelow = 0;
     this.name = spec.name || "count";
     this._off = new Int32Array(this.nT + 1);
     this._live = new Uint32Array(this.nT);
@@ -157,13 +186,27 @@ export class CountVolume {
       }
     }
     this._off[this.nT] = this.count;
+    this._occ = new Uint8Array(this.nT * this.height * this.width);
+    this._planeCache = new Map();
+    this._planeCacheOrder = [];
+    this._rebuildOccupancy();
+  }
+
+  _voxelDrawn(i) {
+    const thresh = this.hideBelow | 0;
+    if (thresh <= 0) return true;
+    return this.v[i] >= thresh;
+  }
+
+  _rebuildOccupancy() {
     const cells = this.nT * this.height * this.width;
-    this._occ = new Uint8Array(cells);
+    if (!this._occ || this._occ.length !== cells) this._occ = new Uint8Array(cells);
+    else this._occ.fill(0);
+    const w = this.width;
+    const h = this.height;
     for (let i = 0; i < this.count; i++) {
-      const t = this.t[i];
-      const y = this.y[i];
-      const x = this.x[i];
-      this._occ[(t * this.height + y) * this.width + x] = 1;
+      if (!this._voxelDrawn(i)) continue;
+      this._occ[(this.t[i] * h + this.y[i]) * w + this.x[i]] = 1;
     }
     const full = {
       xLo: 0,
@@ -175,6 +218,7 @@ export class CountVolume {
     };
     const hull = [];
     for (let i = 0; i < this.count; i++) {
+      if (!this._voxelDrawn(i)) continue;
       if (
         !countIsEnclosed(
           this._occ,
@@ -193,6 +237,32 @@ export class CountVolume {
     this._hull = Int32Array.from(hull);
     this._planeCache = new Map();
     this._planeCacheOrder = [];
+  }
+
+  setWindow(lo, hi) {
+    const next = clampCountWindow(lo, hi, this.dataMin, this.dataMax);
+    const changed = next.lo !== this.winLo || next.hi !== this.winHi;
+    this.winLo = next.lo;
+    this.winHi = next.hi;
+    return changed;
+  }
+
+  applyTrim(percentile) {
+    const levels = countTrimLevels(this.v, percentile);
+    this.setWindow(levels.lo, levels.hi);
+    return { lo: this.winLo, hi: this.winHi };
+  }
+
+  /**
+   * Cubes with `v < hideBelow` are not drawn. `0` shows every occupied cell.
+   * Rebuilds occupancy and the hull cache (dense MRI shrinks the potato).
+   */
+  setHideBelow(value) {
+    const next = Math.max(0, value | 0);
+    if (next === (this.hideBelow | 0)) return false;
+    this.hideBelow = next;
+    this._rebuildOccupancy();
+    return true;
   }
 
   oldestT() {
@@ -261,6 +331,7 @@ export class CountVolume {
         const vx = this.x[i];
         const vy = this.y[i];
         if (vx < xLo || vx > xHi || vy < yLo || vy > yHi) continue;
+        if (occ[(f * h + vy) * w + vx] === 0) continue;
         if (keep(vx, vy, f)) into.push(i);
       }
       return;
@@ -449,27 +520,27 @@ export class CountVolume {
       foci: opts.foci || { x: -1, y: -1, z: tFocus },
       shade: normalizeShadeMode(opts.shade || "hull"),
       activeAxis: opts.activeAxis || "z",
-      hi: Math.max(1, this.ceiling),
     };
   }
 
-  _emitAt(soa, i, n, hi) {
+  _emitAt(soa, i, n) {
+    if (!this._voxelDrawn(i)) return n;
     if (n >= soa.capacity) return -1;
     const v = this.v[i];
     soa.x[n] = this.x[i];
     soa.y[n] = this.y[i];
     soa.t[n] = this.t[i];
     soa.v[n] = v;
-    soa.k[n] = Math.min(hi, v);
-    soa.s[n] = (v / hi) * MAX_STAB_GENS;
+    soa.k[n] = countValueToRung(v, this.winLo, this.winHi, COUNT_LUT_RUNGS);
+    soa.s[n] = countWindowT(v, this.winLo, this.winHi) * MAX_STAB_GENS;
     return n + 1;
   }
 
-  _emitHull(soa, aabb, hi) {
+  _emitHull(soa, aabb) {
     let n = 0;
     let truncated = false;
     const emit = (i) => {
-      const next = this._emitAt(soa, i, n, hi);
+      const next = this._emitAt(soa, i, n);
       if (next < 0) {
         truncated = true;
         return false;
@@ -490,13 +561,13 @@ export class CountVolume {
 
   /** Glass / solid hull only — playhead does not belong here. */
   fillHullSoA(soa, tRef, window, _width = 0, opts = {}) {
-    const { aabb, shade, hi } = this._soaWindow(tRef, window, opts);
+    const { aabb, shade } = this._soaWindow(tRef, window, opts);
     if (!this._hull || shade === "slice" || shade === "triple") {
       soa.count = 0;
       soa.truncated = false;
       return soa;
     }
-    const { n, truncated } = this._emitHull(soa, aabb, hi);
+    const { n, truncated } = this._emitHull(soa, aabb);
     soa.count = n;
     soa.truncated = truncated;
     return soa;
@@ -504,7 +575,7 @@ export class CountVolume {
 
   /** Occupied voxels on the solid cut plane(s). Ghost uses the full plane. */
   fillPlaneSoA(soa, tRef, window, _width = 0, opts = {}) {
-    const { aabb, foci, shade, activeAxis, hi } = this._soaWindow(tRef, window, opts);
+    const { aabb, foci, shade, activeAxis } = this._soaWindow(tRef, window, opts);
     soa.truncated = false;
     if (!this._hull || shade === "hull") {
       soa.count = 0;
@@ -515,7 +586,7 @@ export class CountVolume {
     if (shade === "ghost" || shade === "slice") {
       const idx = this.cachedPlaneIndices(aabb, axis, foci[axis], false);
       for (let k = 0; k < idx.length; k++) {
-        const next = this._emitAt(soa, idx[k], n, hi);
+        const next = this._emitAt(soa, idx[k], n);
         if (next < 0) {
           soa.count = n;
           soa.truncated = true;
@@ -531,7 +602,7 @@ export class CountVolume {
           const i = idx[k];
           if (seen.has(i)) continue;
           seen.add(i);
-          const next = this._emitAt(soa, i, n, hi);
+          const next = this._emitAt(soa, i, n);
           if (next < 0) {
             soa.count = n;
             soa.truncated = true;
@@ -552,11 +623,11 @@ export class CountVolume {
    * fillPlaneSoA so the glass hull is not recopied on every playhead step.
    */
   fillSoA(soa, tRef, window, _width = 0, opts = {}) {
-    const { aabb, foci, shade, activeAxis, hi } = this._soaWindow(tRef, window, opts);
+    const { aabb, foci, shade, activeAxis } = this._soaWindow(tRef, window, opts);
     let n = 0;
     let truncated = false;
     const emit = (i) => {
-      const next = this._emitAt(soa, i, n, hi);
+      const next = this._emitAt(soa, i, n);
       if (next < 0) {
         truncated = true;
         return false;
@@ -574,7 +645,7 @@ export class CountVolume {
     if (this._hull) {
       const cutsOnly = shade === "slice" || shade === "triple";
       if (!cutsOnly) {
-        const hull = this._emitHull(soa, aabb, hi);
+        const hull = this._emitHull(soa, aabb);
         n = hull.n;
         truncated = hull.truncated;
         if (truncated || shade === "hull") return finish();
@@ -665,6 +736,7 @@ export function countVolumeFromDense(data, shape, name = "count") {
   const frame = hw * c;
   let nz = 0;
   let maxV = 0;
+  let minV = Infinity;
   for (let ti = 0; ti < nT; ti++) {
     const base = ti * frame;
     for (let p = 0; p < hw; p++) {
@@ -677,6 +749,7 @@ export function countVolumeFromDense(data, shape, name = "count") {
       if (v > 0) {
         nz += 1;
         if (v > maxV) maxV = v;
+        if (v < minV) minV = v;
       }
     }
   }
@@ -713,6 +786,8 @@ export function countVolumeFromDense(data, shape, name = "count") {
     y,
     t,
     v: vArr,
+    dataMin: Number.isFinite(minV) ? minV : 1,
+    dataMax: maxV,
     ceiling: maxV,
     name,
   });

@@ -39,13 +39,15 @@ describe("phone Source sheet and canvas chrome", () => {
 });
 
 describe("phone AR overlay chrome", () => {
-  it("hides Stand on the phone AR overlay", () => {
-    assert.match(css, /body\.is-ar\s+\.ar-stand\s*\{[^}]*display:\s*none\s*!important/s);
+  it("shows Floor X/Y/Z after place", () => {
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-stand/);
+    assert.doesNotMatch(css, /body\.is-ar\s+\.ar-stand\s*\{[^}]*display:\s*none\s*!important/s);
   });
 
-  it("keeps Stand markup for later Quest use", () => {
+  it("keeps Floor markup for the overlay", () => {
     assert.match(html, /class="ar-stand"/);
     assert.match(html, /id="ar-stand-z"/);
+    assert.match(html, />Floor</);
   });
 
   it("keeps Reset Anchor and Exit without Search Anchor", () => {
@@ -56,7 +58,7 @@ describe("phone AR overlay chrome", () => {
 
   it("has Size and Yaw after place, and no Z height slider", () => {
     assert.doesNotMatch(html, /id="ar-height"/);
-    assert.match(html, /id="ar-mag"/);
+    assert.match(html, /id="ar-mag"[^>]*max="5"/);
     assert.match(html, /id="ar-yaw"/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-size/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-yaw/);
@@ -67,6 +69,13 @@ describe("phone AR overlay chrome", () => {
     assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
     assert.doesNotMatch(css, /body\.is-ar\s+\.stack-axis:not\(\.is-z\)/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
+  });
+
+  it("insets phone rails from the right edge so thumbs miss the back-swipe", () => {
+    assert.match(
+      css,
+      /@media\s*\(max-width:\s*720px\),[\s\S]*\.hud-time\s*\{[^}]*padding-right:\s*calc\(24px/s,
+    );
   });
 
   it("parks Hide center, Hide outer, and shade top-right after place, without a viewcube", () => {

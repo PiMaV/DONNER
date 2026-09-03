@@ -85,6 +85,8 @@ export const DEFAULTS = {
   dynamics: true,
   encodingMinimal: false,
   countCmap: "donner",
+  countTrim: 1,
+  countHide: 0,
   forceFullRebuild: false,
   viewQuality: "medium",
   maxTapeSlices: 4096,

@@ -11,7 +11,8 @@ export const XR_BOARD_METERS = 0.4;
 export const XR_VIEWER_DISTANCE_M = 0.8;
 export const XR_HIT_TEST = "hit-test";
 export const XR_MAG_MIN = 0.4;
-export const XR_MAG_MAX = 2.5;
+/** Tabletop ~2.5× is comfortable; floor placement wants at least 2× that. */
+export const XR_MAG_MAX = 5;
 export const XR_MAG_DEFAULT = 1;
 /** Hit pose Y (surface normal) must align with world +Y at least this much. */
 export const XR_FLOOR_UP_DOT = 0.7;
@@ -31,9 +32,28 @@ export function xrExtentCells(width = XR_BOARD_CELLS, height = XR_BOARD_CELLS, t
 }
 
 /**
+ * Floor-plane span in cells: the two axes that lie on the table.
+ * The standing axis is omitted so Play can grow up without shrinking the fit.
+ */
+export function xrFootprintCells(
+  width = XR_BOARD_CELLS,
+  height = XR_BOARD_CELLS,
+  timeCells = 1,
+  standAxis = "z",
+) {
+  const w = Math.max(1, width | 0);
+  const h = Math.max(1, height | 0);
+  const t = Math.max(1, timeCells | 0);
+  const a = normalizeSliceAxis(standAxis);
+  if (a === "x") return Math.max(h, t);
+  if (a === "y") return Math.max(w, t);
+  return Math.max(w, h);
+}
+
+/**
  * Scale so `extentCells` of `cellSize` span 40 cm × `mag` in WebXR meters.
- * Default extent is the 32-cell Conway board. Dense volumes pass the
- * longest AABB edge so an MNI brick is tabletop, not room-sized.
+ * Pass the table footprint (not the standing/time axis) so a growing
+ * Conway tape stays the same cell size and only gets taller.
  */
 export function xrStageScale(
   cellSize = 1,

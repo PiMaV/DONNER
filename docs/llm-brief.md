@@ -26,7 +26,7 @@ advantage, not a deployment convenience.
   stays hidden — no sidecar on Pages),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
-  count fills integer rungs, color only).
+  count fills a windowed Scale, color only).
   `src/dynamics.js` is Conway occupancy classification; `src/encoding.js` is the
   LUT the renderer actually indexes. Do not assume the Life legend for
   count or polarity streams.
@@ -49,12 +49,13 @@ advantage, not a deployment convenience.
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
   and the first cube of each worldline.
-  Count uses integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo).
+  Count uses a **Scale** window (DONNER / Gray / Inferno / Plasma / Turbo)
+  mapped through Min/Max + Trim; **Hide** drops cubes below a value.
   Occupancy only (no neighborhood motion gate). Cube scale follows **Size by age**
   via stamped `s` on each generation (along Z). Start = fill at age 0; Tail = gens
   to full size. Off = equal cubes. Display (`setEvents`); do not rerun
-  `stabilityAge` on playhead or toggle. Count / MNI color the integer ramp
-  only (no size-by-count). Oscillators encode as occupancy along Z, not extra
+  `stabilityAge` on playhead or toggle. Count / MNI color the windowed ramp
+  only (no size-by-count). Hide is display occupancy, not ingest. Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino; boot runs 12 generations then stays
   paused so the brick has depth. Size by age on.
 - Paint only when Edit is on **and** focus is at the simulation head
@@ -107,7 +108,8 @@ advantage, not a deployment convenience.
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is one left
   rail: **Source** (kind, Conway Pattern first, Random Fill) then **View**.
-  Play / Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
+  Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
+  Phone Conway Play sits next to AR (Source Play stays on desktop).
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
   Hull+Loop grows a potato from the axis origin through the plane.
   (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
@@ -119,9 +121,9 @@ advantage, not a deployment convenience.
   Size by age / Start / Tail must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
   Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
-  Visible volume lives on a `stage` group, then `stand` (which product
-  axis sits on the table; phone overlay hides Stand, default Z), then
-  `turntable` (yaw).
+  Visible volume lives on a `stage` group, then `turntable` (yaw around
+  the floor normal), then `stand` (which product axis grows out of the
+  plane; overlay **Floor** X/Y/Z, default Z).
   Phone AR: enter is passthrough with no brick. Floor hit-test starts on
   enter (gold square on a horizontal floor plane); tap locks.
   Timeouts never lock; there is no viewer-front preview. **Reset Anchor**
@@ -129,18 +131,19 @@ advantage, not a deployment convenience.
   Reset does not immediately re-place; a tap on empty overlay /
   passthrough still places. If hit-test is missing, a tap after search
   is armed may lock a viewer-front pose.
-  The brick sits on the floor (no Z-height slider). **Yaw** turns the
-  pillar around product Z. **Size** (0.4×–2.5×) scales the AABB-fit
-  brick (longest edge → 40 cm). Desktop orbit does not yaw the volume.
+  The brick sits on the floor (no Z-height slider). **Floor** X/Y/Z picks
+  the standing axis. **Yaw** turns the pillar around that axis (floor
+  normal). **Size** (0.4×–5×) scales the table-footprint
+  brick (floor axes → 40 cm). **Play** grows the standing axis up;
+  gen 0 stays on the plane. Desktop orbit does not yaw the volume.
   Lighting is a
   **headlamp** (key/fill follow the view in orbit and in AR walk) on
   Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
-  Stand-axis math stays in the renderer for Quest; the phone HUD does not
-  offer X/Y/Z stand. After lock, phone AR is inspect: three rails, Loop,
-  named Hull / Ghost / Cuts, Hide center / Hide outer top-right (no
-  viewcube). Same `setEvents`.
+  After lock, phone AR is inspect: three rails, Loop, Conway Play next
+  to AR, named Hull / Ghost / Cuts, Hide center / Hide outer top-right
+  (no viewcube), Size / Yaw / Floor. Same `setEvents`.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
-  spawn rails / Loop / Size / Yaw / Reset Anchor / Exit plus shade and
+  spawn rails / Loop / Play / Size / Yaw / Floor / Reset Anchor / Exit plus shade and
   hide on `#xr-overlay` (not
   `document.body` — that paints the page over passthrough). The overlay is
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in

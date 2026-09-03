@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { productViewDir } from "../src/axes.js";
-import { rotateVecByQuat } from "../src/xr.js";
+import { rotateVecByQuat, standQuatFromAxis } from "../src/xr.js";
 import {
   composeArYaw,
   gizmoFollowYaw,
+  mulQuat,
   wrapTurntableYaw,
   yawDegrees,
   yawDeltaFromDrag,
@@ -65,6 +66,14 @@ describe("composeArYaw", () => {
     const v = rotateVecByQuat({ x: 1, y: 0, z: 0 }, q);
     assert.ok(Math.abs(v.x + 1) < 1e-9);
     assert.ok(Math.abs(v.z) < 1e-9);
+  });
+
+  it("keeps the standing axis on +Y when yaw is parent of stand", () => {
+    const q = mulQuat(yawQuatY(Math.PI / 2), standQuatFromAxis("x"));
+    const v = rotateVecByQuat({ x: 1, y: 0, z: 0 }, q);
+    assert.ok(Math.abs(v.x) < 1e-6);
+    assert.ok(Math.abs(v.y - 1) < 1e-6);
+    assert.ok(Math.abs(v.z) < 1e-6);
   });
 });
 
