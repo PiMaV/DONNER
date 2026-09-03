@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-03
+
 ### Added
 
 - Count / MNI **Min / Max**, **Trim** (0% / 1% / 2%, default 1% of positive values), and **Hide**. Hide drops cubes below a value; dense volumes rebuild the hull so the surface shrinks, sparse clouds skip those cubes.

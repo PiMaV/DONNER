@@ -1,6 +1,6 @@
 {
   "name": "donner",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "description": "DONNER — browser-native scientific 3D/XR exploration for structured data (WETTER).",
