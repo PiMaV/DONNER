@@ -71,7 +71,9 @@ npm test
 
 WebXR needs HTTPS. Lab door: `https://lab.ole.icu/` (Caddy →
 `start:lan`). Fallback: `npm run start:https` (mkcert). Servers send
-`Permissions-Policy: xr-spatial-tracking=(self)`.
+`Permissions-Policy: xr-spatial-tracking=(self)`. HTML/JS/CSS are
+`Cache-Control: no-store` so Chrome on a phone does not keep `main.js`
+while serving an older `xr.js` / `orbit.js`.
 
 GitHub Pages is live at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
@@ -1178,7 +1180,8 @@ fallback. One codebase: feature-detect
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
 laptop `start:lan`). The LAN/HTTPS servers send
 `Permissions-Policy: xr-spatial-tracking=(self)` so Chrome Android still
-allows WebXR after a browser update. mkcert (`npm run start:https`) is
+allows WebXR after a browser update, and `Cache-Control: no-store` on
+HTML/JS/CSS so a phone does not keep a stale ES module graph. mkcert (`npm run start:https`) is
 fallback if the LXC is down. Do not use `pve.ole.icu:8006`. iOS Safari AR is not the
 demo path unless `navigator.xr` actually supports it. Chrome later
 (Source off the rail, thin View) is in [backlog.md](backlog.md) and is

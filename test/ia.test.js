@@ -112,6 +112,9 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-play-dock"/);
     assert.doesNotMatch(html, /id="btn-play-ar"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
+    assert.match(html, /class="fold-bar-center"/);
+    assert.match(html, /id="boot-fail"/);
+    assert.match(html, /import\("\.\/src\/main\.js\?v=/);
     assert.match(css, /body\.is-ar:not\(\.source-count\)\s+\.btn-play-dock/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
   });

@@ -8,6 +8,7 @@ import {
   pinOrbitToAxis,
   pinOrbitToOriginXY,
   placeOnViewRay,
+  phoneOrbitViewOffset,
   playfieldHalfExtent,
   slabYRange,
   volumeRadius,
@@ -72,6 +73,18 @@ describe("orbit pin", () => {
     const short = fitOrbitDistance(50, volumeRadius(hx, hz, -8, 0));
     const tall = fitOrbitDistance(50, volumeRadius(hx, hz, -400, 0));
     assert.ok(tall > short * 5);
+  });
+
+  it("keeps phoneOrbitViewOffset as a no-op so a cached main.js can still boot", () => {
+    const off = phoneOrbitViewOffset(390, 844);
+    assert.deepEqual(off, {
+      fullWidth: 390,
+      fullHeight: 844,
+      offsetX: 0,
+      offsetY: 0,
+      width: 390,
+      height: 844,
+    });
   });
 
   it("fits an ortho frustum to a slice rectangle", () => {

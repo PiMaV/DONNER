@@ -70,7 +70,8 @@ picks which product axis grows out of the plane (default Z). Walk with
 the phone after that. Three inspect rails, **Loop**, Conway **Play /
 Pause** next to AR, **Hull / Ghost / Cuts**, and **Hide center /
 Hide outer** (top-right) match desktop inspect. On a **phone** in orbit,
-fingers rotate and pinch-zoom; the stack **sliders** move planes and stop
+fingers rotate and pinch-zoom; Conway **Play** sits next to **AR** in the
+fold-bar gap between Source and View. The stack **sliders** move planes and stop
 short of the right edge (system back-swipe). On a
 **headset**, grab a frame edge to slide the whole volume in the room.
 Point at a **cube** to isolate the standing plane (Ghost). **Exit** (or
@@ -680,7 +681,8 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   it. Phone HTTPS is `https://lab.ole.icu/` (`start:lan` upstream);
   mkcert is fallback. After a Chrome update, check site **Augmented
   reality** (not blocked) and that the response has
-  `Permissions-Policy: xr-spatial-tracking=(self)`.
+  `Permissions-Policy: xr-spatial-tracking=(self)`. LAN HTML/JS/CSS
+  are `Cache-Control: no-store`.
 - **XR-C-0 is in:** Quest uses the same session but **without** `dom-overlay`
   and **without** the in-world Play/stand/Exit plate. Stick yaws; both grips
   pinch size. Grab a bounding frame to slide the volume in the room.

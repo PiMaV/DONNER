@@ -2,6 +2,9 @@
 """HTTP file server for LAN. Sends WebXR Permissions-Policy so Chrome
 Android does not reject immersive-ar after a browser update.
 
+HTML/JS/CSS are Cache-Control: no-store so a phone does not keep a
+stale ES module graph (main.js vs xr.js / orbit.js out of sync).
+
 GET /stream-npy?u=http://127.0.0.1:5055/evt?filename=stack.npy proxies a
 WOLKE-contract cube so the browser stays same-origin.
 """
@@ -27,6 +30,9 @@ class Handler(StreamNpyMixin, SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Permissions-Policy", "xr-spatial-tracking=(self)")
+        path = (self.path or "").split("?", 1)[0].lower()
+        if path.endswith(("/", ".html", ".js", ".mjs", ".css", ".json", ".map")):
+            self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
 

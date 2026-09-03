@@ -74,7 +74,7 @@ describe("phone AR overlay chrome", () => {
   it("insets phone rails from the right edge so thumbs miss the back-swipe", () => {
     assert.match(
       css,
-      /@media\s*\(max-width:\s*720px\),[\s\S]*\.hud-time\s*\{[^}]*padding-right:\s*calc\(24px/s,
+      /@media\s*\(max-width:\s*720px\),[\s\S]*\.hud-time\s*\{[^}]*padding-right:\s*calc\(36px/s,
     );
   });
 
@@ -114,5 +114,14 @@ describe("desktop Source | View sheets", () => {
     assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*#view-fps/);
     assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*\.fold-fps/);
     assert.match(css, /@media[^{]+\{[\s\S]*\.controls\.is-collapsed \.sheet-body\s*\{[^}]*display:\s*flex/s);
+  });
+});
+
+describe("LAN static headers", () => {
+  it("disables cache for HTML/JS/CSS so phones pick up module edits", () => {
+    const http = readFileSync(new URL("../scripts/serve-http.py", import.meta.url), "utf8");
+    const https = readFileSync(new URL("../scripts/serve-https.py", import.meta.url), "utf8");
+    assert.match(http, /Cache-Control.*no-store/);
+    assert.match(https, /Cache-Control.*no-store/);
   });
 });

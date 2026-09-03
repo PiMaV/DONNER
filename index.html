@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="96x96" href="https://mess.engineering/favicon/favicon-96x96.png" />
   <link rel="icon" type="image/svg+xml" href="https://mess.engineering/favicon/favicon.svg" />
   <link rel="apple-touch-icon" sizes="180x180" href="https://mess.engineering/favicon/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=0.13.0-dev2" />
   <script type="importmap">
   {
     "imports": {
@@ -22,10 +22,16 @@
     }
   }
   </script>
-  <script type="module" src="src/main.js"></script>
+  <script type="module">
+    import("./src/main.js?v=0.13.0-dev2").catch(() => {
+      const el = document.getElementById("boot-fail");
+      if (el) el.hidden = false;
+    });
+  </script>
 </head>
 
 <body>
+  <p id="boot-fail" class="boot-fail" hidden>DONNER failed to load. Hard-reload this page.</p>
   <canvas id="view" aria-label="3D volume"></canvas>
   <input id="count-file" type="file" accept=".npy,application/octet-stream" hidden />
   <div id="drop-overlay" class="drop-overlay" hidden>
@@ -182,6 +188,7 @@
 
   <div class="fold-bar">
     <button type="button" id="btn-fold-source" class="fold" aria-expanded="false" aria-controls="panel-source">Source ▸</button>
+    <span class="fold-bar-center" aria-hidden="true"></span>
     <button type="button" id="btn-fold-view" class="fold" aria-expanded="false" aria-controls="panel-view">View ▸</button>
   </div>
 

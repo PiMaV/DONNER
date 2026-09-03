@@ -120,7 +120,9 @@ advantage, not a deployment convenience.
   Clip uses the hull cache plus AABB faces, not a full occupancy scan.
   Size by age / Start / Tail must not call `fillSoA`.
   XR-A: feature-detect `immersive-ar` and hide **AR** if false.
-  Servers send `Permissions-Policy: xr-spatial-tracking=(self)`.
+  Servers send `Permissions-Policy: xr-spatial-tracking=(self)` and
+  `Cache-Control: no-store` on HTML/JS/CSS so a phone does not keep a
+  stale ES module graph.
   Visible volume lives on a `stage` group, then `turntable` (yaw around
   the floor normal), then `stand` (which product axis grows out of the
   plane; overlay **Floor** X/Y/Z, default Z).

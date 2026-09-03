@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - AR Play sat the live slice on the floor and refit scale to the growing Z edge, so the pillar shrank and sank. Gen 0 stays on the plane; new generations grow up.
+- Phone overlay Play sat on top of Source / View. The fold bar keeps a center gap; AR + Play sit there.
+- Phone orbit could fail to boot when Chrome cached `main.js` and `orbit.js` / `xr.js` out of sync after a hot edit. `phoneOrbitViewOffset` stays exported as a no-op, the module URL is cache-busted, and the LAN servers send `Cache-Control: no-store` for HTML/JS/CSS.
 
 ### Removed
 

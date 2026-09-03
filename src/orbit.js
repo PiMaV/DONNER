@@ -84,6 +84,23 @@ export function gapLimitOrbitRange({
   };
 }
 
+/**
+ * No-op view offset. Kept exported so a cached main.js that still
+ * imports this name does not fail to boot on the phone.
+ */
+export function phoneOrbitViewOffset(width, height) {
+  const w = Math.max(1, Number(width) || 1);
+  const h = Math.max(1, Number(height) || 1);
+  return {
+    fullWidth: w,
+    fullHeight: h,
+    offsetX: 0,
+    offsetY: 0,
+    width: w,
+    height: h,
+  };
+}
+
 export function frustumFromDistance(distance, fovDeg) {
   const vFov = ((Number(fovDeg) || 50) * Math.PI) / 180;
   const d = Math.max(1, Number(distance) || 1);
