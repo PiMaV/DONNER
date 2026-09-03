@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, isCountSourceKind, isStaticSourceKind, sourceGuide, SOURCE_WELCOME } from "../src/config.js";
+import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide } from "../src/config.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
@@ -59,6 +59,13 @@ describe("Source | View information architecture", () => {
     assert.match(src, /id="btn-play"/);
     assert.match(src, /id="speed"/);
     assert.match(src, /id="random-fill"/);
+    const play = src.indexOf('id="btn-play"');
+    const setup = src.indexOf('id="conway-setup"');
+    const pattern = src.indexOf('id="pattern"');
+    assert.ok(play >= 0 && setup > play);
+    assert.ok(pattern > setup);
+    assert.match(src, /id="btn-conway-setup"/);
+    assert.match(src, /id="conway-setup"[^>]*\bhidden\b/);
     assert.doesNotMatch(view, /id="btn-play"/);
     assert.doesNotMatch(view, /id="btn-loop"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
@@ -97,9 +104,10 @@ describe("Source | View information architecture", () => {
     assert.ok(panelSource > 0 && panelSource < panelView);
   });
 
-  it("keeps AR overlay Play separate from the Source transport", () => {
-    assert.match(html, /id="btn-play-ar"/);
-    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.btn-play/);
+  it("keeps AR overlay Loop, not Conway Play", () => {
+    assert.doesNotMatch(html, /id="btn-play-ar"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
   });
 
   it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {
@@ -147,6 +155,7 @@ describe("View sheet vs gizmo chrome", () => {
     assert.equal(isCountSourceKind("mni152"), true);
     assert.equal(isCountSourceKind("ignition"), true);
     assert.equal(isCountSourceKind("conway"), false);
+    assert.equal(isCountSourceKind("npy"), false);
   });
 });
 
@@ -193,20 +202,30 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.doesNotMatch(html, /id="loop-axis-x"[^>]*aria-pressed="true"/);
   });
 
-  it("masks Streamer and Load NumPy from Source chrome", () => {
+  it("puts Load NumPy in the Source list and keeps Streamer hidden", () => {
     assert.match(html, /<option value="count" hidden>/);
     assert.match(html, /id="source-count"[^>]*\bhidden\b/);
     assert.match(css, /body\.source-count #source-count\s*\{[^}]*display:\s*none/s);
     assert.match(html, /id="count-file"/);
     assert.match(html, /id="wolke-url"/);
     assert.match(html, /id="btn-wolke-connect"/);
+    assert.match(html, /id="drop-overlay"/);
+    assert.match(html, /id="ingest-dialog"/);
+    assert.match(html, /id="ingest-reduce"/);
+    assert.match(html, /id="ingest-preview"/);
+    assert.doesNotMatch(html, /id="ingest-chip"/);
+    assert.doesNotMatch(html, /id="ingest-open"/);
     const src = sourcePanel();
+    assert.doesNotMatch(src, /Drop \.npy/);
+    assert.doesNotMatch(src, /id="drop-overlay"/);
     assert.match(src, /<option value="conway"[^>]*>Game of Life</);
     assert.match(src, /<option value="ignition">Lighter Ignition</);
     assert.match(src, /<option value="mni152">Brain MRI</);
-    assert.match(src, /id="source-welcome"/);
+    assert.match(src, /<option value="npy">Load NumPy</);
+    assert.doesNotMatch(src, /id="source-welcome"/);
     assert.match(src, /id="source-blurb"/);
-    assert.match(src, /id="btn-about"/);
+    assert.match(html, /id="btn-rail-source"[\s\S]*id="btn-about"/);
+    assert.match(html, />About Data</);
     assert.match(html, /id="about-dialog"/);
     assert.match(html, /id="btn-about-legal"/);
   });
@@ -231,13 +250,58 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(sourceGuide("conway").label, "Game of Life");
     assert.equal(sourceGuide("ignition").label, "Lighter Ignition");
     assert.equal(sourceGuide("mni152").label, "Brain MRI");
-    assert.match(SOURCE_WELCOME, /Quality → Low/);
-    assert.match(html, /id="source-welcome"/);
+    assert.doesNotMatch(html, /id="source-welcome"/);
     assert.match(html, />Game of Life</);
     assert.match(html, />Lighter Ignition</);
     assert.match(html, />Brain MRI</);
+    assert.match(html, />Load NumPy</);
+    assert.match(html, />About Data</);
     assert.match(html, /id="about-dialog"/);
     assert.match(html, /\?src=ignition/);
     assert.match(css, /\.about-dialog/);
+  });
+
+  it("offers an opt-in Guide beside the brand chip", () => {
+    assert.equal(GUIDE_STEPS.length, 7);
+    assert.deepEqual(
+      GUIDE_STEPS.map((s) => s.title),
+      ["Orbit", "Source", "Play vs Loop", "Rails", "Viewcube", "Inspect", "Look"],
+    );
+    assert.deepEqual(GUIDE_STEPS[0].targets, ["view"]);
+    assert.deepEqual(GUIDE_STEPS[1].targets, ["source-kind"]);
+    assert.deepEqual(GUIDE_STEPS[2].targets, ["btn-play", "btn-loop"]);
+    assert.deepEqual(GUIDE_STEPS[3].targets, ["stack-axis-z", "loop-axis-z"]);
+    assert.deepEqual(GUIDE_STEPS[4].targets, ["gizmo-hit", "btn-hide-center", "btn-hide-outer"]);
+    assert.deepEqual(GUIDE_STEPS[5].targets, ["shade-hull", "shade-ghost", "shade-triple"]);
+    assert.deepEqual(GUIDE_STEPS[6].targets, ["quality-medium", "btn-parallax", "btn-reset-planes"]);
+    assert.equal(GUIDE_STEPS[1].fold, "source");
+    assert.match(GUIDE_STEPS[1].body, /Load NumPy/);
+    assert.equal(GUIDE_STEPS[3].fold, "");
+    assert.equal(GUIDE_STEPS[6].fold, "view");
+    assert.match(GUIDE_STEPS[6].body, /Quality → Low/);
+    const first = guideStepAt(0);
+    assert.equal(first.isFirst, true);
+    assert.equal(first.isLast, false);
+    assert.equal(first.title, "Orbit");
+    assert.deepEqual(first.targets, ["view"]);
+    const last = guideStepAt(99);
+    assert.equal(last.index, 6);
+    assert.equal(last.isLast, true);
+    assert.equal(guideStepAt(-1).index, 0);
+    assert.match(html, /class="brand-cluster"/);
+    assert.match(html, /<\/header>\s*<button[^>]*id="btn-guide"/);
+    const brand = html.match(/<header class="brand">[\s\S]*?<\/header>/)?.[0] || "";
+    assert.doesNotMatch(brand, /id="btn-guide"/);
+    assert.match(html, /id="guide-overlay"/);
+    assert.doesNotMatch(html, /id="guide-dialog"/);
+    assert.match(html, /id="btn-guide-next"/);
+    assert.match(html, /id="btn-guide-back"/);
+    assert.match(html, /id="btn-guide-done"/);
+    assert.match(css, /\.brand-cluster/);
+    assert.match(css, /\.brand-guide/);
+    assert.match(css, /\.guide-overlay/);
+    assert.match(css, /\.inner-fold/);
+    assert.match(css, /\.conway-setup\[hidden\]/);
+    assert.match(css, /body\.is-ar \.guide-overlay/);
   });
 });

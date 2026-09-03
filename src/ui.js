@@ -1,7 +1,7 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, SOURCE_WELCOME, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, isCountSourceKind, isStaticSourceKind, sourceGuide } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
-import { countCmapCss, DEFAULT_COUNT_CMAP, normalizeCountCmap } from "./encoding.js";
+import { countCmapCss, DEFAULT_COUNT_CMAP, grayToCmapRgba, normalizeCountCmap } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
@@ -295,13 +295,10 @@ function bindAxisRail(axis, { on, narrow }) {
 export function bindUI(on) {
   const playBtn = $("btn-play");
   const loopBtn = $("btn-loop");
-  const playArBtn = $("btn-play-ar");
   const arBtn = $("btn-ar");
   const xrExit = $("btn-xr-exit");
   const arReset = $("btn-ar-reset");
-  const arSearch = $("btn-ar-search");
   const arMag = $("ar-mag");
-  const arHeight = $("ar-height");
   const stepBtn = $("btn-step");
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
@@ -315,6 +312,9 @@ export function bindUI(on) {
   const shadeHull = $("shade-hull");
   const shadeGhost = $("shade-ghost");
   const shadeTriple = $("shade-triple");
+  const arShadeHull = $("ar-shade-hull");
+  const arShadeGhost = $("ar-shade-ghost");
+  const arShadeTriple = $("ar-shade-triple");
   const qualityLow = $("quality-low");
   const qualityMedium = $("quality-medium");
   const qualityHigh = $("quality-high");
@@ -370,10 +370,37 @@ export function bindUI(on) {
   const sourceKind = $("source-kind");
   const sourceBlurb = $("source-blurb");
   const sourceCite = $("source-cite");
-  const sourceWelcome = $("source-welcome");
   const aboutDialog = $("about-dialog");
   const aboutBtns = ["btn-about", "btn-about-legal"].map((id) => $(id));
+  const guideOverlay = $("guide-overlay");
+  const guideCard = $("guide-card");
+  const guideArrows = $("guide-arrows");
+  const guideBtn = $("btn-guide");
+  const guideStepLabel = $("guide-step-label");
+  const guideStepTitle = $("guide-step-title");
+  const guideStepBody = $("guide-step-body");
+  const guideBack = $("btn-guide-back");
+  const guideNext = $("btn-guide-next");
+  const guideDone = $("btn-guide-done");
+  const foldBar = document.querySelector(".fold-bar");
+  let guideIndex = 0;
+  let guideOpen = false;
+  const guideSpots = [];
   const countFile = $("count-file");
+  const dropOverlay = $("drop-overlay");
+  const ingestDialog = $("ingest-dialog");
+  const ingestFileName = $("ingest-file");
+  const ingestMetaLine = $("ingest-meta");
+  const ingestWarn = $("ingest-warn");
+  const ingestBins = $("ingest-bins");
+  const ingestBinList = $("ingest-bin-list");
+  const ingestReduce = $("ingest-reduce");
+  const ingestPreviewWrap = $("ingest-preview-wrap");
+  const ingestPreviewFrame = $("ingest-preview-frame");
+  const ingestPreview = $("ingest-preview");
+  const ingestPreviewCap = $("ingest-preview-cap");
+  const ingestLoad = $("ingest-load");
+  const ingestCancel = $("ingest-cancel");
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
   const wolkeUrl = $("wolke-url");
@@ -438,6 +465,7 @@ export function bindUI(on) {
   if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
   if (bench) bench.checked = DEFAULTS.bench;
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
+  let lastSourceKind = sourceKind ? sourceKind.value : DEFAULTS.sourceKind;
   const syncSourceCopy = () => {
     const g = sourceGuide(sourceKind ? sourceKind.value : DEFAULTS.sourceKind);
     if (sourceBlurb) sourceBlurb.textContent = g.blurb;
@@ -446,7 +474,6 @@ export function bindUI(on) {
       sourceCite.hidden = !g.cite;
     }
   };
-  if (sourceWelcome) sourceWelcome.textContent = SOURCE_WELCOME;
   syncSourceCopy();
   if (wolkeUrl) wolkeUrl.value = DEFAULTS.wolkeUrl;
   if (wolkeToken) wolkeToken.value = DEFAULTS.wolkeToken;
@@ -491,10 +518,8 @@ export function bindUI(on) {
 
   playBtn?.addEventListener("click", () => on.togglePlay());
   loopBtn?.addEventListener("click", () => on.toggleLoop?.());
-  playArBtn?.addEventListener("click", () => on.togglePlay());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
-  if (arSearch && on.searchArAnchor) arSearch.addEventListener("click", () => on.searchArAnchor());
   if (arReset && on.resetArAnchor) arReset.addEventListener("click", () => on.resetArAnchor());
   const xrOverlay = $("xr-overlay");
   xrOverlay?.addEventListener(
@@ -506,7 +531,6 @@ export function bindUI(on) {
     true,
   );
   if (arMag && on.arMag) arMag.addEventListener("input", () => on.arMag());
-  if (arHeight && on.arHeight) arHeight.addEventListener("input", () => on.arHeight());
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
@@ -527,6 +551,9 @@ export function bindUI(on) {
       [shadeHull, "hull"],
       [shadeGhost, "ghost"],
       [shadeTriple, "triple"],
+      [arShadeHull, "hull"],
+      [arShadeGhost, "ghost"],
+      [arShadeTriple, "triple"],
     ];
     for (const [el, id] of map) {
       if (!el) continue;
@@ -538,6 +565,9 @@ export function bindUI(on) {
   shadeHull?.addEventListener("click", () => on.shade?.("hull"));
   shadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
   shadeTriple?.addEventListener("click", () => on.shade?.("triple"));
+  arShadeHull?.addEventListener("click", () => on.shade?.("hull"));
+  arShadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
+  arShadeTriple?.addEventListener("click", () => on.shade?.("triple"));
   syncShadeButtons(DEFAULTS.shadeMode);
   const syncQualityButtons = (id) => {
     const q = normalizeViewQuality(id);
@@ -658,10 +688,18 @@ export function bindUI(on) {
   dyn?.addEventListener("change", onViewFlag);
   sourceKind?.addEventListener("change", () => {
     if (applying) return;
+    if (sourceKind.value === "npy") {
+      sourceKind.value = lastSourceKind;
+      countFile?.click();
+      return;
+    }
+    lastSourceKind = sourceKind.value;
     syncSourceCopy();
     on.sourceKind?.();
   });
   const openAbout = () => {
+    guideOverlay?.dismiss?.();
+    ingestDialog?.close?.();
     if (typeof aboutDialog?.showModal === "function") aboutDialog.showModal();
   };
   for (const btn of aboutBtns) {
@@ -671,6 +709,60 @@ export function bindUI(on) {
     const file = countFile.files && countFile.files[0];
     countFile.value = "";
     if (file) on.countFile?.(file);
+  });
+  const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
+  let dragDepth = 0;
+  const showDrop = (on) => {
+    if (!dropOverlay) return;
+    dropOverlay.hidden = !on;
+  };
+  window.addEventListener("dragenter", (e) => {
+    if (document.body.classList.contains("is-ar")) return;
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    showDrop(true);
+  });
+  window.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) showDrop(false);
+  });
+  window.addEventListener("dragover", (e) => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!document.body.classList.contains("is-ar")) showDrop(true);
+  });
+  window.addEventListener("drop", (e) => {
+    dragDepth = 0;
+    showDrop(false);
+    if (document.body.classList.contains("is-ar")) return;
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    const file = e.dataTransfer?.files && e.dataTransfer.files[0];
+    if (file) on.countFile?.(file);
+  });
+  ingestCancel?.addEventListener("click", () => {
+    ingestDialog?.close?.();
+    on.ingestCancel?.();
+  });
+  const ingestPicks = () => {
+    const picked = ingestBinList?.querySelector("input[name='ingest-factor']:checked");
+    const factor = Number.parseInt(picked && picked.value, 10);
+    const reduce = ingestReduce?.querySelector("input[name='ingest-reduce']:checked")?.value;
+    return { factor, reduce };
+  };
+  const emitIngestPreview = () => {
+    const picks = ingestPicks();
+    if (ingestReduce) ingestReduce.hidden = !picks.factor || picks.factor === 1 || Boolean(ingestBins?.hidden);
+    on.ingestPreview?.(picks);
+  };
+  ingestLoad?.addEventListener("click", () => {
+    on.ingestConfirm?.(ingestPicks());
+  });
+  ingestReduce?.addEventListener("change", emitIngestPreview);
+  ingestDialog?.addEventListener("cancel", () => {
+    on.ingestCancel?.();
   });
   wolkeConnect?.addEventListener("click", () => on.wolkeConnect?.());
   for (const btn of loopAxisBtns) {
@@ -711,6 +803,21 @@ export function bindUI(on) {
   railSource?.addEventListener("click", () => onRailFold(panelSource));
   railView?.addEventListener("click", () => onRailFold(panelView));
   syncRailFolds();
+  const conwaySetupBtn = $("btn-conway-setup");
+  const conwaySetup = $("conway-setup");
+  const syncConwaySetup = () => {
+    if (!conwaySetupBtn || !conwaySetup) return;
+    const open = !conwaySetup.hidden;
+    conwaySetupBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    conwaySetupBtn.textContent = open ? "Setup ▾" : "Setup ▸";
+    conwaySetupBtn.title = open ? "Collapse Setup" : "Expand Setup";
+  };
+  conwaySetupBtn?.addEventListener("click", () => {
+    if (!conwaySetup) return;
+    conwaySetup.hidden = !conwaySetup.hidden;
+    syncConwaySetup();
+  });
+  syncConwaySetup();
   fpsChip?.addEventListener("click", () => {
     const open = document.body.classList.toggle("hud-view-open");
     fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
@@ -727,6 +834,187 @@ export function bindUI(on) {
     syncHudViewFold();
   });
   syncHudViewFold();
+
+  const phoneFolds = () => Boolean(foldBar) && getComputedStyle(foldBar).display !== "none";
+  const clearGuideSpots = () => {
+    for (const el of guideSpots) el.classList.remove("guide-spot");
+    guideSpots.length = 0;
+  };
+  const expandGuideFolds = (fold) => {
+    panelSource?.classList.remove("is-collapsed");
+    panelView?.classList.remove("is-collapsed");
+    syncRailFolds();
+    document.body.classList.remove("hud-view-collapsed");
+    syncHudViewFold();
+    if (phoneFolds()) setFold(fold || "");
+  };
+  const visibleRect = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    if (r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null;
+    return r;
+  };
+  const clampGuide = (n, a, b) => Math.min(b, Math.max(a, n));
+  const edgePoint = (rect, towardX, towardY) => {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = towardX - cx;
+    const dy = towardY - cy;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return {
+        x: dx > 0 ? rect.right : rect.left,
+        y: clampGuide(towardY, rect.top + 6, rect.bottom - 6),
+      };
+    }
+    return {
+      x: clampGuide(towardX, rect.left + 6, rect.right - 6),
+      y: dy > 0 ? rect.bottom : rect.top,
+    };
+  };
+  const drawGuideArrow = (from, to) => {
+    if (!guideArrows) return;
+    const ns = "http://www.w3.org/2000/svg";
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", String(from.x));
+    line.setAttribute("y1", String(from.y));
+    line.setAttribute("x2", String(to.x));
+    line.setAttribute("y2", String(to.y));
+    line.setAttribute("stroke", "#ffc53d");
+    line.setAttribute("stroke-width", "2");
+    line.setAttribute("stroke-linecap", "round");
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const size = 11;
+    const p1x = to.x - size * Math.cos(angle - Math.PI / 6);
+    const p1y = to.y - size * Math.sin(angle - Math.PI / 6);
+    const p2x = to.x - size * Math.cos(angle + Math.PI / 6);
+    const p2y = to.y - size * Math.sin(angle + Math.PI / 6);
+    const head = document.createElementNS(ns, "polygon");
+    head.setAttribute("points", `${to.x},${to.y} ${p1x},${p1y} ${p2x},${p2y}`);
+    head.setAttribute("fill", "#ffc53d");
+    guideArrows.append(line, head);
+  };
+  const layoutGuide = () => {
+    if (!guideOpen || !guideCard || !guideArrows) return;
+    clearGuideSpots();
+    const step = guideStepAt(guideIndex);
+    const targets = [];
+    for (const id of step.targets) {
+      const el = $(id);
+      const rect = visibleRect(el);
+      if (!rect) continue;
+      if (id !== "view") {
+        el.classList.add("guide-spot");
+        guideSpots.push(el);
+      }
+      targets.push({ id, rect });
+    }
+    const pad = 12;
+    const cw = guideCard.offsetWidth || 260;
+    const ch = guideCard.offsetHeight || 160;
+    const cluster = document.querySelector(".brand-cluster")?.getBoundingClientRect();
+    let left;
+    let top;
+    if (!targets.length || targets[0].id === "view") {
+      left = cluster ? cluster.right + 12 : pad;
+      top = cluster ? cluster.top : pad;
+      if (left + cw > innerWidth - pad) {
+        left = cluster ? cluster.left : pad;
+        top = cluster ? cluster.bottom + 14 : pad;
+      }
+    } else {
+      const t = targets[0].rect;
+      left = t.right + 18;
+      top = t.top;
+      if (left + cw > innerWidth - pad) left = t.left - cw - 18;
+      if (left < pad) left = pad;
+    }
+    if (top + ch > innerHeight - pad) top = innerHeight - ch - pad;
+    if (top < pad) top = pad;
+    guideCard.style.left = `${Math.round(left)}px`;
+    guideCard.style.top = `${Math.round(top)}px`;
+    const cardRect = guideCard.getBoundingClientRect();
+    const cardCx = cardRect.left + cardRect.width / 2;
+    const cardCy = cardRect.top + cardRect.height / 2;
+    guideArrows.replaceChildren();
+    guideArrows.setAttribute("viewBox", `0 0 ${innerWidth} ${innerHeight}`);
+    guideArrows.setAttribute("width", String(innerWidth));
+    guideArrows.setAttribute("height", String(innerHeight));
+    for (const t of targets) {
+      const to =
+        t.id === "view"
+          ? { x: t.rect.left + t.rect.width * 0.48, y: t.rect.top + t.rect.height * 0.52 }
+          : edgePoint(t.rect, cardCx, cardCy);
+      const from = edgePoint(cardRect, to.x, to.y);
+      drawGuideArrow(from, to);
+    }
+  };
+  const renderGuide = () => {
+    const step = guideStepAt(guideIndex);
+    guideIndex = step.index;
+    if (guideStepLabel) guideStepLabel.textContent = `${step.index + 1} / ${step.total}`;
+    if (guideStepTitle) guideStepTitle.textContent = step.title;
+    if (guideStepBody) guideStepBody.textContent = step.body;
+    if (guideBack) guideBack.disabled = step.isFirst;
+    if (guideNext) guideNext.hidden = step.isLast;
+    if (guideDone) guideDone.hidden = !step.isLast;
+    expandGuideFolds(step.fold);
+    requestAnimationFrame(() => requestAnimationFrame(layoutGuide));
+  };
+  const closeGuide = () => {
+    if (!guideOpen && guideOverlay?.hidden) return;
+    guideOpen = false;
+    document.body.classList.remove("is-guide");
+    if (guideOverlay) guideOverlay.hidden = true;
+    guideBtn?.setAttribute("aria-expanded", "false");
+    clearGuideSpots();
+    guideArrows?.replaceChildren();
+  };
+  const openGuide = () => {
+    if (guideOpen) {
+      closeGuide();
+      return;
+    }
+    aboutDialog?.close?.();
+    ingestDialog?.close?.();
+    on.ingestCancel?.();
+    guideOpen = true;
+    guideIndex = 0;
+    document.body.classList.add("is-guide");
+    if (guideOverlay) guideOverlay.hidden = false;
+    guideBtn?.setAttribute("aria-expanded", "true");
+    renderGuide();
+  };
+  if (guideOverlay) guideOverlay.dismiss = closeGuide;
+  guideBtn?.addEventListener("click", openGuide);
+  guideBack?.addEventListener("click", () => {
+    if (!guideOpen) return;
+    guideIndex -= 1;
+    renderGuide();
+  });
+  guideNext?.addEventListener("click", () => {
+    if (!guideOpen) return;
+    guideIndex += 1;
+    renderGuide();
+  });
+  guideDone?.addEventListener("click", closeGuide);
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !guideOpen) return;
+    e.preventDefault();
+    closeGuide();
+  });
+  window.addEventListener("resize", () => {
+    if (guideOpen) layoutGuide();
+  });
+  panelSource?.addEventListener("scroll", () => {
+    if (guideOpen) layoutGuide();
+  });
+  panelView?.addEventListener("scroll", () => {
+    if (guideOpen) layoutGuide();
+  });
+  document.querySelector(".controls-root")?.addEventListener("scroll", () => {
+    if (guideOpen) layoutGuide();
+  });
 
   return {
     getConfig() {
@@ -769,7 +1057,7 @@ export function bindUI(on) {
         encodingMinimal: DEFAULTS.encodingMinimal,
         countCmap: countCmap ? normalizeCountCmap(countCmap.value) : DEFAULT_COUNT_CMAP,
         forceFullRebuild: DEFAULTS.forceFullRebuild,
-        sourceKind: sourceKind ? sourceKind.value : DEFAULTS.sourceKind,
+        sourceKind: sourceKind && sourceKind.value !== "npy" ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: false,
         wolkeUrl: wolkeUrl ? wolkeUrl.value : DEFAULTS.wolkeUrl,
         wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
@@ -783,11 +1071,10 @@ export function bindUI(on) {
       document.body.classList.toggle("is-live", live);
       if (conwayLive) conwayLive.hidden = !live || document.body.classList.contains("source-count");
       if (loopBtn) loopBtn.disabled = live && !document.body.classList.contains("source-count");
-      for (const btn of [playBtn, playArBtn]) {
-        if (!btn) continue;
-        btn.textContent = live ? "Pause" : "Play";
-        btn.setAttribute("aria-pressed", live ? "true" : "false");
-        btn.classList.toggle("is-live", live);
+      if (playBtn) {
+        playBtn.textContent = live ? "Pause" : "Play";
+        playBtn.setAttribute("aria-pressed", live ? "true" : "false");
+        playBtn.classList.toggle("is-live", live);
       }
     },
     setLooping(on) {
@@ -807,15 +1094,8 @@ export function bindUI(on) {
       arSupported = Boolean(ok);
       if (arBtn) arBtn.hidden = !arSupported || document.body.classList.contains("is-ar");
     },
-    setArActive(active, { locked = false, searching = false } = {}) {
+    setArActive(active, { locked = false } = {}) {
       if (xrExit) xrExit.hidden = !active;
-      if (playArBtn) playArBtn.hidden = !active;
-      if (arSearch) {
-        arSearch.hidden = !active || locked;
-        arSearch.disabled = Boolean(!active || locked || searching);
-        arSearch.classList.toggle("is-on", Boolean(active && searching && !locked));
-        arSearch.setAttribute("aria-pressed", active && searching && !locked ? "true" : "false");
-      }
       if (arReset) {
         arReset.hidden = !active || !locked;
         arReset.disabled = !locked;
@@ -824,12 +1104,6 @@ export function bindUI(on) {
     },
     getArMag() {
       return arMag ? Number(arMag.value) : 1;
-    },
-    getArHeight() {
-      return arHeight ? Number(arHeight.value) : 0;
-    },
-    setArHeight(h) {
-      if (arHeight) arHeight.value = String(h);
     },
     getYawDegrees() {
       return arYaw ? Number(arYaw.value) || 0 : 0;
@@ -928,7 +1202,10 @@ export function bindUI(on) {
     },
     setSourceKind(kind) {
       const k = isCountSourceKind(kind) ? kind : "conway";
+      const countOpt = sourceKind?.querySelector('option[value="count"]');
+      if (countOpt && k === "count") countOpt.hidden = false;
       if (sourceKind) sourceKind.value = k;
+      lastSourceKind = k;
       document.body.classList.toggle("source-count", isCountSourceKind(k));
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
       if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
@@ -942,6 +1219,101 @@ export function bindUI(on) {
     },
     setCountHint(text) {
       if (countHint) countHint.textContent = text;
+    },
+    openIngest(model) {
+      const spec = model || {};
+      if (ingestFileName) ingestFileName.textContent = spec.name || "";
+      if (ingestMetaLine) {
+        ingestMetaLine.textContent = spec.canLoad || spec.shapeLine
+          ? `${spec.shapeLine} · ${spec.dtype} · ${spec.payload} payload · ${spec.cells} cells · ${spec.axesNote}`
+          : "";
+      }
+      if (ingestWarn) ingestWarn.textContent = spec.warn || "";
+      if (ingestWarn) {
+        ingestWarn.classList.toggle("is-soft", spec.warnKind === "soft");
+        ingestWarn.classList.toggle("is-hard", spec.warnKind === "hard");
+      }
+      const meanRadio = ingestReduce?.querySelector('input[name="ingest-reduce"][value="mean"]');
+      if (meanRadio) meanRadio.checked = true;
+      if (ingestPreviewWrap) ingestPreviewWrap.hidden = true;
+      const paintIngestWarn = (opt) => {
+        if (!ingestWarn || !opt) return;
+        ingestWarn.textContent = opt.warn || spec.warn || "";
+        ingestWarn.classList.toggle("is-soft", opt.warnKind === "soft");
+        ingestWarn.classList.toggle("is-hard", opt.warnKind === "hard");
+      };
+      if (ingestBinList) {
+        ingestBinList.replaceChildren();
+        for (const opt of spec.options || []) {
+          const lab = document.createElement("label");
+          lab.className = "ingest-bin-opt";
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.name = "ingest-factor";
+          input.value = String(opt.factor);
+          input.disabled = !opt.ok;
+          input.dataset.cells = String(opt.cells || 0);
+          if (opt.ok && opt.factor === spec.suggested) input.checked = true;
+          const span = document.createElement("span");
+          span.textContent = opt.label;
+          lab.append(input, span);
+          ingestBinList.append(lab);
+          input.addEventListener("change", () => {
+            if (!input.checked) return;
+            paintIngestWarn(opt);
+            emitIngestPreview();
+          });
+        }
+        if (!ingestBinList.querySelector("input:checked")) {
+          const firstOk = ingestBinList.querySelector("input:not(:disabled)");
+          if (firstOk) firstOk.checked = true;
+        }
+        const chosen = (spec.options || []).find((o) => o.ok && o.factor === spec.suggested)
+          || (spec.options || []).find((o) => o.ok);
+        paintIngestWarn(chosen);
+      }
+      if (ingestBins) ingestBins.hidden = !spec.canLoad;
+      if (ingestReduce) ingestReduce.hidden = !spec.canLoad;
+      if (ingestLoad) ingestLoad.disabled = !spec.canLoad;
+      aboutDialog?.close?.();
+      guideOverlay?.dismiss?.();
+      if (typeof ingestDialog?.showModal === "function" && !ingestDialog.open) ingestDialog.showModal();
+      if (spec.canLoad) emitIngestPreview();
+      else if (ingestPreviewWrap) ingestPreviewWrap.hidden = true;
+    },
+    closeIngest() {
+      ingestDialog?.close?.();
+    },
+    setIngestPreview(shot) {
+      if (!ingestPreview || !ingestPreviewWrap) return;
+      if (!shot || !shot.width || !shot.height || !shot.gray) {
+        ingestPreviewWrap.hidden = true;
+        return;
+      }
+      ingestPreview.width = shot.width;
+      ingestPreview.height = shot.height;
+      const ctx = ingestPreview.getContext("2d");
+      if (!ctx) {
+        ingestPreviewWrap.hidden = true;
+        return;
+      }
+      const img = ctx.createImageData(shot.width, shot.height);
+      const gray = shot.gray;
+      for (let i = 0; i < gray.length; i++) {
+        const g = gray[i];
+        const o = i * 4;
+        img.data[o] = g;
+        img.data[o + 1] = g;
+        img.data[o + 2] = g;
+        img.data[o + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      ingestPreviewWrap.hidden = false;
+      if (ingestPreviewCap) {
+        ingestPreviewCap.textContent = shot.frames > 1
+          ? `First output plane (${shot.frames} source frames)`
+          : "First plane";
+      }
     },
     setWolkeConnected(on) {
       if (!wolkeConnect) return;

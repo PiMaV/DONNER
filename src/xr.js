@@ -13,10 +13,6 @@ export const XR_HIT_TEST = "hit-test";
 export const XR_MAG_MIN = 0.4;
 export const XR_MAG_MAX = 2.5;
 export const XR_MAG_DEFAULT = 1;
-/** World meters along the floor normal (height off the plane). */
-export const XR_HEIGHT_MIN = 0;
-export const XR_HEIGHT_MAX = 2;
-export const XR_HEIGHT_DEFAULT = 0;
 /** Hit pose Y (surface normal) must align with world +Y at least this much. */
 export const XR_FLOOR_UP_DOT = 0.7;
 
@@ -26,23 +22,29 @@ export function clampArMag(mag) {
   return Math.min(XR_MAG_MAX, Math.max(XR_MAG_MIN, m));
 }
 
-export function clampArHeight(height) {
-  const h = Number(height);
-  if (!Number.isFinite(h)) return XR_HEIGHT_DEFAULT;
-  return Math.min(XR_HEIGHT_MAX, Math.max(XR_HEIGHT_MIN, h));
+/** Longest grid edge in cells (XY board or time tape). */
+export function xrExtentCells(width = XR_BOARD_CELLS, height = XR_BOARD_CELLS, timeCells = 1) {
+  const w = Math.max(1, width | 0);
+  const h = Math.max(1, height | 0);
+  const t = Math.max(1, timeCells | 0);
+  return Math.max(w, h, t);
 }
 
-/** Sit-on-plane lift plus extra height off the floor (world-up meters). */
-export function arWorldLift(sit, height) {
-  const base = Number(sit);
-  return (Number.isFinite(base) ? base : 0) + clampArHeight(height);
-}
-
-/** Scale so 32 cells of `cellSize` span 40 cm × `mag` in WebXR meters. */
-export function xrStageScale(cellSize = 1, mag = XR_MAG_DEFAULT) {
+/**
+ * Scale so `extentCells` of `cellSize` span 40 cm × `mag` in WebXR meters.
+ * Default extent is the 32-cell Conway board. Dense volumes pass the
+ * longest AABB edge so an MNI brick is tabletop, not room-sized.
+ */
+export function xrStageScale(
+  cellSize = 1,
+  mag = XR_MAG_DEFAULT,
+  extentCells = XR_BOARD_CELLS,
+) {
   const cs = Number(cellSize);
   const size = Number.isFinite(cs) && cs > 0 ? cs : 1;
-  return (XR_BOARD_METERS / (XR_BOARD_CELLS * size)) * clampArMag(mag);
+  const ext = Number(extentCells);
+  const cells = Number.isFinite(ext) && ext > 0 ? ext : XR_BOARD_CELLS;
+  return (XR_BOARD_METERS / (cells * size)) * clampArMag(mag);
 }
 
 /** World meters along the table normal so local `yMin` sits on the anchor. */
@@ -218,7 +220,7 @@ export function arSelectIsOverlayEcho(now, ignoreUntil) {
  * WebXR `select` never locked.
  */
 export const AR_OVERLAY_GUARD_SEL =
-  "button, input, select, textarea, label, .stack, .transport, .ar-size, .ar-yaw, .ar-height, .ar-stand";
+  "button, input, select, textarea, label, .stack, .transport, .ar-size, .ar-yaw, .ar-stand, .gizmo-col, .inspect-transport, .loop-axes";
 
 export function arOverlaySelectShouldGuard(target, overlayRoot) {
   if (!overlayRoot || target == null) return false;
@@ -233,9 +235,9 @@ export function arOverlaySelectShouldGuard(target, overlayRoot) {
 }
 
 /**
- * User-confirmed place only. Search must be armed. A visible reticle
- * must not move the stage until confirm. Timeouts never lock. Without
- * hit-test, a tap may lock the viewer-front preview.
+ * User-confirmed place only. Search is armed on enter (and after Reset).
+ * A visible reticle must not move the stage until confirm. Timeouts
+ * never lock. Without hit-test, a tap may lock the viewer-front preview.
  */
 export function canConfirmArPlace({
   locked = false,
@@ -338,6 +340,29 @@ export function volumeLocalAabb(width, height, yMin, yMax, cellSize = 1) {
   return {
     min: { x: -hx, y: Number.isFinite(y0) ? y0 : 0, z: -hz },
     max: { x: hx, y: Number.isFinite(y1) ? y1 : 0, z: hz },
+  };
+}
+
+/**
+ * Local AABB for a voxel crop, origin at the full-grid center.
+ * Sit-on-plane uses this so inspect clips shrink the brick on the table.
+ */
+export function volumeLocalAabbFromCrop(aabb, width, height, yMin, yMax, cellSize = 1) {
+  const cs = Number(cellSize);
+  const size = Number.isFinite(cs) && cs > 0 ? cs : 1;
+  const w = Math.max(0, (width | 0) - 1);
+  const h = Math.max(0, (height | 0) - 1);
+  const ox = w * 0.5;
+  const oz = h * 0.5;
+  const xLo = aabb?.xLo == null ? 0 : aabb.xLo | 0;
+  const xHi = aabb?.xHi == null ? w : aabb.xHi | 0;
+  const yLo = aabb?.yLo == null ? 0 : aabb.yLo | 0;
+  const yHi = aabb?.yHi == null ? h : aabb.yHi | 0;
+  const y0 = Number(yMin);
+  const y1 = Number(yMax);
+  return {
+    min: { x: (xLo - ox) * size, y: Number.isFinite(y0) ? y0 : 0, z: (yLo - oz) * size },
+    max: { x: (xHi - ox) * size, y: Number.isFinite(y1) ? y1 : 0, z: (yHi - oz) * size },
   };
 }
 

@@ -56,6 +56,8 @@ export const DEFAULTS = {
   densityMax: 0.9,
   densityStep: 0.01,
   gensPerSec: 8,
+  /** Silent Conway steps on boot so the default brick has Z depth. Stay paused. */
+  conwayWarmGens: 12,
   decay: false,
   history: 48,
   cellSize: 1,
@@ -95,13 +97,10 @@ export const DEFAULTS = {
 };
 
 /** Visitor-facing Source copy. Ids stay `conway` / `ignition` / `mni152`. */
-export const SOURCE_WELCOME =
-  "DONNER shows structured data as a 3D brick. Drag to orbit. Pick an example below; View is look, color, and quality. Starts at Medium. Choppy? Quality → Low. Pretty GPU? Quality → High.";
-
 export const SOURCE_GUIDE = {
   conway: {
     label: "Game of Life",
-    blurb: "A generator: each cube is a living cell, Z is generations. Starts paused. Play grows the stack.",
+    blurb: "A generator: each cube is a living cell, Z is generations. A short run fills the brick; Play grows it further.",
     cite: "",
   },
   ignition: {
@@ -114,10 +113,78 @@ export const SOURCE_GUIDE = {
     blurb: "Example T1 atlas. All three axes are space. Loop walks a cut. Not a patient scan.",
     cite: "Derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). See data/NOTICE.md.",
   },
+  count: {
+    label: "Own cube",
+    blurb: "Dropped .npy count cube (T × H × W). Loop scrubs the stack.",
+    cite: "",
+  },
 };
 
 export function sourceGuide(kind) {
   return SOURCE_GUIDE[kind] || SOURCE_GUIDE.conway;
+}
+
+/** Opt-in Look walkthrough. About stays identity; this is how to look. */
+export const GUIDE_STEPS = [
+  {
+    title: "Orbit",
+    body: "Drag to orbit, scroll to zoom, right-drag to pan. Phone: one-finger orbit, pinch zoom.",
+    targets: ["view"],
+    fold: "",
+  },
+  {
+    title: "Source",
+    body: "Pick Source on the left (phone: the Source fold): Game of Life, Lighter Ignition, Brain MRI, or Load NumPy. Drag-and-drop onto the volume always works. Game of Life keeps Play here; Pattern and grid sit under Setup.",
+    targets: ["source-kind"],
+    fold: "source",
+  },
+  {
+    title: "Play vs Loop",
+    body: "Game of Life Play grows the stack. Loop, under the rails, walks a cut of that tape. Ignition and Brain MRI scrub with Loop.",
+    targets: ["btn-play", "btn-loop"],
+    fold: "source",
+  },
+  {
+    title: "Rails",
+    body: "The three colored rails are X, Y, and Z. Drag a playhead, or grab a matching frame edge in the volume. Loop axis X / Y / Z sits under the rails.",
+    targets: ["stack-axis-z", "loop-axis-z"],
+    fold: "",
+  },
+  {
+    title: "Viewcube",
+    body: "Face-click the cube for an ortho cut. Hide center hides playhead frames and the slice grid. Hide outer hides the crop box. Phone: use the rails; the cube is desktop-only.",
+    targets: ["gizmo-hit", "btn-hide-center", "btn-hide-outer"],
+    fold: "",
+  },
+  {
+    title: "Inspect",
+    body: "Hull is the solid crop. Ghost keeps a glass hull and a solid plane. Cuts shows three slices. Grab a colored frame edge to peek.",
+    targets: ["shade-hull", "shade-ghost", "shade-triple"],
+    fold: "view",
+  },
+  {
+    title: "Look",
+    body: "Quality starts at Medium. Choppy? Quality → Low. Discrete GPU? High. Parallax is perspective. Fit frames the crop. Reset Planes opens clips and centers the playheads.",
+    targets: ["quality-medium", "btn-parallax", "btn-reset-planes"],
+    fold: "view",
+  },
+];
+
+export function guideStepAt(index) {
+  const total = GUIDE_STEPS.length;
+  const last = Math.max(0, total - 1);
+  const i = Math.max(0, Math.min(last, Number(index) || 0));
+  const step = GUIDE_STEPS[i] || GUIDE_STEPS[0];
+  return {
+    index: i,
+    total,
+    title: step.title,
+    body: step.body,
+    targets: step.targets || [],
+    fold: step.fold || "",
+    isFirst: i === 0,
+    isLast: i === last,
+  };
 }
 
 /** Count-cube demos under `data/` (committed copies for GitHub Pages). */

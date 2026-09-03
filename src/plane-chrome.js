@@ -12,9 +12,9 @@ export function centerChromeVisible(hideCenter, { cut = false } = {}) {
 
 export function outerChromeVisible(
   hideOuter,
-  { cut = false, inspect = false, liveLocked = false, arHideOuter = false } = {},
+  { cut = false, inspect = false, liveLocked = false } = {},
 ) {
-  if (arHideOuter || cut || !inspect || liveLocked) return false;
+  if (cut || !inspect || liveLocked) return false;
   return !hideOuter;
 }
 

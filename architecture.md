@@ -46,10 +46,10 @@ flowchart LR
 **Now (runtime):** source addon → encoding adapter → `EventSoA` → cube
 renderer. `CountVolume` keeps event-count semantics (non-negative
 integers, occupancy). Conway / count / MNI still unpack into the same
-SoA. The demo shell may offer Conway, Load `.npy`, Stream, and AR/XR;
+SoA. The demo shell may offer Conway, drop `.npy`, Stream, and AR/XR;
 that showcase UI is not the internal architecture.
 
-**Later (after a public preview):** a Dataset Contract so axis roles,
+**Later (Dataset Contract and extra renderers — the public host is already live):** a Dataset Contract so axis roles,
 units, spacing, affine, and value semantics are not hardcoded.
 `ScalarVolume` for generic scientific volumes (MRI/CT, including
 negative Hounsfield units). Point renderer for large sparse clouds.
@@ -57,7 +57,7 @@ WETTER Viewer Contract (packed selection / `viewer_index`). See
 [Later: Dataset Contract](#later-dataset-contract).
 
 Do not start that contract, `ScalarVolume`, or a PointRenderer in the
-same slice as finishing XR-C or shipping a public preview.
+same slice as XR follow-ups or own-data ingest.
 
 ## Serve
 
@@ -112,11 +112,11 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
-| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI (ids `conway` / `ignition` / `mni152`). Conway: Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit. File/stream ingest later (hidden). Loading spinner on source/cube switch. Visitor blurb + About. | Sheet **Source** (config, top of the left rail) |
+| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI (ids `conway` / `ignition` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: integer rungs via **Scale** (DONNER / Gray / Inferno / Plasma / Turbo); color only, no size-by-count. Polarity later. | Color coding + Scale in the **View** sheet. LUT in `src/encoding.js` |
 
-**Play / Loop** and **Speed** sit under the slice rails (above the footer),
-not in Source. AR overlay still has Play after spawn. Loop axis X/Y/Z
+**Loop** and loop **Speed** sit under the slice rails (above the footer).
+Conway **Play** stays in Source. AR overlay still has Loop after spawn. Loop axis X/Y/Z
 is the **highlighted** playhead (same as grabbing that plane). Ghost
 solids that plane. Hull+Loop grows a potato from the axis origin through
 the playhead and hides the +side plus clip edges. Cuts already shows
@@ -167,18 +167,21 @@ flowchart TB
   end
   subgraph source [Source]
     kind[Game of Life Lighter Brain MRI]
-    conway[Pattern Fill Seed Edit]
+    golPlay[Conway Play]
+    setup[Setup fold]
   end
   subgraph rails [Slice rails]
-    play[Play Loop Speed]
+    play[Loop Speed]
     axes[Loop X Y Z]
     gen[Conway live overlay]
   end
   view --> volume[Volume]
   hud --> volume
   play --> volume
+  golPlay --> volume
   source --> volume
-  kind --> conway
+  kind --> golPlay
+  kind --> setup
   axes --> play
 ```
 
@@ -193,9 +196,22 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-  npy[EVT count npy] --> sparse[Nonzero voxels]
-  sparse --> soa[Event SoA]
-  soa --> cubes[Solid cubes + ghost above focus]
+  npy[EVT count npy]
+  drop[Drop npy on volume]
+  load[Source Load NumPy]
+  peek[Header peek]
+  gate{Cells and RAM OK?}
+  bin[Stream-bin sum]
+  sparse[Nonzero voxels]
+  soa[Event SoA]
+  cubes[Solid cubes + ghost above focus]
+  npy --> sparse
+  drop --> peek
+  load --> peek
+  peek --> gate
+  gate -->|yes| sparse
+  gate -->|too big| bin --> sparse
+  sparse --> soa --> cubes
 ```
 
 A **WOLKE-contract viewer** is another way to get that cube. Socket.IO
@@ -359,7 +375,8 @@ flowchart TD
   per -->|no| unset[Unsettled violet]
 ```
 
-Default seed is **R-pentomino**, started **paused**. Size by age on.
+Default seed is **R-pentomino**. Boot runs **12** generations, then stays
+**paused**, so the default brick is not a single seed plane. Size by age on.
 Oscillator lesson if you pick it: Blinker → Toad / Beacon → Glider.
 
 ```mermaid
@@ -660,7 +677,8 @@ grow the DOM.
 | `src/door.js` | Public `?src=` / `?quality=` allow-list (no arbitrary .npy URLs) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
-| `src/npy.js` | NumPy `.npy` v1/v2 reader (count cubes) |
+| `src/npy.js` | NumPy `.npy` v1/v2 reader; `parseNpyHeader` / `peekNpyBlob` for ingest |
+| `src/volume-prep.js` | Count-cube ingest gate, 500k comfort warn, streaming mean/max-bin (skip short axes) |
 | `src/count.js` | Sparse count volume → `EventSoA` |
 | `src/wolke.js` | WOLKE viewer contract: Socket.IO notify + same-origin `/stream-npy` GET |
 | `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the static HTTP/HTTPS servers |
@@ -696,8 +714,9 @@ View **Gap** (`voxelGap`) is display lattice spacing: pitch =
 packs faces (occupancy fill is 1). Slider max is **5**. Orbit dolly-out
 (and camera far / ortho min-zoom) is computed at that limit so a wide
 Gap still fits. Frames and picking use the same pitch.
-AR places that same local layout; Size still maps 32 cube edges to 40 cm,
-so opening Gap grows the brick on the table.
+AR places that same local layout; stage scale fits the longest volume
+edge to 40 cm (Conway 32-cell board stays 40 cm; MNI is tabletop). Size
+is still 0.4×–2.5× on that fit, so opening Gap grows the brick on the table.
 
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
@@ -791,7 +810,7 @@ tag) and a spatial origin (pose, metric scale).
 shader path — or a native GPU backend if WebGL/WebGPU is *measured* to
 fail — keeps `setEvents(...)`. A volume-texture pass is only if dense
 scalar volumes justify it. Do not port DONNER into BLITZ/PyQtGraph.
-Do not start a second renderer before a public preview is usable.
+Do not start a second renderer until cross-platform numbers exist on the live host.
 
 Three shells around the same core, in order, not in parallel:
 
@@ -1106,18 +1125,18 @@ flowchart LR
    is also later: same `.npy` interchange, not a NIfTI parser — see
    [MRI volume (later)](#mri-volume-later).
 3. **XR** — same scene, WebXR only. **XR-A is opened** (phone ceiling):
-   passthrough first (no brick). **Search Anchor** starts floor hit-test
-   (gold reticle on a horizontal floor plane; tap to spawn). The first
+   passthrough first (no brick). Floor hit-test starts on enter (gold
+   reticle on a horizontal floor plane; tap to spawn). The first
    detected plane is **not** auto-committed, and a timeout does not lock.
    **Reset Anchor** despawns and returns to search (overlay chrome taps
    are guarded so Reset does not immediately re-place; a passthrough tap
-   still places). After lock, **Z** lifts the brick off the floor;
-   **Size** scales; **Yaw** turns it on the floor. **Stand** is hidden on
-   the phone overlay (renderer stand-axis stays for Quest). Outer bound /
-   clip frames are forced off for the phone session and restored on Exit;
-   center / playhead frames still draw after spawn. Phone chrome is the
-   DOM overlay `#xr-overlay` (Search Anchor / Play / Z / Size / Yaw /
-   Reset Anchor / Exit), not `document.body`. The overlay is 0×0 in orbit
+   still places). After lock the brick **sits** on the plane (no extra
+   height slider). **Size** scales; **Yaw** turns it on the floor. Stage
+   scale fits the longest AABB edge to 40 cm. Phone overlay after spawn
+   is the desktop inspect model: three rails + Loop, Hull / Ghost / Cuts,
+   Hide center / Hide outer (top-right, no viewcube), Size, Yaw, Reset
+   Anchor, Exit on `#xr-overlay`. **Stand** stays hidden on the phone
+   overlay (renderer stand-axis stays for Quest). Overlay is 0×0 in orbit
    so it does not cover the WebGL canvas; it expands for the session.
    Overlay tap-guard is chrome only (passthrough taps still place).
    **Quest must not request `dom-overlay`:** a fullscreen overlay root
@@ -1126,7 +1145,7 @@ flowchart LR
    projection layers. **XR-C-0:** no in-world Play/stand/Exit plate
    (unreadable). Thumbstick yaws; both grips pinch size; grab a bounding
    frame to slide the volume in the room. Headset-only — phone `screen`
-   overlay is unchanged. Quest has no Search / Reset Anchor button; Exit
+   overlay is unchanged. Quest has no Reset Anchor button; Exit
    AR and enter again to place on another plane. XR-B marker, hand
    tracking, and wrist attach are later and do not gate C0. Detail in
    [backlog.md](backlog.md).
@@ -1136,9 +1155,9 @@ flowchart LR
    to BLITZ. No shared widgets.
 
 Product **Z** (time) already stands on the playfield plane, so a floor
-is a natural origin. In phone AR the brick sits on that floor pose;
-**Z** on the overlay lifts it off the floor. **Play** grows the tape
-along time; clips crop in place. Phone orbit is still the non-AR
+is a natural origin. In phone AR the brick sits on that floor pose.
+Inspect clips shrink the brick on the table; **Loop** walks a plane.
+Phone orbit is still the non-AR
 fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
@@ -1165,19 +1184,19 @@ flowchart LR
 flowchart TB
   enter[enterAr immersive-ar]
   idle[Passthrough no volume]
-  search[Search Anchor]
+  search[Hit-test on enter]
   look[Look at the floor]
   place[Tap gold reticle to lock]
   reset[Reset Anchor]
-  volume[stage then stand then turntable]
+  inspect[Inspect on the plane]
   overlay[XR-A DOM overlay screen]
   frames[Quest grab frame to slide volume]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
-  enter --> idle --> search --> look --> place --> volume
-  volume --> overlay
-  volume --> frames
-  volume --> reset
+  enter --> idle --> search --> look --> place --> inspect
+  inspect --> overlay
+  inspect --> frames
+  inspect --> reset
   reset --> search
   frames --> hands
   place -.-> marker
@@ -1185,9 +1204,9 @@ flowchart TB
 
 | Slice | Placement | Device |
 |-------|-----------|--------|
-| **XR-A** | Passthrough only on enter (no brick); **Search Anchor** then floor reticle; tap to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; **Z** height, Size, Yaw; Stand hidden on phone overlay; outer frames off in the session; center frames still draw. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
+| **XR-A** | Passthrough only on enter (no brick); hit-test armed immediately; tap gold reticle to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; sit-on-plane (no Z height); Size, Yaw; AABB-fit scale; three inspect rails + Loop; Hull/Ghost/Cuts and Hide center/outer top-right (no viewcube); Stand hidden on phone overlay. Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed) | Later; same phone AR; marker reused on Quest. Not a gate for C0. |
-| **XR-C-0** | Headset still uses viewer-front until tap; phone Search overlay does not apply | Quest: no world HUD and no Search / Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
+| **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
 
 ## WETTER context

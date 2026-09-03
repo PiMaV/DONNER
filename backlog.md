@@ -16,21 +16,23 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Hull / Ghost universal (same peek for MRI and Ignition)
 - Mid-volume playhead catch
 - Loading spinner
-- Streamer / Load npy hidden from Source
+- Streamer hidden from Source (no sidecar on Pages). Drop `.npy` on the volume is in.
 - Neighborhood gone
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
 - Ghost / peek: hull InstancedMesh stays; only the solid plane refills (LRU)
 - View **Quality** Low / Medium / High (manual; default Medium)
 - Visitor Source labels (**Game of Life**, **Lighter Ignition**, **Brain MRI**), About, committed example cubes
+- Opt-in **Guide** button to the right of the brand chip (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect, Look; arrows on the controls)
+- Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
+- Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
+- Phone AR search on enter (no Search Anchor), no Z-height slider, AABB-fit scale
 
 **Later / next candidates** (keep; do not implement in this slice):
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
-2. AR later list (inspect 3 sliders in AR, Search default on, remove AR Z
-   slider, smaller MNI, remove AR Play, named shade not mystery hull,
-   Hide center/outer in AR, gizmo top-right)
-3. Live ingest UI (Streamer + Load npy)
+2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
+3. Streamer UI (WOLKE-contract Connect). File drop + volume preloader is in; Streamer stays hidden — static Pages has no sidecar.
 4. Decay opt-in
 5. Dataset Contract / ScalarVolume
 6. 500k voxel note / volume-texture pass under DATA
@@ -42,14 +44,15 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 ## Product roadmap
 
 Do not rewrite DONNER. Do not merge it into BLITZ. Do not start a
-Dataset Contract or PointRenderer before a public preview.
+Dataset Contract or PointRenderer in the same slice as XR follow-ups
+or own-data ingest. The public host is already live.
 
 **Phase 1 — finish current milestone.** Quest session works again (no
 DOM overlay, `local` tracking, `XRWebGLLayer`). The in-world Play/stand/Exit
 plate is retired — confirm the four device follow-ups below on hardware
 (WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
-**Phase 2 — public preview.** Thin View (Neighborhood is gone; **DEV Bench** is an
+**Phase 2 — public host (shipped).** Thin View (Neighborhood is gone; **DEV Bench** is an
 opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos.
 **Live** at [`https://donner.mess.engineering`](https://donner.mess.engineering/)
 (GitHub Pages + custom domain). Still open: add DONNER to the WETTER
@@ -58,7 +61,8 @@ old M.E.S.S. Java/browser point-cloud showcase from the active site
 (archive OK). Connected / sidecar mode stays off that static host.
 
 **Phase 3 — feedback.** Usability, slicing, mobile, AR, Quest,
-performance, own-data loading. Do not decide every later feature first.
+performance, own-data loading (file drop + preloader is in; Streamer
+stays later). Do not decide every later feature first.
 
 **Phase 4 — Dataset Contract.** Source adapter → Dataset Contract → core
 → renderer. Axis role / unit / spacing / affine. Keep `CountVolume` for
@@ -146,8 +150,8 @@ on top, View fold below) is the current shell, not the end state.
   all View labels in a toolbox pass yet.
 
 These are orbit-shell polish. XR-A already specifies a **thin overlay**
-(Play, Z, Exit) and must not wait on this cleanup — but the same instinct
-applies: AR chrome is not the desktop sheets.
+(inspect rails, Loop, Size, Yaw, Exit) and must not wait on this cleanup
+— but the same instinct applies: AR chrome is not the desktop sheets.
 
 ## Decay (later / opt-in)
 
@@ -206,31 +210,33 @@ XR-B is **not** a gate for Quest chrome. Do not start a new renderer
 flowchart TB
   enter[enterAr immersive-ar]
   place[Hit-test place and lock]
-  volume[stage then stand then turntable]
+  inspect[Inspect on the plane]
   overlay[XR-A DOM overlay screen]
   frames[Grab frame to slide volume]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
-  enter --> place --> volume
-  volume --> overlay
-  volume --> frames
+  enter --> place --> inspect
+  inspect --> overlay
+  inspect --> frames
   frames --> hands
   place -.-> marker
 ```
 
 1. **XR-A — phone tabletop (shipped ceiling).** WebXR `immersive-ar` on
-   **Android Chrome**. Passthrough, plane **hit-test** (gold square
-   reticle, tap to place, then lock), tabletop scale (32 cells ≈ 40 cm).
-   The volume **stands** on the chosen product plane (default Z: gen 0 on
-   the table, time up). **Play** grows the tape along time. Bounding
-   frames stay visible after lock. If hit-test is missing, the volume
-   sits ~0.8 m in front of the viewer. Feature detect; no AR button if
-   `immersive-ar` is missing. Orbit is the fallback. After place, **Yaw**
-   orients the volume (overlay slider or swipe). Then walk with the phone
-   as an IMU window — that is the phone product, not a stepping stone to
-   more phone chrome. **HTTPS** is `https://lab.ole.icu/` (`start:lan`
-   upstream); mkcert is fallback. AR chrome is Play, Stand X/Y/Z, Size, Yaw, Exit
-   on `#xr-overlay` (`dom-overlay` type `screen`). Pause `OrbitControls`
+   **Android Chrome**. Passthrough, plane **hit-test** starts on enter
+   (gold square reticle, tap to place, then lock). Scale fits the longest
+   volume edge to 40 cm (32-cell Conway board stays 40 cm). The volume
+   **stands** on the chosen product plane (default Z: gen 0 on the table,
+   time up). After lock, phone AR is the desktop **inspect** model (three
+   rails, Loop, named shade). Bounding frames follow Hide center / Hide
+   outer. If hit-test is missing, the volume sits ~0.8 m in front of the
+   viewer. Feature detect; no AR button if `immersive-ar` is missing.
+   Orbit is the fallback. After place, **Yaw** orients the volume
+   (overlay slider or swipe). Then walk with the phone as an IMU window.
+   **HTTPS** is `https://lab.ole.icu/` (`start:lan` upstream); mkcert is
+   fallback. AR chrome after spawn is rails / Loop / Size / Yaw / Reset
+   Anchor / Exit plus Hide and Hull/Ghost/Cuts top-right on `#xr-overlay`
+   (`dom-overlay` type `screen`). Pause `OrbitControls`
    in session. `setEvents(...)` stays. iPhone only if `navigator.xr`
    actually supports AR. No 8th Wall, no ARKit shell.
 
@@ -283,50 +289,27 @@ Confirm on hardware after the session-fix (WWM). In this tree:
 
 ## AR (later)
 
-Phone AR chrome today (Search Anchor required, floor brick, Z height
-off the floor, outer bounds off) is the current session, not the later
-inspect model. These items are backlog, not Unreleased shipped intent.
+Phone AR inspect is in: search on enter, sit-on-plane (no Z height),
+AABB-fit scale (longest edge → 40 cm), three rails + Loop, named
+Hull / Ghost / Cuts, Hide center / Hide outer. Viewcube face snaps stay
+desktop. Remaining:
 
-- **Volume inspect in AR.** A brain / MNI volume looks wrong as a floor
-  brick with height-off-floor and bounds hidden. In AR, bring back the
-  desktop inspect/crop model: three sliders plus three planes (playhead
-  and clip), not the current phone overlay (floor sit, Z lift, outer
-  frames off). Size and Yaw can stay for place; inspect is the stack.
-- **Anchor search on by default.** Entering AR should already be
-  searching (gold reticle as soon as a floor is in view). The user should
-  not have to press **Search Anchor** first. Current code waits for that
-  explicit press before spawn (`#btn-ar-search`); later default is the
-  opposite. This is not QR-door auto-enter AR (still a separate later).
-- **Remove the AR Z slider.** The overlay height-over-floor control was
-  a misunderstanding. Drop it in a later cut. Size still scales the
-  brick; Yaw still turns it.
 - **Optional: pick the floor plane.** Let the user choose which detected
   plane is the ground or table the voxels sit on, not only “any
   horizontal surface.” Walls stay ignored; among horizontal hits, pick
   which plane is the sit surface.
-- **MNI / brain in AR is far too large.** When the MNI dataset is
-  placed, the spawned brick must be much smaller than today’s tabletop
-  scale. Desktop size is not the AR size.
-- **Remove the AR Play button.** Phone overlay Play is Conway / sim
-  transport, not an AR gesture. Drop it in a later cut (Search / Reset
-  Anchor / Exit stay).
-- **Brain in AR looks like an unexplained transparent hull.** The
-  spawned volume is neither Ghost nor Cuts nor Hull — an unknown shade.
-  Later: AR must use a named, explainable view (or the same shade as
-  desktop), not this mystery transparency.
-- **Hide center / Hide outer in AR.** Phone AR should be able to hide
-  playhead/slice chrome and clip frames independently, same idea as the
-  desktop viewcube shortcuts. Today those toggles are desktop-only (no
-  gizmo on phone AR).
-- **Viewcube / gizmo in AR, top-right.** Desktop inspect gizmo (face
-  snaps, hide shortcuts) should be available in phone AR, parked
-  top-right of the overlay so placement/search chrome can stay bottom.
+- **Viewcube / face snaps in AR.** Desktop 2D ortho cuts fight
+  passthrough. Hide + Shade are already top-right. A cube that yaws the
+  brick (no camera cut) is later if wanted.
 
-## Live (later)
+## Live ingest
 
-- **Streamer + Load NumPy** as live ingest (WOLKE-contract stream and
-  `.npy` file). Hidden from the current desktop Source chrome; the
-  loaders stay in the tree. Not a live stream UI this slice. The Source
+- **Drop `.npy` + volume preloader is in.** Control lives on Source (Load
+  NumPy; drop on the volume still works). Header peek, ~500k comfort warn,
+  256³ hard cap, optional 2/4/8 mean/max-bin that skips short axes, first-plane
+  preview.
+- **Streamer + Connect** stays hidden. WOLKE-contract stream needs a
+  sidecar; GitHub Pages has none. Loaders stay in the tree. The Source
   **Loading…** spinner is the seed for “something is arriving.”
 
 ## QR door (later)

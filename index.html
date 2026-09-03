@@ -27,11 +27,19 @@
 
 <body>
   <canvas id="view" aria-label="3D volume"></canvas>
+  <input id="count-file" type="file" accept=".npy,application/octet-stream" hidden />
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay-card">
+      <p>Drop a .npy count cube</p>
+      <label class="btn file-btn" for="count-file">Browse</label>
+    </div>
+  </div>
   <div id="load-overlay" class="load-overlay" hidden>
     <span class="load-spin" aria-hidden="true"></span>
     <span class="load-overlay-label">Loading…</span>
   </div>
 
+  <div class="brand-cluster">
   <header class="brand">
     <div class="brand-mark" aria-hidden="true">D</div>
     <div>
@@ -39,6 +47,8 @@
       <p class="tagline">Explore structured data in 3D & XR · M.E.S.S.</p>
     </div>
   </header>
+  <button type="button" id="btn-guide" class="btn brand-guide" aria-expanded="false" aria-controls="guide-overlay">Guide</button>
+  </div>
 
   <button type="button" id="hud-fps" class="fps-chip" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
 
@@ -50,6 +60,13 @@
       </div>
       <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
       <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
+      <div class="ar-inspect-chrome" role="group" aria-label="AR inspect shade">
+        <div class="btn-row shade-modes ar-shade" role="radiogroup" aria-label="Inspect shade">
+          <button type="button" id="ar-shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek.">Hull</button>
+          <button type="button" id="ar-shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass.">Ghost</button>
+          <button type="button" id="ar-shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
+        </div>
+      </div>
     </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
@@ -72,11 +89,6 @@
         <span>Size</span>
         <input id="ar-mag" type="range" min="0.4" max="2.5" step="0.05" value="1"
           aria-label="AR volume size" />
-      </label>
-      <label class="ar-height" for="ar-height">
-        <span>Z</span>
-        <input id="ar-height" type="range" min="0" max="2" step="0.01" value="0"
-          aria-label="AR height off the floor" />
       </label>
       <label class="ar-yaw" for="ar-yaw">
         <span>Yaw</span>
@@ -158,9 +170,6 @@
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-play-ar" class="btn btn-play" hidden aria-pressed="false">Play</button>
-        <button type="button" id="btn-ar-search" class="btn btn-ar-search" hidden
-          title="Look for a floor plane, then tap the gold square to place the volume.">Search Anchor</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
@@ -176,33 +185,35 @@
 
   <form id="controls" class="controls-root" autocomplete="off" onsubmit="return false">
     <div id="panel-source" class="controls panel-source">
+    <div class="fold-meter">
     <button type="button" id="btn-rail-source" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="source-body" title="Collapse Source">Source ▾</button>
+    <button type="button" id="btn-about" class="btn-link source-about-data">About Data</button>
+    </div>
     <div id="source-load" class="source-load" hidden aria-live="polite">
       <span class="load-spin" aria-hidden="true"></span>
       <span id="source-load-label">Loading…</span>
     </div>
     <div id="source-body" class="sheet-body">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
-      <p id="source-welcome" class="hint source-welcome">DONNER shows structured data as a 3D brick. Drag to orbit. Pick an example below; View is look, color, and quality. Starts at Medium. Choppy? Quality → Low. Pretty GPU? Quality → High.</p>
       <label class="field">
         <span>Source</span>
         <select id="source-kind">
           <option value="conway" selected>Game of Life</option>
           <option value="ignition">Lighter Ignition</option>
           <option value="mni152">Brain MRI</option>
-          <option value="count" hidden>Count file / stream</option>
+          <option value="npy">Load NumPy</option>
+          <option value="count" hidden>Own cube</option>
         </select>
       </label>
-      <p id="source-blurb" class="hint source-blurb">A generator: each cube is a living cell, Z is generations. Starts paused. Play grows the stack.</p>
+      <p id="source-blurb" class="hint source-blurb">A generator: each cube is a living cell, Z is generations. A short run fills the brick; Play grows it further.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
-      <p class="hint source-about-row">
-        <button type="button" id="btn-about" class="btn-link">About</button>
-      </p>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"
           title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
       </div>
+      <button type="button" id="btn-conway-setup" class="inner-fold" aria-expanded="false" aria-controls="conway-setup" title="Expand Setup">Setup ▸</button>
+      <div id="conway-setup" class="conway-setup" hidden>
       <label id="speed-field" class="field" title="How fast the Conway source generates (generations per second). Not the View loop.">
         <span>Speed <em id="speed-val"></em></span>
         <input id="speed" type="range" min="1" max="60" step="1" aria-label="Conway generations per second" />
@@ -240,13 +251,9 @@
         <span>Stop when stable</span>
       </label>
       </div>
+      </div>
       <div id="source-count" hidden>
         <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt. Stream from the EVT sidecar or WOLKE (Send as counts).</p>
-        <div class="btn-row">
-          <label class="btn file-btn">Load .npy
-            <input id="count-file" type="file" accept=".npy,application/octet-stream" />
-          </label>
-        </div>
         <label class="field">
           <span>Stream</span>
           <input id="wolke-url" type="url" spellcheck="false" autocomplete="off" />
@@ -387,13 +394,60 @@
         <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.</li>
         <li><strong>Brain MRI</strong> — example T1 atlas (ICBM 152). All three axes are space. Loop walks a cut. Not a patient scan.</li>
       </ul>
-      <h3>Look</h3>
-      <p>Drag to orbit, scroll to zoom. View is look and color. Hull / Ghost / Cuts. Grab a colored frame edge to peek. Quality starts at Medium. Low is for iGPU and phones. High needs a discrete GPU (<code>?quality=high</code>).</p>
       <h3>Share</h3>
       <p>The address bar follows the example: <code>?src=ignition</code>, <code>?src=mni152</code>, <code>?src=conway</code>. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
       <h3>Credit</h3>
       <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
       <button type="submit" class="btn" value="close">Close</button>
+    </form>
+  </dialog>
+
+  <div id="guide-overlay" class="guide-overlay" hidden>
+    <svg id="guide-arrows" class="guide-arrows" aria-hidden="true"></svg>
+    <div id="guide-card" class="guide-card" role="dialog" aria-modal="false" aria-labelledby="guide-title">
+      <h2 id="guide-title">Guide</h2>
+      <p id="guide-step-label" class="guide-step-label">1 / 4</p>
+      <h3 id="guide-step-title">Orbit</h3>
+      <p id="guide-step-body">Drag to orbit, scroll to zoom, right-drag to pan. Phone: one-finger orbit, pinch zoom.</p>
+      <div class="btn-row">
+        <button type="button" id="btn-guide-back" class="btn" disabled>Back</button>
+        <button type="button" id="btn-guide-next" class="btn">Next</button>
+        <button type="button" id="btn-guide-done" class="btn" hidden>Done</button>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="ingest-dialog" class="ingest-dialog" aria-labelledby="ingest-title">
+    <form id="ingest-form">
+      <h2 id="ingest-title">Load count cube</h2>
+      <p id="ingest-file" class="ingest-file-name"></p>
+      <p id="ingest-meta"></p>
+      <p id="ingest-warn" class="ingest-warn"></p>
+      <div id="ingest-preview-wrap" class="ingest-preview-wrap" hidden>
+        <div id="ingest-preview-frame" class="ingest-preview-frame">
+          <canvas id="ingest-preview" class="ingest-preview"></canvas>
+        </div>
+        <p id="ingest-preview-cap" class="ingest-preview-cap"></p>
+      </div>
+      <fieldset id="ingest-bins">
+        <legend>Size</legend>
+        <div id="ingest-bin-list"></div>
+      </fieldset>
+      <fieldset id="ingest-reduce">
+        <legend>Bin</legend>
+        <label class="ingest-bin-opt">
+          <input type="radio" name="ingest-reduce" value="mean" checked />
+          <span>Mean — downsample</span>
+        </label>
+        <label class="ingest-bin-opt">
+          <input type="radio" name="ingest-reduce" value="max" />
+          <span>Max — keep peaks</span>
+        </label>
+      </fieldset>
+      <div class="btn-row">
+        <button type="button" class="btn" id="ingest-cancel">Cancel</button>
+        <button type="button" class="btn" id="ingest-load">Load</button>
+      </div>
     </form>
   </dialog>
 </body>

@@ -10,6 +10,7 @@ import {
   stepClassic,
 } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
+import { DEFAULTS } from "../src/config.js";
 import {
   KIND_BASE,
   KIND_MOVING,
@@ -85,6 +86,17 @@ describe("Conway B3/S23 (BLITZ parity)", () => {
       hold = world.step() ? 0 : hold + 1;
       assert.ok(hold < 5);
     }
+  });
+
+  it("R-pentomino after the public warm run is a grown stack", () => {
+    assert.equal(DEFAULTS.conwayWarmGens, 12);
+    assert.ok(DEFAULTS.conwayWarmGens >= 8 && DEFAULTS.conwayWarmGens <= 16);
+    const world = new ConwayWorld({ width: 32, height: 32, wrap: true });
+    world.load(seedPattern("R-pentomino", 32, 32, mulberry32(DEFAULTS.seed)));
+    const seedLive = countLive(world.grid);
+    for (let i = 0; i < DEFAULTS.conwayWarmGens; i++) world.step();
+    assert.equal(world.generation, DEFAULTS.conwayWarmGens);
+    assert.ok(countLive(world.grid) > seedLive);
   });
 
   it("a wrapping glider is never bitwise still", () => {

@@ -63,16 +63,38 @@ function dtypeOf(descr) {
   return spec;
 }
 
+function shapeProduct(shape) {
+  let n = 1;
+  for (let i = 0; i < shape.length; i++) {
+    n *= shape[i];
+    if (!Number.isFinite(n) || n > Number.MAX_SAFE_INTEGER) {
+      throw new Error(`bad npy shape ${JSON.stringify(shape)}`);
+    }
+  }
+  return n;
+}
+
+/** Bytes enough for a typical `.npy` header peek (`File.slice`). */
+export const NPY_HEADER_PEEK = 4096;
+
 /**
+ * Header only — payload need not be present.
+ *
  * @param {ArrayBuffer | Uint8Array} raw
  * @returns {{
  *   shape: number[],
  *   descr: string,
  *   fortranOrder: boolean,
- *   data: ArrayBufferView,
+ *   major: number,
+ *   minor: number,
+ *   bodyOffset: number,
+ *   itemSize: number,
+ *   length: number,
+ *   payloadBytes: number,
+ *   fileBytes: number,
  * }}
  */
-export function parseNpy(raw) {
+export function parseNpyHeader(raw) {
   const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
   if (bytes.length < 10) throw new Error("npy file is truncated");
   for (let i = 0; i < MAGIC.length; i++) {
@@ -83,10 +105,19 @@ export function parseNpy(raw) {
   if (major !== 1 && major !== 2 && major !== 3) {
     throw new Error(`unsupported npy version ${major}.${minor}`);
   }
+  if ((major === 2 || major === 3) && bytes.length < 12) {
+    const err = new Error("npy header is truncated");
+    err.need = 12;
+    throw err;
+  }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const hdrLen = major === 1 ? view.getUint16(8, true) : view.getUint32(8, true);
   const hdrOff = major === 1 ? 10 : 12;
-  if (hdrOff + hdrLen > bytes.length) throw new Error("npy header is truncated");
+  if (hdrOff + hdrLen > bytes.length) {
+    const err = new Error("npy header is truncated");
+    err.need = hdrOff + hdrLen;
+    throw err;
+  }
   const header = latin1(bytes.subarray(hdrOff, hdrOff + hdrLen));
   const descr = parseDescr(header);
   const shape = parseShape(header);
@@ -98,25 +129,97 @@ export function parseNpy(raw) {
     throw new Error(`bad npy shape ${JSON.stringify(shape)}`);
   }
   const spec = dtypeOf(descr);
-  const n = shape.reduce((a, b) => a * b, 1);
+  const n = shapeProduct(shape);
   const body = hdrOff + hdrLen;
   const need = n * spec.size;
-  if (body + need > bytes.length) throw new Error("npy payload is truncated");
-  const slice = bytes.subarray(body, body + need);
-  let data;
+  if (!Number.isFinite(need) || need > Number.MAX_SAFE_INTEGER) {
+    throw new Error(`bad npy shape ${JSON.stringify(shape)}`);
+  }
+  return {
+    shape,
+    descr,
+    fortranOrder,
+    major,
+    minor,
+    bodyOffset: body,
+    itemSize: spec.size,
+    length: n,
+    payloadBytes: need,
+    fileBytes: body + need,
+  };
+}
+
+/**
+ * Interpret a payload slice as the dtype in `descr`.
+ *
+ * @param {ArrayBuffer | Uint8Array} raw
+ * @param {string} descr
+ * @param {number} count
+ */
+export function npyArrayFromBytes(raw, descr, count) {
+  const spec = dtypeOf(descr);
+  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const n = count | 0;
+  const need = n * spec.size;
+  if (bytes.length < need) throw new Error("npy payload is truncated");
+  const slice = bytes.subarray(0, need);
   if (descr[0] === "<" || descr[0] === "|") {
     if (slice.byteOffset % spec.size === 0) {
-      data = new spec.ArrayType(slice.buffer, slice.byteOffset, n);
-    } else {
-      const copy = new Uint8Array(need);
-      copy.set(slice);
-      data = new spec.ArrayType(copy.buffer, 0, n);
+      return new spec.ArrayType(slice.buffer, slice.byteOffset, n);
     }
-  } else {
-    data = new spec.ArrayType(n);
-    for (let i = 0; i < n; i++) data[i] = spec.get(view, body + i * spec.size);
+    const copy = new Uint8Array(need);
+    copy.set(slice);
+    return new spec.ArrayType(copy.buffer, 0, n);
   }
-  return { shape, descr, fortranOrder, data };
+  const view = new DataView(slice.buffer, slice.byteOffset, slice.byteLength);
+  const data = new spec.ArrayType(n);
+  for (let i = 0; i < n; i++) data[i] = spec.get(view, i * spec.size);
+  return data;
+}
+
+/**
+ * @param {Blob} blob
+ */
+export async function peekNpyBlob(blob) {
+  if (!blob || typeof blob.slice !== "function") {
+    throw new Error("not a NumPy .npy file");
+  }
+  let size = NPY_HEADER_PEEK;
+  for (;;) {
+    const buf = await blob.slice(0, size).arrayBuffer();
+    try {
+      const header = parseNpyHeader(buf);
+      if (typeof blob.size === "number" && blob.size < header.fileBytes) {
+        throw new Error("npy file is truncated");
+      }
+      return header;
+    } catch (err) {
+      const need = err && err.need;
+      if (Number.isFinite(need) && need > size) {
+        size = need;
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/**
+ * @param {ArrayBuffer | Uint8Array} raw
+ * @returns {{
+ *   shape: number[],
+ *   descr: string,
+ *   fortranOrder: boolean,
+ *   data: ArrayBufferView,
+ * }}
+ */
+export function parseNpy(raw) {
+  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const header = parseNpyHeader(bytes);
+  if (header.fileBytes > bytes.length) throw new Error("npy payload is truncated");
+  const payload = bytes.subarray(header.bodyOffset, header.bodyOffset + header.payloadBytes);
+  const data = npyArrayFromBytes(payload, header.descr, header.length);
+  return { shape: header.shape, descr: header.descr, fortranOrder: header.fortranOrder, data };
 }
 
 function padHeader(header, prefixLen, align = 16) {

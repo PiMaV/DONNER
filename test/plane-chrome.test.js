@@ -30,8 +30,8 @@ describe("outerChromeVisible", () => {
     assert.equal(outerChromeVisible(true, { inspect: true }), false);
   });
 
-  it("forces clip / bound frames off in a phone AR session", () => {
-    assert.equal(outerChromeVisible(false, { inspect: true, arHideOuter: true }), false);
+  it("does not force clip frames off for a phone AR session", () => {
+    assert.equal(outerChromeVisible(false, { inspect: true }), true);
   });
 
   it("does not show clips in live, a cut, or while the stack is live-locked", () => {

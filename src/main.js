@@ -13,7 +13,9 @@ import {
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
-import { countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { peekNpyBlob } from "./npy.js";
+import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, countKindHex, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
@@ -103,13 +105,10 @@ import {
 } from "./plane-chrome.js";
 import {
   XR_BOARD_METERS,
-  XR_HEIGHT_DEFAULT,
   XR_MAG_DEFAULT,
   arReticleAllowed,
   arStandLift,
   arVolumeVisible,
-  arWorldLift,
-  clampArHeight,
   clampArMag,
   firstFloorHitMatrix,
   isImmersiveArSupported,
@@ -127,7 +126,9 @@ import {
   standQuatFromAxis,
   viewerFrontPosition,
   volumeLocalAabb,
+  volumeLocalAabbFromCrop,
   withXrWebGLLayerOnly,
+  xrExtentCells,
   xrStageScale,
 } from "./xr.js";
 import {
@@ -315,6 +316,8 @@ let tape;
 let tapeMode = false;
 let sourceId = "conway";
 let countVol = null;
+let pendingIngest = null;
+let ingestPreviewGen = 0;
 const wolke = new WolkeViewer({ io });
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt.";
@@ -383,7 +386,6 @@ let arIgnoreSelectUntil = 0;
 let arHeadsetHud = false;
 let arPinch = null;
 let arMag = XR_MAG_DEFAULT;
-let arHeight = XR_HEIGHT_DEFAULT;
 let arStandAxis = "z";
 let arFrameDrag = null;
 let arPlanePoke = false;
@@ -483,7 +485,17 @@ const ui = bindUI({
     switchSource(ui.getConfig().sourceKind);
   },
   countFile: (file) => {
-    void withLoading(`Loading ${file.name}…`, () => loadCountFromFile(file));
+    void offerCountFile(file);
+  },
+  ingestConfirm: (picks) => {
+    void confirmCountIngest(picks);
+  },
+  ingestPreview: (picks) => {
+    void refreshIngestPreview(picks);
+  },
+  ingestCancel: () => {
+    pendingIngest = null;
+    ingestPreviewGen += 1;
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -494,11 +506,7 @@ const ui = bindUI({
   arMag: () => {
     setArMag(ui.getArMag());
   },
-  arHeight: () => {
-    setArHeight(ui.getArHeight());
-  },
   arStand: (axis) => setArStandAxis(axis),
-  searchArAnchor,
   resetArAnchor,
   guardArOverlaySelect,
 });
@@ -622,7 +630,6 @@ function cropFoci() {
 
 function inspectShade() {
   if (!inspectMode()) return null;
-  if (arPresenting() && !arPlanePoke) return null;
   if (planeDrag && planeDrag.handle !== "focus") return "hull";
   if (arPlanePoke) return "ghost";
   return effectiveShade(shadeMode, shadeHeld);
@@ -742,10 +749,6 @@ function arPresenting() {
   return renderer.xr.isPresenting;
 }
 
-function phoneArSession() {
-  return arPresenting() && arPhoneOverlay;
-}
-
 function syncArVolumeVisible() {
   stage.visible = !arPresenting()
     ? true
@@ -820,11 +823,25 @@ function arLockedChrome() {
   return arPresenting() && arLocked;
 }
 
-function arVolumeBox() {
+function arExtentCells() {
+  if (!world) return xrExtentCells();
   const store = viewStore();
-  if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, layoutCell());
-  const y = slabYRange(viewNow(), store.oldestT(), viewNow(), layoutTime());
-  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, layoutCell());
+  const timeCells = store ? Math.max(1, viewNow() - store.oldestT() + 1) : 1;
+  return xrExtentCells(world.width, world.height, timeCells);
+}
+
+function arVolumeBox() {
+  const cs = layoutCell();
+  const store = viewStore();
+  if (!world || !store) return volumeLocalAabb(1, 1, 0, 0, cs);
+  const box = cropAabb();
+  const y = box
+    ? slabYRange(viewNow(), box.tLo, box.tHi, layoutTime())
+    : slabYRange(viewNow(), store.oldestT(), viewNow(), layoutTime());
+  if (box) {
+    return volumeLocalAabbFromCrop(box, world.width, world.height, y.yMin, y.yMax, cs);
+  }
+  return volumeLocalAabb(world.width, world.height, y.yMin, y.yMax, cs);
 }
 
 function applyStandQuat() {
@@ -852,15 +869,14 @@ function setArStandAxis(next) {
 
 function applyArStagePose() {
   if (!arPresenting() || !arAnchored || !world) return;
-  const s = xrStageScale(DEFAULTS.cellSize, arMag);
+  const s = xrStageScale(DEFAULTS.cellSize, arMag, arExtentCells());
   if (!(s > 0)) return;
   stage.quaternion.copy(arAnchorQuat);
   stage.scale.setScalar(s);
   applyStandQuat();
   const sit = arStandLift(arStandAxis, arVolumeBox(), s);
-  const lift = arWorldLift(sit, arHeight);
   _xrUp.set(0, 1, 0).applyQuaternion(arAnchorQuat);
-  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, lift);
+  stage.position.copy(arAnchorPos).addScaledVector(_xrUp, sit);
   if (!Number.isFinite(stage.position.x)) {
     stage.position.copy(arAnchorPos);
   }
@@ -896,6 +912,7 @@ function lockArPlacement() {
   arLocked = true;
   arPlaced = true;
   arSearching = false;
+  enterInspect();
   applyArStagePose();
   ui.setArYawEnabled(true);
   setArPlacedDocument(true);
@@ -929,14 +946,6 @@ function onArSelect() {
   }
   if (arUseHitTest && reticle.visible) placeStageFromReticle();
   else lockArPlacement();
-}
-
-function searchArAnchor() {
-  if (!arPresenting() || arLocked) return;
-  arSearching = true;
-  guardArOverlaySelect();
-  syncArOverlayChrome();
-  updateHint();
 }
 
 function resetArAnchor() {
@@ -1023,14 +1032,14 @@ function collectArFramePick(frame, origin, dir, into) {
 function hitArFrame(origin, dir) {
   if (
     !arLockedChrome() ||
-    !anyFrameChromeVisible(hideCenter, hideOuter, { inspect: true, arHideOuter: phoneArSession() })
+    !anyFrameChromeVisible(hideCenter, hideOuter, { inspect: true })
   ) {
     return null;
   }
   const best = {};
   for (const a of ["x", "y", "z"]) {
     if (centerChromeVisible(hideCenter)) collectArFramePick(playfields[a], origin, dir, best);
-    if (outerChromeVisible(hideOuter, { inspect: true, arHideOuter: phoneArSession() })) {
+    if (outerChromeVisible(hideOuter, { inspect: true })) {
       collectArFramePick(clipFrames[a].near, origin, dir, best);
       collectArFramePick(clipFrames[a].far, origin, dir, best);
     }
@@ -1127,12 +1136,6 @@ function setArMag(next) {
   arMag = clampArMag(next);
   const el = document.getElementById("ar-mag");
   if (el) el.value = String(arMag);
-  applyArStagePose();
-}
-
-function setArHeight(next) {
-  arHeight = clampArHeight(next);
-  ui.setArHeight?.(arHeight);
   applyArStagePose();
 }
 
@@ -1272,6 +1275,8 @@ async function onArSessionStart() {
   try {
     setArDocument(true);
     document.getElementById("about-dialog")?.close?.();
+    document.getElementById("guide-overlay")?.dismiss?.();
+    document.getElementById("ingest-dialog")?.close?.();
     gizmo.clearHover();
     setViewCursor("");
     syncGizmoChrome();
@@ -1285,9 +1290,7 @@ async function onArSessionStart() {
     arUseHitTest = false;
     arHitTestResolved = false;
     arPhoneOverlay = !isHeadsetBrowser(navigator.userAgent || "");
-    arSearching = !arPhoneOverlay;
-    arHeight = XR_HEIGHT_DEFAULT;
-    ui.setArHeight?.(arHeight);
+    arSearching = true;
     if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
       arHitTestSource.cancel();
     }
@@ -1339,8 +1342,6 @@ function onArSessionEnd() {
   arHeadsetHud = false;
   arPhoneOverlay = false;
   arSearching = false;
-  arHeight = XR_HEIGHT_DEFAULT;
-  ui.setArHeight?.(arHeight);
   arPinch = null;
   arFrameDrag = null;
   arPlanePoke = false;
@@ -1521,6 +1522,7 @@ function resetPlanesToVolume() {
   syncStackUi();
   syncClipPlanes();
   syncViewRange();
+  if (arPresenting()) applyArStagePose();
   updateHint();
   dirtyView = true;
 }
@@ -1557,6 +1559,7 @@ function applySlab(axis, next, dragged = "focus") {
     !planeLock &&
     !looping;
   dirtyView = !hullFocus;
+  if (arPresenting()) applyArStagePose();
 }
 
 function enterInspect() {
@@ -1577,6 +1580,7 @@ function enterInspect() {
 }
 
 function enterLive() {
+  if (arPresenting()) return;
   arPlanePoke = false;
   tapeMode = false;
   playing = true;
@@ -1872,18 +1876,89 @@ function switchSource(kind) {
       return;
     }
     ui.setSourceKind("count");
-    ui.setCountHint("File and stream ingest is later. Pick Lighter Ignition or Brain MRI.");
+    ui.setCountHint("Pick Load NumPy, drop a .npy on the volume, or choose Lighter Ignition or Brain MRI.");
     updateHint();
   });
 }
 
-async function loadCountFromFile(file) {
-  ui.setCountHint(`Loading ${file.name}…`);
+async function offerCountFile(file) {
+  if (!file) return;
   try {
-    const buf = await file.arrayBuffer();
+    const header = await peekNpyBlob(file);
+    const plan = ingestPlan(header);
     const name = String(file.name || "count").replace(/\.npy$/i, "");
-    bootCount(countVolumeFromNpy(buf, name));
-    ui.setCountHint(COUNT_HINT);
+    pendingIngest = { file, header, plan, name };
+    ui.openIngest(ingestDialogModel(file.name, header, plan));
+  } catch (err) {
+    pendingIngest = null;
+    const msg = err && err.message ? err.message : String(err);
+    ui.openIngest({
+      name: file.name || "file",
+      shapeLine: "",
+      dtype: "",
+      payload: "",
+      cells: "",
+      axesNote: "",
+      warn: msg,
+      canLoad: false,
+      suggested: null,
+      options: [],
+    });
+  }
+}
+
+async function refreshIngestPreview(picks) {
+  const pending = pendingIngest;
+  if (!pending || !pending.plan?.canLoad) {
+    ui.setIngestPreview(null);
+    return;
+  }
+  const gen = ++ingestPreviewGen;
+  const factor = Number(picks && picks.factor) | 0 || 1;
+  const reduce = normalizeBinReduce(picks && picks.reduce);
+  try {
+    const shot = await previewIngestFromBlob(pending.file, pending.header, factor, reduce);
+    if (gen !== ingestPreviewGen || pendingIngest !== pending) return;
+    ui.setIngestPreview(shot);
+  } catch {
+    if (gen !== ingestPreviewGen) return;
+    ui.setIngestPreview(null);
+  }
+}
+
+async function confirmCountIngest(picks) {
+  const pending = pendingIngest;
+  if (!pending) {
+    ui.closeIngest();
+    return;
+  }
+  const f = Number(picks && picks.factor) | 0;
+  const reduce = normalizeBinReduce(picks && picks.reduce);
+  const opt = pending.plan.options.find((o) => o.factor === f);
+  if (!opt || !opt.ok) return;
+  pendingIngest = null;
+  ingestPreviewGen += 1;
+  ui.closeIngest();
+  const { file, header, name } = pending;
+  try {
+    await withLoading(`Loading ${file.name}…`, async () => {
+      if (f === 1) {
+        const buf = await file.arrayBuffer();
+        bootCount(countVolumeFromNpy(buf, name));
+      } else {
+        const { data, shape } = await binCountCubeFromBlob(
+          file,
+          header,
+          f,
+          reduce,
+          (done, total) => {
+            ui.setLoading(true, `Binning ${done} / ${total}…`);
+          },
+        );
+        bootCount(countVolumeFromDense(data, shape, name));
+      }
+      ui.setCountHint(COUNT_HINT);
+    });
   } catch (err) {
     ui.setCountHint(err && err.message ? err.message : String(err));
     updateHint();
@@ -1940,7 +2015,8 @@ function bootWorld(resizeGrid) {
   stabStart = cfg.stabStart;
   stabTail = cfg.stabTail;
   dynamicsOn = cfg.dynamics;
-  tapeMode = !playing;
+  playing = false;
+  tapeMode = true;
   looping = false;
 
   world = new ConwayWorld({
@@ -1968,6 +2044,8 @@ function bootWorld(resizeGrid) {
   stoppedStable = false;
   gridHistory.length = 0;
   rememberGrid(world.grid);
+  const warm = Math.max(0, DEFAULTS.conwayWarmGens | 0);
+  for (let i = 0; i < warm; i++) stepOnce();
   slabs = inspectPoseSlabs();
   applySlab("z", slabs.z, "focus");
   syncFog();
@@ -2261,7 +2339,7 @@ function applyGridLook() {
   const grow = hullLooping();
   if (nowGrid) {
     nowGrid.visible =
-      (!arPresenting() && chrome && centerChromeVisible(hideCenter, { cut })) || cut;
+      (chrome && centerChromeVisible(hideCenter, { cut })) || cut;
     setLineOpacity(nowGrid, inspect || cut ? 0.42 : 0.18);
   }
   for (const a of ["x", "y", "z"]) {
@@ -2270,7 +2348,7 @@ function applyGridLook() {
       ? a === activeAxis
       : grow
         ? a === activeAxis
-        : chrome && centerChromeVisible(hideCenter) && (arChrome || a === "z" || inspect);
+        : chrome && centerChromeVisible(hideCenter) && (inspect || arChrome || a === "z");
     if (surf) {
       const pickEdit = editing && a === "z" && chrome && !arPresenting();
       const pickCut = cut && a === activeAxis;
@@ -2283,11 +2361,9 @@ function applyGridLook() {
       clipFrames[a].far.setVisible(false);
     }
     playfields[a].setEmphasis(
-      arChrome
-        ? a === arStandAxis
-          ? "active"
-          : "idle"
-        : inspect && a === activeAxis
+      inspect && a === activeAxis
+        ? "active"
+        : arChrome && a === arStandAxis
           ? "active"
           : !inspect && a === "z"
             ? "active"
@@ -2307,7 +2383,6 @@ function syncClipPlanes() {
     outerChromeVisible(hideOuter, {
       inspect: inspectMode(),
       liveLocked: stackLiveLocked(),
-      arHideOuter: phoneArSession(),
     });
   const cs = layoutCell();
   const w = world.width;
@@ -2354,22 +2429,20 @@ function updateHint() {
   if (arPresenting()) {
     if (!arLocked) {
       ui.setHint(
-        arPhoneOverlay && !arSearching
-          ? "AR — Search Anchor, then look at the floor"
-          : !arHitTestResolved
-            ? "AR — looking for the floor…"
-            : arUseHitTest
-              ? "AR — look at the floor until the gold square appears, then tap to place"
-              : "AR — tap to place the volume in front of you",
+        !arHitTestResolved
+          ? "AR — looking for the floor…"
+          : arUseHitTest
+            ? "AR — look at the floor until the gold square appears, then tap to place"
+            : "AR — tap to place the volume in front of you",
       );
     } else if (arUseHitTest) {
       ui.setHint(
         arHeadsetHud
           ? "AR — grab a frame to slide the volume · poke a cube to isolate the standing plane · stick yaws · both grips pinch size · Exit AR to place again"
-          : "AR — Reset Anchor to search again · Z lifts off the floor · Size scales · yaw · Exit to orbit",
+          : "AR — rails crop the brick · Loop walks the plane · Size scales · yaw · Reset Anchor to search again · Exit to orbit",
       );
     } else {
-      ui.setHint("AR — Reset Anchor to search again · Z lifts off the floor · yaw · Exit returns to orbit");
+      ui.setHint("AR — rails crop the brick · yaw · Reset Anchor to search again · Exit returns to orbit");
     }
   } else if (planeLock) {
     ui.setHint("Slice — wheel zooms · same-face click pages · right-drag pans · left-drag leaves · Shift+wheel pages · B restores 3D");

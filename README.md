@@ -25,8 +25,8 @@ Three examples in Source, on the left.
 - **Lighter Ignition** — static event-camera counts of a lighter strike.
 - **Brain MRI** — static example T1 atlas.
 
-Drag to orbit. Scroll to zoom. On a phone, pinch. On Quest, grab the
-volume in the room.
+Drag to orbit. Scroll to zoom. Drop a `.npy` count cube onto the volume.
+On a phone, pinch. On Quest, grab the volume in the room.
 
 ## Author
 

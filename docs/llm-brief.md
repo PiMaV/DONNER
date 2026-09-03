@@ -21,8 +21,9 @@ advantage, not a deployment convenience.
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
   **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
   **source addon** (Game of Life, Lighter Ignition, or Brain MRI; ids
-  `conway` / `ignition` / `mni152`; WOLKE-contract stream
-  and Load `.npy` are later live ingest, hidden from Source chrome),
+  `conway` / `ignition` / `mni152`; **Load NumPy** in Source or drop
+  `.npy` on the volume with a header-first gate; WOLKE-contract Streamer
+  stays hidden — no sidecar on Pages),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
   count fills integer rungs, color only).
@@ -31,7 +32,8 @@ advantage, not a deployment convenience.
   count or polarity streams.
 - Keep `Data source → encoding adapter → EventSoA → renderer`. Conway
   lives in `src/conway.js`. Count cubes unpack in `src/npy.js` +
-  `src/count.js`. A WOLKE-contract viewer (`src/wolke.js`) only fetches
+  `src/count.js`. Drop-path prep is `src/volume-prep.js` (header peek,
+  caps, streaming mean/max-bin that skips short axes). A WOLKE-contract viewer (`src/wolke.js`) only fetches
   that cube (Socket.IO notify + same-origin `/stream-npy` GET); it does
   not add a DONNER backend. Restart `npm start` / `start:lan` so the
   proxy exists. The cube renderer must stay source-agnostic.
@@ -42,7 +44,7 @@ advantage, not a deployment convenience.
   **Z = time**. **Now** is Z = 0
   (engine Y = 0 internally; Three.js is Y-up). That mapping is not a
   core invariant for MRI/CT. Dataset Contract / `ScalarVolume` is later
-  (public preview first). `tFocus` is the playhead
+  (the public host is already live). `tFocus` is the playhead
   that walks that stack (same as X/Y). `t > tFocus` is a
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
@@ -53,7 +55,8 @@ advantage, not a deployment convenience.
   to full size. Off = equal cubes. Display (`setEvents`); do not rerun
   `stabilityAge` on playhead or toggle. Count / MNI color the integer ramp
   only (no size-by-count). Oscillators encode as occupancy along Z, not extra
-  hues. Default seed: R-pentomino, started paused; Size by age on.
+  hues. Default seed: R-pentomino; boot runs 12 generations then stays
+  paused so the brick has depth. Size by age on.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
@@ -119,24 +122,26 @@ advantage, not a deployment convenience.
   Visible volume lives on a `stage` group, then `stand` (which product
   axis sits on the table; phone overlay hides Stand, default Z), then
   `turntable` (yaw).
-  Phone AR: enter is passthrough with no brick. **Search Anchor** arms
-  floor hit-test (gold square on a horizontal floor plane); tap locks.
+  Phone AR: enter is passthrough with no brick. Floor hit-test starts on
+  enter (gold square on a horizontal floor plane); tap locks.
   Timeouts never lock; there is no viewer-front preview. **Reset Anchor**
   despawns and returns to search. Overlay taps on chrome are guarded so
   Reset does not immediately re-place; a tap on empty overlay /
-  passthrough still places. If hit-test is missing, a tap after Search
-  may lock a viewer-front pose.
-  **Z** (overlay slider) lifts the brick off the floor (world-up).
-  **Yaw** turns the pillar around product Z. **Size** (0.4×–2.5×) scales
-  the brick. Desktop orbit does not yaw the volume. Lighting is a
+  passthrough still places. If hit-test is missing, a tap after search
+  is armed may lock a viewer-front pose.
+  The brick sits on the floor (no Z-height slider). **Yaw** turns the
+  pillar around product Z. **Size** (0.4×–2.5×) scales the AABB-fit
+  brick (longest edge → 40 cm). Desktop orbit does not yaw the volume.
+  Lighting is a
   **headlamp** (key/fill follow the view in orbit and in AR walk) on
   Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
   Stand-axis math stays in the renderer for Quest; the phone HUD does not
-  offer X/Y/Z stand. Outer bound frames are forced off while phone AR
-  runs and restored on Exit. Center / playhead frames still draw after
-  spawn. Play grows the tape; clips crop in place. Same `setEvents`.
-  Decay is off in AR. AR chrome on a phone is Search Anchor, then after
-  spawn Play, Z, Size, Yaw, Reset Anchor, Exit on `#xr-overlay` (not
+  offer X/Y/Z stand. After lock, phone AR is inspect: three rails, Loop,
+  named Hull / Ghost / Cuts, Hide center / Hide outer top-right (no
+  viewcube). Same `setEvents`.
+  Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
+  spawn rails / Loop / Size / Yaw / Reset Anchor / Exit plus shade and
+  hide on `#xr-overlay` (not
   `document.body` — that paints the page over passthrough). The overlay is
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
   the AR session. On a headset,
@@ -163,24 +168,24 @@ advantage, not a deployment convenience.
   voxels culled). Do not convert to a static surface. Do not build a
   DICOM / PACS / diagnostic workstation.
 - Treating `CountVolume` as a generic scalar volume
-- Dataset Contract / `ScalarVolume` / PointRenderer **before** a public
-  preview (XR-C baseline and thin View first; see [`backlog.md`](../backlog.md))
+- Dataset Contract / `ScalarVolume` / PointRenderer on the live host
+  without a separate slice (XR-C baseline and thin View are in; see [`backlog.md`](../backlog.md))
 - NPZ loaders; polarity / occupancy / states encodings
 - Packed WOLKE `__selection__.npy` / `viewer_index` table sync / BLITZ widget sync
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
-  hit-test, stick yaw, grip-pinch size, grab-frame room slide, and
+  hit-test, phone inspect rails / Loop / named shade, stick yaw, grip-pinch size, grab-frame room slide, and
   standing-plane poke are
   in; the XR-C-0 world plate is retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
   do not start a points renderer in the same slice)
 - Source-off-rail / thin View (chrome later in [`backlog.md`](../backlog.md);
-  Phase 2 public preview, not a gate for XR-A)
+  Phase 2 public host is shipped, not a gate for XR-A)
 - Cube double-click isolation (later: rectangle select)
 - Folding DONNER into BLITZ, PyQtGraph, or a native 3D stack without a
   measured WebGL/WebGPU limit
 - Defining DONNER as an event viewer or a Game-of-Life product
-- Points / million-event renderer (after public preview + cross-platform numbers)
+- Points / million-event renderer (after cross-platform numbers on the live host)
 - Fibonacci
 - A second Conway implementation that drifts from BLITZ
 
@@ -188,10 +193,13 @@ advantage, not a deployment convenience.
 
 - Visitor README: [`README.md`](../README.md) — landing page, not a
   developer wiki. Live host: `https://donner.mess.engineering/`.
-  Local serve is in architecture.
+  Local serve is in architecture. In-app Look: **Guide** button to the
+  right of the brand chip (arrows: rails, viewcube, inspect, quality);
+  Game of Life Source is slim (Play; Setup holds pattern/grid). Copy in
+  [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
 - Later / XR ladder: [`backlog.md`](../backlog.md)
-  — Dataset Contract after public preview; MRI stays a dense count `.npy`
+  — Dataset Contract after the public host; MRI stays a dense count `.npy`
   until `ScalarVolume` (no NIfTI parser / NiiVue)
 - Phone HTTPS: `https://lab.ole.icu/` after `npm run start:lan`; mkcert
   fallback `npm run start:https`

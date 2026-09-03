@@ -5,9 +5,6 @@ import {
   XR_BOARD_CELLS,
   XR_BOARD_METERS,
   XR_FLOOR_UP_DOT,
-  XR_HEIGHT_DEFAULT,
-  XR_HEIGHT_MAX,
-  XR_HEIGHT_MIN,
   XR_HIT_TEST,
   XR_MODE,
   immersiveArSessionInit,
@@ -20,8 +17,6 @@ import {
   arReticleAllowed,
   arStandLift,
   arVolumeVisible,
-  arWorldLift,
-  clampArHeight,
   clampArMag,
   firstFloorHitMatrix,
   isFloorHitMatrix,
@@ -30,6 +25,7 @@ import {
   rotateVecByQuat,
   standQuatFromAxis,
   volumeLocalAabb,
+  volumeLocalAabbFromCrop,
   requestViewerHitTestSource,
   AR_OVERLAY_SELECT_GUARD_MS,
   AR_OVERLAY_GUARD_SEL,
@@ -40,6 +36,7 @@ import {
   spaceDragAnchor,
   spaceDragOffset,
   viewerFrontPosition,
+  xrExtentCells,
   xrStageScale,
 } from "../src/xr.js";
 
@@ -57,6 +54,12 @@ describe("xrStageScale", () => {
   it("scales with magnification", () => {
     assert.equal(xrStageScale(1, 2), 0.025);
     assert.equal(xrStageScale(1, 0), 0.0125);
+  });
+
+  it("fits a longer grid so the longest edge is still 40 cm", () => {
+    assert.equal(xrStageScale(1, 1, 256), XR_BOARD_METERS / 256);
+    assert.equal(xrExtentCells(215, 256, 207), 256);
+    assert.equal(xrExtentCells(32, 32, 1), 32);
   });
 });
 
@@ -256,7 +259,7 @@ describe("canConfirmArPlace", () => {
     assert.equal(canConfirmArPlace({ locked: true, searching: true, reticleVisible: true, hasHitTest: true }), false);
   });
 
-  it("does not spawn until Search Anchor is pressed", () => {
+  it("does not spawn until search is armed", () => {
     assert.equal(
       canConfirmArPlace({ locked: false, searching: false, reticleVisible: true, hasHitTest: true }),
       false,
@@ -307,21 +310,35 @@ describe("arReticleAllowed", () => {
   });
 });
 
-describe("clampArHeight", () => {
-  it("clamps height off the floor to meters", () => {
-    assert.equal(clampArHeight(0), 0);
-    assert.equal(clampArHeight(XR_HEIGHT_DEFAULT), 0);
-    assert.equal(clampArHeight(-1), XR_HEIGHT_MIN);
-    assert.equal(clampArHeight(9), XR_HEIGHT_MAX);
-    assert.equal(clampArHeight(Number.NaN), XR_HEIGHT_DEFAULT);
+describe("volumeLocalAabbFromCrop", () => {
+  it("matches the full-grid box when the crop is the whole board", () => {
+    const full = volumeLocalAabb(32, 32, -48, 0, 1);
+    const crop = volumeLocalAabbFromCrop(
+      { xLo: 0, xHi: 31, yLo: 0, yHi: 31 },
+      32,
+      32,
+      -48,
+      0,
+      1,
+    );
+    assert.deepEqual(crop, full);
   });
-});
 
-describe("arWorldLift", () => {
-  it("adds Z height on top of the sit-on-plane lift", () => {
-    assert.equal(arWorldLift(0.6, 0.2), 0.8);
-    assert.equal(arWorldLift(0.6, 0), 0.6);
-    assert.equal(arWorldLift(Number.NaN, 0.3), 0.3);
+  it("shrinks XY to the crop while keeping the grid origin", () => {
+    const box = volumeLocalAabbFromCrop(
+      { xLo: 8, xHi: 12, yLo: 0, yHi: 4 },
+      32,
+      32,
+      -2,
+      0,
+      1,
+    );
+    assert.equal(box.min.x, 8 - 15.5);
+    assert.equal(box.max.x, 12 - 15.5);
+    assert.equal(box.min.z, 0 - 15.5);
+    assert.equal(box.max.z, 4 - 15.5);
+    assert.equal(box.min.y, -2);
+    assert.equal(box.max.y, 0);
   });
 });
 
@@ -390,9 +407,10 @@ describe("arOverlaySelectShouldGuard", () => {
     assert.equal(arOverlaySelectShouldGuard(btn, overlay), true);
   });
 
-  it("guards the Z height slider class", () => {
-    assert.match(AR_OVERLAY_GUARD_SEL, /\.ar-height/);
+  it("guards overlay chrome such as Reset Anchor and Size", () => {
     assert.match(AR_OVERLAY_GUARD_SEL, /\.ar-size/);
+    assert.match(AR_OVERLAY_GUARD_SEL, /\.gizmo-col/);
+    assert.doesNotMatch(AR_OVERLAY_GUARD_SEL, /\.ar-height/);
   });
 
   it("does not guard nodes outside the overlay", () => {

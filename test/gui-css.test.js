@@ -48,23 +48,35 @@ describe("phone AR overlay chrome", () => {
     assert.match(html, /id="ar-stand-z"/);
   });
 
-  it("adds Search Anchor next to Reset Anchor and Exit", () => {
-    assert.match(html, /id="btn-ar-search"[^>]*>Search Anchor</);
+  it("keeps Reset Anchor and Exit without Search Anchor", () => {
+    assert.doesNotMatch(html, /id="btn-ar-search"/);
     assert.match(html, /id="btn-ar-reset"[^>]*>[\s\S]*Reset Anchor</);
+    assert.match(html, /id="btn-xr-exit"/);
   });
 
-  it("adds a Z height slider separate from Size scale", () => {
-    assert.match(html, /id="ar-height"/);
-    assert.match(html, /aria-label="AR height off the floor"/);
+  it("has Size and Yaw after place, and no Z height slider", () => {
+    assert.doesNotMatch(html, /id="ar-height"/);
     assert.match(html, /id="ar-mag"/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-height/);
-  });
-
-  it("hides Play, stack, Size, and Yaw until the volume is placed", () => {
-    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.btn-play/);
-    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
+    assert.match(html, /id="ar-yaw"/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-size/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-yaw/);
+    assert.doesNotMatch(css, /body\.is-ar\.is-ar-placed\s+\.ar-height/);
+  });
+
+  it("hides the stack until the volume is placed, then shows all three rails", () => {
+    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
+    assert.doesNotMatch(css, /body\.is-ar\s+\.stack-axis:not\(\.is-z\)/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
+  });
+
+  it("parks Hide center, Hide outer, and shade top-right after place, without a viewcube", () => {
+    assert.match(html, /class="ar-inspect-chrome"/);
+    assert.match(html, /id="ar-shade-hull"/);
+    assert.match(html, /id="ar-shade-ghost"/);
+    assert.match(html, /id="ar-shade-triple"/);
+    assert.match(css, /body\.is-ar\s+\.gizmo-slot/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.gizmo-col/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-inspect-chrome/);
   });
 });
 

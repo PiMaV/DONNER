@@ -13,7 +13,7 @@ import {
   isDenseCount,
   PLANE_CACHE_MAX,
 } from "../src/count.js";
-import { parseNpy, serializeNpy } from "../src/npy.js";
+import { parseNpy, parseNpyHeader, peekNpyBlob, serializeNpy } from "../src/npy.js";
 import { copyAnyPlanes, copyAxisPlane, EventSoA } from "../src/spacetime.js";
 import {
   COUNT_DEMOS,
@@ -33,6 +33,26 @@ describe("npy", () => {
 
   it("rejects a truncated header", () => {
     assert.throws(() => parseNpy(new Uint8Array([0x93, 0x4e, 0x55])), /not a NumPy|truncated/);
+  });
+
+  it("peeks shape from a header prefix without the payload", () => {
+    const data = new Uint16Array(8).fill(3);
+    const raw = serializeNpy(data, [2, 2, 2], "<u2");
+    const header = parseNpyHeader(raw.subarray(0, 128));
+    assert.deepEqual(header.shape, [2, 2, 2]);
+    assert.equal(header.descr, "<u2");
+    assert.equal(header.payloadBytes, 16);
+    assert.ok(header.bodyOffset + header.payloadBytes === header.fileBytes);
+    assert.equal(raw.byteLength, header.fileBytes);
+  });
+
+  it("peekNpyBlob reads only the header of a blob", async () => {
+    const data = Uint16Array.from([1, 0, 0, 2, 0, 0, 0, 0]);
+    const raw = serializeNpy(data, [2, 2, 2], "<u2");
+    const blob = new Blob([raw]);
+    const header = await peekNpyBlob(blob);
+    assert.deepEqual(header.shape, [2, 2, 2]);
+    assert.equal(header.payloadBytes, 16);
   });
 });
 
@@ -413,6 +433,7 @@ describe("dense count slab", () => {
 
 describe("count source demos", () => {
   it("treats Lighter Ignition and Brain MRI as count sources", () => {
+    assert.equal(isCountSourceKind("npy"), false);
     assert.equal(isCountSourceKind("conway"), false);
     assert.equal(isCountSourceKind("count"), true);
     assert.equal(isCountSourceKind("ignition"), true);
