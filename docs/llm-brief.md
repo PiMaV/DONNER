@@ -90,9 +90,10 @@ advantage, not a deployment convenience.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
   Cube cap is a View number (default 200 000). Game of Life Play stays
   at that live envelope; Pause raises it to the tape’s occupied cells
-  (no trunc on a 300k brick). Loading a count cube raises it to occupied
-  cells when that is higher. Do not boot Conway at 2 000 000 instances
-  (solid + ghost).
+  (no trunc on a 300k brick). A dense count cube raises Cube cap to the
+  hull instance count, not occupied voxels (Brain MRI High hull ~140k,
+  occupied ~5M). Sparse Ignition still uses occupied cells. Do not boot
+  Conway at 2 000 000 instances (solid + ghost).
   Numbered X/Y overlay, hairlines, and cube hover outlines are off
   (units later). Grab the axis-colored frame edges in the volume
   (playhead full size, clips well inside; coincident clip hidden; ~28 px

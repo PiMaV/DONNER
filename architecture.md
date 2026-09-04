@@ -970,9 +970,9 @@ the start stops). Reset starts a new tape. Changing Depth resizes the
 wake ring only. The instance cap (View **Cube cap**, default 200 000)
 still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
 envelope. Game of Life **Play** keeps that 200 000 envelope; **Pause**
-raises it to the tape’s occupied cell count. A count cube (MRI, Ignition,
-own `.npy`) raises that cap to occupied cells when higher; Play on Game
-of Life drops back to 200 000.
+raises it to the tape’s occupied cell count. A dense count cube (MRI)
+raises to the hull instance count, not occupied voxels. Sparse Ignition
+uses occupied cells. Play on Game of Life drops back to 200 000.
 
 Color coding defaults on for teaching. Conway **Size by age** defaults on
 (Start 0.5, Tail 16).
@@ -1040,9 +1040,11 @@ XR-unsafe). Auto quality from Bench metrics is later.
 
 Instanced cubes: solid + ghost `InstancedMesh`, default **200 000**
 instances (View **Cube cap** up to 20 000 000). Game of Life Play stays
-at 200 000; Pause fits the tape. A count cube raises the cap to occupied
-cells. Conway is the synthetic load generator and must boot at the
-default, not at the MRI envelope. Realtime FPS is in View (and the display HUD). Software
+at 200 000; Pause fits the tape. Dense MRI raises to the hull size, not
+occupied voxels (High hull ~140k inside 5 M occupied). Sparse Ignition
+uses occupied cells. Conway is the synthetic load generator and must boot
+at the default, not at an MRI occupancy envelope. Realtime FPS is in View
+(and the display HUD). Software
 rasterizers still warn **SOFTWARE** on the FPS chip.
 
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`

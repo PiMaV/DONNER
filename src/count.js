@@ -47,6 +47,18 @@ export function isDenseCount(vol) {
   return Boolean(vol) && countOccupancy(vol) > DENSE_OCCUPANCY;
 }
 
+/**
+ * GPU instance need, not occupied voxels. Dense MRI hull is a surface
+ * (Brain High ~140k) inside millions of occupied cells; sizing the
+ * InstancedMesh to `vol.count` allocates a 5M envelope and hitchs.
+ * Sparse clouds (Ignition) still need every occupied cell.
+ */
+export function countInstanceCap(vol) {
+  if (!vol) return 0;
+  if (isDenseCount(vol) && vol._hull) return vol._hull.length | 0;
+  return vol.count | 0;
+}
+
 /** True when the crop is the whole brick (idle Hull / Ghost, no clip). */
 export function countAabbCoversVolume(aabb, width, height, nT) {
   if (!aabb) return true;

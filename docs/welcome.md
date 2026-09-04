@@ -83,8 +83,8 @@ reduce, or analyze in BLITZ. Binning skips a short axis (one Z plane still
 bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
 preview of the first output plane. A taller-than-wide plane rotates 90°
 first, then scales to the dialog width. Confirming Load raises Cube cap
-to the occupied cell count when that is higher, so the brick is not
-silently truncated. Game of Life Play keeps the 200 000 default; Pause
+to drawn instances (dense hull, sparse occupied cells) when that is
+higher. Game of Life Play keeps the 200 000 default; Pause
 raises Cube cap to the tape so a long run is not truncated. Streamer / sidecar Connect is not on this static host.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter

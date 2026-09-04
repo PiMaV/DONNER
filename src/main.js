@@ -13,7 +13,7 @@ import {
 } from "./bench.js";
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
-import { COUNT_HIDE_DEBOUNCE_MS, countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { COUNT_HIDE_DEBOUNCE_MS, countInstanceCap, countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
 import { peekNpyBlob } from "./npy.js";
 import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
@@ -2275,7 +2275,7 @@ function stepCountPlayhead() {
 function bootCount(vol) {
   sourceId = "count";
   countVol = vol;
-  ensureCubeCapForCells(vol.count);
+  ensureCubeCapForCells(countInstanceCap(vol));
   gensPerSec = ui.getConfig().gensPerSec;
   loopPerSec = ui.getConfig().loopPerSec;
   decay = ui.getConfig().decay;

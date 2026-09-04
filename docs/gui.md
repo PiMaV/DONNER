@@ -310,7 +310,7 @@ rectangle select on the playfield).
 | Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). Phone AR overlay uses the same three buttons. |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
-| Cube cap | View instance envelope (default **200 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Game of Life **Play** uses 200 000; **Pause** raises to the tape’s occupied cells so a 300k brick is not truncated. Loading a count cube raises to occupied cells when that is higher. |
+| Cube cap | View instance envelope (default **200 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Game of Life **Play** uses 200 000; **Pause** raises to the tape’s occupied cells so a 300k brick is not truncated. A dense count cube (Brain MRI) raises to the **hull** size, not every occupied voxel (High hull ~140k inside 5 M occupied). Sparse Ignition still uses occupied cells. |
 | FPS | Realtime frame rate. Stays on the View fold when that sheet is collapsed (desktop analog of the phone FPS chip). The HUD View fold shows a compact FPS when collapsed; the expanded HUD already lists FPS/AVG/1%. Phone chip unchanged. |
 | DEV Bench | Opt-in checkbox on the **right** View HUD (not the left View sheet). CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. Phone: tap the FPS chip to open the same card. |
 | **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
@@ -391,9 +391,9 @@ shorter than the factor (one Z plane still bins X/Y), uses **mean**
 (downsample) or **max** (keep peaks), and a **Plasma** preview of the
 first output plane. A taller-than-wide plane rotates 90° first, then
 scales to the dialog width. Confirming **Load** raises **Cube cap** to
-the occupied cell count when that is above the current setting, so a
-comfort-warned brick is not silently truncated. Game of Life Play keeps
-200 000; Pause fits the tape.
+drawn instances (dense **hull**, sparse occupied cells) when that is
+above the current setting. Game of Life Play keeps 200 000; Pause fits
+the tape.
 Curated demos skip the gate.
 The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
 Pages). See [`backlog.md`](../backlog.md). Visitor copy:
@@ -407,7 +407,7 @@ flowchart TB
   gate{Cells and RAM OK?}
   refuse[Refuse or require bin]
   bin[Stream-bin mean or max; skip short axes]
-  cap[Cube cap to occupied cells]
+  cap[Cube cap to hull or occupied]
   sparse[countVolumeFromDense]
   soa[EventSoA plus hull]
   drop --> peek

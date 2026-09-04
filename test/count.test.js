@@ -6,6 +6,7 @@ import {
   countAabbCoversVolume,
   countAxes,
   countCeiling,
+  countInstanceCap,
   countOccupancy,
   countVolumeFromDense,
   countVolumeFromNpy,
@@ -293,6 +294,21 @@ describe("count volume", () => {
     });
     assert.equal(n0, 26);
     assert.equal(soa.count, 26);
+  });
+
+  it("sizes the GPU cap to the hull on a dense brick, not occupied cells", () => {
+    const dense = new Uint16Array(27);
+    dense.fill(1);
+    const vol = countVolumeFromDense(dense, [3, 3, 3]);
+    assert.equal(isDenseCount(vol), true);
+    assert.equal(vol.count, 27);
+    assert.equal(vol._hull.length, 26);
+    assert.equal(countInstanceCap(vol), 26);
+    const sparse = new Uint16Array(27);
+    sparse[13] = 1;
+    const cloud = countVolumeFromDense(sparse, [3, 3, 3]);
+    assert.equal(isDenseCount(cloud), false);
+    assert.equal(countInstanceCap(cloud), 1);
   });
 
   it("rebuilds the hull so Hide reveals interior high values", () => {

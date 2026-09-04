@@ -254,8 +254,9 @@ export function clampCubeCap(n) {
 
 /**
  * Cube cap after a count cube is on screen, or after Game of Life Pause.
- * Raise to occupied cells so the brick is not `trunc`. Never lowers
- * (Play resets Game of Life to the default separately).
+ * Raise to *drawn* instances (dense hull, sparse occupied cells) so the
+ * brick is not `trunc`. Never lowers (Play resets Game of Life to the
+ * default separately). Do not size dense MRI to occupied voxels.
  */
 export function cubeCapForLoadedCells(cells, current = DEFAULTS.maxInstances) {
   const have = clampCubeCap(current);
