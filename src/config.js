@@ -170,7 +170,7 @@ export const GUIDE_STEPS = [
     title: "Inspect",
     body: "Hull is the solid crop. Ghost keeps a glass hull and a solid plane. Cuts shows three slices. Grab a colored frame edge to peek.",
     targets: ["shade-hull", "shade-ghost", "shade-triple"],
-    fold: "view",
+    fold: "",
   },
   {
     title: "Look",

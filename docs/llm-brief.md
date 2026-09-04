@@ -61,7 +61,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade stays Hull / Ghost / Cuts (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop top-right above the Look strip, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade is Hull / Ghost / Cuts on the Look strip (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). FPS is a viewcube overlay; tap it for the spark / DEV Bench card (not in View). Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -101,15 +101,14 @@ advantage, not a deployment convenience.
   keeps Hull; playhead grab peeks Ghost (glass hull + solid plane; same
   for MRI and Ignition). **Cuts**
   is three orthogonal planes, no hull (shade id `triple`).
-  **Reset Planes** (same row as Fit) opens clips and centers the three playheads; it does not run when toggling Cuts.
+  **Reset Planes** (View sheet) opens clips and centers the three playheads; it does not run when toggling Cuts.
   Load / source change start on that pose.
   Playhead and clip bars scale with the brick span, not the cell.
-  **Hide center** / **Hide outer** (under the viewcube on desktop)
-  hide playhead+grid vs clip frames independently. A cut still shows the current plane of voxels.   Display HUD (FPS, AVG, 1%/0.1% lows,
-  sparkline, INST, FOC) stays separate from Conway live overlay (GEN,
+  **Hide center** / **Hide outer** (under the viewcube on desktop; AR **More**)
+  hide playhead+grid vs clip frames independently. A cut still shows the current plane of voxels. Display telemetry (FPS, AVG, 1%/0.1% lows,
+  sparkline, INST, FOC) lives on the FPS card next to the viewcube with **DEV Bench**, separate from Conway live overlay (GEN,
   LIVE, RATE) which appears only while Conway Play is on. HUD shows **ORTHO** when parallax is off.
-  Opt-in **DEV Bench** (costs performance) sits on that same right HUD card.
-  On a phone the HUD is an FPS chip (tap for the View card). There is no viewcube. FPS/sparkline use raw frame time; the 100 ms
+  On a phone there is no viewcube; the FPS chip still opens that card. Guide is hidden. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is one left
   rail: **Source** (kind, Conway Pattern first, Random Fill) then **View**.
@@ -119,7 +118,7 @@ advantage, not a deployment convenience.
   Hull+Loop grows a potato from the axis origin through the plane (opaque
   in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
   that one plane. The camera tracks the playhead.
-  (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
+  (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap).
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
   must not either. A viewcube cut still fills the playhead plane under Hull
@@ -150,9 +149,10 @@ advantage, not a deployment convenience.
   Lighting is a
   **headlamp** (key/fill follow the view in orbit and in AR walk) on
   Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
-  After lock, phone AR is inspect: three rails, Loop, Conway Play next
-  to AR, named Hull / Ghost / Cuts, Hide center / Hide outer top-right
-  (no viewcube), Size / Yaw / Floor. Same `setEvents`.
+  After lock, phone AR is inspect: three rails, Conway Play next
+  to AR, named Hull / Ghost / Cuts top-right (no viewcube, no Fit).
+  **More** holds Loop, Hide center / Hide outer, Reset Planes, Quality.
+  Size / Yaw / Floor stay on the overlay. Same `setEvents`.
   Face AR is a second mode (`?face=1`), not `immersive-ar`: getUserMedia
   + MediaPipe Face Landmarker writes the same `stage` every frame. After
   lock, keep the last pose if the mesh drops (until Recapture). No Pose
@@ -171,8 +171,8 @@ advantage, not a deployment convenience.
   while the face is visible. Overlay canvas caps at 640 px wide. Do not
   put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
-  spawn rails / Loop / Play / Size / Yaw / Floor / Reset Anchor / Exit plus shade and
-  hide on `#xr-overlay` (not
+  spawn rails / Play / Size / Yaw / Floor / Reset Anchor / Exit plus Look
+  strip (shade) and **More** (Loop / hide / quality) on `#xr-overlay` (not
   `document.body` — that paints the page over passthrough). The overlay is
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
   the AR session. On a headset,
@@ -206,7 +206,7 @@ advantage, not a deployment convenience.
 - Packed WOLKE `__selection__.npy` / `viewer_index` table sync / BLITZ widget sync
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
-  hit-test, phone inspect rails / Loop / named shade, stick yaw, grip-pinch size, grab-frame room slide, and
+  hit-test, phone inspect rails / named shade / More, stick yaw, grip-pinch size, grab-frame room slide, and
   standing-plane poke are
   in; the XR-C-0 world plate is retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
@@ -227,8 +227,8 @@ advantage, not a deployment convenience.
 - Visitor README: [`README.md`](../README.md) — landing page, not a
   developer wiki. Live host: `https://donner.mess.engineering/`.
   Local serve is in architecture. In-app Look: **Guide** button to the
-  right of the brand chip (arrows: rails, viewcube, inspect, quality);
-  Game of Life Source is slim (Play; Setup holds pattern/grid). Copy in
+  right of the brand chip on desktop (arrows: rails, viewcube, inspect, quality);
+  hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid). Copy in
   [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
 - Later / XR ladder: [`backlog.md`](../backlog.md)

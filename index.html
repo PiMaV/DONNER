@@ -52,13 +52,11 @@
     <div class="brand-mark" aria-hidden="true">D</div>
     <div>
       <h1>DONNER</h1>
-      <p class="tagline">Explore structured data in 3D & XR · M.E.S.S.</p>
+      <p class="tagline">Xplore Data in 3D &amp; XR</p>
     </div>
   </header>
   <button type="button" id="btn-guide" class="btn brand-guide" aria-expanded="false" aria-controls="guide-overlay">Guide</button>
   </div>
-
-  <button type="button" id="hud-fps" class="fps-chip" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
 
   <div id="xr-overlay" class="xr-overlay">
   <div class="hud-rail">
@@ -66,22 +64,35 @@
       <div id="gizmo-slot" class="gizmo-slot">
         <div id="gizmo-hit" class="gizmo-hit" aria-label="Viewcube"></div>
       </div>
-      <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
-      <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
-      <div class="ar-inspect-chrome" role="group" aria-label="AR inspect shade">
-        <div class="btn-row shade-modes ar-shade" role="radiogroup" aria-label="Inspect shade">
-          <button type="button" id="ar-shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek.">Hull</button>
-          <button type="button" id="ar-shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass.">Ghost</button>
-          <button type="button" id="ar-shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
+      <button type="button" id="hud-fps" class="gizmo-fps" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
+      <div class="look-strip" role="group" aria-label="Look">
+        <div class="btn-row shade-modes look-shade" role="radiogroup" aria-label="Inspect shade">
+          <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
+          <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
+          <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
+        </div>
+        <button type="button" id="btn-fit" class="btn look-fit" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
+      </div>
+      <div class="look-more">
+        <button type="button" id="btn-look-more" class="btn-show-planes" aria-expanded="false" aria-controls="look-more-panel" title="Loop, hide frames, Reset Planes, and Quality">More</button>
+        <div id="look-more-panel" class="look-more-panel">
+          <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
+          <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
+          <div id="look-more-loop" class="look-more-loop"></div>
+          <button type="button" id="btn-look-reset-planes" class="btn look-more-reset" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
+          <div class="field look-more-quality">
+            <span>Quality</span>
+            <div class="btn-row shade-modes" role="radiogroup" aria-label="View quality">
+              <button type="button" id="look-quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Use on iGPU, phone, or when Bench says GPU fill.">Low</button>
+              <button type="button" id="look-quality-medium" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, pixel ratio capped at 1.25. Default public start.">Medium</button>
+              <button type="button" id="look-quality-high" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU. ?quality=high">High</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
     <div class="hud-cards">
       <section id="hud-engine" class="hud-engine" aria-label="Display telemetry">
-        <div class="fold-meter">
-          <button type="button" id="btn-hud-view" class="sheet-label sheet-fold" aria-expanded="true" title="Collapse the View card">View ▾</button>
-          <p id="hud-view-fps" class="fold-fps" aria-live="polite">— FPS</p>
-        </div>
         <canvas id="hud-spark" class="hud-spark" width="160" height="32" aria-hidden="true"></canvas>
         <pre id="hud-view" class="hud-stats" aria-live="polite"></pre>
         <label class="check hud-dev" title="CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Off the hot path until checked. Costs performance.">
@@ -185,6 +196,7 @@
       </div>
       </div>
       <pre id="conway-live" class="conway-live" hidden aria-live="polite"></pre>
+      <div id="inspect-home">
       <div id="inspect-transport" class="inspect-transport">
         <button type="button" id="btn-loop" class="btn btn-loop-run" aria-pressed="false"
           title="Walk the marked axis through the volume. Independent of Conway Play. Pause Conway first to scan the tape.">Loop</button>
@@ -193,6 +205,7 @@
           <input id="loop-speed" type="range" min="1" max="60" step="1"
             aria-label="Loop playhead steps per second" />
         </label>
+      </div>
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
@@ -308,7 +321,6 @@
     <div id="panel-view" class="controls panel-view">
     <div class="fold-meter">
       <button type="button" id="btn-rail-view" class="sheet-label sheet-fold rail-fold" aria-expanded="true" aria-controls="view-body" title="Collapse View">View ▾</button>
-      <p id="view-fps" class="fold-fps" aria-live="polite">— FPS</p>
     </div>
     <div id="view-body" class="sheet-body">
     <p id="hint" class="hint">Drag to orbit · scroll zoom</p>
@@ -316,7 +328,6 @@
     <section class="sheet-block" data-slot="view" aria-labelledby="btn-rail-view">
       <div class="btn-row">
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
-        <button type="button" id="btn-fit" class="btn" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
         <button type="button" id="btn-reset-planes" class="btn" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
       </div>
       <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
@@ -335,11 +346,6 @@
           <button type="button" id="quality-medium" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, pixel ratio capped at 1.25. Default public start.">Medium</button>
           <button type="button" id="quality-high" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU. ?quality=high">High</button>
         </div>
-      </div>
-      <div class="btn-row shade-modes" role="radiogroup" aria-label="Inspect shade">
-        <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
-        <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
-        <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
       </div>
       <label id="depth-field" class="field">
         <span>Depth <em id="history-val"></em></span>

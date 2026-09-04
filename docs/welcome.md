@@ -1,7 +1,7 @@
 # Welcome to DONNER
 
 DONNER is a browser 3D/XR explorer for structured data in the **WETTER**
-suite. Open the page, drag to orbit the brick. **Guide** sits to the
+suite. Open the page, drag to orbit the brick. On desktop, **Guide** sits to the
 right of the brand chip: an opt-in Look walkthrough with arrows on the
 controls. Source and View unfold while it runs. **About Data** (Source
 fold, next to the heading) and footer **About** are identity: examples,
@@ -25,9 +25,9 @@ flowchart TB
 
 ## Guide
 
-Seven steps. The button does not start the walkthrough on its own.
-Clicking **Guide** expands Source and View (phone: the fold that holds
-the current step) and draws gold arrows at the controls.
+Seven steps. Desktop only (hidden on a phone). The button does not start
+the walkthrough on its own. Clicking **Guide** expands Source and View
+and draws gold arrows at the controls.
 
 1. **Orbit** — Drag to orbit, scroll to zoom, right-drag to pan. Phone:
    one-finger orbit, pinch zoom.

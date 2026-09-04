@@ -3,12 +3,45 @@
 The 3D volume is the product. Chrome is a thin M.E.S.S. HUD: Orbitron for
 brand and control labels, Inter for running text, dark `#0b0f14` field,
 gold `#ffc53d` accent, cyan `#00fff2` for live telemetry. No dashboard
-layout. **Guide** is a button to the right of the brand chip: an opt-in
+layout. **Guide** is a button to the right of the brand chip (desktop): an opt-in
 Look walkthrough (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect,
 Look) with arrows on the controls. Source and View unfold while it runs. It does not open on
-its own. **About Data** (Source fold, next to the heading) and footer
-**About** are identity (examples, share URL, credit). Visitor copy:
+its own. Hidden on a phone (`pointer: coarse`). **About Data** (Source fold, next to the heading) and footer
+**About** are identity (examples, share URL, credit). Footer **M.E.S.S.** and
+**WETTER** links are cyan. Visitor copy:
 [`docs/welcome.md`](welcome.md).
+
+**Look** shortcuts sit top-right on every surface (Hull / Ghost / Cuts, plus **Fit**
+on desktop and phone orbit). **View** is display setup (Quality, Gap, Align to Z,
+Parallax, Reset Planes, Color). FPS is a small overlay on the viewcube
+(bottom-right); tap it for the spark / DEV Bench card. That card is independent
+of the left rail so you can keep View open. AR and phone share the Look strip;
+desktop also has the viewcube.
+
+```mermaid
+flowchart TB
+  subgraph look [Look strip top-right]
+    shade[Hull Ghost Cuts]
+    fitBtn[Fit]
+  end
+  subgraph cube [Viewcube]
+    fpsChip[FPS overlay]
+    fpsCard[Spark DEV Bench card]
+    fpsChip --> fpsCard
+  end
+  subgraph setup [View Setup sheet]
+    quality[Low Medium High]
+    gap[Gap]
+    extras[Parallax ResetPlanes Align CubeCap Color]
+  end
+  subgraph source [Source sheet]
+    kind[Kind Play Conway Setup]
+  end
+  look --> volume[Volume]
+  cube --> volume
+  setup --> volume
+  source --> volume
+```
 
 ```mermaid
 flowchart TB
@@ -55,8 +88,8 @@ from Inspect jumps to live Now. MRI / MNI uses the same Play as a
 slice-scan.
 
 In an **AR session** the phone overlay is inspect chrome after the
-volume is placed; brand, View/Source sheets, and the FPS chip hide. The
-viewcube and Parallax are not offered. **Enter AR** is passthrough plus
+volume is placed; brand, View/Source sheets, and Guide hide. The
+viewcube, Fit, and Parallax are not offered. **Enter AR** is passthrough plus
 overlay only — no brick, no viewer-front preview. Floor hit-test starts
 immediately: look at the **floor** until a gold square sits on that
 plane, then **tap** to spawn. Walls are ignored. The first detected
@@ -67,11 +100,12 @@ on the plane; **Size** scales it; **Yaw** turns it around the standing
 axis. Scale fits the table footprint to 40 cm; **Play** grows the
 standing axis up from the plane (gen 0 stays put). **Floor** X / Y / Z
 picks which product axis grows out of the plane (default Z). Walk with
-the phone after that. Three inspect rails, **Loop**, Conway **Play /
-Pause** next to AR, **Hull / Ghost / Cuts**, and **Hide center /
-Hide outer** (top-right) match desktop inspect. On a **phone** in orbit,
+the phone after that. Three inspect rails, Conway **Play /
+Pause** next to AR, and **Hull / Ghost / Cuts** (top-right Look strip).
+**Loop**, **Hide center / Hide outer**, **Reset Planes**, and **Quality**
+sit behind **More**. On a **phone** in orbit,
 fingers rotate and pinch-zoom; Conway **Play** sits next to **AR** in the
-fold-bar gap between Source and View. The stack **sliders** move planes and stop
+fold-bar gap between Source and View. The Look strip is top-right (shade plus Fit). The stack **sliders** move planes and stop
 short of the right edge (system back-swipe). On a
 **headset**, grab a frame edge to slide the whole volume in the room.
 Point at a **cube** to isolate the standing plane (Ghost). **Exit** (or
@@ -164,9 +198,10 @@ flowchart LR
 The left chrome is one rail — **Source** on top (kind, one-line blurb,
 Game of Life **Play**; Conway pattern / grid / seed live under **Setup**)
 and **View** below (Parallax, Align to Z, Quality,
-Gap, Depth live-only, cache, shade, Color coding, Size by age, Cube
-cap, realtime FPS). **DEV Bench** lives on the right View HUD (costs
-performance; off until checked). **Loop**, loop **Speed**, and loop axis **X / Y / Z**
+Gap, Depth live-only, cache, Color coding, Size by age, Cube
+cap). Shade (**Hull / Ghost / Cuts**) and **Fit**
+live on the top-right Look strip, not in this sheet. FPS is a cube overlay;
+spark and **DEV Bench** open as a card next to it, not inside View. **Loop**, loop **Speed**, and loop axis **X / Y / Z**
 sit under the slice rails. Conway **Play** stays in Source on desktop;
 on phone it also sits next to **AR**. Conway **GEN / LIVE / RATE**
 only while Conway Play is on. Generator setup does not share a panel
@@ -177,19 +212,21 @@ while a source, pattern, grid, or cube is switching.
 
 ```mermaid
 flowchart TB
-  subgraph view [View display]
+  subgraph look [Look strip]
+    shade[Hull Ghost Cuts]
+    fitBtn[Fit]
+  end
+  subgraph view [View setup]
     bird[Parallax]
     align[Align to Z]
-    fit[Fit slab]
-    win[Depth live Gap Quality shade Hull Ghost Cuts Cache]
+    win[Depth live Gap Quality Cache]
     color[Color coding]
     stab[Size by age]
     cap[Cube cap]
-    fps[Realtime FPS]
   end
-  subgraph hud [Right View HUD]
-    telemetry[FPS AVG spark]
-    bench[DEV Bench opt-in]
+  subgraph hud [FPS card]
+    fps[Realtime FPS]
+    bench[DEV Bench spark]
   end
   subgraph source [Source]
     kind[Game of Life Lighter Brain MRI Low High]
@@ -202,7 +239,8 @@ flowchart TB
     axes[Loop X Y Z]
     gen[Conway live GEN overlay]
   end
-  view --> volume[Volume]
+  look --> volume[Volume]
+  view --> volume
   hud --> volume
   play --> volume
   golPlay --> volume
@@ -224,19 +262,23 @@ flowchart TB
     srcD[Source fold]
     viewD[View fold]
     volD[Volume]
-    hudD[View HUD]
+    lookD[Look strip]
+    cubeD[Viewcube]
     zD[Z vertical max at top]
     srcD --> volD
     viewD --> volD
-    hudD --> zD
+    lookD --> volD
+    cubeD --> volD
+    zD --> volD
   end
   subgraph phone [Phone]
     volP[Volume]
     zP[Z horizontal max at right]
     barP[Source and View folds]
-    chipP[FPS chip]
+    lookP[Look strip]
     volP --> zP
     zP --> barP
+    lookP --> volP
   end
   subgraph ar [AR session]
     pass[Passthrough]
@@ -273,7 +315,7 @@ rectangle select on the playfield).
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
-| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone orbit. Phone AR after place shows Hide center / Hide outer (no cube). |
+| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Hidden on phone orbit. Phone AR: Hide lives in **More** (no cube). |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**, tap the gold square to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
 | **Face** | Opt-in (`?face=1`). Not WebXR. Phone back camera (desktop webcam in the lab) + MediaPipe. Point at a face; a transparent Brain MRI Low overlay locks to the head and follows as the head or camera moves. After lock: oval + lips + pupils while the face is in view; if the mesh drops, keep the last pose until Recapture. **Flip L/R** on the front camera; **Shift / Lift / Inset** after lock (defaults Lift 141 mm, Inset 50 mm, Size 1.2); **Recapture** scans again. Hidden on Quest. |
 | **Exit** | End the AR or Face AR session; orbit returns. Visible in AR only. |
@@ -289,7 +331,7 @@ rectangle select on the playfield).
 | Control | Meaning |
 |---------|---------|
 | Play / Pause | Conway **Source** on desktop. On phone (orbit and AR overlay) also next to **AR**. Run the generator. Pause inspects the tape. Key Space on Conway. Play collapses the phone Source sheet. |
-| Loop | Under the slice rails (and on the phone AR overlay after spawn). Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
+| Loop | Under the slice rails on desktop and phone orbit. In AR after spawn it sits in **More**. Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
 | Loop axis | **X / Y / Z** directly under the three rails (default **Z**). Independent of the viewcube / camera. |
 | Loop Speed | Same cluster as Loop, under the rails (slices/s). |
 | Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale**, Min/Max, Trim, Hide. |
@@ -301,18 +343,18 @@ rectangle select on the playfield).
 | Size | AR overlay only (after spawn): uniform scale of the brick (0.4×–5× on the table-footprint fit). Tabletop stays comfortable near 2.5×; floor placement can go larger. Play grows up without changing this cell scale. |
 | Floor | AR overlay only (after spawn): which product axis grows out of the plane (X / Y / Z, default Z). Yaw always spins around that axis. |
 | Reset Anchor | AR overlay only (phone, next to Exit): despawn and search again on the floor. |
-| Fit | Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
+| Fit | Look strip (desktop and phone orbit; hidden in AR). Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
-| Hide center | Viewcube (desktop) and phone AR overlay: hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
-| Hide outer | Viewcube (desktop) and phone AR overlay: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. |
+| Hide center | Viewcube (desktop) and phone AR **More**: hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
+| Hide outer | Viewcube (desktop) and phone AR **More**: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. |
 | Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | Manual **Low / Medium / High** (default **Medium**). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
-| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). Phone AR overlay uses the same three buttons. |
+| Shade | Look strip (all surfaces). Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | View instance envelope (default **200 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Game of Life **Play** uses 200 000; **Pause** raises to the tape’s occupied cells so a 300k brick is not truncated. A dense count cube (Brain MRI) raises to the **hull** size, not every occupied voxel (High hull ~140k inside 5 M occupied). Sparse Ignition still uses occupied cells. |
-| FPS | Realtime frame rate. Stays on the View fold when that sheet is collapsed (desktop analog of the phone FPS chip). The HUD View fold shows a compact FPS when collapsed; the expanded HUD already lists FPS/AVG/1%. Phone chip unchanged. |
-| DEV Bench | Opt-in checkbox on the **right** View HUD (not the left View sheet). CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. Phone: tap the FPS chip to open the same card. |
+| FPS | Small overlay on the viewcube (bottom-right). Tap to open the spark / FPS / AVG card with DEV Bench. Independent of the left View rail. Hidden in AR. Phone: same chip on the Look strip (no cube). |
+| DEV Bench | Opt-in checkbox on that FPS card. CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. |
 | **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
 
 ```mermaid
@@ -341,7 +383,7 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Streamer stays hidden. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
+| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Streamer stays hidden. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (desktop button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
 | Play / Speed | Conway **Play** in the slim Source chrome. Generator **Speed** is under Setup. Not the View loop. |
 | Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
 
@@ -486,7 +528,7 @@ and brighter than clips. A clip on the playhead index is hidden. Hover a
 and drag it along the axis in screen space; the fill is not a hit target. Three
 HUD rails stay as a dimmer second path (max at the top of Z). **Hide
 center** hides playhead frames and the slice grid; **Hide outer** hides
-clip / bound frames. Both live under the viewcube on desktop. Default is
+clip / bound frames. Both live under the viewcube on desktop (AR: **More**). Default is
 both visible. A viewcube cut still shows the
 current plane. Crop is
 the intersection of the three clip windows. **Hull** (default) draws the
@@ -501,9 +543,9 @@ the glass hull plus the **highlighted** plane (Loop X/Y/Z or grab a frame
 picks that plane). Scrubbing that plane keeps the glass mesh; only the
 solid cut is rebuilt. In a cut the silhouette stays the full brick.
 **Cuts** is three orthogonal
-slices only, no hull (one plane in a viewcube cut). Both persist in the View sheet. **Decay** is off
+slices only, no hull (one plane in a viewcube cut). Shade lives on the Look strip. **Decay** is off
 (later / opt-in Z/time fade on sparse stacks). The CAD viewcube (desktop,
-left of the View card) enters a
+above the Look strip) enters a
 fitted 2D cut; shade still chooses glass potato, full silhouette, or
 slice only. Wheel zooms, right-drag pans, Shift+wheel pages and the
 camera tracks the playhead; the **same face** pages the stack; a click on
@@ -617,8 +659,8 @@ On narrow viewports **Source ▸** and **View ▸** are separate folds (same
 IA as desktop). Conway **Play** sits next to **AR**; **Loop** stays under
 the slice rails. Play collapses the Source sheet. The same fold sheets apply in landscape on a phone
 (coarse pointer, short viewport) so Source does not jump into a third
-layout. The Z stack is a bottom timeline, and telemetry
-collapses to an **FPS chip** (tap to open the View card). Conway GEN /
+layout. The Z stack is a bottom timeline. Look shortcuts (Hull / Ghost / Cuts / Fit)
+sit top-right. FPS is a chip on that Look strip (no cube); tap it for the spark / DEV Bench card. Conway GEN /
 LIVE / RATE appear only while Conway Play is on. Conway **Pattern** lives
 under **Setup** in Source; **Random** shows **Fill**. While a sheet is open the stack hides so the
 picker is not covered.
@@ -636,13 +678,13 @@ flowchart LR
 
 ## HUD (right rail)
 
-Desktop: one View telemetry card, then a thin Z stack to its right. Play /
+Desktop: Look strip under the viewcube (Hull / Ghost / Cuts, Fit, then Hide
+center / Hide outer), then a thin Z stack to the right. Play /
 Loop, Speed, and loop axis sit under the rails, above the footer. Conway
 live stats (GEN / LIVE / RATE) pop in only while Conway Play is on.
-Click **View ▾** on the display card to collapse the stats; a compact FPS
-stays on that fold. The View sheet fold on the left rail also keeps FPS
-when collapsed. Display is cyan.
-Phone: FPS chip top-right; tap to expand the View card. No viewcube.
+FPS is a small overlay on the viewcube. Sparkline, FPS/AVG/1%, and DEV Bench
+open as a card next to the cube (not in the View sheet). Display is cyan.
+Phone: Look strip top-right (no viewcube). FPS chip still there; Guide hidden.
 
 | Line | Block |
 |------|-------|
@@ -744,8 +786,9 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   viewer-front preview. The brick sits on the plane; **Size** scales;
   **Yaw** turns around the standing axis. Table footprint maps to
   40 cm; **Play** grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the
-  plane. Phone chrome after spawn is three inspect rails, Loop, Conway
-  Play next to AR, Hull / Ghost / Cuts, Hide center / Hide outer, Size,
+  plane. Phone chrome after spawn is three inspect rails, Conway
+  Play next to AR, Hull / Ghost / Cuts top-right, **More** (Loop, Hide,
+  Reset Planes, Quality), Size,
   Yaw, Floor, Reset Anchor, Exit on `#xr-overlay`. **AR** only if
   `navigator.xr` supports
   it. Phone HTTPS is `https://lab.ole.icu/` (`start:lan` upstream);

@@ -28,6 +28,13 @@ function gizmoCol() {
   return html.slice(start, cards);
 }
 
+function hudCards() {
+  const start = html.indexOf('class="hud-cards"');
+  const time = html.indexOf('class="hud-time"');
+  assert.ok(start >= 0 && time > start);
+  return html.slice(start, time);
+}
+
 describe("Source | View information architecture", () => {
   it("has no Bench tab, Config tab, or Neighborhood control", () => {
     assert.doesNotMatch(html, /id="slot-bench"|id="sheet-bench"/);
@@ -81,14 +88,12 @@ describe("Source | View information architecture", () => {
     assert.match(view, /id="quality-medium"/);
     assert.match(view, /id="quality-high"/);
     assert.match(view, /id="quality-medium"[^>]*is-on/);
-    assert.match(view, /id="view-fps"/);
-    assert.doesNotMatch(view, /id="bench"/);
-    assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);
+    assert.doesNotMatch(view, /id="hud-fps"|id="view-fps"|id="hud-engine"|id="bench"/);
+    assert.match(html, /id="hud-fps"[^>]*class="[^"]*gizmo-fps/);
+    assert.match(html, /class="hud-cards"[\s\S]*id="hud-engine"[\s\S]*id="bench"/);
     assert.match(html, />DEV Bench</);
-    const fps = html.indexOf('id="view-fps"');
-    const body = html.indexOf('id="view-body"');
-    const fold = html.indexOf('id="btn-rail-view"');
-    assert.ok(fold > 0 && fps > fold && fps < body);
+    assert.doesNotMatch(view, /id="shade-hull"/);
+    assert.doesNotMatch(view, /id="btn-fit"/);
   });
 
   it("keeps the inspect hint short", () => {
@@ -118,7 +123,7 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="boot-fail"/);
     assert.match(html, /import\("\.\/src\/main\.js\?v=/);
     assert.match(css, /body\.is-ar:not\(\.source-count\)\s+\.btn-play-dock/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
+    assert.match(css, /body\.is-ar\.is-look-more \.look-more-panel \.inspect-transport/);
   });
 
   it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {
@@ -140,6 +145,35 @@ describe("View sheet vs gizmo chrome", () => {
     assert.doesNotMatch(view, /id="hide-center"|id="hide-outer"|id="btn-hide-center"|id="btn-hide-outer"/);
     assert.doesNotMatch(view, />Hide center</);
     assert.doesNotMatch(view, />Hide outer</);
+  });
+
+  it("puts Hull Ghost Cuts and Fit on the look strip, not in View setup", () => {
+    const gizmo = gizmoCol();
+    const view = viewPanel();
+    assert.match(gizmo, /class="look-strip"/);
+    assert.match(gizmo, /id="shade-hull"/);
+    assert.match(gizmo, /id="shade-ghost"/);
+    assert.match(gizmo, /id="shade-triple"/);
+    assert.match(gizmo, /id="btn-fit"/);
+    assert.match(gizmo, /id="btn-look-more"/);
+    assert.match(gizmo, /id="look-quality-medium"/);
+    assert.match(gizmo, /id="btn-look-reset-planes"/);
+    assert.doesNotMatch(view, /id="shade-hull"|id="shade-ghost"|id="shade-triple"/);
+    assert.doesNotMatch(view, /id="btn-fit"/);
+    assert.doesNotMatch(html, /id="ar-shade-hull"/);
+  });
+
+  it("puts FPS on the viewcube and the bench card outside View", () => {
+    const gizmo = gizmoCol();
+    const cards = hudCards();
+    const view = viewPanel();
+    assert.match(gizmo, /id="hud-fps"/);
+    assert.match(gizmo, /class="gizmo-fps"/);
+    assert.match(cards, /id="hud-engine"/);
+    assert.match(cards, /id="hud-spark"/);
+    assert.match(cards, /id="bench"/);
+    assert.doesNotMatch(gizmo, /id="hud-engine"/);
+    assert.doesNotMatch(view, /id="hud-engine"|id="bench"|id="hud-fps"/);
   });
 
   it("has no Decay control and no Size-by-count", () => {
@@ -297,6 +331,7 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(GUIDE_STEPS[1].fold, "source");
     assert.match(GUIDE_STEPS[1].body, /Load NumPy/);
     assert.equal(GUIDE_STEPS[3].fold, "");
+    assert.equal(GUIDE_STEPS[5].fold, "");
     assert.equal(GUIDE_STEPS[6].fold, "view");
     assert.match(GUIDE_STEPS[6].body, /Quality → Low/);
     const first = guideStepAt(0);
@@ -318,6 +353,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="btn-guide-back"/);
     assert.match(html, /id="btn-guide-done"/);
     assert.match(css, /\.brand-cluster/);
+    assert.match(css, /\.brand-cluster\s*\{[^}]*max-width:\s*var\(--rail-w\)/s);
+    assert.match(html, /class="tagline">Xplore Data in 3D/);
     assert.match(css, /\.brand-guide/);
     assert.match(css, /\.guide-overlay/);
     assert.match(css, /\.inner-fold/);

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Chrome splits **Look** (Hull / Ghost / Cuts / Fit top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. AR **Loop** sits behind **More** with Hide, Reset Planes, and Quality.
+- Compact brand: tagline is **Xplore Data in 3D & XR**. Guide sits beside it; both stay within the left-rail width.
+- FPS is a small overlay on the viewcube (bottom-right). Tap it for the spark / DEV Bench card, independent of the View sheet so you can change settings while reading telemetry. Hidden in AR.
+- Footer **M.E.S.S.** and **WETTER** links are cyan; About and the version stay muted.
 - Cube cap default is **200 000** again. Game of Life **Play** stays on that live envelope. **Pause** raises the cap to the tape’s occupied cells (288k cubes → 288k instances, no `trunc`). A dense count cube (Brain MRI) raises only to the **hull** instance count, not every occupied voxel. Sparse Ignition still uses occupied cells. Switching back to Game of Life Play drops to 200 000.
 
 ### Fixed

@@ -65,10 +65,11 @@ describe("phone AR overlay chrome", () => {
     assert.doesNotMatch(css, /body\.is-ar\.is-ar-placed\s+\.ar-height/);
   });
 
-  it("hides the stack until the volume is placed, then shows all three rails", () => {
+  it("hides the stack until the volume is placed, then shows rails; Loop sits in More", () => {
     assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
     assert.doesNotMatch(css, /body\.is-ar\s+\.stack-axis:not\(\.is-z\)/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport/);
+    assert.match(css, /body\.is-ar\.is-look-more \.look-more-panel \.inspect-transport/);
+    assert.doesNotMatch(css, /body\.is-ar\.is-ar-placed\s+\.inspect-transport\s*\{[^}]*display:\s*flex/s);
   });
 
   it("insets phone rails from the right edge so thumbs miss the back-swipe", () => {
@@ -78,14 +79,18 @@ describe("phone AR overlay chrome", () => {
     );
   });
 
-  it("parks Hide center, Hide outer, and shade top-right after place, without a viewcube", () => {
-    assert.match(html, /class="ar-inspect-chrome"/);
-    assert.match(html, /id="ar-shade-hull"/);
-    assert.match(html, /id="ar-shade-ghost"/);
-    assert.match(html, /id="ar-shade-triple"/);
+  it("parks Hull Ghost Cuts top-right after place, without a viewcube, Loop behind More", () => {
+    assert.match(html, /class="look-strip"/);
+    assert.match(html, /id="shade-hull"/);
+    assert.match(html, /id="shade-ghost"/);
+    assert.match(html, /id="shade-triple"/);
+    assert.match(html, /id="btn-look-more"/);
+    assert.doesNotMatch(html, /id="ar-shade-hull"/);
+    assert.doesNotMatch(html, /class="ar-inspect-chrome"/);
     assert.match(css, /body\.is-ar\s+\.gizmo-slot/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.gizmo-col/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-inspect-chrome/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.look-more/);
+    assert.match(css, /body\.is-ar \.look-fit/);
   });
 });
 
@@ -123,22 +128,36 @@ describe("desktop Source | View sheets", () => {
     assert.match(html, /id="btn-rail-view"/);
   });
 
-  it("keeps View FPS on the fold when the sheet is collapsed", () => {
+  it("opens FPS / DEV Bench as a card from the viewcube overlay", () => {
     assert.match(html, /class="fold-meter"/);
-    assert.match(html, /id="view-fps"[^>]*class="[^"]*fold-fps/);
-    assert.match(html, /id="hud-view-fps"/);
-    assert.match(html, /id="hud-engine"[\s\S]*id="bench"/);
+    assert.match(html, /id="hud-fps"[^>]*class="[^"]*gizmo-fps/);
+    assert.match(html, /class="hud-cards"[\s\S]*id="hud-engine"[\s\S]*id="bench"/);
     assert.match(html, /class="check hud-dev"/);
-    const fps = html.indexOf('id="view-fps"');
-    const body = html.indexOf('id="view-body"');
-    assert.ok(fps > 0 && fps < body);
-    assert.match(css, /\.fold-meter\s*\{[^}]*display:\s*flex/s);
-    assert.match(css, /\.fold-fps\s*\{[^}]*white-space:\s*nowrap/s);
+    assert.doesNotMatch(html, /id="view-fps"|id="hud-view-fps"/);
+    assert.doesNotMatch(html, /id="panel-view"[\s\S]*id="hud-engine"/);
+    assert.match(css, /\.gizmo-fps\s*\{[^}]*position:\s*absolute/s);
+    assert.match(css, /body\.hud-bench-open \.hud-cards\s*\{[^}]*display:\s*flex/s);
+    assert.match(css, /\.hud-cards\s*\{[^}]*display:\s*none/s);
     const collapsed = css.match(/\.controls\.is-collapsed \.sheet-body\s*\{[^}]*\}/)?.[0] || "";
     assert.match(collapsed, /display:\s*none/);
-    assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*#view-fps/);
-    assert.doesNotMatch(css, /\.controls\.is-collapsed[^{]*\.fold-fps/);
     assert.match(css, /@media[^{]+\{[\s\S]*\.controls\.is-collapsed \.sheet-body\s*\{[^}]*display:\s*flex/s);
+    assert.match(css, /:root\s*\{[^}]*--rail-w:/s);
+    assert.match(css, /\.controls-root\s*\{[^}]*width:\s*var\(--rail-w\)/s);
+  });
+
+  it("colors footer M.E.S.S. and WETTER links cyan and keeps About muted", () => {
+    assert.match(css, /\.legal a\s*\{[^}]*color:\s*var\(--dampf\)/s);
+    assert.match(css, /\.legal \.btn-link\s*\{[^}]*color:\s*var\(--muted\)/s);
+    assert.match(html, /href="https:\/\/mess\.engineering"[^>]*>M\.E\.S\.S\.</);
+    assert.match(html, /href="https:\/\/wetter\.mess\.engineering"[^>]*>WETTER</);
+  });
+
+  it("hides Guide on coarse pointers and phone-width chrome", () => {
+    assert.match(css, /@media\s*\(pointer:\s*coarse\)[\s\S]*?\.brand-guide\s*\{[^}]*display:\s*none/s);
+    assert.match(
+      css,
+      /@media\s*\(max-width:\s*720px\),[\s\S]*\.brand-guide\s*\{[^}]*display:\s*none/s,
+    );
   });
 });
 

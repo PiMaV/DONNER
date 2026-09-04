@@ -1,5 +1,5 @@
 /**
- * Corner CAD viewcube (desktop rail slot, left of the View HUD). Product axes:
+ * Corner CAD viewcube (desktop rail slot, above the Look strip). Product axes:
  * X cornflower, Y maize, Z mint. Six face frames: click a face to enter a
  * 2D cut. Hover / press light the face.
  */
@@ -31,7 +31,7 @@ export {
 const AXIS_HEX = { x: AXIS_COLOR.x, y: AXIS_COLOR.y, z: AXIS_COLOR.z };
 const AXIS_CSS = { x: hexCss(AXIS_COLOR.x), y: hexCss(AXIS_COLOR.y), z: hexCss(AXIS_COLOR.z) };
 const RIM_HEX = 0xd8e4ee;
-const OVERLAY_SELECTORS = [".hud-cards", ".hud-engine", ".stack", ".fps-chip"];
+const OVERLAY_SELECTORS = [".stack", ".look-strip", ".look-more", ".gizmo-fps", ".hud-cards"];
 
 const CUBE = 1.4;
 const FACE = 1.22;

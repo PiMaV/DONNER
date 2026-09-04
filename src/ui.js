@@ -322,19 +322,16 @@ export function bindUI(on) {
   const shadeHull = $("shade-hull");
   const shadeGhost = $("shade-ghost");
   const shadeTriple = $("shade-triple");
-  const arShadeHull = $("ar-shade-hull");
-  const arShadeGhost = $("ar-shade-ghost");
-  const arShadeTriple = $("ar-shade-triple");
   const qualityLow = $("quality-low");
   const qualityMedium = $("quality-medium");
   const qualityHigh = $("quality-high");
+  const lookQualityLow = $("look-quality-low");
+  const lookQualityMedium = $("look-quality-medium");
+  const lookQualityHigh = $("look-quality-high");
   const cubeCap = $("cube-cap");
   const fpsChip = $("hud-fps");
-  const viewFps = $("view-fps");
-  const hudViewFps = $("hud-view-fps");
   const bench = $("bench");
   const viewBench = $("view-bench");
-  const hudViewFold = $("btn-hud-view");
   const pattern = $("pattern");
   const seed = $("seed");
   const speed = $("speed");
@@ -348,6 +345,11 @@ export function bindUI(on) {
   const voxelGapVal = $("voxel-gap-val");
   const btnHideCenter = $("btn-hide-center");
   const btnHideOuter = $("btn-hide-outer");
+  const lookMoreBtn = $("btn-look-more");
+  const lookResetPlanes = $("btn-look-reset-planes");
+  const inspectHome = $("inspect-home");
+  const lookMoreLoop = $("look-more-loop");
+  const inspectTransport = $("inspect-transport");
   const loopAxisBtns = ["x", "y", "z"].map((axis) => $(`loop-axis-${axis}`));
   const sourceLoad = $("source-load");
   const sourceLoadLabel = $("source-load-label");
@@ -580,6 +582,7 @@ export function bindUI(on) {
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
   resetPlanesBtn?.addEventListener("click", () => on.resetPlanes?.());
+  lookResetPlanes?.addEventListener("click", () => on.resetPlanes?.());
   alignZ?.addEventListener("change", () => on.alignZ?.());
   arYaw?.addEventListener("input", (e) => {
     if (applying) return;
@@ -594,9 +597,6 @@ export function bindUI(on) {
       [shadeHull, "hull"],
       [shadeGhost, "ghost"],
       [shadeTriple, "triple"],
-      [arShadeHull, "hull"],
-      [arShadeGhost, "ghost"],
-      [arShadeTriple, "triple"],
     ];
     for (const [el, id] of map) {
       if (!el) continue;
@@ -608,9 +608,6 @@ export function bindUI(on) {
   shadeHull?.addEventListener("click", () => on.shade?.("hull"));
   shadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
   shadeTriple?.addEventListener("click", () => on.shade?.("triple"));
-  arShadeHull?.addEventListener("click", () => on.shade?.("hull"));
-  arShadeGhost?.addEventListener("click", () => on.shade?.("ghost"));
-  arShadeTriple?.addEventListener("click", () => on.shade?.("triple"));
   syncShadeButtons(DEFAULTS.shadeMode);
   const syncQualityButtons = (id) => {
     const q = normalizeViewQuality(id);
@@ -618,6 +615,9 @@ export function bindUI(on) {
       [qualityLow, "low"],
       [qualityMedium, "medium"],
       [qualityHigh, "high"],
+      [lookQualityLow, "low"],
+      [lookQualityMedium, "medium"],
+      [lookQualityHigh, "high"],
     ];
     for (const [el, name] of map) {
       if (!el) continue;
@@ -629,6 +629,9 @@ export function bindUI(on) {
   qualityLow?.addEventListener("click", () => on.viewQuality?.("low"));
   qualityMedium?.addEventListener("click", () => on.viewQuality?.("medium"));
   qualityHigh?.addEventListener("click", () => on.viewQuality?.("high"));
+  lookQualityLow?.addEventListener("click", () => on.viewQuality?.("low"));
+  lookQualityMedium?.addEventListener("click", () => on.viewQuality?.("medium"));
+  lookQualityHigh?.addEventListener("click", () => on.viewQuality?.("high"));
   syncQualityButtons(DEFAULTS.viewQuality);
   cubeCap?.addEventListener("change", () => {
     if (applying) return;
@@ -885,22 +888,27 @@ export function bindUI(on) {
     syncConwaySetup();
   });
   syncConwaySetup();
-  fpsChip?.addEventListener("click", () => {
-    const open = document.body.classList.toggle("hud-view-open");
-    fpsChip.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  const syncHudViewFold = () => {
-    if (!hudViewFold) return;
-    const collapsed = document.body.classList.contains("hud-view-collapsed");
-    hudViewFold.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    hudViewFold.textContent = collapsed ? "View ▸" : "View ▾";
-    hudViewFold.title = collapsed ? "Expand the View card" : "Collapse the View card";
+  const setLookMore = (open) => {
+    document.body.classList.toggle("is-look-more", open);
+    lookMoreBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+    lookMoreBtn?.classList.toggle("is-on", open);
   };
-  hudViewFold?.addEventListener("click", () => {
-    document.body.classList.toggle("hud-view-collapsed");
-    syncHudViewFold();
+  lookMoreBtn?.addEventListener("click", () => {
+    setLookMore(!document.body.classList.contains("is-look-more"));
   });
-  syncHudViewFold();
+  const setBenchOpen = (open) => {
+    document.body.classList.toggle("hud-bench-open", open);
+    fpsChip?.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  fpsChip?.addEventListener("click", () => {
+    setBenchOpen(!document.body.classList.contains("hud-bench-open"));
+  });
+  const parkInspectTransport = (inMore) => {
+    if (!inspectTransport) return;
+    const dest = inMore ? lookMoreLoop : inspectHome;
+    if (!dest || inspectTransport.parentElement === dest) return;
+    dest.appendChild(inspectTransport);
+  };
 
   const phoneFolds = () => Boolean(foldBar) && getComputedStyle(foldBar).display !== "none";
   const clearGuideSpots = () => {
@@ -911,8 +919,6 @@ export function bindUI(on) {
     panelSource?.classList.remove("is-collapsed");
     panelView?.classList.remove("is-collapsed");
     syncRailFolds();
-    document.body.classList.remove("hud-view-collapsed");
-    syncHudViewFold();
     if (phoneFolds()) setFold(fold || "");
   };
   const visibleRect = (el) => {
@@ -1198,6 +1204,9 @@ export function bindUI(on) {
       const showFace = faceGate && faceSupported && !active;
       if (faceBtn) faceBtn.hidden = !showFace;
       if (faceSheetBtn) faceSheetBtn.hidden = !showFace;
+      parkInspectTransport(Boolean(active && locked));
+      if (!active || !locked) setLookMore(false);
+      if (active) setBenchOpen(false);
     },
     setFaceFacing(environment) {
       if (!faceFacing) return;
@@ -1302,10 +1311,7 @@ export function bindUI(on) {
       if (overlayLabel && label) overlayLabel.textContent = label;
     },
     setFps(fps) {
-      const text = `${Number(fps).toFixed(0)} FPS`;
-      if (fpsChip) fpsChip.textContent = text;
-      if (viewFps) viewFps.textContent = text;
-      if (hudViewFps) hudViewFps.textContent = text;
+      if (fpsChip) fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
     },
     setBenchHud(text) {
       if (!viewBench) return;

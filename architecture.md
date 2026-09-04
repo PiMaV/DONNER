@@ -117,12 +117,12 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
-| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (AR Loop in More), shade (Hull/Ghost/Cuts Look strip), Fit (Look strip), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
+| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a desktop button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Scale**, **Min/Max**, **Trim** (default 1%), and **Hide** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Scale / window / Hide in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
-Conway **Play** stays in Source. AR overlay still has Loop after spawn. Loop axis X/Y/Z
+Conway **Play** stays in Source. AR overlay hides Loop behind **More** after spawn. Loop axis X/Y/Z
 is the **highlighted** playhead (same as grabbing that plane). Ghost
 solids that plane. Hull+Loop grows a potato from the axis origin through
 the playhead and hides the +side plus clip edges. In a viewcube cut the
@@ -169,18 +169,21 @@ The left chrome is one stacked rail, not two persistent columns:
 
 ```mermaid
 flowchart TB
-  subgraph view [View display]
+  subgraph look [Look strip]
+    shade[Hull Ghost Cuts]
+    fitBtn[Fit]
+  end
+  subgraph view [View setup]
     bird[Parallax]
     align[Align to Z]
-    win[Depth live Gap Quality shade Hull Ghost Cuts Cache]
+    win[Depth live Gap Quality Cache]
     color[Color coding]
     stab[Size by age]
     cap[Cube cap]
-    fps[Realtime FPS]
   end
-  subgraph hud [Right View HUD]
-    telemetry[FPS AVG spark]
-    bench[DEV Bench opt-in]
+  subgraph hud [FPS card]
+    fps[Realtime FPS]
+    bench[DEV Bench spark]
   end
   subgraph source [Source]
     kind[Game of Life Lighter Brain MRI Low High]
@@ -193,6 +196,7 @@ flowchart TB
     gen[Conway live overlay]
   end
   view --> volume[Volume]
+  look --> volume
   hud --> volume
   play --> volume
   golPlay --> volume
@@ -678,30 +682,33 @@ or cube hover outlines. Edit paint on the Z playfield is unchanged.
 
 ## Display HUD vs source HUD
 
-Desktop: one View telemetry card plus **three** slice rails to their right.
+Desktop: Look strip under the viewcube, then **three** slice rails to the right.
 Play / Loop, Speed, and loop axis sit under the rails. Conway live stats
 appear only while Conway Play is on.
-The View card heading collapses the display stats.
-Phone: FPS chip (tap expands the View card); three horizontal tracks
-and Source | View folds. No viewcube.
+FPS is a small overlay on the viewcube; sparkline and DEV Bench open as a
+card next to it, not in View.
+Phone: Look strip top-right (no viewcube); FPS chip still opens the card. Three horizontal tracks
+and Source | View folds. Guide hidden.
 
 ```mermaid
 flowchart TB
   subgraph desktop [Desktop]
     sheetD[Source fold then View fold]
     volD[Volume]
-    hudD[View HUD]
+    lookD[Look strip]
     zD[X Y Z vertical rails]
     sheetD --> volD
-    hudD --> zD
+    lookD --> volD
+    zD --> volD
   end
   subgraph phone [Phone]
     volP[Volume]
     zP[Three horizontal tracks Z max at right]
     barP[Source and View folds]
-    chipP[FPS chip]
+    lookP[Look strip]
     volP --> zP
     zP --> barP
+    lookP --> volP
   end
 ```
 
@@ -712,8 +719,8 @@ flowchart TB
   not stuck at 10 on a slow GPU. Long tab-hidden gaps are skipped.
   Cliff-finder: scale Depth until FPS and 1% low hold. A clear
   software rasterizer adds **SOFTWARE**. Path timers are an opt-in **DEV
-  Bench** checkbox on the right View HUD (`src/bench.js`), off the hot
-  path until checked. The left View sheet stays display controls.
+  Bench** checkbox at the bottom of the View sheet (`src/bench.js`), off the hot
+  path until checked. The rest of View stays display setup.
 - **Source overlay** — Conway Play only: GEN, LIVE, RATE (generations/s,
   not frame rate), EDIT. Ignition / MNI do not show those lines.
 
@@ -1043,9 +1050,9 @@ instances (View **Cube cap** up to 20 000 000). Game of Life Play stays
 at 200 000; Pause fits the tape. Dense MRI raises to the hull size, not
 occupied voxels (High hull ~140k inside 5 M occupied). Sparse Ignition
 uses occupied cells. Conway is the synthetic load generator and must boot
-at the default, not at an MRI occupancy envelope. Realtime FPS is in View
-(and the display HUD). Software
-rasterizers still warn **SOFTWARE** on the FPS chip.
+at the default, not at an MRI occupancy envelope. Realtime FPS is the cube overlay.
+Software
+rasterizers still warn **SOFTWARE** on that FPS chip.
 
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`
 or `ext`. Do not treat CPU `rend` as GPU time.
@@ -1070,7 +1077,7 @@ flowchart LR
 | High | Lambert headlamp | 2 (1.5 coarse / headset) | ACES | On |
 
 If the unmasked renderer string matches llvmpipe, SwiftShader, Microsoft
-Basic Render Driver, or GDI Generic, the View HUD and FPS chip warn
+Basic Render Driver, or GDI Generic, the cube FPS chip warns
 **SOFTWARE**. Missing unmasked strings are **unknown**, not a GPU claim.
 
 ### Historical Node CPU (`fillSoA`, avg of 8, 2026-08-31)
