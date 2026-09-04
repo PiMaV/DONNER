@@ -427,6 +427,7 @@ describe("arOverlaySelectShouldGuard", () => {
   it("guards overlay chrome such as Reset Anchor and Size", () => {
     assert.match(AR_OVERLAY_GUARD_SEL, /\.ar-size/);
     assert.match(AR_OVERLAY_GUARD_SEL, /\.gizmo-col/);
+    assert.match(AR_OVERLAY_GUARD_SEL, /\.face-calib/);
     assert.doesNotMatch(AR_OVERLAY_GUARD_SEL, /\.ar-height/);
   });
 

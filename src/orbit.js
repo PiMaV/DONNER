@@ -4,7 +4,7 @@
  * orbit height; Align to Z pins XY to that origin and still allows pan along Z.
  */
 
-import { voxelPitch, zWorldY } from "./axes.js";
+import { normalizeSliceAxis, voxelPitch, zWorldY } from "./axes.js";
 
 export function slabYRange(tNow, tLo, tHi, timeScale) {
   const a = zWorldY(tLo, tNow, timeScale);
@@ -182,4 +182,29 @@ export function snapPose(target, dir, distance, nudge = 0.05) {
 
 export function offsetLength(cam, target) {
   return Math.hypot(cam.x - target.x, cam.y - target.y, cam.z - target.z);
+}
+
+/**
+ * Slide camera and orbit target along a product axis (x→X, y→Z, z→Y).
+ * In-plane pan and look offset stay. Used so a viewcube cut tracks the playhead.
+ */
+export function translateAlongProductAxis(cam, target, axis, deltaCoord) {
+  const a = normalizeSliceAxis(axis);
+  const d = Number(deltaCoord) || 0;
+  const out = {
+    cam: { x: cam.x, y: cam.y, z: cam.z },
+    target: { x: target.x, y: target.y, z: target.z },
+  };
+  if (d === 0) return out;
+  if (a === "x") {
+    out.cam.x += d;
+    out.target.x += d;
+  } else if (a === "y") {
+    out.cam.z += d;
+    out.target.z += d;
+  } else {
+    out.cam.y += d;
+    out.target.y += d;
+  }
+  return out;
 }

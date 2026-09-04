@@ -69,16 +69,20 @@ npm run start:lan     # phone on the same Wi-Fi
 npm test
 ```
 
+Face lab (camera + mesh only): `http://127.0.0.1:8765/face-lab.html`.
+DONNER Face AR: `http://127.0.0.1:8765/?face=1`. Phone HTTPS:
+`https://lab.ole.icu/face-lab.html`.
+
 WebXR needs HTTPS. Lab door: `https://lab.ole.icu/` (Caddy →
 `start:lan`). Fallback: `npm run start:https` (mkcert). Servers send
-`Permissions-Policy: xr-spatial-tracking=(self)`. HTML/JS/CSS are
+`Permissions-Policy: xr-spatial-tracking=(self), camera=(self)`. HTML/JS/CSS are
 `Cache-Control: no-store` so Chrome on a phone does not keep `main.js`
 while serving an older `xr.js` / `orbit.js`.
 
 GitHub Pages is live at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
 Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
-Door: `?src=ignition`, `?src=mni152-low` (or `?src=brain`), `?src=mni152` (High), `?quality=high`.
+Door: `?src=ignition`, `?src=mni152-low` (or `?src=brain`), `?src=mni152` (High), `?quality=high`, Face AR `?face=1`. Face lab (camera + mesh only): `face-lab.html`.
 
 ## Layers
 
@@ -121,8 +125,9 @@ flowchart LR
 Conway **Play** stays in Source. AR overlay still has Loop after spawn. Loop axis X/Y/Z
 is the **highlighted** playhead (same as grabbing that plane). Ghost
 solids that plane. Hull+Loop grows a potato from the axis origin through
-the playhead and hides the +side plus clip edges. Cuts already shows
-three slices. For Conway, **Play** is Live View:
+the playhead and hides the +side plus clip edges (3D only). In a viewcube
+cut, Loop pages that slice on screen (camera tracks; no potato). Cuts
+already shows three slices. For Conway, **Play** is Live View:
 the generator runs, the playhead stays at Now, the Z stack is locked
 (`LIVE`); GEN / LIVE / RATE appear in a small overlay only while that
 Play is on. **Pause** is Inspect. A **count stack** or **MNI 152** opens
@@ -139,6 +144,7 @@ flowchart LR
   grab --> axis
   axis --> ghost[Ghost: that plane solid]
   axis --> hull[Hull loop: potato origin to plane]
+  axis --> cutCine[Viewcube cut: slice stays on screen]
   axis --> cuts[Cuts: three slices, loop walks one]
 ```
 
@@ -297,8 +303,10 @@ flowchart TB
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
 Bird-eye is gone: **Parallax** off is orthographic at the current look.
-A CAD viewcube **face** is a 2D cut (ortho, that product axis, one plane).
-Orbit away from the axis restores the 3D slab. Worldline
+A CAD viewcube **face** is a 2D cut (ortho, that product axis, one plane
+of voxels, even when HUD shade is Hull). Loop and Shift+wheel keep that
+plane on screen (camera tracks the playhead). Orbit away from the axis
+restores the 3D slab. Worldline
 isolation is deferred (later: rectangle select). Scrub the **stack**
 (desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
 along Z (time, default) or X/Y, or Shift+wheel. Inspect adds two **slab**
@@ -453,11 +461,28 @@ A viewcube cut still shows the current plane.
 The right-hand rails stay as a dimmer second path.
 
 A viewcube **face** is a true 2D cut: orthographic, fitted to that
-rectangle, one playhead plane with **that plane's frame and cell grid**
-(other axes and clips off). Wheel zooms; **Shift+wheel** pages the
-stack. Right-drag pans in the plane. A click on the cut does nothing.
-`B` or a left-drag orbit leaves to perspective and the slab immediately;
-zoom and pan stay in the cut.
+rectangle, one playhead plane of **voxels** plus **that plane's frame and
+cell grid** (other axes and clips off). Hull in the HUD still fills that
+plane (`slice`); potato Hull+Loop stays 3D. Wheel zooms; **Shift+wheel**
+pages the stack and the camera follows the playhead along the cut axis
+(zoom and in-plane pan stay). Right-drag pans in the plane. A click on
+the cut does nothing. `B` or a left-drag orbit leaves to perspective and
+the slab immediately. The cut is not the same as Parallax off in 3D.
+
+```mermaid
+flowchart TB
+  click[Viewcube face]
+  lock[planeLock ortho]
+  hull[HUD Hull]
+  slice[Shade slice voxels]
+  peek[Rail handle peek]
+  ghost[Shade ghost]
+  loop[Loop or Shift+wheel]
+  track[Camera tracks playhead]
+  click --> lock --> hull --> slice
+  peek --> ghost
+  lock --> loop --> track
+```
 
 Inspect shade:
 
@@ -498,7 +523,9 @@ Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
 shows the hull so the crop is readable. Shade does **not** change by source
 (MRI vs Ignition): dense volumes still emit the cached hull as glass during
 a peek, plus occupied voxels on the active plane. Ghost/Cuts emit interiors
-only if they sit on a playhead plane. Cuts never emits the hull.
+only if they sit on a playhead plane. Cuts never emits the hull. A viewcube
+cut maps Hull to `slice` (HUD stays Hull): the active plane of voxels, no
+potato.
 
 ```mermaid
 flowchart LR
@@ -536,11 +563,13 @@ distance fog.
 **Parallax** (default on, keyboard `B`) is perspective. Off copies the
 current pose onto an orthographic camera so you can look from the side
 without a vanishing point. Escape turns parallax back on. `B` alone does
-**not** hide the slab (technical drawing). A viewcube **face** sets
-`planeLock`: that product axis, ortho fitted to the slice rectangle,
-that plane's frame and cell grid only. Wheel zooms; Shift+wheel pages;
-clicking the **same face** pages the stack (does not refit). Right-drag
-pans. A click on the cut does nothing. `B` leaves the cut.
+**not** hide the slab (technical drawing). A viewcube **face** is a
+separate 2D cut (`planeLock`): that product axis, ortho fitted to the
+slice rectangle, the current plane of voxels plus that plane's frame and
+cell grid. Wheel zooms; Shift+wheel pages and the camera tracks the
+playhead (no refit). Clicking the **same face** pages the stack. Right-drag
+pans. A click on the cut does nothing. `B` **leaves the cut** (restores
+perspective and Align-to-Z orbit). That is not toggling Parallax in 3D.
 
 A CAD **viewcube** is a 144 px **rail slot** immediately left of the View
 HUD card (desktop orbit only). Six axis-colored **face frames** (X
@@ -597,11 +626,14 @@ flowchart TB
   ortho[Parallax off]
   fit[Fit slice rectangle]
   axis[activeAxis]
-  one[one playhead plane]
-  orbit[Orbit off axis]
+  one[one playhead plane voxels]
+  page[Loop or Shift+wheel]
+  track[Camera tracks playhead]
+  orbit[Orbit or B]
   volume[planeLock off Parallax on slab]
   face --> lock --> ortho --> fit --> one
   face --> axis
+  one --> page --> track
   orbit --> volume
 ```
 
@@ -691,11 +723,16 @@ grow the DOM.
 | `src/observe.js` | Cell pick from world XZ (edit hover; isolation later) |
 | `src/view.js` | Perspective ↔ orthographic (parallax) |
 | `src/fade.js` | Decay along Z (time); ghost-hull fade along the active plane |
-| `src/orbit.js` | Fit / XY pin; world Y anchored at Now |
+| `src/orbit.js` | Fit / XY pin; world Y anchored at Now; cut playhead track |
 | `src/turntable.js` | AR object yaw around the floor normal (parent of stand) |
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/quality.js` | View Quality Low / Medium / High (DPR cap, unlit, ACES) |
-| `src/door.js` | Public `?src=` / `?quality=` allow-list (no arbitrary .npy URLs) |
+| `src/door.js` | Public `?src=` / `?quality=` / `?face=1` allow-list (no arbitrary .npy URLs) |
+| `src/face-pose.js` | Face Landmarker matrix → pose, One-Euro, freeze/lock (Node-testable) |
+| `src/face-calib.js` | Head-frame fit (~16 cm skull) and millimetre offset |
+| `src/face-ar.js` | getUserMedia + lazy MediaPipe Face Landmarker (not WebXR) |
+| `src/face-draw.js` | 2D landmark mesh overlay (lab page and Face AR) |
+| `src/face-lab.js` | Standalone camera + mesh lab (`face-lab.html`) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader; `parseNpyHeader` / `peekNpyBlob` for ingest |
@@ -1207,7 +1244,7 @@ fallback. One codebase: feature-detect
 `immersive-ar`, `renderer.xr.enabled`, pause orbit in session, keep
 `setEvents(...)`. Phone HTTPS is **`https://lab.ole.icu/`** (Caddy →
 laptop `start:lan`). The LAN/HTTPS servers send
-`Permissions-Policy: xr-spatial-tracking=(self)` so Chrome Android still
+`Permissions-Policy: xr-spatial-tracking=(self), camera=(self)` so Chrome Android still
 allows WebXR after a browser update, and `Cache-Control: no-store` on
 HTML/JS/CSS so a phone does not keep a stale ES module graph. mkcert (`npm run start:https`) is
 fallback if the LXC is down. Do not use `pve.ole.icu:8006`. iOS Safari AR is not the
@@ -1254,6 +1291,58 @@ flowchart TB
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
+| **Face AR** | Not WebXR. Prove mesh on `face-lab.html`, then `?face=1`. Phone back camera / desktop webcam + MediaPipe Face Landmarker. Head pose drives `stage`. Ghost Brain MRI Low (~16 cm). Occlusion mesh later. | Pixel / flagship Chrome; webcam for lab. Not Quest |
+
+## Face AR (phone camera, not WebXR)
+
+World AR stays floor hit-test in `immersive-ar`. Face AR is a second
+placement mode: `getUserMedia` → MediaPipe → head pose → the same
+`stage` group. The volume lives in **camera space**, so it follows both
+a turning head and a phone walking around that head. Quest is unchanged
+(no camera frames for CV).
+
+Prove the camera and mesh first on **`face-lab.html`** (no Three.js, no
+MRI). Then open `?face=1`. MediaPipe is pinned to Tasks Vision **0.10.21**
+(`vision_bundle.mjs`); 0.10.22 404s on jsDelivr. Enter starts the camera
+before WASM/MRI; a tracker failure keeps the preview and shows the error
+in the hint. Loading the brain must not move the orbit camera (volume
+lives in camera space). Facial matrices may be row- or column-major;
+layout is inferred from the translation vector. **Front / Back** switches
+facing without leaving the session. **Flip L/R** (on for the front camera)
+mirrors the video, the landmark overlay, and the head pose so a selfie
+matches a mirror. After lock, **Shift / Lift / Inset** place the brain in
+head space: Inset is millimetres behind the face front (canonical −Z).
+Lift defaults to 141 mm toward the forehead (range −80…160 mm), Inset
+50 mm, Size 1.2.
+The fit is the page URL: `shift`, `lift`, `inset` (mm) and `size`. Copy
+that link to the phone on the same host (`lab.ole.icu` or localhost).
+The landmark mesh hides after lock (scan-proof only). Eyes/mouth overlay
+is later and optional.
+
+```mermaid
+flowchart TB
+  lab[face-lab.html]
+  video[live camera]
+  mesh[2D landmark mesh]
+  donner["index.html ?face=1"]
+  phone[Pixel back camera]
+  cam[getUserMedia]
+  mp[MediaPipe FaceLandmarker]
+  pose[head pose in camera space]
+  front[face front / nose]
+  inset[Inset along -Z into the skull]
+  stage[stage]
+  brain[downsampled brain Ghost]
+  lab --> video --> mesh
+  mesh -.-> donner
+  phone --> cam --> mp --> pose --> front --> inset --> stage --> brain
+```
+
+Enter with **Face** (`?face=1`). Default source is Brain MRI Low, Ghost
+shade, Quality Low. After ~0.7 s of tracking the brain locks; **Size**,
+**Flip L/R**, and **Shift / Lift / Inset** calibrate. **Recapture** scans
+again. Frames stay on-device. MediaPipe WASM loads lazily from a pinned
+CDN.
 
 ## WETTER context
 

@@ -27,7 +27,10 @@ class Handler(StreamNpyMixin, SimpleHTTPRequestHandler):
         super().__init__(*args, directory=ROOT, **kwargs)
 
     def end_headers(self):
-        self.send_header("Permissions-Policy", "xr-spatial-tracking=(self)")
+        self.send_header(
+            "Permissions-Policy",
+            "xr-spatial-tracking=(self), camera=(self)",
+        )
         path = (self.path or "").split("?", 1)[0].lower()
         if path.endswith(("/", ".html", ".js", ".mjs", ".css", ".json", ".map")):
             self.send_header("Cache-Control", "no-store")

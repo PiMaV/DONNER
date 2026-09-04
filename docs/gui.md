@@ -88,6 +88,21 @@ yaws; squeeze both grips and move the hands apart or together to
 **Size**. Exit with the headset / browser system gesture. Headset 2D
 Browser skips the viewcube scissor; XR uses the native layer scale.
 
+**Face AR** (`?face=1`) is a second placement mode, not WebXR. Prove the
+camera first on **`face-lab.html`**: live video plus a gold/cyan landmark
+mesh, no Three.js and no MRI. Then open `?face=1`. The phone uses the
+**back camera** (desktop: webcam). MediaPipe tracks a face; a Ghost Brain
+MRI Low overlay locks to the head after a short hold and follows as the
+head turns or the camera walks around it. **Front / Back** switches
+cameras. **Flip L/R** (on for cameras that look at you) mirrors the live
+planes. After lock, **Shift / Lift / Inset** sit the brain behind the
+face front. Defaults: Lift 141 mm, Inset 50 mm, Size 1.2, Shift 0.
+**Recapture** scans again. Quest does not show Face.
+Non-default Shift / Lift / Inset / Size sit in the URL — copy the bar
+to the other device. Landmark mesh is only while locking.
+Camera frames stay on the device. Tracker errors stay on screen; the
+preview is not torn down if WASM fails.
+
 ```mermaid
 flowchart TB
   subgraph place [AR place]
@@ -236,16 +251,17 @@ rectangle select on the playfield).
 | Shift+left-drag | Walk the **key light** around product Z. The volume stays put. Polar still orbits. |
 | Wheel / pinch | Zoom. **Shift+wheel** pages the **active** axis (3D and viewcube cut). |
 | Right-drag / two-finger | Pan. **Align to Z** keeps XY on the time axis and still slides along Z. Off = free XY pan. In a viewcube cut, pan stays in that plane. |
-| **Slice stack** | Three rails (X / Y / Z). Playhead plus two clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent clips, hull cull against the AABB. After **Fit**, the brick stays put; X/Y **and Z** playheads move through it. Desktop: three vertical rails, max at the top of Z. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. Phone AR after place: all three rails (same inspect crop). **Loop** walks the highlighted plane (rail **X / Y / Z** or grab a frame). Ghost solids that plane. Hull+Loop grows from the axis origin through the playhead (potato) and hides the +side and clip edges. Cuts already shows three slices. |
+| **Slice stack** | Three rails (X / Y / Z). Playhead plus two clips per rail in Inspect. Crop is the AABB intersection. A viewcube face uses that axis for the 2D cut. Dense count: full-extent clips, hull cull against the AABB. After **Fit**, the brick stays put; X/Y **and Z** playheads move through it. Desktop: three vertical rails, max at the top of Z. Phone: three horizontal tracks. Wheel over a rail steps that playhead. Live: Z only. Phone AR after place: all three rails (same inspect crop). **Loop** walks the highlighted plane (rail **X / Y / Z** or grab a frame). Ghost solids that plane. Hull+Loop in 3D grows from the axis origin through the playhead (potato) and hides the +side and clip edges. In a viewcube cut, Loop pages the slice on screen (camera tracks). Cuts already shows three slices. |
 | Space | Play / pause |
 | `E` | Edit mode (pauses, snaps focus to Now; Z slice only) |
 | `B` | Toggle **Parallax** (perspective ↔ orthographic, same look) |
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
-| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut; wheel zooms, right-drag pans, Shift+wheel pages. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves. **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone orbit. Phone AR after place shows Hide center / Hide outer (no cube). |
+| Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut of **that plane of voxels** (Hull still shows the slice; HUD shade does not switch). Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Collapse View via the heading. Hidden on phone orbit. Phone AR after place shows Hide center / Hide outer (no cube). |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**, tap the gold square to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
-| **Exit** | End the AR session; orbit returns. Visible in AR only. |
-| **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Does not steal a scene tap. Hidden until a pose is locked. |
+| **Face** | Opt-in (`?face=1`). Not WebXR. Phone back camera (desktop webcam in the lab) + MediaPipe. Point at a face; a transparent Brain MRI Low overlay locks to the head and follows as the head or camera moves. **Flip L/R** on the front camera; **Shift / Lift / Inset** after lock (defaults Lift 141 mm, Inset 50 mm, Size 1.2); **Recapture** scans again. Hidden on Quest. |
+| **Exit** | End the AR or Face AR session; orbit returns. Visible in AR only. |
+| **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Face AR label is **Recapture**. Does not steal a scene tap. Hidden until a pose is locked. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
 | `]` / `↑` | Focus toward Now |
@@ -262,7 +278,7 @@ rectangle select on the playfield).
 | Loop Speed | Same cluster as Loop, under the rails (slices/s). |
 | Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale**, Min/Max, Trim, Hide. |
 | Stability | Conway only. **Size by age** (default on): cubes grow with still/osc run length. **Start** is cube fill at age 0 (down to a speck). **Tail** is generations along Z until full. Two sliders — fill vs length. Hidden for MNI and other sources with no stability metric. |
-| Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut. |
+| Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut (`B` in a cut leaves it). |
 | Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
 | Yaw | AR overlay only (after spawn): turn the pillar around the standing axis (floor normal), then walk. |
@@ -275,7 +291,7 @@ rectangle select on the playfield).
 | Hide outer | Viewcube (desktop) and phone AR overlay: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. |
 | Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | Manual **Low / Medium / High** (default **Medium**). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
-| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). Phone AR overlay uses the same three buttons. |
+| Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** in 3D grows a potato from the axis origin through the playhead and hides the +side plus clip edges; a viewcube cut still fills the current slice), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). Phone AR overlay uses the same three buttons. |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | View instance envelope (default **2 000 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Confirming **Load** on a `.npy` raises the cap to loaded cells + 1 000 000 when that is higher (10M cells → 11M). |
@@ -292,6 +308,7 @@ flowchart LR
   grab --> axis
   axis --> ghost[Ghost: that plane solid]
   axis --> hull[Hull loop: potato origin to plane]
+  axis --> cutCine[Viewcube cut: slice stays on screen]
   axis --> cuts[Cuts: three slices, loop walks one]
 ```
 
@@ -460,16 +477,18 @@ outer hull solid; grab a **playhead** edge (or the rail) to peek the cut
 through a glass hull — same for Ignition and MRI. Grab a **clip**
 edge and the volume stays hull so you can stake the crop. **Loop** in Hull
 grows a potato: hull from the axis origin through the playhead, current
-plane as the cut, +side and clip edges hidden. **Ghost** is
+plane as the cut, +side and clip edges hidden (3D only). **Ghost** is
 the glass hull plus the **highlighted** plane (Loop X/Y/Z or grab a frame
 picks that plane). Scrubbing that plane keeps the glass mesh; only the
 solid cut is rebuilt. **Cuts** is three orthogonal
 slices only, no hull. Both persist in the View sheet. **Decay** is off
 (later / opt-in Z/time fade on sparse stacks). The CAD viewcube (desktop,
 left of the View card) enters a
-fitted 2D cut with **that plane's frame and grid**; wheel zooms, right-drag
-pans, Shift+wheel pages; the **same face** pages the stack; a click on
-the cut does nothing; **B** restores the volume. Zoom and pan stay in the cut.
+fitted 2D cut of **that plane of voxels** plus frame and grid (Hull still
+fills the slice). Wheel zooms, right-drag pans, Shift+wheel pages and the
+camera tracks the playhead; the **same face** pages the stack; a click on
+the cut does nothing; **B** leaves the cut (not the same as Parallax off
+in 3D). Zoom and pan stay in the cut.
 
 ```mermaid
 flowchart TB
@@ -501,19 +520,38 @@ the plane, translucent.
 
 **Parallax** off is orthographic at the current look (no vanishing point)
 and still shows the slab. Click a **face** of the viewcube (desktop; hover
-lights the frame) to enter a 2D **cut** on that axis: ortho, one plane,
-that plane's frame and cell grid, wheel zooms, Shift+wheel pages the stack. A click on the cut does
-nothing. **B** restores the volume; zoom and pan stay in the cut.
+lights the frame) to enter a 2D **cut** on that axis: ortho, the current
+plane of voxels, that plane's frame and cell grid, wheel zooms, Shift+wheel
+pages the stack and the camera tracks. A click on the cut does
+nothing. **B** leaves the cut; zoom and pan stay until you leave.
+
+```mermaid
+flowchart TB
+  click[Viewcube face]
+  lock[planeLock ortho]
+  hull[HUD Hull]
+  slice[Shade slice voxels]
+  peek[Rail handle peek]
+  ghost[Shade ghost]
+  loop[Loop or Shift+wheel]
+  track[Camera tracks playhead]
+  click --> lock --> hull --> slice
+  peek --> ghost
+  lock --> loop --> track
+```
 
 ```mermaid
 flowchart TB
   face[Viewcube face]
   lock[planeLock]
   ortho[Parallax off]
-  one[one playhead plane]
-  orbit[Orbit off axis]
+  one[one playhead plane voxels]
+  page[Loop or Shift+wheel]
+  track[Camera tracks playhead]
+  orbit[Orbit or B]
   volume[3D slab]
   face --> lock --> ortho --> one
+  one --> page --> track
   orbit --> volume
 ```
 
@@ -690,7 +728,7 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   it. Phone HTTPS is `https://lab.ole.icu/` (`start:lan` upstream);
   mkcert is fallback. After a Chrome update, check site **Augmented
   reality** (not blocked) and that the response has
-  `Permissions-Policy: xr-spatial-tracking=(self)`. LAN HTML/JS/CSS
+  `Permissions-Policy: xr-spatial-tracking=(self), camera=(self)`. LAN HTML/JS/CSS
   are `Cache-Control: no-store`.
 - **XR-C-0 is in:** Quest uses the same session but **without** `dom-overlay`
   and **without** the in-world Play/stand/Exit plate. Stick yaws; both grips
@@ -699,3 +737,9 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   standing plane. **URL door query is in** (`?src=` / `?quality=`). QR
   print, path `/ignition`, and AR-from-QR stay later. Do not start a points renderer
   in the same slice as further XR work.
+- **Face AR PoC is in** (`?face=1`): phone/webcam camera + MediaPipe, not
+  WebXR. Prove tracking on `face-lab.html` first. Ghost Brain MRI Low
+  follows the head. Flip L/R on selfie cameras; Shift / Lift / Inset
+  behind the face front (defaults Lift 141 mm, Inset 50 mm, Size 1.2).
+  Occlusion mesh and a button without the query
+  stay later. Quest is unchanged.

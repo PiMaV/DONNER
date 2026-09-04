@@ -6,6 +6,7 @@ import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { landscapePreview } from "./volume-prep.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
+import { FACE_FRONT_INSET_M, FACE_FRONT_LIFT_M, offsetFromFaceFront } from "./face-calib.js";
 
 const PATTERN_HINT = {
   Blinker:
@@ -298,9 +299,16 @@ export function bindUI(on) {
   const playDock = $("btn-play-dock");
   const loopBtn = $("btn-loop");
   const arBtn = $("btn-ar");
+  const faceBtn = $("btn-face-ar");
+  const faceSheetBtn = $("btn-face-ar-sheet");
+  const faceFacing = $("btn-face-facing");
   const xrExit = $("btn-xr-exit");
   const arReset = $("btn-ar-reset");
   const arMag = $("ar-mag");
+  const faceOffX = $("face-off-x");
+  const faceOffY = $("face-off-y");
+  const faceOffZ = $("face-off-z");
+  const faceFlip = $("face-flip-lr");
   const stepBtn = $("btn-step");
   const resetBtn = $("btn-reset");
   const randBtn = $("btn-random");
@@ -352,6 +360,8 @@ export function bindUI(on) {
     z: bindAxisRail("z", { on, narrow }),
   };
   let arSupported = false;
+  let faceSupported = false;
+  let faceGate = false;
   const grid = $("grid");
   const wrap = $("wrap");
   const stopStable = $("stop-stable");
@@ -540,6 +550,10 @@ export function bindUI(on) {
   playDock?.addEventListener("click", () => on.togglePlay());
   loopBtn?.addEventListener("click", () => on.toggleLoop?.());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
+  const enterFace = () => on.enterFaceAr?.();
+  faceBtn?.addEventListener("click", enterFace);
+  faceSheetBtn?.addEventListener("click", enterFace);
+  faceFacing?.addEventListener("click", () => on.toggleFaceFacing?.());
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
   if (arReset && on.resetArAnchor) arReset.addEventListener("click", () => on.resetArAnchor());
   const xrOverlay = $("xr-overlay");
@@ -552,6 +566,14 @@ export function bindUI(on) {
     true,
   );
   if (arMag && on.arMag) arMag.addEventListener("input", () => on.arMag());
+  const onFaceCalib = () => {
+    if (applying) return;
+    on.faceCalib?.();
+  };
+  faceOffX?.addEventListener("input", onFaceCalib);
+  faceOffY?.addEventListener("input", onFaceCalib);
+  faceOffZ?.addEventListener("input", onFaceCalib);
+  faceFlip?.addEventListener("change", onFaceCalib);
   stepBtn.addEventListener("click", () => on.step());
   resetBtn.addEventListener("click", () => on.reset());
   editBtn.addEventListener("click", () => on.toggleEdit());
@@ -1144,16 +1166,76 @@ export function bindUI(on) {
       arSupported = Boolean(ok);
       if (arBtn) arBtn.hidden = !arSupported || document.body.classList.contains("is-ar");
     },
-    setArActive(active, { locked = false } = {}) {
+    setFaceAvailable(ok) {
+      faceSupported = Boolean(ok);
+      const active = document.body.classList.contains("is-ar");
+      const show = faceGate && faceSupported && !active;
+      if (faceBtn) faceBtn.hidden = !show;
+      if (faceSheetBtn) faceSheetBtn.hidden = !show;
+    },
+    setFaceGate(onGate) {
+      faceGate = Boolean(onGate);
+      document.body.classList.toggle("is-face-gate", faceGate);
+      const active = document.body.classList.contains("is-ar");
+      const show = faceGate && faceSupported && !active;
+      if (faceBtn) faceBtn.hidden = !show;
+      if (faceSheetBtn) faceSheetBtn.hidden = !show;
+    },
+    setArActive(active, { locked = false, face = false } = {}) {
       if (xrExit) xrExit.hidden = !active;
+      if (faceFacing) {
+        faceFacing.hidden = !active || !face;
+      }
       if (arReset) {
         arReset.hidden = !active || !locked;
         arReset.disabled = !locked;
+        arReset.textContent = face ? "Recapture" : "Reset Anchor";
+        arReset.title = face
+          ? "Drop the lock and scan the head again. Does not exit Face AR."
+          : "Despawn the volume and search for a floor plane again. Does not exit the session.";
       }
       if (arBtn) arBtn.hidden = !arSupported || active;
+      const showFace = faceGate && faceSupported && !active;
+      if (faceBtn) faceBtn.hidden = !showFace;
+      if (faceSheetBtn) faceSheetBtn.hidden = !showFace;
+    },
+    setFaceFacing(environment) {
+      if (!faceFacing) return;
+      const back = Boolean(environment);
+      faceFacing.textContent = back ? "Back" : "Front";
+      faceFacing.title = back
+        ? "Using the back camera. Tap to switch to the front camera."
+        : "Using the front camera. Tap to switch to the back camera.";
+    },
+    setFaceFlip(on) {
+      if (!faceFlip) return;
+      applying = true;
+      faceFlip.checked = Boolean(on);
+      applying = false;
+    },
+    setFacePlacement({ shift, lift, inset } = {}) {
+      applying = true;
+      if (faceOffX && shift != null) faceOffX.value = String(shift);
+      if (faceOffY && lift != null) faceOffY.value = String(lift);
+      if (faceOffZ && inset != null) faceOffZ.value = String(inset);
+      applying = false;
     },
     getArMag() {
       return arMag ? Number(arMag.value) : 1;
+    },
+    getFaceCalib() {
+      const mm = (el, fallback) => {
+        const n = Number(el?.value);
+        return Number.isFinite(n) ? n / 1000 : fallback;
+      };
+      return {
+        offset: offsetFromFaceFront({
+          shift: mm(faceOffX, 0),
+          lift: mm(faceOffY, FACE_FRONT_LIFT_M),
+          inset: mm(faceOffZ, FACE_FRONT_INSET_M),
+        }),
+        flipLR: Boolean(faceFlip?.checked),
+      };
     },
     getYawDegrees() {
       return arYaw ? Number(arYaw.value) || 0 : 0;

@@ -61,7 +61,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid only. Wheel zooms, right-drag pans, Shift+wheel pages. Same-face click pages the stack (no refit). Left-drag orbits out to 3D; zoom/pan stay in the cut. `B` also leaves. Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane of voxels plus frame and grid (Hull HUD still fills the slice). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -101,7 +101,7 @@ advantage, not a deployment convenience.
   Load / source change start on that pose.
   Playhead and clip bars scale with the brick span, not the cell.
   **Hide center** / **Hide outer** (under the viewcube on desktop)
-  hide playhead+grid vs clip frames independently. A cut still shows the current plane.   Display HUD (FPS, AVG, 1%/0.1% lows,
+  hide playhead+grid vs clip frames independently. A cut still shows the current plane of voxels.   Display HUD (FPS, AVG, 1%/0.1% lows,
   sparkline, INST, FOC) stays separate from Conway live overlay (GEN,
   LIVE, RATE) which appears only while Conway Play is on. HUD shows **ORTHO** when parallax is off.
   Opt-in **DEV Bench** (costs performance) sits on that same right HUD card.
@@ -112,11 +112,13 @@ advantage, not a deployment convenience.
   Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
   Phone Conway Play sits next to AR (Source Play stays on desktop).
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
-  Hull+Loop grows a potato from the axis origin through the plane.
+  Hull+Loop in 3D grows a potato from the axis origin through the plane.
+  A viewcube cut pages that slice on screen (camera tracks; no potato).
   (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
-  must not either. Ghost / peek / Cuts rebuild only the solid plane
+  must not either. A viewcube cut maps Hull to `slice` occupancy so the
+  plane refills; potato AABB is 3D Hull+Loop only. Ghost / peek / Cuts rebuild only the solid plane
   (`fillPlaneSoA`, LRU + neighbor prefetch); the glass hull mesh stays.
   Clip uses the hull cache plus AABB faces, not a full occupancy scan.
   Size by age / Start / Tail must not call `fillSoA`.
@@ -145,6 +147,19 @@ advantage, not a deployment convenience.
   After lock, phone AR is inspect: three rails, Loop, Conway Play next
   to AR, named Hull / Ghost / Cuts, Hide center / Hide outer top-right
   (no viewcube), Size / Yaw / Floor. Same `setEvents`.
+  Face AR is a second mode (`?face=1`), not `immersive-ar`: getUserMedia
+  + MediaPipe Face Landmarker writes the same `stage` every frame.
+  Prove camera + mesh on `face-lab.html` first (no Three.js). Phone uses
+  the back camera; desktop webcam is the lab path. Default overlay is
+  Brain MRI Low, Ghost, Quality Low. Pin `@mediapipe/tasks-vision@0.10.21`.
+  Do not let `bootCount` move the orbit camera during Face AR. Infer
+  row- vs column-major facial matrices from translation. Front/Back
+  toggle matches the lab page. Flip L/R (default on for the user camera)
+  mirrors video, mesh, and pose. After lock, Shift / Lift / Inset place
+  the brain behind the face front. Defaults: Lift 141 mm, Inset 50 mm,
+  Size 1.2. Non-default placement mm + Size live in the door query
+  (`shift`, `lift`, `inset`, `size`). Mesh overlay hides after
+  lock. Do not put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
   spawn rails / Loop / Play / Size / Yaw / Floor / Reset Anchor / Exit plus shade and
   hide on `#xr-overlay` (not
@@ -186,6 +201,7 @@ advantage, not a deployment convenience.
   in; the XR-C-0 world plate is retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
   do not start a points renderer in the same slice)
+- Face-mesh depth occluder, Face AR on Quest, or folding Face AR into the WebXR world-anchor path
 - Source-off-rail / thin View (chrome later in [`backlog.md`](../backlog.md);
   Phase 2 public host is shipped, not a gate for XR-A)
 - Cube double-click isolation (later: rectangle select)
@@ -209,7 +225,7 @@ advantage, not a deployment convenience.
   — Dataset Contract after the public host; MRI stays a dense count `.npy`
   until `ScalarVolume` (no NIfTI parser / NiiVue)
 - Phone HTTPS: `https://lab.ole.icu/` after `npm run start:lan`; mkcert
-  fallback `npm run start:https`
+  fallback `npm run start:https`. Face lab: `https://lab.ole.icu/face-lab.html`
 - UI: [`docs/gui.md`](gui.md)
 - Related (not influences; Conway is demonstrator only): [`docs/related.md`](related.md)
   — Wolfram 2025 essay is the internal Life reference, not a DONNER spec

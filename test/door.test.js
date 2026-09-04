@@ -16,10 +16,14 @@ describe("public door query", () => {
     assert.deepEqual(parseStartSearch(""), {
       source: "conway",
       quality: "medium",
+      face: false,
+      facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
     });
     assert.deepEqual(parseStartSearch("?foo=bar"), {
       source: "conway",
       quality: "medium",
+      face: false,
+      facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
     });
   });
 
@@ -54,5 +58,30 @@ describe("public door query", () => {
       "?src=mni152&quality=high",
     );
     assert.equal(startSearchFromState({ source: "count", quality: "low" }), "?quality=low");
+    assert.equal(
+      startSearchFromState({ source: "conway", quality: "medium", face: true }),
+      "?face=1",
+    );
+    assert.equal(
+      startSearchFromState({
+        source: "mni152-low",
+        quality: "medium",
+        face: true,
+        facePlacement: { shift: 12, lift: 96, inset: 40, mag: 1.2 },
+      }),
+      "?src=mni152-low&face=1&shift=12&lift=96&inset=40",
+    );
+    assert.equal(
+      startSearchFromState({
+        source: "mni152-low",
+        quality: "medium",
+        face: true,
+        facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1 },
+      }),
+      "?src=mni152-low&face=1&size=1",
+    );
+    assert.equal(parseStartSearch("?face=1").face, true);
+    assert.equal(parseStartSearch("?face=1&lift=96&inset=40").facePlacement.lift, 96);
+    assert.equal(parseStartSearch("?face=1&lift=96&inset=40").facePlacement.inset, 40);
   });
 });

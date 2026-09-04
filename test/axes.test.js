@@ -9,6 +9,7 @@ import {
   defaultInspectSlabs,
   denseGhostToSlice,
   effectiveShade,
+  cutInspectShade,
   playheadCrossesMid,
   playheadMidBack,
   fociFromSlabs,
@@ -263,6 +264,11 @@ describe("AABB crop and shade", () => {
     assert.equal(effectiveShade("hull", true), "ghost");
     assert.equal(effectiveShade("ghost", true), "ghost");
     assert.equal(effectiveShade("triple", true), "triple");
+    assert.equal(cutInspectShade("hull"), "hull");
+    assert.equal(cutInspectShade("hull", { planeLock: true }), "slice");
+    assert.equal(cutInspectShade("hull", { held: true, planeLock: true }), "ghost");
+    assert.equal(cutInspectShade("ghost", { planeLock: true }), "ghost");
+    assert.equal(cutInspectShade("triple", { planeLock: true }), "triple");
     assert.equal(denseGhostToSlice("ghost", false), "ghost");
     assert.equal(denseGhostToSlice("ghost", true), "ghost");
     assert.equal(denseGhostToSlice("triple", true), "triple");
@@ -343,6 +349,21 @@ describe("AABB crop and shade", () => {
       inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 0, y: 0, z: 2 } }),
       inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 9, y: 9, z: 8 } }),
     );
+    const lockShade = cutInspectShade("hull", { planeLock: true });
+    assert.equal(lockShade, "slice");
+    const c0 = inspectPlaneOccupancyKey({
+      shade: lockShade,
+      aabb,
+      foci: { x: 1, y: 1, z: 2 },
+      activeAxis: "z",
+    });
+    const c1 = inspectPlaneOccupancyKey({
+      shade: lockShade,
+      aabb,
+      foci: { x: 1, y: 1, z: 3 },
+      activeAxis: "z",
+    });
+    assert.notEqual(c0, c1);
   });
 
   it("keeps the AABB from the axis origin through the playhead", () => {

@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "0.13.0";
+export const VERSION = "0.14.0";
 
 export const COLOR = {
   bg: 0x0b0f14,

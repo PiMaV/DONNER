@@ -11,6 +11,7 @@ import {
   phoneOrbitViewOffset,
   playfieldHalfExtent,
   slabYRange,
+  translateAlongProductAxis,
   volumeRadius,
 } from "../src/orbit.js";
 
@@ -136,5 +137,24 @@ describe("orbit pin", () => {
       fovDeg: 50,
     });
     assert.ok(range.maxDistance > 2400);
+  });
+});
+
+describe("cut camera track", () => {
+  it("slides camera and target along the product axis and keeps in-plane pan", () => {
+    const cam = { x: 2, y: 5, z: 20 };
+    const target = { x: 2, y: 5, z: 4 };
+    const alongY = translateAlongProductAxis(cam, target, "y", 3);
+    assert.deepEqual(alongY.cam, { x: 2, y: 5, z: 23 });
+    assert.deepEqual(alongY.target, { x: 2, y: 5, z: 7 });
+    const alongX = translateAlongProductAxis(cam, target, "x", -1);
+    assert.deepEqual(alongX.cam, { x: 1, y: 5, z: 20 });
+    assert.deepEqual(alongX.target, { x: 1, y: 5, z: 4 });
+    const alongZ = translateAlongProductAxis(cam, target, "z", 2);
+    assert.deepEqual(alongZ.cam, { x: 2, y: 7, z: 20 });
+    assert.deepEqual(alongZ.target, { x: 2, y: 7, z: 4 });
+    const none = translateAlongProductAxis(cam, target, "y", 0);
+    assert.deepEqual(none.cam, cam);
+    assert.deepEqual(none.target, target);
   });
 });

@@ -111,7 +111,7 @@ describe("Source | View information architecture", () => {
   });
 
   it("puts Conway Play next to AR on phone and keeps Loop on the overlay", () => {
-    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-play-dock"/);
+    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-face-ar"[\s\S]*id="btn-play-dock"/);
     assert.doesNotMatch(html, /id="btn-play-ar"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /class="fold-bar-center"/);

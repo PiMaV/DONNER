@@ -27,6 +27,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
 - Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
 - Phone AR search on enter (no Search Anchor), no Z-height slider, footprint-fit scale
+- Face AR PoC (`?face=1`) and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest)
 
 **Later / next candidates** (keep; do not implement in this slice):
 
@@ -40,6 +41,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
+9. Face AR occlusion mesh, auto skull scale, Face button without `?face=1`
 
 ## Product roadmap
 

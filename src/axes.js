@@ -151,6 +151,16 @@ export function effectiveShade(mode, held = false) {
 }
 
 /**
+ * HUD shade stays Hull / Ghost / Cuts. A viewcube cut still draws the
+ * active plane: Hull+lock is `slice` (no potato). Peek stays Ghost.
+ */
+export function cutInspectShade(mode, { held = false, planeLock = false } = {}) {
+  const shade = effectiveShade(mode, held);
+  if (planeLock && shade === "hull") return "slice";
+  return shade;
+}
+
+/**
  * Shade is source-agnostic. Dense MRI uses the same Ghost hull + solid
  * plane as sparse Ignition. Kept so older tests/callers still import it.
  */
@@ -333,7 +343,8 @@ export function inspectHullOccupancyKey({
 
 /**
  * Solid cut plane(s). Ghost / Slice follow the highlighted playhead;
- * Cuts follows all three. Hull idle has no plane mesh.
+ * Cuts follows all three. Hull idle has no plane mesh. A viewcube cut
+ * maps Hull to `slice` via `cutInspectShade` so occupancy follows focus.
  */
 export function inspectPlaneOccupancyKey({
   shade,

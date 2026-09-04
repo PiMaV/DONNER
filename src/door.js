@@ -1,10 +1,15 @@
 /**
  * Public door query. Allow-list only — no arbitrary .npy paths.
  * `?src=` picks an example; `?quality=` is Low / Medium / High.
+ * `?face=1` shows the Face AR button (phone camera overlay, not WebXR).
+ * With Face, `shift` / `lift` / `inset` (mm) and `size` are the saved
+ * head placement — copy the URL onto the phone.
  * Path `/ignition` and QR spawn stay later.
  */
 
 import { COUNT_DEMOS } from "./config.js";
+import { parseFaceQuery } from "./face-ar.js";
+import { readFacePlacementParams, writeFacePlacementParams } from "./face-calib.js";
 import { DEFAULT_VIEW_QUALITY, normalizeViewQuality } from "./quality.js";
 
 const SOURCE_ALIASES = {
@@ -63,11 +68,13 @@ export function parseStartSearch(
   const quality = qualityRaw
     ? normalizeViewQuality(qualityRaw)
     : defaultQuality;
-  return { source, quality };
+  const face = parseFaceQuery(raw);
+  const facePlacement = readFacePlacementParams(q);
+  return { source, quality, face, facePlacement };
 }
 
 export function startSearchFromState(
-  { source, quality },
+  { source, quality, face = false, facePlacement = null },
   {
     demos = COUNT_DEMOS,
     defaultSource = DEFAULT_START_SOURCE,
@@ -79,6 +86,10 @@ export function startSearchFromState(
   if (src && src !== defaultSource) params.set("src", src);
   const q = normalizeViewQuality(quality);
   if (q !== defaultQuality) params.set("quality", q);
+  if (face) {
+    params.set("face", "1");
+    writeFacePlacementParams(params, facePlacement);
+  }
   const s = params.toString();
   return s ? `?${s}` : "";
 }

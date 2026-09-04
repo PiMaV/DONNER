@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="96x96" href="https://mess.engineering/favicon/favicon-96x96.png" />
   <link rel="icon" type="image/svg+xml" href="https://mess.engineering/favicon/favicon.svg" />
   <link rel="apple-touch-icon" sizes="180x180" href="https://mess.engineering/favicon/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/style.css?v=0.13.0-dev2" />
+  <link rel="stylesheet" href="css/style.css?v=0.14.0" />
   <script type="importmap">
   {
     "imports": {
@@ -23,7 +23,7 @@
   }
   </script>
   <script type="module">
-    import("./src/main.js?v=0.13.0-dev2").catch(() => {
+    import("./src/main.js?v=0.14.0").catch(() => {
       const el = document.getElementById("boot-fail");
       if (el) el.hidden = false;
     });
@@ -32,6 +32,8 @@
 
 <body>
   <p id="boot-fail" class="boot-fail" hidden>DONNER failed to load. Hard-reload this page.</p>
+  <video id="face-video" class="face-video" playsinline muted autoplay hidden></video>
+  <canvas id="face-overlay" class="face-overlay" hidden></canvas>
   <canvas id="view" aria-label="3D volume"></canvas>
   <input id="count-file" type="file" accept=".npy,application/octet-stream" hidden />
   <div id="drop-overlay" class="drop-overlay" hidden>
@@ -107,6 +109,24 @@
         <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
         <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
       </div>
+      <div class="face-calib" role="group" aria-label="Face AR placement">
+        <label class="face-off" for="face-off-x">
+          <span>Shift</span>
+          <input id="face-off-x" type="range" min="-80" max="80" step="1" value="0" aria-label="Brain shift left/right millimetres" />
+        </label>
+        <label class="face-off" for="face-off-y">
+          <span>Lift</span>
+          <input id="face-off-y" type="range" min="-80" max="160" step="1" value="141" aria-label="Brain lift up/down millimetres" />
+        </label>
+        <label class="face-off" for="face-off-z">
+          <span>Inset</span>
+          <input id="face-off-z" type="range" min="0" max="80" step="1" value="50" aria-label="Brain inset behind the face millimetres" />
+        </label>
+        <label class="check face-flip">
+          <input id="face-flip-lr" type="checkbox" />
+          <span>Flip L/R</span>
+        </label>
+      </div>
       <div class="stack-block">
       <aside class="stack" aria-label="Slice stack">
         <div class="stack-axis" data-axis="x" id="stack-axis-x">
@@ -176,10 +196,12 @@
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
+        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Face</button>
         <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
           title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
+        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden>Front</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
@@ -217,6 +239,7 @@
       </label>
       <p id="source-blurb" class="hint source-blurb">A generator: each cube is a living cell, Z is generations. A short run fills the brick; Play grows it further.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
+      <button type="button" id="btn-face-ar-sheet" class="btn btn-face-ar" hidden>Face AR</button>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"

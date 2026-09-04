@@ -89,6 +89,31 @@ describe("phone AR overlay chrome", () => {
   });
 });
 
+describe("Face AR chrome", () => {
+  it("gates Face AR on a video layer and a second button, not WebXR", () => {
+    assert.match(html, /id="face-video"/);
+    assert.match(html, /id="face-overlay"/);
+    assert.match(html, /id="btn-face-ar"/);
+    assert.match(html, /id="btn-face-facing"/);
+    assert.match(html, /id="btn-face-ar-sheet"/);
+    assert.match(html, /id="face-off-x"/);
+    assert.match(html, /class="face-calib"/);
+    assert.match(css, /body\.is-face-ar \.face-video/);
+    assert.match(css, /body\.is-face-ar \.face-video\.is-mirror/);
+    assert.match(css, /body\.is-face-ar \.face-overlay/);
+    assert.match(css, /body\.is-face-ar \.face-calib/);
+    assert.match(css, /body\.is-face-ar:not\(\.is-ar-placed\)\s+\.face-off/);
+    assert.match(css, /body\.is-face-ar\.is-ar-placed\s+\.face-off/);
+    assert.match(css, /body\.is-face-ar\.is-ar-placed \.ar-stand/);
+    assert.match(html, />Inset</);
+    assert.match(html, /id="face-off-y"[^>]*max="160"/);
+    assert.match(html, /id="face-off-y"[^>]*value="141"/);
+    assert.match(html, /id="face-off-z"[^>]*value="50"/);
+    assert.match(html, /Flip L\/R/);
+    assert.doesNotMatch(css, /#view\s*\{[^}]*transform\s*:/);
+  });
+});
+
 describe("desktop Source | View sheets", () => {
   it("lays out Source and View as one stacked accordion rail on desktop", () => {
     const root = css.match(/\.controls-root\s*\{[^}]+\}/)?.[0] || "";
@@ -123,5 +148,7 @@ describe("LAN static headers", () => {
     const https = readFileSync(new URL("../scripts/serve-https.py", import.meta.url), "utf8");
     assert.match(http, /Cache-Control.*no-store/);
     assert.match(https, /Cache-Control.*no-store/);
+    assert.match(http, /camera=\(self\)/);
+    assert.match(https, /camera=\(self\)/);
   });
 });

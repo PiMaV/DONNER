@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-04
+
 ### Added
 
+- **Face AR** (`?face=1`): phone back camera or desktop webcam tracks a head with MediaPipe and hangs a transparent Brain MRI Low overlay on that pose. Not WebXR; Quest is unchanged. Size plus Shift / Lift / Inset after lock; Recapture scans again.
+- **Face lab** (`face-lab.html`): camera + landmark mesh only (no Three.js, no MRI). Use this to prove tracking before the DONNER overlay.
+- Face AR **Front / Back** camera toggle (same as the lab page).
+- Face AR **Flip L/R** mirrors the live planes on cameras that look at you (video + mesh + pose). Front camera turns it on; back camera leaves it off.
 - Source **Brain MRI Low**: a 2× mean-binned ICBM 152 cube (`data/mni152_low_stack.npy`, ~3 MB) for demos and light tests. Visitor aliases `?src=brain` / `?src=mri` open Low.
 
 ### Changed
@@ -17,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The previous native Brain MRI cube is now **Brain MRI High** (id `mni152`, ~23 MB). High stays opt-in; Quality Low/Medium/High is still the renderer, not the MRI grid.
 - Source **About Data** is a small muted caption next to the fold heading (it no longer inherits body size).
 - Cube cap default is **2 000 000** (was 200 000). Ceiling is 20 000 000. Confirming **Load** on a `.npy` raises the cap to loaded cells + 1 000 000 when that is higher (10M cells → 11M), so a comfort-warned load is not silently truncated.
+- Face AR default fit from the lab session: **Lift 141 mm**, **Inset 50 mm**, **Size 1.2**. Shift stays 0. Non-defaults still go into the URL.
+- Face AR writes **Shift / Lift / Inset / Size** into the page URL when they differ from the defaults. Copy the address onto the phone (same host). The landmark mesh hides after lock.
+
+### Fixed
+
+- Face AR pinned MediaPipe Tasks Vision **0.10.21** (`vision_bundle.mjs`). **0.10.22** 404s on jsDelivr, so the session died right after the camera-permission preview.
+- Face AR starts the camera first and keeps it live if the tracker or MRI load fails (the loading overlay no longer covers and then tears down the preview).
+- Face AR keeps the camera at the origin when Brain MRI Low loads, so the ghost brick can sit on the tracked head instead of jumping into orbit.
+- A viewcube cut under Hull shows the current slice (not an empty frame). Peek-on-handle is no longer required; Loop in the cut pages that plane.
+- Loop / Shift+wheel / same-face page in a viewcube cut keep the plane on screen: the camera tracks the playhead along the cut axis. Zoom and in-plane pan stay. `B` still leaves the cut (it is not the same as Parallax off in 3D).
 
 ## [0.13.0] - 2026-09-03
 

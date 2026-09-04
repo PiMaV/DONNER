@@ -240,7 +240,7 @@ export function arSelectIsOverlayEcho(now, ignoreUntil) {
  * WebXR `select` never locked.
  */
 export const AR_OVERLAY_GUARD_SEL =
-  "button, input, select, textarea, label, .stack, .transport, .ar-size, .ar-yaw, .ar-stand, .gizmo-col, .inspect-transport, .loop-axes";
+  "button, input, select, textarea, label, .stack, .transport, .ar-size, .ar-yaw, .ar-stand, .face-calib, .gizmo-col, .inspect-transport, .loop-axes";
 
 export function arOverlaySelectShouldGuard(target, overlayRoot) {
   if (!overlayRoot || target == null) return false;
