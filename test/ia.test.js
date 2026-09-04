@@ -75,7 +75,7 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
     assert.match(view, /id="cube-cap"/);
-    assert.match(view, /id="cube-cap"[^>]*value="2000000"/);
+    assert.match(view, /id="cube-cap"[^>]*value="200000"/);
     assert.match(view, /id="cube-cap"[^>]*max="20000000"/);
     assert.match(view, /id="quality-low"/);
     assert.match(view, /id="quality-medium"/);

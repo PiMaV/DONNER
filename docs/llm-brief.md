@@ -88,8 +88,11 @@ advantage, not a deployment convenience.
   (default on) orbits around the time axis without chasing Z clips;
   right-drag still slides along Z; off allows XY pan.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
-  Cube cap is a View number (default 2 000 000; a confirmed NumPy load
-  raises it to cells + 1 000 000 when that is higher).
+  Cube cap is a View number (default 200 000). Game of Life Play stays
+  at that live envelope; Pause raises it to the tape’s occupied cells
+  (no trunc on a 300k brick). Loading a count cube raises it to occupied
+  cells when that is higher. Do not boot Conway at 2 000 000 instances
+  (solid + ghost).
   Numbered X/Y overlay, hairlines, and cube hover outlines are off
   (units later). Grab the axis-colored frame edges in the volume
   (playhead full size, clips well inside; coincident clip hidden; ~28 px

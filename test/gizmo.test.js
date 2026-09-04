@@ -200,11 +200,12 @@ describe("cube cap", () => {
     assert.equal(clampCubeCap("nope"), DEFAULTS.maxInstances);
   });
 
-  it("raises to loaded cells plus 1M and never lowers", () => {
-    assert.equal(DEFAULTS.maxInstances, 2_000_000);
-    assert.equal(cubeCapForLoadedCells(10_000_000), 11_000_000);
-    assert.equal(cubeCapForLoadedCells(100_000), 2_000_000);
-    assert.equal(cubeCapForLoadedCells(3_000_000), 4_000_000);
+  it("raises to occupied cells when that exceeds the current cap, and never lowers", () => {
+    assert.equal(DEFAULTS.maxInstances, 200_000);
+    assert.equal(cubeCapForLoadedCells(100_000), 200_000);
+    assert.equal(cubeCapForLoadedCells(288_000), 288_000);
+    assert.equal(cubeCapForLoadedCells(10_000_000), 10_000_000);
+    assert.equal(cubeCapForLoadedCells(3_000_000), 3_000_000);
     assert.equal(cubeCapForLoadedCells(10_000_000, 15_000_000), 15_000_000);
   });
 });

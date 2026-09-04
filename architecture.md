@@ -967,10 +967,12 @@ is gen 0 (or the tape start). Off = even brick.
 Cache status lives in View. Conway Source does not own Depth, Decay, or
 the tape. Caps: 4096 gens or 400 000 cells, then `full` (recording from
 the start stops). Reset starts a new tape. Changing Depth resizes the
-wake ring only. The instance cap (View **Cube cap**, default 2 000 000)
+wake ring only. The instance cap (View **Cube cap**, default 200 000)
 still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
-envelope. A confirmed own-cube **Load** raises that cap to the loaded cell
-count + 1 000 000 when higher.
+envelope. Game of Life **Play** keeps that 200 000 envelope; **Pause**
+raises it to the tape’s occupied cell count. A count cube (MRI, Ignition,
+own `.npy`) raises that cap to occupied cells when higher; Play on Game
+of Life drops back to 200 000.
 
 Color coding defaults on for teaching. Conway **Size by age** defaults on
 (Start 0.5, Tail 16).
@@ -1036,9 +1038,11 @@ XR-unsafe). Auto quality from Bench metrics is later.
 
 ## Performance envelope
 
-Instanced cubes: one mesh, default 2 000 000 instances (View **Cube cap**
-up to 20 000 000; a confirmed `.npy` Load can set cells + 1 000 000). Conway is the synthetic
-load generator. Realtime FPS is in View (and the display HUD). Software
+Instanced cubes: solid + ghost `InstancedMesh`, default **200 000**
+instances (View **Cube cap** up to 20 000 000). Game of Life Play stays
+at 200 000; Pause fits the tape. A count cube raises the cap to occupied
+cells. Conway is the synthetic load generator and must boot at the
+default, not at the MRI envelope. Realtime FPS is in View (and the display HUD). Software
 rasterizers still warn **SOFTWARE** on the FPS chip.
 
 GPU timer queries: detect `EXT_disjoint_timer_query_webgl2` and show `n/a`

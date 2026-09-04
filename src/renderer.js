@@ -32,8 +32,10 @@ import { depthFade, ghostSliceFadeOn, sliceDistanceFade } from "./fade.js";
 import { frameBarThickness, frameHandleInset, frameRingBox, frameRingWorldEdges } from "./frame.js";
 import { isolationWeight } from "./observe.js";
 
-function seedInstanceColors(mesh, maxCount, color) {
-  for (let i = 0; i < maxCount; i++) mesh.setColorAt(i, color);
+function seedInstanceColors(mesh, color) {
+  // Allocate the instance-color buffer. Do not walk maxCount — setEvents
+  // writes the slots that are drawn. A 2M loop here hitchs Game of Life.
+  mesh.setColorAt(0, color);
   mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
 }
 
@@ -165,8 +167,8 @@ export class CubeRenderer {
     this.ghost.renderOrder = 1;
 
     const seed = new THREE.Color(COLOR.gold);
-    seedInstanceColors(this.solid, maxCount, seed);
-    seedInstanceColors(this.ghost, maxCount, seed);
+    seedInstanceColors(this.solid, seed);
+    seedInstanceColors(this.ghost, seed);
 
     scene.add(this.solid);
     scene.add(this.ghost);

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Cube cap default is **200 000** again. Game of Life **Play** stays on that live envelope. **Pause** raises the cap to the tape’s occupied cells (288k cubes → 288k instances, no `trunc`). Loading MRI, Ignition, or an own `.npy` still raises to occupied cells; switching back to Game of Life drops to 200 000.
+
+### Fixed
+
+- Game of Life hitch from the 2 000 000 default GPU envelope (solid + ghost InstancedMesh plus SoA), leftover from the MRI cube-cap bump.
+
 ## [0.15.0] - 2026-09-04
 
 ### Changed

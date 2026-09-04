@@ -64,7 +64,7 @@ export const DEFAULTS = {
   timeScale: 1,
   /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. */
   voxelGap: 0,
-  maxInstances: 2_000_000,
+  maxInstances: 200_000,
   /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
   bench: false,
   cubeCapMin: 20_000,
@@ -252,18 +252,17 @@ export function clampCubeCap(n) {
   return Math.min(DEFAULTS.cubeCapMax, Math.max(DEFAULTS.cubeCapMin, Math.round(v)));
 }
 
-/** Extra instances beyond a loaded cell count so a full brick is not `trunc`. */
-export const CUBE_CAP_HEADROOM = 1_000_000;
-
 /**
- * Cube cap after the visitor confirms Load on a count cube.
- * 10M cells → 11M. Never lowers an existing cap.
+ * Cube cap after a count cube is on screen, or after Game of Life Pause.
+ * Raise to occupied cells so the brick is not `trunc`. Never lowers
+ * (Play resets Game of Life to the default separately).
  */
 export function cubeCapForLoadedCells(cells, current = DEFAULTS.maxInstances) {
   const have = clampCubeCap(current);
   const n = Number(cells);
   if (!Number.isFinite(n) || n <= 0) return have;
-  return clampCubeCap(Math.max(have, n + CUBE_CAP_HEADROOM));
+  if (n <= have) return have;
+  return clampCubeCap(n);
 }
 
 export function clampStabStart(n) {

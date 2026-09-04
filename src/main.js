@@ -2035,6 +2035,7 @@ function enterInspect() {
   playing = false;
   tapeMode = true;
   stopLoop();
+  if (sourceId !== "count") fitConwayInspectCubeCap();
   if (!(sourceId === "count" && countVol && isDenseCount(countVol))) {
     slabs.z.near = 0;
     slabs.z.far = maxTimeBack();
@@ -2049,6 +2050,7 @@ function enterInspect() {
 
 function enterLive() {
   arPlanePoke = false;
+  if (sourceId !== "count") resetCubeCapDefault();
   tapeMode = false;
   playing = true;
   looping = false;
@@ -2273,6 +2275,7 @@ function stepCountPlayhead() {
 function bootCount(vol) {
   sourceId = "count";
   countVol = vol;
+  ensureCubeCapForCells(vol.count);
   gensPerSec = ui.getConfig().gensPerSec;
   loopPerSec = ui.getConfig().loopPerSec;
   decay = ui.getConfig().decay;
@@ -2472,7 +2475,6 @@ async function confirmCountIngest(picks) {
   const { file, header, name } = pending;
   try {
     await withLoading(`Loading ${file.name}…`, async () => {
-      ensureCubeCapForCells(opt.cells);
       if (f === 1) {
         const buf = await file.arrayBuffer();
         bootCount(countVolumeFromNpy(buf, name));
@@ -2536,6 +2538,7 @@ function disconnectWolke() {
 }
 
 function bootWorld(resizeGrid) {
+  resetCubeCapDefault();
   const cfg = ui.getConfig();
   sourceId = "conway";
   gensPerSec = cfg.gensPerSec;
@@ -2850,6 +2853,18 @@ function setLoopAxis(next) {
 function ensureCubeCapForCells(cells) {
   const next = cubeCapForLoadedCells(cells, ui.getConfig().maxInstances);
   ui.setCubeCap(next);
+  applyCubeCap();
+}
+
+/** Pause: fit the RAM tape. Play keeps the 200k live envelope. */
+function fitConwayInspectCubeCap() {
+  ensureCubeCapForCells(tape?.eventCount || 0);
+}
+
+function resetCubeCapDefault() {
+  const cap = DEFAULTS.maxInstances;
+  if (soa.capacity === cap && clampCubeCap(ui.getConfig().maxInstances) === cap) return;
+  ui.setCubeCap(cap);
   applyCubeCap();
 }
 
