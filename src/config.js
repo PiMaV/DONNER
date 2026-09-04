@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "0.15.0";
+export const VERSION = "0.16.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -62,8 +62,8 @@ export const DEFAULTS = {
   history: 48,
   cellSize: 1,
   timeScale: 1,
-  /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. */
-  voxelGap: 0,
+  /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. Visitor Brain starts at 0.01. */
+  voxelGap: 0.01,
   maxInstances: 200_000,
   /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
   bench: false,
@@ -76,6 +76,8 @@ export const DEFAULTS = {
   loopAxis: "z",
   /** Playhead steps per second while View Loop is on. */
   loopPerSec: 8,
+  /** Look-strip Spin: revolutions per second around product Z. */
+  spinRevPerSec: 1 / 24,
   /** Visitor Brain starts Ghost; Game of Life overrides via startShadeFor. */
   shadeMode: "ghost",
   /** Visitor Brain shows playhead and outer frames; Game of Life overrides via startPlaneChromeFor. */
@@ -92,7 +94,7 @@ export const DEFAULTS = {
   countTrim: 1,
   countHide: 0,
   forceFullRebuild: false,
-  viewQuality: "medium",
+  viewQuality: "high",
   maxTapeSlices: 4096,
   maxTapeEvents: 400_000,
   sourceKind: "mni152-low",
@@ -103,9 +105,6 @@ export const DEFAULTS = {
 };
 
 /** Visitor-facing Source copy. Ids stay `conway` / `ignition` / `mni152-low` / `mni152`. */
-const MNI_CITE =
-  "Derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). See data/NOTICE.md.";
-
 export const SOURCE_GUIDE = {
   conway: {
     label: "Game of Life",
@@ -114,18 +113,18 @@ export const SOURCE_GUIDE = {
   },
   ignition: {
     label: "Lighter Ignition",
-    blurb: "Event-camera count cube of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.",
+    blurb: "Event-camera count cube of a lighter strike. X is sensor width; Y is time; Z is sensor height. Loop Y scrubs the recording.",
     cite: "Own recording. Cubes are event counts per pixel per Δt, not a video frame.",
   },
   "mni152-low": {
     label: "Brain MRI Low",
-    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan.",
-    cite: MNI_CITE,
+    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut.",
+    cite: "",
   },
   mni152: {
     label: "Brain MRI High",
-    blurb: "Example T1 atlas at native grid. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan. Larger download.",
-    cite: MNI_CITE,
+    blurb: "Example T1 atlas at native grid. All three axes are space. Loop walks a cut. Larger download.",
+    cite: "",
   },
   count: {
     label: "Own cube",
@@ -148,13 +147,29 @@ export function startShadeFor(kind) {
 
 /**
  * Plane chrome when a source boots or the visitor picks it.
- * Brain / Ignition / own cubes show center and outer frames (surgeons
- * expect the brick with planes). Game of Life hides the playhead frames
- * and keeps the outer box so the playfield reads at a glance.
+ * Every public source starts with center and outer frames visible.
  */
-export function startPlaneChromeFor(kind) {
-  if (kind === "conway") return { hideCenter: true, hideOuter: false };
+export function startPlaneChromeFor(_kind) {
   return { hideCenter: false, hideOuter: false };
+}
+
+/** Face hides playhead and clip frames so the overlay is the head, not the box. */
+export function facePlaneChrome() {
+  return { hideCenter: true, hideOuter: true };
+}
+
+/**
+ * View Gap when a source boots or the visitor picks it.
+ * Brain MRI (and loaded cubes) get a hair of air; Game of Life and Ignition open more.
+ */
+export function startVoxelGapFor(kind) {
+  return kind === "conway" || kind === "ignition" ? 0.05 : 0.01;
+}
+
+/** Loop axis when a source boots. Ignition walks Y (time) after the Y/Z swap. */
+export function startLoopAxisFor(kind) {
+  const a = COUNT_DEMOS[kind]?.loopAxis;
+  return a === "x" || a === "y" ? a : "z";
 }
 
 /** Opt-in Look walkthrough. About stays identity; this is how to look. */
@@ -185,7 +200,7 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Viewcube",
-    body: "Face-click the cube for an ortho cut. Hide center / Hide outer sit under the cube. Brain starts with both frames on; Game of Life hides the playhead and keeps the outer box. Phone: use the rails; the cube is desktop-only.",
+    body: "Face-click the cube for an ortho cut. Hide center / Hide outer sit under the cube. Brain and Game of Life start with both frames on. Phone: use the rails; the cube is desktop-only.",
     targets: ["gizmo-hit", "btn-hide-center", "btn-hide-outer"],
     fold: "",
   },
@@ -197,8 +212,8 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Look",
-    body: "Quality starts at Medium. Choppy? Quality → Low. Discrete GPU? High. Parallax is perspective. Fit frames the crop. Reset Planes opens clips and centers the playheads.",
-    targets: ["quality-medium", "btn-parallax", "btn-reset-planes"],
+    body: "Quality starts at High. Cubes above 500k occupied cells drop to Medium. Low is only if you pick it. Parallax is perspective. Fit frames the crop. Spin (Look strip) turns around Z; Loop can run at the same time. Reset Planes opens clips and centers the playheads.",
+    targets: ["quality-high", "btn-parallax", "btn-reset-planes", "btn-spin"],
     fold: "view",
   },
 ];
@@ -226,6 +241,10 @@ export const COUNT_DEMOS = {
     url: "data/ignition_stack.npy",
     name: "ignition_stack",
     label: SOURCE_GUIDE.ignition.label,
+    /** File export sits Y/Z wrong: swap, then mirror Z. Loop walks Y (time) toward later frames. */
+    swapYZ: true,
+    flipZ: true,
+    loopAxis: "y",
   },
   "mni152-low": {
     url: "data/mni152_low_stack.npy",
@@ -240,6 +259,18 @@ export const COUNT_DEMOS = {
     static: true,
   },
 };
+
+/** Load remap for a COUNT_DEMOS id. Own cubes / drops stay file order. */
+export function countDemoLoadOpts(kind) {
+  const d = COUNT_DEMOS[kind];
+  if (!d) return {};
+  return {
+    swapYZ: Boolean(d.swapYZ),
+    flipX: Boolean(d.flipX),
+    flipY: Boolean(d.flipY),
+    flipZ: Boolean(d.flipZ),
+  };
+}
 
 export function isCountSourceKind(kind) {
   return kind === "count" || Boolean(COUNT_DEMOS[kind]);
@@ -258,15 +289,25 @@ export function clampDensity(n) {
 
 export const GRID_PRESETS = [16, 24, 32, 48, 64];
 
-/** View Gap slider: 0 packs MRI; 5 leaves five cube-widths of air. */
+/** View Gap spinner: 0 packs MRI faces; 5 leaves five cube-widths of air. */
 export const VOXEL_GAP_MIN = 0;
 export const VOXEL_GAP_MAX = 5;
-export const VOXEL_GAP_STEP = 0.05;
+export const VOXEL_GAP_STEP = 0.01;
 
 export function clampVoxelGap(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return DEFAULTS.voxelGap;
   return Math.min(VOXEL_GAP_MAX, Math.max(VOXEL_GAP_MIN, v));
+}
+
+/** Wheel-up (deltaY < 0) grows Gap. Snaps to `step`. */
+export function stepVoxelGap(current, deltaY, step = VOXEL_GAP_STEP) {
+  const dir = Math.sign(Number(deltaY) || 0);
+  if (!dir) return clampVoxelGap(current);
+  const span = Number(step);
+  const inc = Number.isFinite(span) && span > 0 ? span : VOXEL_GAP_STEP;
+  const next = clampVoxelGap(current) - dir * inc;
+  return clampVoxelGap(Math.round(next / inc) * inc);
 }
 
 export function clampCubeCap(n) {

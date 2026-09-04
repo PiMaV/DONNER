@@ -734,31 +734,67 @@ export class CountVolume {
   }
 }
 
+function sampleCountCell(data, frame, w, c, ti, yi, xi) {
+  let v = 0;
+  const off = ti * frame + yi * w * c + xi * c;
+  for (let ch = 0; ch < c; ch++) {
+    const raw = data[off + ch];
+    v += raw > 0 ? raw : 0;
+  }
+  return v;
+}
+
+/**
+ * File is `(T, H, W)`. Product default is X=W, Y=H, Z=T.
+ * `swapYZ` sends file T → product Y and file H → product Z.
+ * `flipX` / `flipY` / `flipZ` mirror the product lattice (export fixes).
+ */
+export function countProductSize(fileT, fileH, fileW, swapYZ) {
+  if (swapYZ) return { width: fileW, height: fileT, nT: fileH };
+  return { width: fileW, height: fileH, nT: fileT };
+}
+
+function fileIndexFromProduct(ox, oy, ot, outW, outH, outNT, opts) {
+  const px = opts.flipX ? outW - 1 - ox : ox;
+  const py = opts.flipY ? outH - 1 - oy : oy;
+  const pt = opts.flipZ ? outNT - 1 - ot : ot;
+  if (opts.swapYZ) return { ti: py, yi: pt, xi: px };
+  return { ti: pt, yi: py, xi: px };
+}
+
 /**
  * @param {ArrayLike<number>} data
  * @param {number[]} shape
  * @param {string} [name]
+ * @param {{ swapYZ?: boolean, flipX?: boolean, flipY?: boolean, flipZ?: boolean }} [opts]
  */
-export function countVolumeFromDense(data, shape, name = "count") {
-  const { t: nT, h, w, c } = countAxes(shape);
+export function countVolumeFromDense(data, shape, name = "count", opts = {}) {
+  const { t: fileT, h: fileH, w: fileW, c } = countAxes(shape);
   if (data.length !== product(shape)) {
     throw new Error("count stack length does not match shape");
   }
-  const hw = h * w;
-  const frame = hw * c;
+  const flags = {
+    swapYZ: Boolean(opts.swapYZ),
+    flipX: Boolean(opts.flipX),
+    flipY: Boolean(opts.flipY),
+    flipZ: Boolean(opts.flipZ),
+  };
+  const { width: outW, height: outH, nT: outNT } = countProductSize(
+    fileT,
+    fileH,
+    fileW,
+    flags.swapYZ,
+  );
+  const frame = fileH * fileW * c;
   let nz = 0;
   let maxV = 0;
   let minV = Infinity;
-  for (let ti = 0; ti < nT; ti++) {
-    const base = ti * frame;
-    for (let p = 0; p < hw; p++) {
-      let v = 0;
-      const off = base + p * c;
-      for (let ch = 0; ch < c; ch++) {
-        const raw = data[off + ch];
-        v += raw > 0 ? raw : 0;
-      }
-      if (v > 0) {
+  for (let ot = 0; ot < outNT; ot++) {
+    for (let oy = 0; oy < outH; oy++) {
+      for (let ox = 0; ox < outW; ox++) {
+        const src = fileIndexFromProduct(ox, oy, ot, outW, outH, outNT, flags);
+        const v = sampleCountCell(data, frame, fileW, c, src.ti, src.yi, src.xi);
+        if (v <= 0) continue;
         nz += 1;
         if (v > maxV) maxV = v;
         if (v < minV) minV = v;
@@ -770,30 +806,24 @@ export function countVolumeFromDense(data, shape, name = "count") {
   const t = new Uint16Array(nz);
   const vArr = new Uint16Array(nz);
   let n = 0;
-  for (let ti = 0; ti < nT; ti++) {
-    const base = ti * frame;
-    for (let yi = 0; yi < h; yi++) {
-      const row = base + yi * w * c;
-      for (let xi = 0; xi < w; xi++) {
-        let v = 0;
-        const off = row + xi * c;
-        for (let ch = 0; ch < c; ch++) {
-          const raw = data[off + ch];
-          v += raw > 0 ? raw : 0;
-        }
+  for (let ot = 0; ot < outNT; ot++) {
+    for (let oy = 0; oy < outH; oy++) {
+      for (let ox = 0; ox < outW; ox++) {
+        const src = fileIndexFromProduct(ox, oy, ot, outW, outH, outNT, flags);
+        const v = sampleCountCell(data, frame, fileW, c, src.ti, src.yi, src.xi);
         if (v <= 0) continue;
-        x[n] = xi;
-        y[n] = yi;
-        t[n] = ti;
+        x[n] = ox;
+        y[n] = oy;
+        t[n] = ot;
         vArr[n] = v > 0xffff ? 0xffff : v;
         n += 1;
       }
     }
   }
   return new CountVolume({
-    width: w,
-    height: h,
-    nT,
+    width: outW,
+    height: outH,
+    nT: outNT,
     x,
     y,
     t,
@@ -808,8 +838,9 @@ export function countVolumeFromDense(data, shape, name = "count") {
 /**
  * @param {ArrayBuffer | Uint8Array} raw
  * @param {string} [name]
+ * @param {{ swapYZ?: boolean, flipX?: boolean, flipY?: boolean, flipZ?: boolean }} [opts]
  */
-export function countVolumeFromNpy(raw, name = "count") {
+export function countVolumeFromNpy(raw, name = "count", opts = {}) {
   const parsed = parseNpy(raw);
-  return countVolumeFromDense(parsed.data, parsed.shape, name);
+  return countVolumeFromDense(parsed.data, parsed.shape, name, opts);
 }

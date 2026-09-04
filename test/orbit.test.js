@@ -11,6 +11,8 @@ import {
   phoneOrbitViewOffset,
   playfieldHalfExtent,
   slabYRange,
+  spinAutoRotateSpeed,
+  spinYawDelta,
   translateAlongProductAxis,
   volumeRadius,
 } from "../src/orbit.js";
@@ -156,5 +158,19 @@ describe("cut camera track", () => {
     const none = translateAlongProductAxis(cam, target, "y", 0);
     assert.deepEqual(none.cam, cam);
     assert.deepEqual(none.target, target);
+  });
+});
+
+describe("spin around Z", () => {
+  it("turns one revolution in 24 seconds at the default rate", () => {
+    assert.ok(Math.abs(spinYawDelta(24, 1 / 24) - Math.PI * 2) < 1e-12);
+    assert.equal(spinYawDelta(0, 1 / 24), 0);
+    assert.equal(spinYawDelta(1, 0), 0);
+    assert.equal(spinYawDelta(Number.NaN, 1 / 24), 0);
+  });
+
+  it("maps rev/s to OrbitControls autoRotateSpeed for update(deltaTime)", () => {
+    assert.equal(spinAutoRotateSpeed(1 / 24), 2.5);
+    assert.equal(spinAutoRotateSpeed(0), 0);
   });
 });

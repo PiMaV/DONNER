@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="96x96" href="https://mess.engineering/favicon/favicon-96x96.png" />
   <link rel="icon" type="image/svg+xml" href="https://mess.engineering/favicon/favicon.svg" />
   <link rel="apple-touch-icon" sizes="180x180" href="https://mess.engineering/favicon/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/style.css?v=0.15.0" />
+  <link rel="stylesheet" href="css/style.css?v=0.16.0" />
   <script type="importmap">
   {
     "imports": {
@@ -23,7 +23,7 @@
   }
   </script>
   <script type="module">
-    import("./src/main.js?v=0.15.0").catch(() => {
+    import("./src/main.js?v=0.16.0").catch(() => {
       const el = document.getElementById("boot-fail");
       if (el) el.hidden = false;
     });
@@ -72,7 +72,10 @@
           <button type="button" id="shade-ghost" class="btn btn-shade is-on" aria-pressed="true" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
           <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
         </div>
-        <button type="button" id="btn-fit" class="btn look-fit" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
+        <div class="look-orbit" role="group" aria-label="Orbit">
+          <button type="button" id="btn-fit" class="btn look-fit" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
+          <button type="button" id="btn-spin" class="btn look-spin" aria-pressed="false" title="Spin around Z. Independent of Loop. Drag pauses; release continues. World AR drives Yaw.">Spin</button>
+        </div>
       </div>
       <div class="look-more">
         <button type="button" id="btn-look-more" class="btn-show-planes" aria-expanded="false" aria-controls="look-more-panel" title="Hide frames, Reset Planes, and Quality">More</button>
@@ -83,10 +86,10 @@
           <button type="button" id="btn-look-reset-planes" class="btn look-more-reset" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
           <div class="field look-more-quality">
             <span>Quality</span>
-            <div class="btn-row shade-modes" role="radiogroup" aria-label="View quality">
-              <button type="button" id="look-quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Use on iGPU, phone, or when Bench says GPU fill.">Low</button>
-              <button type="button" id="look-quality-medium" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, pixel ratio capped at 1.25. Default public start.">Medium</button>
-              <button type="button" id="look-quality-high" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU. ?quality=high">High</button>
+            <div class="btn-row btn-row-three shade-modes" role="radiogroup" aria-label="View quality">
+              <button type="button" id="look-quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Pick this yourself on iGPU or when Bench says GPU fill.">Low</button>
+              <button type="button" id="look-quality-medium" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert without ACES or fill, pixel ratio 1. Auto when a cube has more than 500k occupied cells.">Medium</button>
+              <button type="button" id="look-quality-high" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, ACES, fill light, pixel ratio capped at 1.25. Default.">High</button>
             </div>
           </div>
         </div>
@@ -105,21 +108,27 @@
       </section>
     </div>
     <div class="hud-time">
-      <label class="ar-size" for="ar-mag">
-        <span>Size</span>
-        <input id="ar-mag" type="range" min="0.4" max="5" step="0.05" value="1"
-          aria-label="AR volume size" />
-      </label>
-      <label class="ar-yaw" for="ar-yaw">
-        <span>Yaw</span>
-        <input id="ar-yaw" type="range" min="0" max="360" step="1" value="0"
-          aria-label="Turntable yaw" disabled />
-      </label>
-      <div class="ar-stand" role="group" aria-label="AR floor axis">
-        <span>Floor</span>
-        <button type="button" id="ar-stand-x" class="btn-stand" data-axis="x">X</button>
-        <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
-        <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
+      <div class="ar-pose-row">
+        <div class="ar-pose-sliders">
+          <label class="ar-size" for="ar-mag">
+            <span>Size</span>
+            <input id="ar-mag" type="range" min="0.4" max="5" step="0.05" value="1"
+              aria-label="AR volume size" />
+          </label>
+          <label class="ar-yaw" for="ar-yaw">
+            <span>Yaw</span>
+            <input id="ar-yaw" type="range" min="0" max="360" step="1" value="0"
+              aria-label="Turntable yaw" disabled />
+          </label>
+        </div>
+        <div class="ar-stand" role="group" aria-label="AR floor axis">
+          <span>Floor</span>
+          <div class="ar-stand-axes">
+            <button type="button" id="ar-stand-x" class="btn-stand" data-axis="x">X</button>
+            <button type="button" id="ar-stand-y" class="btn-stand" data-axis="y">Y</button>
+            <button type="button" id="ar-stand-z" class="btn-stand is-on" data-axis="z">Z</button>
+          </div>
+        </div>
       </div>
       <div class="face-calib" role="group" aria-label="Face AR placement">
         <label class="face-off" for="face-off-x">
@@ -190,17 +199,19 @@
           <span id="stack-bot-z" class="stack-cap">−0</span>
         </div>
       </aside>
-      <div class="loop-axes" role="group" aria-label="Loop axis">
-        <button type="button" id="loop-axis-x" class="btn-loop" data-axis="x" aria-pressed="false" title="Loop walks X">X</button>
-        <button type="button" id="loop-axis-y" class="btn-loop" data-axis="y" aria-pressed="false" title="Loop walks Y">Y</button>
-        <button type="button" id="loop-axis-z" class="btn-loop is-on" data-axis="z" aria-pressed="true" title="Loop walks Z (default)">Z</button>
-      </div>
       </div>
       <pre id="conway-live" class="conway-live" hidden aria-live="polite"></pre>
       <div id="inspect-home">
       <div id="inspect-transport" class="inspect-transport">
-        <button type="button" id="btn-loop" class="btn btn-loop-run" aria-pressed="false"
-          title="Walk the marked axis through the volume. Independent of Conway Play. Pause Conway first to scan the tape.">Loop</button>
+        <div class="loop-row">
+          <button type="button" id="btn-loop" class="btn btn-loop-run" aria-pressed="false"
+            title="Walk the marked axis through the volume. Independent of Conway Play. Pause Conway first to scan the tape.">Loop</button>
+          <div class="loop-axes" role="group" aria-label="Loop axis">
+            <button type="button" id="loop-axis-x" class="btn-loop" data-axis="x" aria-pressed="false" title="Loop walks X">X</button>
+            <button type="button" id="loop-axis-y" class="btn-loop" data-axis="y" aria-pressed="false" title="Loop walks Y">Y</button>
+            <button type="button" id="loop-axis-z" class="btn-loop is-on" data-axis="z" aria-pressed="true" title="Loop walks Z (default)">Z</button>
+          </div>
+        </div>
         <label id="loop-speed-field" class="field" title="How fast the playhead walks the loop axis (slices per second). Not Conway generation speed.">
           <span>Speed <em id="loop-speed-val"></em></span>
           <input id="loop-speed" type="range" min="1" max="60" step="1"
@@ -210,12 +221,17 @@
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Project on Face</button>
+        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Face</button>
+        <label id="face-cam-pair" class="face-cam-pair" hidden>
+          <select id="face-camera" class="btn btn-face-cam face-camera-select" aria-label="Camera">
+            <option value="user" selected>Selfie camera</option>
+            <option value="environment">Rear camera</option>
+          </select>
+        </label>
         <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
           title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
-        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden aria-pressed="false" title="Switch to Rear camera">Selfie</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
@@ -251,10 +267,8 @@
           <option value="count" hidden>Own cube</option>
         </select>
       </label>
-      <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan.</p>
+      <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
-      <button type="button" id="btn-face-ar-sheet" class="btn btn-face-ar" hidden aria-pressed="false" title="Project this Brain Ghost onto a webcam or phone camera.">Project on Face</button>
-      <button type="button" id="btn-face-facing-sheet" class="btn btn-face-facing" hidden aria-pressed="false" title="Switch to Rear camera">Selfie</button>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"
@@ -336,17 +350,17 @@
         <input id="align-z" type="checkbox" checked />
         <span>Align to Z</span>
       </label>
-      <label class="field" title="Visual spacing between voxels. 0 packs faces into a solid cube (MRI). Open it up for Conway.">
-        <span>Gap <em id="voxel-gap-val"></em></span>
-        <input id="voxel-gap" type="range" min="0" max="5" step="0.05" value="0"
-          aria-label="Voxel gap" />
+      <label id="voxel-gap-field" class="field field-inline" title="Lattice spacing. 0 packs faces with no air. Brain MRI starts at 0.01; Game of Life and Ignition at 0.05. Wheel the value.">
+        <span>Gap</span>
+        <input id="voxel-gap-num" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
+          aria-label="Voxel gap value" />
       </label>
       <div class="field">
         <span>Quality</span>
-        <div class="btn-row shade-modes" role="radiogroup" aria-label="View quality">
-          <button type="button" id="quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Use on iGPU, phone, or when Bench says GPU fill.">Low</button>
-          <button type="button" id="quality-medium" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, pixel ratio capped at 1.25. Default public start.">Medium</button>
-          <button type="button" id="quality-high" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert, ACES, pixel ratio up to 2 (1.5 on phone / headset). Needs a discrete GPU. ?quality=high">High</button>
+        <div class="btn-row btn-row-three shade-modes" role="radiogroup" aria-label="View quality">
+          <button type="button" id="quality-low" class="btn btn-shade" aria-pressed="false" title="Unlit cubes, pixel ratio 1. Pick this yourself on iGPU or when Bench says GPU fill.">Low</button>
+          <button type="button" id="quality-medium" class="btn btn-shade" aria-pressed="false" title="Headlamp Lambert without ACES or fill, pixel ratio 1. Auto when a cube has more than 500k occupied cells.">Medium</button>
+          <button type="button" id="quality-high" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, ACES, fill light, pixel ratio capped at 1.25. Default.">High</button>
         </div>
       </div>
       <label id="depth-field" class="field">
@@ -355,7 +369,7 @@
       </label>
       <p id="inspect-depth-note" class="hint inspect-only">Grab a frame · clips crop · hold playhead to peek</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
-      <label class="field" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
+      <label class="field field-inline" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
         <span>Cube cap</span>
         <input id="cube-cap" type="number" min="20000" max="20000000" step="10000" value="200000" />
       </label>
@@ -391,10 +405,10 @@
         </label>
         <p class="hint stab-hint">Start is fill. Tail is gens along Z.</p>
       </div>
-      <p id="count-enc-hint" class="hint encoding-count">Color maps a Min/Max window onto the scale. Trim clips outliers. Hide drops cubes below a value.</p>
-      <label class="field encoding-count" title="Palette for the integer ramp. Conway occupancy classes stay under Color coding.">
-        <span>Scale</span>
-        <select id="count-cmap" aria-label="Count color scale">
+      <p id="count-enc-hint" class="hint encoding-count">Color maps a Min/Max window onto the colormap. Trim clips outliers. Hide below drops cubes below a value.</p>
+      <label class="field field-inline encoding-count" title="Palette for the integer ramp. Conway occupancy classes stay under Color coding.">
+        <span>Colormap</span>
+        <select id="count-cmap" aria-label="Count colormap">
           <option value="donner">DONNER</option>
           <option value="gray">Gray</option>
           <option value="inferno">Inferno</option>
@@ -411,16 +425,16 @@
         </div>
       </div>
       <div class="count-win-row encoding-count">
-        <label class="field encoding-count" title="Low end of the color window. Values at or below this map to the first scale color.">
+        <label class="field field-inline encoding-count" title="Low end of the color window. Values at or below this map to the first colormap color.">
           <span>Min</span>
           <input id="count-win-lo" type="number" step="1" value="1" aria-label="Color window minimum" />
         </label>
-        <label class="field encoding-count" title="High end of the color window. Values at or above this map to the last scale color.">
+        <label class="field field-inline encoding-count" title="High end of the color window. Values at or above this map to the last colormap color.">
           <span>Max</span>
           <input id="count-win-hi" type="number" step="1" value="1" aria-label="Color window maximum" />
         </label>
       </div>
-      <label class="field encoding-count" title="Clip both tails of the positive values when fitting the window. 0% is strict min/max. Custom is a manual Min/Max.">
+      <label class="field field-inline encoding-count" title="Clip both tails of the positive values when fitting the window. 0% is strict min/max. Custom is a manual Min/Max.">
         <span>Trim</span>
         <select id="count-trim" aria-label="Color window trim">
           <option value="0">0%</option>
@@ -429,9 +443,9 @@
           <option value="-1">Custom</option>
         </select>
       </label>
-      <label class="field encoding-count" title="Cubes below this value are not drawn. 0 keeps every occupied voxel. Dense volumes rebuild the hull.">
-        <span>Hide <em id="count-hide-val">0</em></span>
-        <input id="count-hide" type="range" min="0" max="1" step="1" value="0"
+      <label class="field field-inline encoding-count" title="Cubes below this value are not drawn. 0 keeps every occupied voxel. Dense volumes rebuild the hull.">
+        <span>Hide below</span>
+        <input id="count-hide" class="field-spin" type="number" min="0" max="1" step="1" value="0"
           aria-label="Hide cubes below value" />
       </label>
     </section>
@@ -455,13 +469,13 @@
       <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
       <h3>Examples</h3>
       <ul>
-        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Not a patient scan. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. <strong>Face</strong> hangs it on the laptop webcam or a phone camera.</li>
+        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. Bottom <strong>AR</strong> hangs it on a camera when one exists.</li>
         <li><strong>Brain MRI High</strong> — the same atlas at native grid. Larger download. <code>?src=mni152</code>.</li>
-        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording. <code>?src=ignition</code>. Starts in Ghost.</li>
+        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. X is sensor width; Y is time; Z is sensor height. Loop Y scrubs the recording. <code>?src=ignition</code>. Starts in Ghost.</li>
         <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape. <code>?src=life</code>. Starts in Hull.</li>
       </ul>
       <h3>Share</h3>
-      <p>The address bar follows the example. Bare URL is Brain MRI Low. <code>?src=life</code> (or <code>conway</code>) is Game of Life. <code>?src=ignition</code> is Lighter Ignition. <code>?src=mni152</code> is Brain MRI High. <code>?face=1</code> opens Face. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
+      <p>The address bar follows the example. Bare URL is Brain MRI Low. <code>?src=life</code> (or <code>conway</code>) is Game of Life. <code>?src=ignition</code> is Lighter Ignition. <code>?src=mni152</code> is Brain MRI High. <code>?face=1</code> opens Face. Add <code>&amp;quality=medium</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
       <h3>Credit</h3>
       <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
       <button type="submit" class="btn" value="close">Close</button>

@@ -93,7 +93,60 @@ export function clearOverlay(ctx) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
-/** Soft green pupils on the lock overlay. */
-export const FACE_PUPIL_FILL = "rgba(110, 196, 140, 0.92)";
+/** Black pupil dots drawn on top of the retina discs. */
+export const FACE_PUPIL_FILL = "rgba(8, 10, 12, 0.95)";
 /** Iris / retina discs behind the pupils. */
 export const FACE_IRIS_FILL = "rgba(135, 206, 235, 0.88)";
+/** MediaPipe iris: center plus four contour points per eye. */
+export const FACE_IRIS_EYES = Object.freeze([
+  Object.freeze({ center: 468, ring: Object.freeze([469, 470, 471, 472]) }),
+  Object.freeze({ center: 473, ring: Object.freeze([474, 475, 476, 477]) }),
+]);
+export const FACE_PUPIL_RADIUS_SCALE = 0.22;
+
+function irisRadiusPx(landmarks, eye, width, height, mirrored) {
+  const c = landmarks[eye.center];
+  if (!c) return 0;
+  const cx = px(c, width, mirrored);
+  const cy = py(c, height);
+  let sum = 0;
+  let n = 0;
+  for (const i of eye.ring) {
+    const lm = landmarks[i];
+    if (!lm) continue;
+    sum += Math.hypot(px(lm, width, mirrored) - cx, py(lm, height) - cy);
+    n += 1;
+  }
+  return n ? sum / n : 0;
+}
+
+function fillEyeDiscs(ctx, landmarks, { mirrored, fill, radiusScale }) {
+  if (!ctx || !landmarks || !landmarks.length) return;
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  const scale = Number(radiusScale);
+  const k = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  ctx.fillStyle = fill;
+  for (const eye of FACE_IRIS_EYES) {
+    const c = landmarks[eye.center];
+    if (!c) continue;
+    const r = irisRadiusPx(landmarks, eye, w, h, mirrored) * k;
+    if (!(r > 0)) continue;
+    ctx.beginPath();
+    ctx.arc(px(c, w, mirrored), py(c, h), r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** Circular retina / iris discs from the iris ring (not the 4-point rectangle). */
+export function drawIrisDiscs(ctx, landmarks, { mirrored = false, fill = FACE_IRIS_FILL } = {}) {
+  fillEyeDiscs(ctx, landmarks, { mirrored, fill, radiusScale: 1 });
+}
+
+export function drawPupilDiscs(
+  ctx,
+  landmarks,
+  { mirrored = false, fill = FACE_PUPIL_FILL, radiusScale = FACE_PUPIL_RADIUS_SCALE } = {},
+) {
+  fillEyeDiscs(ctx, landmarks, { mirrored, fill, radiusScale });
+}

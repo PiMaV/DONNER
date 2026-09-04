@@ -49,8 +49,8 @@ advantage, not a deployment convenience.
   transparent ghost, not extra geometry. Color is an encoding index
   (`k`): Conway uses still / osc / unsettled, plus base for `t < 2`
   and the first cube of each worldline.
-  Count uses a **Scale** window (DONNER / Gray / Inferno / Plasma / Turbo)
-  mapped through Min/Max + Trim; **Hide** drops cubes below a value.
+  Count uses a **Colormap** window (DONNER / Gray / Inferno / Plasma / Turbo)
+  mapped through Min/Max + Trim; **Hide below** drops cubes below a value.
   Occupancy only (no neighborhood motion gate). Cube scale follows **Size by age**
   via stamped `s` on each generation (along Z). Start = fill at age 0; Tail = gens
   to full size. Off = equal cubes. Display (`setEvents`); do not rerun
@@ -61,7 +61,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop top-right above the Look strip, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade is Hull / Ghost / Cuts on the Look strip (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list; bare URL is Brain MRI Low). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). FPS is a viewcube overlay on desktop and a top-right chip on phone / Face / phone AR; tap it for the spark / DEV Bench card (not in View). Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop top-right above the Look strip, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade is Hull / Ghost / Cuts on the Look strip (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key follows the view) on Quality Medium/High; High also has fill and ACES; Low is unlit. **Quality** Low / Medium / High is a View toggle (default High; Medium auto above 500k occupied cells; Low only if the visitor picks it). `?src=` / `?quality=` is the public door (allow-list; bare URL is Brain MRI Low). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). FPS is a viewcube overlay on desktop and a top-right chip on phone / Face / phone AR; tap it for the spark / DEV Bench card (not in View). Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -87,6 +87,8 @@ advantage, not a deployment convenience.
   Inspect Z scrub then moves only the playhead plane (brick stays put). **Align to Z**
   (default on) orbits around the time axis without chasing Z clips;
   right-drag still slides along Z; off allows XY pan.
+  **Spin** (Look strip, next to Fit) is a live orbit around product Z (~24 s/rev),
+  independent of Loop. World AR drives Yaw; Face hides Spin.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
   Cube cap is a View number (default 200 000). Game of Life Play stays
   at that live envelope; Pause raises it to the tape’s occupied cells
@@ -107,18 +109,24 @@ advantage, not a deployment convenience.
   **Hide center** / **Hide outer** (under the viewcube on desktop; AR **More**)
   hide playhead+grid vs clip frames independently. A cut still shows the current plane of voxels. Display telemetry (FPS, AVG, 1%/0.1% lows,
   sparkline, INST, FOC) lives on the FPS card next to the viewcube with **DEV Bench**, separate from Conway live overlay (GEN,
-  LIVE, RATE) which appears only while Conway Play is on. HUD shows **ORTHO** when parallax is off.
+  LIVE, RATE) which appears only while Conway Play is on. HUD shows **ORTHO** when parallax is off
+  and **SPIN** when Look-strip Spin is on.
   On a phone there is no viewcube; the FPS chip still opens that card. Guide is hidden. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is one left
   rail: **Source** (kind, Conway Pattern first, Random Fill) then **View**.
   Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
+  **Fit** and **Spin** sit on the Look strip (Spin = live orbit around product Z;
+  World AR drives Yaw; Face hides Spin).
   Phone Conway Play sits next to AR (Source Play stays on desktop).
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
   Hull+Loop grows a potato from the axis origin through the plane (opaque
   in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
   that one plane. The camera tracks the playhead.
   (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap).
+  Gap starts at 0.01 for Brain / loaded cubes and 0.05 for Game of Life and
+  Ignition (reset on Source change). Gap 0 packs faces. Gap has a spinner;
+  hover-wheel on that field steps it.
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
   must not either. A viewcube cut still fills the playhead plane under Hull
@@ -147,8 +155,9 @@ advantage, not a deployment convenience.
   brick (floor axes → 40 cm). **Play** grows the standing axis up;
   gen 0 stays on the plane. Desktop orbit does not yaw the volume.
   Lighting is a
-  **headlamp** (key/fill follow the view in orbit and in AR walk) on
-  Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
+  **headlamp** (key follows the view in orbit and in AR walk; fill and ACES
+  on High only) on Quality High by default, Medium auto above 500k occupied
+  cells. **Quality** is a View Low / Medium / High toggle.
   After lock, phone AR is inspect: three rails, Loop and Speed under the
   rails, Conway Play next
   to AR, named Hull / Ghost / Cuts top-right (no viewcube, no Fit).
@@ -160,28 +169,37 @@ advantage, not a deployment convenience.
   After lock, keep the last pose if the mesh drops; tracking resumes
   when the face returns. No Pose
   Landmarker, no hull follow, no video getImageData sampler.
-  Prove camera + mesh on `face-lab.html` first (no Three.js). Phone starts
-  on the rear camera; desktop webcam is the doctor path (Selfie on).
-  Default overlay is Brain MRI Low, Ghost. Phone Face drops Quality to Low.
+  Prove camera + mesh on `face-lab.html` first (no Three.js).   Phone and
+  desktop start on the selfie camera.
+  Default overlay is Brain MRI Low, Ghost. Quality stays High unless the
+  cube has more than 500k occupied cells (then Medium). Low is only a
+  manual pick.
   Pin
   `@mediapipe/tasks-vision@0.10.21`.
   Do not let `bootCount` move the orbit camera during Face AR. Infer
-  row- vs column-major facial matrices from translation. Phone Face is one
-  Selfie / Rear toggle. Flip L/R still follows facing
-  internally. Lab millimetre defaults stay (Lift 141 mm, Inset 50 mm,
-  Size 1.2). After lock, Face shows Size and Yaw like world AR (no Floor
-  / millimetre chrome). Exit AR or Face runs Fit so the orbit camera
-  frames the volume.
-  **Project on Face** is in Source for Brain Low / High only. Laptop Face
-  keeps Source, View, rails, and Loop (not `is-ar` chrome). Switching
+  row- vs column-major facial matrices from translation. Face session
+  cameras are one dropdown labeled **Selfie camera** / **Rear camera**
+  (not Camera 0). Flip L/R still
+  follows facing internally. Lab millimetre defaults stay (Lift 141 mm,
+  Inset 50 mm, Size 1.2). Face hides center and outer frames.
+  Face does not show Size or Yaw. Exit AR or Face
+  runs Fit so the orbit camera frames the volume.
+  Bottom **AR** shows only with WebXR; **Face** when a camera exists and
+  Source is Brain MRI. Desktop without WebXR is Face only. Camera start
+  shows Initializing cameras, then the picker. Laptop Face
+  keeps Source, View, rails, and Loop (not `is-ar` chrome). Phone Face
+  chrome matches the phone fold layout (`max-width: 720px`, or coarse plus
+  `max-height: 520px`). Phone and Face keep the three plane sliders at
+  full brightness. Switching
   Source leaves Face and restores orbit. Phone Face is the slim overlay.
-  After lock, blue iris discs and green pupils. Overlay and brain share
+  After lock, blue circular retinas and black pupil dots. Overlay and brain share
   the same One-Euro pose.
   `?face=1` is the share door while the session is open. Full mesh overlay
   is only while locking; after lock the outer oval, lips, and iris/pupil
   marks stay while the face is visible. Overlay canvas caps at 640 px
   wide. FPS stays on Face and phone AR (Quest has no DOM overlay). World
-  AR shows Tap to place when the gold reticle is visible. Plane rails in
+  AR shows Searching for a surface until a plane appears, then Tap to place
+  when the gold reticle is visible. Plane rails in
   AR stay bright without a black chrome slab. Do not
   put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
@@ -204,6 +222,12 @@ advantage, not a deployment convenience.
   pattern geometry). Do not invent a second rule set.
 - Repo files in English. Chat with the human in German.
 - Commit only inside `DONNER/`. Never `git init` at `WETTER-Suite/`.
+- **Tests / visual QA:** `npm test` is the suite (fast Node, no
+  screenshots). `gui-css` / `ia` lock IDs, order, and show/hide — not
+  pixel CSS. Do not Chrome-screenshot or `Read` `.tmp-qa/*.png` into
+  chat unless the bug *is* layout (or the human asked). See
+  [`architecture.md`](../architecture.md) (Tests and visual QA) and
+  `.cursor/rules/visual-qa.mdc`.
 
 ## Don't (until a later stage)
 
@@ -246,6 +270,7 @@ advantage, not a deployment convenience.
   hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid). Copy in
   [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
+  — Serve, **Tests and visual QA**, layers, XR/Face
 - Later / XR ladder: [`backlog.md`](../backlog.md)
   — Dataset Contract after the public host; MRI stays a dense count `.npy`
   until `ScalarVolume` (no NIfTI parser / NiiVue)

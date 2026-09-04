@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+// IDs, order, show/hide, and a few phone-blank-canvas regressions — not pixel CSS.
+// See architecture.md "Tests and visual QA".
+
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
@@ -40,7 +43,7 @@ describe("phone Source sheet and canvas chrome", () => {
 
 describe("phone AR overlay chrome", () => {
   it("shows Floor X/Y/Z after place", () => {
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-stand/);
+    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.ar-stand/);
     assert.doesNotMatch(css, /body\.is-ar\s+\.ar-stand\s*\{[^}]*display:\s*none\s*!important/s);
   });
 
@@ -48,6 +51,11 @@ describe("phone AR overlay chrome", () => {
     assert.match(html, /class="ar-stand"/);
     assert.match(html, /id="ar-stand-z"/);
     assert.match(html, />Floor</);
+    assert.doesNotMatch(html, /id="ar-stand-flip"/);
+    assert.doesNotMatch(html, /id="stack-flip-x"/);
+    assert.doesNotMatch(html, /id="stack-flip-y"/);
+    assert.doesNotMatch(html, /id="stack-flip-z"/);
+    assert.match(css, /body\.is-ar \.inspect-transport \.btn-loop-run/);
   });
 
   it("keeps Reset Anchor and Exit without Search Anchor", () => {
@@ -58,10 +66,13 @@ describe("phone AR overlay chrome", () => {
 
   it("has Size and Yaw after place, and no Z height slider", () => {
     assert.doesNotMatch(html, /id="ar-height"/);
-    assert.match(html, /id="ar-mag"[^>]*max="5"/);
+    assert.match(html, /id="ar-mag"/);
     assert.match(html, /id="ar-yaw"/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-size/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.ar-yaw/);
+    assert.match(html, /class="ar-pose-row"/);
+    assert.match(html, /class="ar-pose-sliders"/);
+    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.ar-pose-row/);
+    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.ar-size/);
+    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.ar-yaw/);
     assert.doesNotMatch(css, /body\.is-ar\.is-ar-placed\s+\.ar-height/);
   });
 
@@ -69,13 +80,6 @@ describe("phone AR overlay chrome", () => {
     assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
     assert.doesNotMatch(css, /body\.is-ar\s+\.stack-axis:not\(\.is-z\)/);
     assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.inspect-transport/);
-  });
-
-  it("insets phone rails from the right edge so thumbs miss the back-swipe", () => {
-    assert.match(
-      css,
-      /@media\s*\(max-width:\s*720px\),[\s\S]*\.hud-time\s*\{[^}]*padding-right:\s*calc\(36px/s,
-    );
   });
 
   it("parks Hull Ghost Cuts top-right after place, without a viewcube, Loop behind More", () => {
@@ -89,58 +93,53 @@ describe("phone AR overlay chrome", () => {
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.gizmo-col|body\.is-ar\s+\.gizmo-col/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.look-more/);
     assert.match(css, /body\.is-ar \.look-fit/);
+    assert.match(css, /body\.is-ar \.look-orbit/);
+    assert.match(html, /id="btn-spin"/);
   });
 });
 
 describe("Face AR chrome", () => {
-  it("puts Project on Face in Source; phone Face uses a Selfie/Rear toggle", () => {
+  it("puts AR / Face on the bottom dock; Face session uses a camera dropdown + Exit", () => {
     assert.match(html, /id="face-video"/);
     assert.match(html, /id="face-overlay"/);
-    assert.match(html, /id="btn-face-ar"/);
-    assert.match(html, />Project on Face</);
-    assert.match(html, /id="btn-face-facing"/);
-    assert.match(html, /id="btn-face-facing-sheet"/);
+    assert.match(html, /id="btn-ar"[^>]*>AR</);
+    assert.match(html, /id="btn-face-ar"[^>]*>Face</);
+    assert.match(html, /id="face-cam-pair"/);
+    assert.match(html, /id="face-camera"/);
+    assert.match(html, />Selfie camera</);
+    assert.match(html, />Rear camera</);
+    assert.doesNotMatch(html, /id="btn-face-front"/);
+    assert.doesNotMatch(html, /id="btn-face-rear"/);
+    assert.doesNotMatch(html, /Camera \d/);
+    assert.doesNotMatch(html, /id="btn-face-ar-sheet"/);
+    assert.doesNotMatch(html, /id="btn-face-facing"/);
     assert.doesNotMatch(html, /id="face-facing-pair"/);
     assert.doesNotMatch(html, /id="btn-face-selfie"/);
-    assert.doesNotMatch(html, /id="btn-face-rear"/);
     assert.doesNotMatch(html, />Recapture</);
     assert.doesNotMatch(html, />Front</);
-    assert.match(html, /id="btn-face-ar-sheet"/);
     assert.match(html, /id="ar-place-banner"/);
     assert.match(html, />Tap to place</);
+    assert.match(css, /\.face-camera-select/);
+    assert.match(css, /body\.is-face-ar \.ar-place-banner:not\(\[hidden\]\)/);
     assert.match(html, /class="face-calib"/);
-    assert.match(css, /body\.is-face-ar:not\(\.is-ar\) \.transport/);
-    assert.match(css, /\.transport\s*\{[^}]*position:\s*fixed/s);
+    assert.match(css, /body\.is-face-ar \.btn-face-ar/);
     assert.match(css, /body\.is-face-ar \.face-video/);
-    assert.match(css, /body\.is-face-ar \.face-video\.is-mirror/);
     assert.match(css, /body\.is-face-ar \.face-overlay/);
     assert.match(css, /body\.is-face-ar \.face-calib/);
-    assert.match(css, /body\.is-face-ar\.is-ar-placed \.ar-size/);
-    assert.match(css, /body\.is-face-ar\.is-ar-placed \.ar-yaw/);
-    assert.match(css, /body\.is-face-ar\.is-ar-placed \.ar-stand/);
-    assert.doesNotMatch(
-      css,
-      /body\.is-face-ar \.ar-size[\s\S]{0,40}display:\s*none\s*!important/,
-    );
+    assert.match(css, /body\.is-face-ar \.look-fit/);
+    assert.match(css, /body\.is-face-ar \.look-spin/);
+    assert.match(css, /body\.is-face-ar \.look-orbit/);
+    assert.match(css, /body\.is-face-ar \.ar-yaw[\s\S]{0,80}display:\s*none\s*!important/);
     assert.match(css, /body\.is-ar\.is-face-ar \.stack/);
     assert.match(css, /body\.is-ar\.is-face-ar \.loop-axes/);
-    assert.doesNotMatch(css, /body\.is-face-ar \.stack,/);
     assert.match(css, /body\.is-ar \.gizmo-fps/);
-    assert.match(css, /body\.is-ar \.stack\s*\{[^}]*opacity:\s*1/s);
     assert.match(css, /body\.is-ar \.stack-rail/);
-    assert.doesNotMatch(
-      css,
-      /body\.is-ar \.transport \.btn[\s\S]{0,80}background:\s*var\(--bg\)/,
-    );
     assert.doesNotMatch(css, /body\.is-ar \.gizmo-fps\s*\{[^}]*display:\s*none/s);
-    assert.doesNotMatch(css, /#view\s*\{[^}]*transform\s*:/);
   });
 });
 
 describe("desktop Source | View sheets", () => {
   it("lays out Source and View as one stacked accordion rail on desktop", () => {
-    const root = css.match(/\.controls-root\s*\{[^}]+\}/)?.[0] || "";
-    assert.match(root, /flex-direction:\s*column/);
     assert.match(css, /\.controls\.is-collapsed \.sheet-body/);
     assert.match(html, /id="btn-rail-source"/);
     assert.match(html, /id="btn-rail-view"/);
@@ -153,19 +152,19 @@ describe("desktop Source | View sheets", () => {
     assert.match(html, /class="check hud-dev"/);
     assert.doesNotMatch(html, /id="view-fps"|id="hud-view-fps"/);
     assert.doesNotMatch(html, /id="panel-view"[\s\S]*id="hud-engine"/);
-    assert.match(css, /\.gizmo-fps\s*\{[^}]*position:\s*absolute/s);
     assert.match(css, /body\.hud-bench-open \.hud-cards\s*\{[^}]*display:\s*flex/s);
     assert.match(css, /\.hud-cards\s*\{[^}]*display:\s*none/s);
     const collapsed = css.match(/\.controls\.is-collapsed \.sheet-body\s*\{[^}]*\}/)?.[0] || "";
     assert.match(collapsed, /display:\s*none/);
-    assert.match(css, /@media[^{]+\{[\s\S]*\.controls\.is-collapsed \.sheet-body\s*\{[^}]*display:\s*flex/s);
-    assert.match(css, /:root\s*\{[^}]*--rail-w:/s);
-    assert.match(css, /\.controls-root\s*\{[^}]*width:\s*var\(--rail-w\)/s);
   });
 
-  it("colors footer M.E.S.S. and WETTER links cyan and keeps About muted", () => {
-    assert.match(css, /\.legal a\s*\{[^}]*color:\s*var\(--dampf\)/s);
-    assert.match(css, /\.legal \.btn-link\s*\{[^}]*color:\s*var\(--muted\)/s);
+  it("keeps Gap as a wide spinner beside the label, with no range slider", () => {
+    assert.match(html, /id="voxel-gap-num"[^>]*class="[^"]*field-spin/);
+    assert.match(html, /id="voxel-gap-field"[^>]*class="[^"]*field-inline/);
+    assert.doesNotMatch(html, /id="voxel-gap"[^>]*type="range"/);
+  });
+
+  it("keeps footer M.E.S.S. and WETTER links", () => {
     assert.match(html, /href="https:\/\/mess\.engineering"[^>]*>M\.E\.S\.S\.</);
     assert.match(html, /href="https:\/\/wetter\.mess\.engineering"[^>]*>WETTER</);
   });

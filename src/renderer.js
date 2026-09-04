@@ -212,11 +212,19 @@ export class CubeRenderer {
     const aabb = view.aabb || {};
     const foci = view.foci || { x: 0, y: 0, z: view.tFocus };
     u.uAxis.value = activeAxis === "x" ? 0 : activeAxis === "y" ? 1 : 2;
-    u.uFocus.value = foci[activeAxis] == null ? 0 : Number(foci[activeAxis]);
-    const lo = activeAxis === "x" ? aabb.xLo : activeAxis === "y" ? aabb.yLo : aabb.tLo;
-    const hi = activeAxis === "x" ? aabb.xHi : activeAxis === "y" ? aabb.yHi : aabb.tHi;
-    u.uLo.value = lo == null ? 0 : Number(lo);
-    u.uHi.value = hi == null ? 0 : Number(hi);
+    if (activeAxis === "x") {
+      u.uFocus.value = foci.x == null ? 0 : Number(foci.x);
+      u.uLo.value = aabb.xLo == null ? 0 : Number(aabb.xLo);
+      u.uHi.value = aabb.xHi == null ? 1 : Number(aabb.xHi);
+    } else if (activeAxis === "y") {
+      u.uFocus.value = foci.y == null ? 0 : Number(foci.y);
+      u.uLo.value = aabb.yLo == null ? 0 : Number(aabb.yLo);
+      u.uHi.value = aabb.yHi == null ? 1 : Number(aabb.yHi);
+    } else {
+      u.uFocus.value = foci.z == null ? 0 : Number(foci.z);
+      u.uLo.value = aabb.tLo == null ? 0 : Number(aabb.tLo);
+      u.uHi.value = aabb.tHi == null ? 1 : Number(aabb.tHi);
+    }
     u.uOx.value = ((view.width | 0) - 1) * 0.5;
     u.uOz.value = ((view.height | 0) - 1) * 0.5;
     u.uPitch.value = voxelPitch(view.cellSize ?? this.cellSize, view.voxelGap);
@@ -384,7 +392,11 @@ export class CubeRenderer {
         }
       }
 
-      dummy.position.set((x - ox) * pitch, zWorldY(t, tNow, timePitch), (y - oz) * pitch);
+      dummy.position.set(
+        (x - ox) * pitch,
+        zWorldY(t, tNow, timePitch),
+        (y - oz) * pitch,
+      );
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
       const s = soa.s[i];

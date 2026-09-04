@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startPlaneChromeFor, startShadeFor } from "../src/config.js";
+import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startLoopAxisFor, startPlaneChromeFor, facePlaneChrome, startShadeFor, startVoxelGapFor } from "../src/config.js";
+
+// IDs, order, show/hide, and config defaults — not pixel CSS.
+// See architecture.md "Tests and visual QA".
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
@@ -54,10 +57,15 @@ describe("Source | View information architecture", () => {
     assert.doesNotMatch(view, />Dynamics</);
     assert.match(html, /id="sheet-encoding"[^>]*>Color coding</);
     assert.match(view, /id="count-cmap"/);
+    assert.match(view, />Colormap</);
+    assert.doesNotMatch(view, />Scale</);
     assert.match(view, /id="count-win-lo"/);
     assert.match(view, /id="count-win-hi"/);
     assert.match(view, /id="count-trim"/);
     assert.match(view, /id="count-hide"/);
+    assert.match(view, /id="count-hide"[^>]*type="number"/);
+    assert.match(view, />Hide below</);
+    assert.match(view, /class="[^"]*btn-row-three/);
     assert.match(view, /value="gray"/);
     assert.match(view, /value="inferno"/);
     assert.match(view, /value="plasma"/);
@@ -70,6 +78,8 @@ describe("Source | View information architecture", () => {
     assert.match(src, /id="btn-play"/);
     assert.match(src, /id="speed"/);
     assert.match(src, /id="random-fill"/);
+    assert.doesNotMatch(src, /id="btn-face-ar-sheet"/);
+    assert.doesNotMatch(src, /id="btn-ar"/);
     const play = src.indexOf('id="btn-play"');
     const setup = src.indexOf('id="conway-setup"');
     const pattern = src.indexOf('id="pattern"');
@@ -84,16 +94,19 @@ describe("Source | View information architecture", () => {
     assert.match(view, /id="cube-cap"/);
     assert.match(view, /id="cube-cap"[^>]*value="200000"/);
     assert.match(view, /id="cube-cap"[^>]*max="20000000"/);
+    assert.match(view, /id="voxel-gap-num"[^>]*type="number"/);
+    assert.match(view, /id="voxel-gap-num"[^>]*step="0.01"/);
+    assert.match(view, /id="voxel-gap-field"/);
     assert.match(view, /id="quality-low"/);
     assert.match(view, /id="quality-medium"/);
     assert.match(view, /id="quality-high"/);
-    assert.match(view, /id="quality-medium"[^>]*is-on/);
+    assert.match(view, /id="quality-high"[^>]*is-on/);
     assert.doesNotMatch(view, /id="hud-fps"|id="view-fps"|id="hud-engine"|id="bench"/);
     assert.match(html, /id="hud-fps"[^>]*class="[^"]*gizmo-fps/);
     assert.match(html, /class="hud-cards"[\s\S]*id="hud-engine"[\s\S]*id="bench"/);
     assert.match(html, />DEV Bench</);
     assert.doesNotMatch(view, /id="shade-hull"/);
-    assert.doesNotMatch(view, /id="btn-fit"/);
+    assert.doesNotMatch(view, /id="btn-fit"|id="btn-spin"/);
   });
 
   it("keeps the inspect hint short", () => {
@@ -116,14 +129,12 @@ describe("Source | View information architecture", () => {
   });
 
   it("puts Conway Play next to AR on phone and keeps Loop on the overlay", () => {
-    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-face-ar"[\s\S]*id="btn-play-dock"/);
+    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-face-ar"[\s\S]*id="face-cam-pair"[\s\S]*id="btn-play-dock"/);
     assert.doesNotMatch(html, /id="btn-play-ar"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /class="fold-bar-center"/);
     assert.match(html, /id="boot-fail"/);
     assert.match(html, /import\("\.\/src\/main\.js\?v=/);
-    assert.match(css, /body\.is-ar:not\(\.source-count\)\s+\.btn-play-dock/);
-    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.inspect-transport/);
   });
 
   it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {
@@ -131,7 +142,6 @@ describe("Source | View information architecture", () => {
     assert.doesNotMatch(src, /id="hud-src"/);
     assert.doesNotMatch(src, /id="conway-live"/);
     assert.match(html, /id="conway-live"/);
-    assert.match(css, /body\.is-ar \.conway-live/);
     assert.doesNotMatch(viewPanel(), /id="conway-live"/);
   });
 });
@@ -149,7 +159,7 @@ describe("View sheet vs gizmo chrome", () => {
     assert.doesNotMatch(view, />Hide outer</);
   });
 
-  it("puts Hull Ghost Cuts and Fit on the look strip, not in View setup", () => {
+  it("puts Hull Ghost Cuts, Fit, and Spin on the look strip, not in View setup", () => {
     const gizmo = gizmoCol();
     const view = viewPanel();
     assert.match(gizmo, /class="look-strip"/);
@@ -157,11 +167,13 @@ describe("View sheet vs gizmo chrome", () => {
     assert.match(gizmo, /id="shade-ghost"/);
     assert.match(gizmo, /id="shade-triple"/);
     assert.match(gizmo, /id="btn-fit"/);
+    assert.match(gizmo, /id="btn-spin"/);
+    assert.match(gizmo, /class="look-orbit"/);
     assert.match(gizmo, /id="btn-look-more"/);
     assert.match(gizmo, /id="look-quality-medium"/);
     assert.match(gizmo, /id="btn-look-reset-planes"/);
     assert.doesNotMatch(view, /id="shade-hull"|id="shade-ghost"|id="shade-triple"/);
-    assert.doesNotMatch(view, /id="btn-fit"/);
+    assert.doesNotMatch(view, /id="btn-fit"|id="btn-spin"/);
     assert.doesNotMatch(html, /id="ar-shade-hull"/);
   });
 
@@ -214,9 +226,6 @@ describe("desktop accordion rail", () => {
     assert.match(html, /id="source-body"/);
     assert.match(html, /id="view-body"/);
     assert.match(css, /\.controls\.is-collapsed \.sheet-body\s*\{[^}]*display:\s*none/s);
-    const root = css.match(/\.controls-root\s*\{[^}]+\}/)?.[0] || "";
-    assert.match(root, /flex-direction:\s*column/);
-    assert.doesNotMatch(root, /flex-direction:\s*row/);
   });
 });
 
@@ -239,10 +248,11 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="stack-axis-z"[\s\S]*class="stack-axis-label">Z</);
   });
 
-  it("picks the loop axis under the slice rails (default Z)", () => {
+  it("puts loop axis buttons under the rails on desktop, beside Loop on phone", () => {
     const src = sourcePanel();
     assert.doesNotMatch(src, /id="loop-axis-x"/);
-    assert.match(html, /class="loop-axes"[\s\S]*id="loop-axis-x"/);
+    assert.match(html, /class="loop-row"[\s\S]*id="btn-loop"[\s\S]*class="loop-axes"[\s\S]*id="loop-axis-x"/);
+    assert.match(html, /id="inspect-transport"[\s\S]*class="loop-axes"/);
     assert.match(html, /id="loop-axis-y"/);
     assert.match(html, /id="loop-axis-z"/);
     assert.match(html, /aria-label="Loop axis"/);
@@ -264,7 +274,6 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="ingest-preview"/);
     assert.match(html, /id="ingest-preview-frame"/);
     assert.match(css, /dialog\.ingest-dialog:not\(:open\)\s*\{[^}]*display:\s*none\s*!important/s);
-    assert.match(css, /\.ingest-preview\s*\{[^}]*width:\s*100%/s);
     assert.doesNotMatch(html, /id="ingest-chip"/);
     assert.doesNotMatch(html, /id="ingest-open"/);
     const src = sourcePanel();
@@ -309,11 +318,22 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(startShadeFor("mni152"), "ghost");
     assert.equal(startShadeFor("ignition"), "ghost");
     assert.equal(startShadeFor("count"), "ghost");
+    assert.equal(startVoxelGapFor("conway"), 0.05);
+    assert.equal(startVoxelGapFor("ignition"), 0.05);
+    assert.equal(startVoxelGapFor("mni152-low"), 0.01);
+    assert.equal(startVoxelGapFor("mni152"), 0.01);
+    assert.equal(startVoxelGapFor("count"), 0.01);
+    assert.equal(startLoopAxisFor("ignition"), "y");
+    assert.equal(startLoopAxisFor("conway"), "z");
+    assert.equal(startLoopAxisFor("mni152-low"), "z");
+    assert.equal(sourceGuide("ignition").blurb.includes("Y is time"), true);
+    assert.equal(DEFAULTS.voxelGap, 0.01);
     assert.deepEqual(startPlaneChromeFor("mni152-low"), { hideCenter: false, hideOuter: false });
     assert.deepEqual(startPlaneChromeFor("mni152"), { hideCenter: false, hideOuter: false });
     assert.deepEqual(startPlaneChromeFor("ignition"), { hideCenter: false, hideOuter: false });
     assert.deepEqual(startPlaneChromeFor("count"), { hideCenter: false, hideOuter: false });
-    assert.deepEqual(startPlaneChromeFor("conway"), { hideCenter: true, hideOuter: false });
+    assert.deepEqual(startPlaneChromeFor("conway"), { hideCenter: false, hideOuter: false });
+    assert.deepEqual(facePlaneChrome(), { hideCenter: true, hideOuter: true });
     assert.equal(DEFAULTS.sourceKind, "mni152-low");
     assert.equal(DEFAULTS.shadeMode, "ghost");
     assert.equal(DEFAULTS.hideCenter, false);
@@ -328,7 +348,6 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="about-dialog"/);
     assert.match(html, /\?src=ignition/);
     assert.match(css, /\.about-dialog/);
-    assert.match(css, /button\.btn-link\.source-about-data\s*\{[^}]*font-size:\s*0\.5rem/s);
   });
 
   it("offers an opt-in Guide beside the brand chip", () => {
@@ -343,13 +362,15 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.deepEqual(GUIDE_STEPS[3].targets, ["stack-axis-z", "loop-axis-z"]);
     assert.deepEqual(GUIDE_STEPS[4].targets, ["gizmo-hit", "btn-hide-center", "btn-hide-outer"]);
     assert.deepEqual(GUIDE_STEPS[5].targets, ["shade-hull", "shade-ghost", "shade-triple"]);
-    assert.deepEqual(GUIDE_STEPS[6].targets, ["quality-medium", "btn-parallax", "btn-reset-planes"]);
+    assert.deepEqual(GUIDE_STEPS[6].targets, ["quality-high", "btn-parallax", "btn-reset-planes", "btn-spin"]);
     assert.equal(GUIDE_STEPS[1].fold, "source");
     assert.match(GUIDE_STEPS[1].body, /Load NumPy/);
     assert.equal(GUIDE_STEPS[3].fold, "");
     assert.equal(GUIDE_STEPS[5].fold, "");
     assert.equal(GUIDE_STEPS[6].fold, "view");
-    assert.match(GUIDE_STEPS[6].body, /Quality → Low/);
+    assert.match(GUIDE_STEPS[6].body, /Quality starts at High/);
+    assert.match(GUIDE_STEPS[6].body, /Spin/);
+    assert.match(GUIDE_STEPS[3].body, /Loop axis X \/ Y \/ Z/);
     const first = guideStepAt(0);
     assert.equal(first.isFirst, true);
     assert.equal(first.isLast, false);
@@ -369,7 +390,6 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="btn-guide-back"/);
     assert.match(html, /id="btn-guide-done"/);
     assert.match(css, /\.brand-cluster/);
-    assert.match(css, /\.brand-cluster\s*\{[^}]*max-width:\s*var\(--rail-w\)/s);
     assert.match(html, /class="tagline">Xplore Data in 3D/);
     assert.match(css, /\.brand-guide/);
     assert.match(css, /\.guide-overlay/);

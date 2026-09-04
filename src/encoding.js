@@ -1,7 +1,7 @@
 /**
  * Encoding adapter: color LUT and fill for packed `k` / `s`.
  * Conway LUT still / osc / moving / unsettled / base; a count stack maps a
- * value window onto Scale rungs. Moving is a LUT index (Color coding off), not a motion gate.
+ * value window onto Colormap rungs. Moving is a LUT index (Color coding off), not a motion gate.
  */
 
 import { COLOR, hexCss } from "./config.js";

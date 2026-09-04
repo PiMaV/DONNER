@@ -345,9 +345,10 @@ export function quatFromTo(from, to) {
   return { x: cx / n, y: cy / n, z: cz / n, w: w / n };
 }
 
-/** Rotate the volume so product `axis` stands on the table (world +Y). */
-export function standQuatFromAxis(axis) {
-  return quatFromTo(productViewDir(axis, 1), { x: 0, y: 1, z: 0 });
+/** Rotate the volume so product `axis` stands on the table (world +Y).
+ *  `flip` sits the opposite end of that axis on the floor. */
+export function standQuatFromAxis(axis, flip = false) {
+  return quatFromTo(productViewDir(axis, flip ? -1 : 1), { x: 0, y: 1, z: 0 });
 }
 
 export function volumeLocalAabb(width, height, yMin, yMax, cellSize = 1) {
@@ -399,8 +400,8 @@ export function aabbCorners(box) {
 }
 
 /** World meters along the table normal so the standing AABB sits on the anchor. */
-export function arStandLift(axis, box, scale) {
-  const q = standQuatFromAxis(axis);
+export function arStandLift(axis, box, scale, flip = false) {
+  const q = standQuatFromAxis(axis, flip);
   const s = Number(scale);
   if (!Number.isFinite(s)) return 0;
   let minY = Infinity;

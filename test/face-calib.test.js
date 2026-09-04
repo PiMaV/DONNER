@@ -13,6 +13,7 @@ import {
   composeFaceStage,
   faceArSourceId,
   faceExtentCells,
+  FACE_MAG_DEFAULT,
   facePlacementFromMm,
   faceStageScale,
   isFaceProjectSource,
@@ -30,6 +31,7 @@ describe("face stage fit", () => {
     assert.equal(clampFaceMag(0), 1.2);
     assert.equal(clampFaceMag(9), 5);
     assert.equal(faceExtentCells(108, 128, 104), 128);
+    assert.equal(FACE_MAG_DEFAULT, 1.2);
   });
 
   it("prefers the low MNI cube when that demo exists", () => {

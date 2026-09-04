@@ -10,21 +10,24 @@ import {
 import { DEFAULT_VIEW_QUALITY } from "../src/quality.js";
 
 describe("public door query", () => {
-  it("defaults to Brain MRI Low and Medium", () => {
+  it("defaults to Brain MRI Low and High", () => {
     assert.equal(DEFAULT_START_SOURCE, "mni152-low");
-    assert.equal(DEFAULT_VIEW_QUALITY, "medium");
+    assert.equal(DEFAULT_VIEW_QUALITY, "high");
     assert.deepEqual(parseStartSearch(""), {
       source: "mni152-low",
-      quality: "medium",
+      quality: "high",
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
+      qualityExplicit: false,
     });
     assert.deepEqual(parseStartSearch("?foo=bar"), {
       source: "mni152-low",
-      quality: "medium",
+      quality: "high",
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
+      qualityExplicit: false,
     });
+    assert.equal(parseStartSearch("?quality=medium").qualityExplicit, true);
   });
 
   it("allow-lists src aliases and COUNT_DEMOS ids", () => {
@@ -44,28 +47,32 @@ describe("public door query", () => {
   });
 
   it("writes only non-default query keys and Face without millimetre fit", () => {
-    assert.equal(startSearchFromState({ source: "mni152-low", quality: "medium" }), "");
+    assert.equal(startSearchFromState({ source: "mni152-low", quality: "high" }), "");
     assert.equal(
-      startSearchFromState({ source: "conway", quality: "medium" }),
+      startSearchFromState({ source: "mni152-low", quality: "medium" }),
+      "?quality=medium",
+    );
+    assert.equal(
+      startSearchFromState({ source: "conway", quality: "high" }),
       "?src=conway",
     );
     assert.equal(
-      startSearchFromState({ source: "ignition", quality: "medium" }),
+      startSearchFromState({ source: "ignition", quality: "high" }),
       "?src=ignition",
     );
     assert.equal(
       startSearchFromState({ source: "mni152", quality: "high" }),
-      "?src=mni152&quality=high",
+      "?src=mni152",
     );
     assert.equal(startSearchFromState({ source: "count", quality: "low" }), "?quality=low");
     assert.equal(
-      startSearchFromState({ source: "mni152-low", quality: "medium", face: true }),
+      startSearchFromState({ source: "mni152-low", quality: "high", face: true }),
       "?face=1",
     );
     assert.equal(
       startSearchFromState({
         source: "conway",
-        quality: "medium",
+        quality: "high",
         face: true,
       }),
       "?src=conway&face=1",
@@ -73,7 +80,7 @@ describe("public door query", () => {
     assert.equal(
       startSearchFromState({
         source: "mni152-low",
-        quality: "medium",
+        quality: "high",
         face: true,
         facePlacement: { shift: 12, lift: 96, inset: 40, mag: 1 },
       }),

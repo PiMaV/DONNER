@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, stepVoxelGap } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
 import { countCmapCss, DEFAULT_COUNT_CMAP, DEFAULT_COUNT_TRIM, grayToCmapRgba, normalizeCountCmap, normalizeCountTrim } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
@@ -7,6 +7,7 @@ import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTi
 import { landscapePreview } from "./volume-prep.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
 import { FACE_FRONT_INSET_M, FACE_FRONT_LIFT_M, isFaceProjectSource, offsetFromFaceFront } from "./face-calib.js";
+import { cameraFacingKind, friendlyCameraLabels } from "./face-ar.js";
 
 const PATTERN_HINT = {
   Blinker:
@@ -300,9 +301,8 @@ export function bindUI(on) {
   const loopBtn = $("btn-loop");
   const arBtn = $("btn-ar");
   const faceBtn = $("btn-face-ar");
-  const faceSheetBtn = $("btn-face-ar-sheet");
-  const faceFacing = $("btn-face-facing");
-  const faceFacingSheet = $("btn-face-facing-sheet");
+  const faceCamPair = $("face-cam-pair");
+  const faceCamera = $("face-camera");
   const xrExit = $("btn-xr-exit");
   const arReset = $("btn-ar-reset");
   const arPlaceBanner = $("ar-place-banner");
@@ -317,6 +317,7 @@ export function bindUI(on) {
   const editBtn = $("btn-edit");
   const parallaxBtn = $("btn-parallax");
   const fitBtn = $("btn-fit");
+  const spinBtn = $("btn-spin");
   const resetPlanesBtn = $("btn-reset-planes");
   const alignZ = $("align-z");
   const arYaw = $("ar-yaw");
@@ -343,8 +344,8 @@ export function bindUI(on) {
   const cacheStatus = $("cache-status");
   const history = $("history");
   const historyVal = $("history-val");
-  const voxelGap = $("voxel-gap");
-  const voxelGapVal = $("voxel-gap-val");
+  const voxelGapNum = $("voxel-gap-num");
+  const voxelGapField = $("voxel-gap-field");
   const btnHideCenter = $("btn-hide-center");
   const btnHideOuter = $("btn-hide-outer");
   const lookMoreBtn = $("btn-look-more");
@@ -435,7 +436,6 @@ export function bindUI(on) {
   const countWinHi = $("count-win-hi");
   const countTrim = $("count-trim");
   const countHide = $("count-hide");
-  const countHideVal = $("count-hide-val");
   const dyn = $("color-coding");
   const fill = $("random-fill");
   const fillVal = $("random-fill-val");
@@ -455,11 +455,20 @@ export function bindUI(on) {
   speed.value = String(DEFAULTS.gensPerSec);
   if (loopSpeed) loopSpeed.value = String(DEFAULTS.loopPerSec);
   history.value = String(DEFAULTS.history);
-  if (voxelGap) {
-    voxelGap.min = String(VOXEL_GAP_MIN);
-    voxelGap.max = String(VOXEL_GAP_MAX);
-    voxelGap.step = String(VOXEL_GAP_STEP);
-    voxelGap.value = String(DEFAULTS.voxelGap);
+  const formatVoxelGap = (n) => {
+    const g = clampVoxelGap(n);
+    return g === 0 ? "0" : String(Number(g.toFixed(2)));
+  };
+  const paintVoxelGap = (n) => {
+    const g = clampVoxelGap(n);
+    if (voxelGapNum) voxelGapNum.value = formatVoxelGap(g);
+    return g;
+  };
+  if (voxelGapNum) {
+    voxelGapNum.min = String(VOXEL_GAP_MIN);
+    voxelGapNum.max = String(VOXEL_GAP_MAX);
+    voxelGapNum.step = String(VOXEL_GAP_STEP);
+    voxelGapNum.value = formatVoxelGap(DEFAULTS.voxelGap);
   }
   wrap.checked = DEFAULTS.wrap;
   if (stopStable) stopStable.checked = DEFAULTS.stopWhenStable;
@@ -528,10 +537,6 @@ export function bindUI(on) {
     speedVal.textContent = `${speed.value}/s`;
     if (loopSpeedVal && loopSpeed) loopSpeedVal.textContent = `${loopSpeed.value}/s`;
     historyVal.textContent = history.value;
-    if (voxelGapVal && voxelGap) {
-      const g = Number(voxelGap.value);
-      voxelGapVal.textContent = !Number.isFinite(g) || g === 0 ? "0" : g.toFixed(2);
-    }
     if (stabStartVal && stabStart) {
       const s = clampStabStart(stabStart.value);
       stabStartVal.textContent = s.toFixed(2);
@@ -543,9 +548,6 @@ export function bindUI(on) {
       const d = clampDensity(fill.value);
       fillVal.textContent = `${Math.round(d * 100)}%`;
     }
-    if (countHideVal && countHide) {
-      countHideVal.textContent = String(Math.max(0, countHide.value | 0));
-    }
   };
   syncLabels();
 
@@ -555,10 +557,12 @@ export function bindUI(on) {
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
   const enterFace = () => on.toggleFaceProject?.();
   faceBtn?.addEventListener("click", enterFace);
-  faceSheetBtn?.addEventListener("click", enterFace);
-  const toggleFacing = () => on.toggleFaceFacing?.();
-  faceFacing?.addEventListener("click", toggleFacing);
-  faceFacingSheet?.addEventListener("click", toggleFacing);
+  faceCamera?.addEventListener("change", () => {
+    const v = String(faceCamera.value || "");
+    if (v === "user") on.faceCameraFacing?.(false);
+    else if (v === "environment") on.faceCameraFacing?.(true);
+    else on.faceCameraDevice?.(v);
+  });
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
   if (arReset && on.resetArAnchor) arReset.addEventListener("click", () => on.resetArAnchor());
   const xrOverlay = $("xr-overlay");
@@ -584,6 +588,10 @@ export function bindUI(on) {
   editBtn.addEventListener("click", () => on.toggleEdit());
   parallaxBtn?.addEventListener("click", () => on.toggleParallax());
   fitBtn?.addEventListener("click", () => on.fitVolume());
+  spinBtn?.addEventListener("click", () => on.toggleSpin?.());
+  arYaw?.addEventListener("pointerdown", () => on.spinHold?.(true));
+  window.addEventListener("pointerup", () => on.spinHold?.(false));
+  window.addEventListener("pointercancel", () => on.spinHold?.(false));
   resetPlanesBtn?.addEventListener("click", () => on.resetPlanes?.());
   lookResetPlanes?.addEventListener("click", () => on.resetPlanes?.());
   alignZ?.addEventListener("change", () => on.alignZ?.());
@@ -689,10 +697,19 @@ export function bindUI(on) {
     on.stabMode?.();
   });
   speed.addEventListener("input", () => {
+    if (dockSpeedIsPlay() && loopSpeed) loopSpeed.value = speed.value;
     syncLabels();
+    syncDockSpeedLabels();
     on.speed();
   });
   loopSpeed?.addEventListener("input", () => {
+    if (dockSpeedIsPlay()) {
+      speed.value = loopSpeed.value;
+      syncLabels();
+      syncDockSpeedLabels();
+      on.speed();
+      return;
+    }
     syncLabels();
     on.loopSpeed?.();
   });
@@ -700,10 +717,25 @@ export function bindUI(on) {
     syncLabels();
     on.history();
   });
-  voxelGap?.addEventListener("input", () => {
-    syncLabels();
+  voxelGapNum?.addEventListener("input", () => {
+    const raw = Number(voxelGapNum.value);
+    if (!Number.isFinite(raw)) return;
     on.voxelGap?.();
   });
+  voxelGapNum?.addEventListener("change", () => {
+    paintVoxelGap(voxelGapNum.value);
+    on.voxelGap?.();
+  });
+  voxelGapField?.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const cur = voxelGapNum ? Number(voxelGapNum.value) : DEFAULTS.voxelGap;
+      paintVoxelGap(stepVoxelGap(cur, e.deltaY));
+      on.voxelGap?.();
+    },
+    { passive: false },
+  );
   countCmap?.addEventListener("change", () => {
     if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap.value);
     on.countCmap?.();
@@ -720,14 +752,20 @@ export function bindUI(on) {
     if (applying) return;
     on.countWindow?.();
   });
+  const clampHideBelow = () => {
+    if (!countHide) return 0;
+    const max = Math.max(0, Number(countHide.max) || 0);
+    const v = Math.max(0, Math.min(max, countHide.value | 0));
+    countHide.value = String(v);
+    return v;
+  };
   countHide?.addEventListener("input", () => {
-    syncLabels();
     if (applying) return;
     on.countHide?.(false);
   });
   countHide?.addEventListener("change", () => {
-    syncLabels();
     if (applying) return;
+    clampHideBelow();
     on.countHide?.(true);
   });
   const hidePressed = (btn) => btn?.getAttribute("aria-pressed") === "true";
@@ -912,23 +950,43 @@ export function bindUI(on) {
     if (!dest || inspectTransport.parentElement === dest) return;
     dest.appendChild(inspectTransport);
   };
-  const phoneHud = () =>
-    window.matchMedia("(pointer: coarse)").matches || narrow.matches;
-  const syncFaceProject = () => {
-    const brain = isFaceProjectSource(sourceKind?.value);
-    const presenting = document.body.classList.contains("is-face-ar");
-    const phone = phoneHud();
-    if (faceBtn) faceBtn.hidden = true;
-    if (faceSheetBtn) {
-      faceSheetBtn.hidden = !faceSupported || !brain;
-      faceSheetBtn.textContent = "Project on Face";
-      faceSheetBtn.setAttribute("aria-pressed", presenting ? "true" : "false");
-      faceSheetBtn.classList.toggle("is-on", presenting);
-      faceSheetBtn.title = presenting
-        ? "Stop projecting. Or pick another Source to return to orbit."
-        : "Project this Brain Ghost onto a webcam or phone camera.";
+  let parkedLoopSpeed = null;
+  const conwayLivePlay = () =>
+    document.body.classList.contains("is-live") &&
+    !document.body.classList.contains("source-count");
+  const dockSpeedIsPlay = () => parkedLoopSpeed != null && conwayLivePlay();
+  const syncDockSpeedLabels = () => {
+    if (loopSpeedVal && loopSpeed) loopSpeedVal.textContent = `${loopSpeed.value}/s`;
+    if (loopSpeed) {
+      loopSpeed.title = dockSpeedIsPlay()
+        ? "How fast the Conway source generates (generations per second)."
+        : "How fast the playhead walks the loop axis (slices per second).";
+      loopSpeed.setAttribute(
+        "aria-label",
+        dockSpeedIsPlay()
+          ? "Conway generations per second"
+          : "Loop playhead steps per second",
+      );
     }
-    if (faceFacingSheet) faceFacingSheet.hidden = !presenting || phone || !brain;
+  };
+  const syncFaceProject = () => {
+    const presenting = document.body.classList.contains("is-face-ar");
+    const worldAr =
+      document.body.classList.contains("is-ar") && !presenting;
+    const inAr = document.body.classList.contains("is-ar");
+    const brain = isFaceProjectSource(sourceKind?.value);
+    if (arBtn) {
+      arBtn.hidden = !arSupported || inAr || presenting;
+      arBtn.title = "Place this volume on a floor plane.";
+    }
+    if (faceBtn) {
+      faceBtn.hidden = !faceSupported || !brain || worldAr || presenting;
+      faceBtn.textContent = "Face";
+      faceBtn.setAttribute("aria-pressed", presenting ? "true" : "false");
+      faceBtn.classList.toggle("is-on", presenting);
+      faceBtn.title = "Project this brain onto a tracked face.";
+    }
+    if (faceCamPair) faceCamPair.hidden = !presenting;
   };
 
   const phoneFolds = () => Boolean(foldBar) && getComputedStyle(foldBar).display !== "none";
@@ -1118,10 +1176,12 @@ export function bindUI(on) {
         pattern: pattern.value || DEFAULTS.pattern,
         seed: Number.parseInt(seed.value, 10) || 0,
         gensPerSec: Number(speed.value) || DEFAULTS.gensPerSec,
-        loopPerSec: loopSpeed ? Number(loopSpeed.value) || DEFAULTS.loopPerSec : DEFAULTS.loopPerSec,
+        loopPerSec: Number(
+          parkedLoopSpeed != null ? parkedLoopSpeed : loopSpeed ? loopSpeed.value : DEFAULTS.loopPerSec,
+        ) || DEFAULTS.loopPerSec,
         decay: DEFAULTS.decay,
         history: Number.parseInt(history.value, 10) || DEFAULTS.history,
-        voxelGap: voxelGap ? clampVoxelGap(voxelGap.value) : DEFAULTS.voxelGap,
+        voxelGap: voxelGapNum ? clampVoxelGap(voxelGapNum.value) : DEFAULTS.voxelGap,
         hideCenter: hidePressed(btnHideCenter),
         hideOuter: hidePressed(btnHideOuter),
         shadeMode: shadeGhost?.classList.contains("is-on")
@@ -1175,6 +1235,17 @@ export function bindUI(on) {
         btn.setAttribute("aria-pressed", live ? "true" : "false");
         btn.classList.toggle("is-live", live);
       }
+      applying = true;
+      if (live && !document.body.classList.contains("source-count") && loopSpeed && speed) {
+        if (parkedLoopSpeed == null) parkedLoopSpeed = loopSpeed.value;
+        loopSpeed.value = speed.value;
+      } else if (parkedLoopSpeed != null && loopSpeed) {
+        loopSpeed.value = parkedLoopSpeed;
+        parkedLoopSpeed = null;
+      }
+      applying = false;
+      syncLabels();
+      syncDockSpeedLabels();
     },
     setLooping(on) {
       const live = Boolean(on);
@@ -1182,6 +1253,12 @@ export function bindUI(on) {
       loopBtn.textContent = live ? "Pause" : "Loop";
       loopBtn.setAttribute("aria-pressed", live ? "true" : "false");
       loopBtn.classList.toggle("is-live", live);
+    },
+    setSpinning(on) {
+      const live = Boolean(on);
+      if (!spinBtn) return;
+      spinBtn.setAttribute("aria-pressed", live ? "true" : "false");
+      spinBtn.classList.toggle("is-live", live);
     },
     setDecay() {},
     setPlaneChrome({ hideCenter: hc = false, hideOuter: ho = false } = {}) {
@@ -1191,7 +1268,7 @@ export function bindUI(on) {
     },
     setArAvailable(ok) {
       arSupported = Boolean(ok);
-      if (arBtn) arBtn.hidden = !arSupported || document.body.classList.contains("is-ar");
+      syncFaceProject();
     },
     setFaceAvailable(ok) {
       faceSupported = Boolean(ok);
@@ -1201,11 +1278,7 @@ export function bindUI(on) {
       this.setFaceAvailable(faceSupported);
     },
     setArActive(active, { locked = false, face = false, parkInspect } = {}) {
-      const phone = phoneHud();
-      if (xrExit) xrExit.hidden = !active || (face && !phone);
-      if (faceFacing) {
-        faceFacing.hidden = !active || !face || !phone;
-      }
+      if (xrExit) xrExit.hidden = !active;
       if (arReset) {
         arReset.hidden = !active || !locked || Boolean(face);
         arReset.disabled = !locked || Boolean(face);
@@ -1213,24 +1286,42 @@ export function bindUI(on) {
         arReset.title =
           "Despawn the volume and search for a floor plane again. Does not exit the session.";
       }
-      if (arBtn) arBtn.hidden = !arSupported || active;
       parkInspectTransport(Boolean(parkInspect));
       if (!active || !locked) setLookMore(false);
       if (active) setBenchOpen(false);
       if (!active) this.setArPlaceBanner(false);
       syncFaceProject();
     },
-    setFaceFacing(environment) {
+    setFaceCameras(cameras = [], { deviceId = "", environment = false } = {}) {
+      if (!faceCamera) return;
+      const list = Array.isArray(cameras) ? cameras : [];
       const rear = Boolean(environment);
-      const label = rear ? "Rear" : "Selfie";
-      const next = rear ? "Selfie" : "Rear";
-      for (const btn of [faceFacing, faceFacingSheet]) {
-        if (!btn) continue;
-        btn.textContent = label;
-        btn.setAttribute("aria-pressed", rear ? "false" : "true");
-        btn.classList.toggle("is-on", !rear);
-        btn.title = `Switch to ${next} camera`;
+      if (!list.length) {
+        faceCamera.replaceChildren(
+          new Option("Selfie camera", "user", !rear, !rear),
+          new Option("Rear camera", "environment", rear, rear),
+        );
+        return;
       }
+      const labels = friendlyCameraLabels(list);
+      faceCamera.replaceChildren();
+      for (let i = 0; i < list.length; i += 1) {
+        const opt = document.createElement("option");
+        opt.value = String(list[i].deviceId || "");
+        opt.textContent = labels[i];
+        faceCamera.appendChild(opt);
+      }
+      const id = String(deviceId || "");
+      if (id && list.some((c) => String(c.deviceId) === id)) {
+        faceCamera.value = id;
+        return;
+      }
+      const want = rear ? "rear" : "selfie";
+      const hit = list.find((c) => cameraFacingKind(c) === want) || list[0];
+      faceCamera.value = String(hit?.deviceId || "");
+    },
+    setFaceFacing(environment) {
+      this.setFaceCameras([], { environment });
     },
     setFaceFlip(on) {
       if (!faceFlip) return;
@@ -1297,6 +1388,9 @@ export function bindUI(on) {
     },
     setQuality(id) {
       syncQualityButtons(id);
+    },
+    setVoxelGap(n) {
+      return paintVoxelGap(n);
     },
     setActiveAxis(axis) {
       const a = axis === "x" || axis === "y" ? axis : "z";
@@ -1529,9 +1623,10 @@ export function bindUI(on) {
     setHint(text) {
       if (hint) hint.textContent = text;
     },
-    setArPlaceBanner(on) {
+    setArPlaceBanner(on, text) {
       if (!arPlaceBanner) return;
       arPlaceBanner.hidden = !on;
+      if (on && text) arPlaceBanner.textContent = String(text);
     },
     collapsePhoneSourceFold() {
       if (phoneFolds()) setFold("");

@@ -4,11 +4,20 @@
  */
 
 export const VIEW_QUALITY_IDS = ["low", "medium", "high"];
-export const DEFAULT_VIEW_QUALITY = "medium";
+export const DEFAULT_VIEW_QUALITY = "high";
+/** Occupied cells above this drop auto quality to Medium. Low is never auto. */
+export const QUALITY_MEDIUM_CELLS = 500_000;
 
 export function normalizeViewQuality(id) {
   const k = String(id || "").toLowerCase();
   return VIEW_QUALITY_IDS.includes(k) ? k : DEFAULT_VIEW_QUALITY;
+}
+
+/** High unless the cube is huge. Never returns low. */
+export function autoViewQuality({ cells = 0 } = {}) {
+  const n = Number(cells);
+  if (Number.isFinite(n) && n > QUALITY_MEDIUM_CELLS) return "medium";
+  return "high";
 }
 
 /**
@@ -26,12 +35,12 @@ export function viewQualitySpec(id) {
     return { id: "low", dprCap: 1, unlit: true, toneMapping: false, fillLight: false };
   }
   if (q === "medium") {
-    return { id: "medium", dprCap: 1.25, unlit: false, toneMapping: true, fillLight: true };
+    return { id: "medium", dprCap: 1, unlit: false, toneMapping: false, fillLight: false };
   }
-  return { id: "high", dprCap: 2, unlit: false, toneMapping: true, fillLight: true };
+  return { id: "high", dprCap: 1.25, unlit: false, toneMapping: true, fillLight: true };
 }
 
-/** Drawing-buffer scale. Headset / coarse already cap High at 1.5. */
+/** Drawing-buffer scale. Headset / coarse still clamp a cap above 1.5. */
 export function pixelRatioForQuality(
   quality,
   { devicePixelRatio = 1, coarse = false, headset = false } = {},

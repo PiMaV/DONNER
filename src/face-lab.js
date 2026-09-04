@@ -6,6 +6,7 @@ import {
   closeFaceLandmarker,
   detectFaceForVideo,
   faceMeshConnections,
+  faceUsesPhoneChrome,
   isFaceArSupported,
   loadFaceLandmarker,
   preferEnvironmentCamera,
@@ -28,8 +29,11 @@ let connections = [];
 let running = false;
 let lastTs = 0;
 let environment = preferEnvironmentCamera({
-  coarse: window.matchMedia("(pointer: coarse)").matches,
-  userAgent: navigator.userAgent || "",
+  phone: faceUsesPhoneChrome({
+    narrow: window.matchMedia("(max-width: 720px)").matches,
+    coarse: window.matchMedia("(pointer: coarse)").matches,
+    short: window.matchMedia("(max-height: 520px)").matches,
+  }),
 });
 let mirrored = !environment;
 

@@ -43,7 +43,7 @@ and draws gold arrows at the controls.
    **Hide outer**. Brain starts with both frames on. Phone uses the rails;
    the cube is desktop-only.
 6. **Inspect** — Hull / Ghost / Cuts. Grab a colored frame edge to peek.
-7. **Look** — Quality (starts at Medium), Parallax, Fit, Reset Planes.
+7. **Look** — Quality (starts at High), Parallax, Fit, Spin, Reset Planes.
 
 The one-line Source blurb still changes with the example. View keeps the
 short orbit line; Inspect keeps the short rail hint.
@@ -73,13 +73,13 @@ flowchart LR
   with Hide center on and the outer box kept so the playfield reads.
   Share as `?src=life`.
 - **Lighter Ignition** — event-camera **counts** of a lighter strike.
-  Sparse XY; **Z** is time. **Loop** scrubs the recording. ~4 MB download.
+  X is sensor width; **Y** is time; **Z** is sensor height. **Loop Y** scrubs the recording. ~4 MB download.
   Starts in **Ghost**. First door for event-camera visitors: `?src=ignition`.
 - **Brain MRI Low** — example T1 atlas (ICBM 152), 2× mean-binned.
-  All three axes are space. **Loop** walks a cut. Not a patient scan.
+  All three axes are space. **Loop** walks a cut.
   ~3 MB download. **Visitor default** (bare URL). Starts in **Ghost** with
   center and outer frames on.
-  **Project on Face** hangs this overlay on the laptop webcam or a phone camera.
+  Bottom **AR** hangs this overlay on the laptop webcam or a phone camera.
 - **Brain MRI High** — the same atlas at native grid. ~23 MB download.
   Starts in **Ghost**.
 
@@ -112,7 +112,7 @@ flowchart LR
   brain[Brain MRI Low]
   gol[Game of Life]
   lighter[Lighter Ignition]
-  faceBtn[Project on Face]
+  faceBtn[AR Face]
   cam[Webcam or phone camera]
   bare --> brain
   bare --> faceBtn
@@ -140,9 +140,9 @@ flowchart LR
 - `?src=mni152` or `?src=mri-high` — Brain MRI High
 - `?face=1` — enter Face (Brain Ghost on the camera). Lab millimetre
   fit is still parsed from old links; it is not written back.
-- `?quality=medium` (default; omitted) · `high` · `low`
+- `?quality=high` (default; omitted) · `medium` · `low`
 
-Example: `?src=ignition&quality=high`
+Example: `?src=ignition&quality=medium`
 
 ## Credit
 

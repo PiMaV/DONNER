@@ -151,6 +151,24 @@ describe("HUD copy", () => {
     assert.doesNotMatch(view, /PAUSE/);
   });
 
+  it("prints SPIN as a second live line so Loop and Spin can both show", () => {
+    const view = formatViewHud({
+      fps: 60,
+      avgFps: 60,
+      low1Fps: 60,
+      low01Fps: 60,
+      ms: 16,
+      instances: 10,
+      truncated: false,
+      focus: 3,
+      playing: false,
+      looping: true,
+      spinning: true,
+    });
+    assert.match(view, /LOOP/);
+    assert.match(view, /SPIN/);
+  });
+
   it("prints count-stack stats without Conway GEN/EDIT", () => {
     const src = formatSourceHud({
       generation: 12,

@@ -21,6 +21,20 @@ export function isFaceArSupported({
   return Boolean(mediaDevices && typeof mediaDevices.getUserMedia === "function");
 }
 
+/**
+ * Phone Face hides Source/View (slim overlay). Match the phone fold
+ * layout: max-width 720px, or coarse pointer plus a short viewport
+ * (landscape phone). A wide desktop with a touchscreen stays laptop Face
+ * so the bottom AR / camera chrome stays with Source.
+ */
+export function faceUsesPhoneChrome({
+  narrow = false,
+  coarse = false,
+  short = false,
+} = {}) {
+  return Boolean(narrow || (coarse && short));
+}
+
 export function parseFaceQuery(search) {
   const raw = String(search || "");
   const q = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
@@ -28,30 +42,108 @@ export function parseFaceQuery(search) {
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
-/** Phone / coarse pointer uses the back camera; desktop webcam stays user-facing. */
-export function preferEnvironmentCamera({
-  coarse = false,
-  userAgent = "",
-} = {}) {
-  if (coarse) return true;
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(String(userAgent || ""));
+/** Face always opens the selfie / front camera on phone and desktop. */
+export function preferEnvironmentCamera(_opts = {}) {
+  return false;
 }
 
-export function faceCameraConstraints({ environment = false } = {}) {
-  const facing = environment ? "environment" : "user";
-  return {
-    audio: false,
-    video: {
-      facingMode: { ideal: facing },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-    },
+export function videoInputDevices(list = []) {
+  return (Array.isArray(list) ? list : []).filter((d) => d && d.kind === "videoinput");
+}
+
+export function cameraOptionLabel(device, index = 0) {
+  const label = String(device?.label || "").trim();
+  if (label) return label;
+  return `Camera ${Number(index) + 1}`;
+}
+
+export function isRearCameraLabel(label = "") {
+  return /back|rear|environment|world/i.test(String(label || ""));
+}
+
+export function isSelfieCameraLabel(label = "") {
+  const s = String(label || "");
+  if (isRearCameraLabel(s)) return false;
+  return /front|user|face|selfie|facetime|integrated|webcam/i.test(s);
+}
+
+export function cameraFacingKind(device, { facingMode = "" } = {}) {
+  const facing = String(facingMode || device?.facingMode || "");
+  const label = String(device?.label || "");
+  if (facing === "environment" || isRearCameraLabel(label)) return "rear";
+  if (facing === "user" || isSelfieCameraLabel(label)) return "selfie";
+  return "unknown";
+}
+
+export function friendlyCameraLabel(device, index = 0, opts = {}) {
+  const kind = cameraFacingKind(device, opts);
+  if (kind === "rear") return "Rear camera";
+  if (kind === "selfie") return "Selfie camera";
+  return cameraOptionLabel(device, index);
+}
+
+export function friendlyCameraLabels(cameras = []) {
+  const list = Array.isArray(cameras) ? cameras : [];
+  const kinds = list.map((c) => cameraFacingKind(c));
+  const counts = { selfie: 0, rear: 0, unknown: 0 };
+  for (const k of kinds) counts[k] += 1;
+  const seen = { selfie: 0, rear: 0, unknown: 0 };
+  return list.map((c, i) => {
+    const k = kinds[i];
+    seen[k] += 1;
+    if (k === "selfie") {
+      return counts.selfie > 1 ? `Selfie camera ${seen.selfie}` : "Selfie camera";
+    }
+    if (k === "rear") {
+      return counts.rear > 1 ? `Rear camera ${seen.rear}` : "Rear camera";
+    }
+    return cameraOptionLabel(c, i);
+  });
+}
+
+export function pickSelfieDeviceId(cameras = []) {
+  const list = Array.isArray(cameras) ? cameras : [];
+  if (!list.length) return "";
+  const selfie = list.find((c) => cameraFacingKind(c) === "selfie");
+  return String((selfie || list[0]).deviceId || "");
+}
+
+/** Selfie / unknown cameras are mirrored; labeled rear cameras are not. */
+export function mirrorFromCamera({ facingMode = "", label = "" } = {}) {
+  const facing = String(facingMode || "");
+  if (facing === "environment") return false;
+  if (facing === "user") return true;
+  if (/back|rear|environment|world/i.test(String(label || ""))) return false;
+  return true;
+}
+
+export async function listFaceCameras({
+  enumerateDevices = globalThis.navigator?.mediaDevices?.enumerateDevices?.bind(
+    globalThis.navigator.mediaDevices,
+  ),
+} = {}) {
+  if (typeof enumerateDevices !== "function") return [];
+  try {
+    return videoInputDevices(await enumerateDevices());
+  } catch {
+    return [];
+  }
+}
+
+export function faceCameraConstraints({ environment = false, deviceId = "" } = {}) {
+  const video = {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
   };
+  const id = String(deviceId || "").trim();
+  if (id) video.deviceId = { exact: id };
+  else video.facingMode = { ideal: environment ? "environment" : "user" };
+  return { audio: false, video };
 }
 
 export async function startFaceCamera(
   video,
-  { environment = false, getUserMedia } = {},
+  { environment = false, deviceId = "", getUserMedia } = {},
 ) {
   const grab =
     getUserMedia ||
@@ -59,7 +151,7 @@ export async function startFaceCamera(
   if (typeof grab !== "function") {
     throw new Error("Camera is not available");
   }
-  const stream = await grab(faceCameraConstraints({ environment }));
+  const stream = await grab(faceCameraConstraints({ environment, deviceId }));
   if (video) {
     video.srcObject = stream;
     video.playsInline = true;

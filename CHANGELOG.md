@@ -7,21 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-04
+
 ### Added
 
-- Public doors: bare URL is **Brain MRI Low** (Ghost). `?src=life` is Game of Life (Hull). `?src=ignition` is Lighter Ignition (Ghost). **Project on Face** sits in Source for Brain MRI Low / High when a camera exists; `?face=1` enters. Laptop webcam is the doctor path.
-- World AR **Tap to place** banner when the gold floor reticle is visible.
+- **Spin** on the Look strip (next to Fit) turns the look around product Z. Independent of Loop; both can run. World AR after place drives Yaw. Hidden in Face.
+- Public doors: bare URL is **Brain MRI Low** (Ghost). `?src=life` is Game of Life (Hull). `?src=ignition` is Lighter Ignition (Ghost). Bottom **Face** shows when a camera exists and Source is Brain MRI; `?face=1` enters. Face starts on the **Selfie camera** on phone and desktop. Laptop webcam is the doctor path.
+- World AR **Tap to place** banner when the gold floor reticle is visible. While a floor is still being found, that banner reads **Searching for a surface…**. Face camera start reads **Initializing cameras…**, then the camera menu.
 - Loaded example cubes (Brain MRI Low / High, Lighter Ignition) stay in a session RAM cache so switching Source does not re-download.
 
 ### Changed
 
-- Chrome splits **Look** (Hull / Ghost / Cuts / Fit top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. After place, AR **Loop** and Speed sit under the rails; **More** holds Hide, Reset Planes, and Quality.
+- Layout tests lock IDs, order, and show/hide — not pixel CSS. Visual QA is `npm test` first; Chrome screenshots only when layout is the bug ([`architecture.md`](architecture.md) Tests and visual QA).
+- Chrome splits **Look** (Hull / Ghost / Cuts / Fit / Spin top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. After place, AR **Loop** and Speed sit under the rails; **More** holds Hide, Reset Planes, and Quality.
 - Compact brand: tagline is **Xplore Data in 3D & XR**. Guide sits beside it; both stay within the left-rail width.
+- View numeric fields (Gap, Cube cap, Colormap, Min, Max, Trim, Hide below) put the label to the left of a wide control. Count **Scale** is now **Colormap**. **Hide below** is a spinner, not a slider. Quality **Low / Medium / High** sit in one row.
 - FPS is a small overlay on the viewcube (bottom-right). Tap it for the spark / DEV Bench card, independent of the View sheet so you can change settings while reading telemetry. Stays on Face and phone AR (Quest has no DOM overlay).
 - Footer **M.E.S.S.** and **WETTER** links are cyan; About and the version stay muted.
 - Cube cap default is **200 000** again. Game of Life **Play** stays on that live envelope. **Pause** raises the cap to the tape’s occupied cells (288k cubes → 288k instances, no `trunc`). A dense count cube (Brain MRI) raises only to the **hull** instance count, not every occupied voxel. Sparse Ignition still uses occupied cells. Switching back to Game of Life Play drops to 200 000.
-- **Project on Face** sits in Source when Brain MRI Low or High is selected (not the bottom dock). Click again or pick Lighter Ignition / Game of Life to leave and restore orbit. Phone Face keeps a **Selfie** / **Rear** toggle plus Exit. Overlay: green pupil discs, blue iris discs, no gaze cones. After lock, Face shows **Size** and **Yaw** like world AR. Exit AR or Face runs **Fit** so the brain is framed in orbit.
-- Door plane chrome follows the source: Brain MRI and Lighter Ignition show **center and outer** frames; Game of Life hides the playhead and keeps the outer box. AR stack rails stay bright on passthrough without a black panel behind the chrome.
+- Gap **0** packs cube faces (no inset). Brain MRI and loaded cubes start at **0.01**; Game of Life and Ignition start at **0.05**. Switching Source resets Gap. Gap is a wide spinner with the label to the left; hover-wheel on the field steps **0.01**. The range slider is gone.
+- Bottom **AR** shows only when WebXR `immersive-ar` is available (larger on desktop). **Face** sits in the dock when a camera exists and Source is Brain MRI Low or High. In a Face session the dock is one **camera** dropdown (**Selfie camera** / **Rear camera**, labeled from the device) and **Exit** (no Face toggle). Camera start shows **Initializing cameras…**, then the picker. Orbit on a phone is **AR** (WebXR) + **Face** (Brain). Face starts on the selfie camera on phone and desktop. World AR still uses the back camera. Overlay: black pupil dots on circular blue retinas, no gaze cones. Face hides center and outer frames. Face does **not** show Size or Yaw. After world-AR place, Size and Yaw stack with Floor **X / Y / Z** beside them. AR **Loop** uses the same opaque chip fill as the dock. Phone Loop **X / Y / Z** sit beside Loop. Desktop keeps loop **X / Y / Z** under the rails, with **Loop** and Speed underneath. Exit AR or Face runs **Fit** so the brain is framed in orbit.
+- Quality default is **High**. Cubes with more than 500k occupied cells drop to **Medium**. **Low** is only a manual pick. Phone Face no longer forces Low.
+- Quality **High** is Lambert + ACES + fill at pixel ratio ≤ 1.25 (the previous Medium look). **Medium** is Lambert without ACES or fill at pixel ratio 1. The old High cap of 2 is gone.
+- Game of Life **Play** uses the bottom-right Speed slider for generation rate; **Pause** returns that slider to Loop speed. Both rates are stored. Loop stays disabled while Play is live.
+- Door plane chrome starts with **center and outer** frames on every source, including Game of Life. Phone and Face always show the three plane sliders at full brightness. Bottom dock buttons use an opaque background.
+- **Lighter Ignition** loads with Y/Z **swapped** and **Z mirrored** (the file export is inverted; the `.npy` is not rewritten). Loop starts on **Y** and walks toward later time. Interactive Flip checkboxes are out — they reversed rail handles and did not change Loop order.
 
 ### Fixed
 
@@ -30,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Game of Life hitch from the 2 000 000 default GPU envelope (solid + ghost InstancedMesh plus SoA), leftover from the MRI cube-cap bump.
 - Brain MRI High no longer sets Cube cap to ~5 M occupied cells. Hull is ~140k; the 5 M InstancedMesh envelope made inspect unusable. Manual 200 000 was already enough.
 - Extra One-Euro on the Face brain stage is gone (it lagged the Ghost and cost frames). Overlay pose smoothing stays.
+- Brain MRI Low / High Source copy drops “not a patient scan” and the ICBM “derived from” cite (license stays in About / `data/NOTICE.md`).
+- Desktop Face is on the bottom dock, not buried in Source. Without WebXR there is no **AR** chip — only **Face** on Brain. World AR stays WebXR-only.
 
 ## [0.15.0] - 2026-09-04
 

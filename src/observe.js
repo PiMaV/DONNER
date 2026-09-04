@@ -19,7 +19,9 @@ export function voxelFromLocal(lx, ly, lz, width, height, cellSize, tNow, timeSc
   if (!cell) return null;
   const ts = Number(timeScale);
   const scale = Number.isFinite(ts) && ts > 0 ? ts : 1;
-  return { x: cell.x, y: cell.y, t: Math.round(ly / scale + (tNow | 0)) };
+  const now = tNow | 0;
+  const t = Math.round(ly / scale + now);
+  return { x: cell.x, y: cell.y, t };
 }
 
 export function cellsEqual(a, b) {

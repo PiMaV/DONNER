@@ -15,7 +15,8 @@ export function productToWorld(px, py, pz) {
 
 /** World Y for a generation: Now sits at 0, older slices below. */
 export function zWorldY(t, tNow, timeScale) {
-  return ((t | 0) - (tNow | 0)) * (Number(timeScale) || 1);
+  const y = ((t | 0) - (tNow | 0)) * (Number(timeScale) || 1);
+  return y === 0 ? 0 : y;
 }
 
 /**
@@ -30,11 +31,39 @@ export function voxelPitch(cellSize = 1, voxelGap = 0) {
   return cell * (1 + gap);
 }
 
+/** Mirror an index around the axis: `0` trades with `n - 1`. */
+export function flipAxisIndex(i, n, on) {
+  const max = Math.max(0, (n | 0) - 1);
+  const v = i | 0;
+  return on ? max - v : v;
+}
+
+/** Inclusive `[lo, hi]` after an axis mirror (ends swap). */
+export function flipAxisRange(lo, hi, n, on) {
+  const last = Math.max(0, (n | 0) - 1);
+  const a = lo == null ? 0 : lo | 0;
+  const b = hi == null ? last : hi | 0;
+  if (!on) return { lo: Math.min(a, b), hi: Math.max(a, b) };
+  const x = flipAxisIndex(a, n, true);
+  const y = flipAxisIndex(b, n, true);
+  return { lo: Math.min(x, y), hi: Math.max(x, y) };
+}
+
 /**
  * Turntable-local center of voxel `(x, y, t)`. Product Y maps to world Z.
  * Tests and picking use this; the instance hot path inlines the same math.
  */
-export function voxelLocalCenter(x, y, t, width, height, cellSize, tNow, timeScale, voxelGap = 0) {
+export function voxelLocalCenter(
+  x,
+  y,
+  t,
+  width,
+  height,
+  cellSize,
+  tNow,
+  timeScale,
+  voxelGap = 0,
+) {
   const pitch = voxelPitch(cellSize, voxelGap);
   const ox = ((width | 0) - 1) * 0.5;
   const oz = ((height | 0) - 1) * 0.5;

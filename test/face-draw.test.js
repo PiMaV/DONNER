@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { clearOverlay, drawFaceLandmarks, FACE_IRIS_FILL, FACE_PUPIL_FILL, fitOverlayCanvas } from "../src/face-draw.js";
+import { clearOverlay, drawFaceLandmarks, drawIrisDiscs, drawPupilDiscs, FACE_IRIS_FILL, FACE_PUPIL_FILL, fitOverlayCanvas } from "../src/face-draw.js";
 
 describe("face 2D overlay", () => {
   it("sizes the canvas to the video frame", () => {
@@ -57,6 +57,41 @@ describe("face 2D overlay", () => {
 
   it("keeps distinct iris and pupil fills", () => {
     assert.match(FACE_IRIS_FILL, /135, 206, 235/);
-    assert.match(FACE_PUPIL_FILL, /110, 196, 140/);
+    assert.match(FACE_PUPIL_FILL, /8, 10, 12/);
+  });
+
+  it("draws iris and pupil as circles from the iris ring", () => {
+    const ops = [];
+    const ctx = {
+      canvas: { width: 100, height: 100 },
+      beginPath() { ops.push("begin"); },
+      arc(x, y, r) { ops.push(["arc", x, y, r]); },
+      fill() { ops.push("fill"); },
+    };
+    const many = Array.from({ length: 478 }, () => ({ x: 0.1, y: 0.1 }));
+    many[468] = { x: 0.4, y: 0.5 };
+    many[469] = { x: 0.46, y: 0.5 };
+    many[470] = { x: 0.4, y: 0.56 };
+    many[471] = { x: 0.34, y: 0.5 };
+    many[472] = { x: 0.4, y: 0.44 };
+    many[473] = { x: 0.6, y: 0.5 };
+    many[474] = { x: 0.66, y: 0.5 };
+    many[475] = { x: 0.6, y: 0.56 };
+    many[476] = { x: 0.54, y: 0.5 };
+    many[477] = { x: 0.6, y: 0.44 };
+    drawIrisDiscs(ctx, many);
+    const irisArcs = ops.filter((op) => Array.isArray(op) && op[0] === "arc");
+    assert.equal(irisArcs.length, 2);
+    assert.equal(irisArcs[0][1], 40);
+    assert.equal(irisArcs[0][2], 50);
+    assert.ok(irisArcs[0][3] > 4);
+    const beforePupils = ops.length;
+    drawPupilDiscs(ctx, many);
+    const pupilArcs = ops.slice(beforePupils).filter((op) => Array.isArray(op) && op[0] === "arc");
+    assert.equal(pupilArcs.length, 2);
+    assert.equal(pupilArcs[0][1], irisArcs[0][1]);
+    assert.equal(pupilArcs[0][2], irisArcs[0][2]);
+    assert.ok(pupilArcs[0][3] < irisArcs[0][3]);
+    assert.ok(pupilArcs[0][3] > 0);
   });
 });

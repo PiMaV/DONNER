@@ -21,7 +21,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
 - Ghost / peek: hull InstancedMesh stays; only the solid plane refills (LRU)
-- View **Quality** Low / Medium / High (manual; default Medium)
+- View **Quality** Low / Medium / High (default High; Medium auto above 500k cells)
 - Visitor Source labels (**Game of Life**, **Lighter Ignition**, **Brain MRI**), About, committed example cubes
 - Opt-in **Guide** button to the right of the brand chip (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect, Look; arrows on the controls)
 - Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
@@ -44,6 +44,10 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 9. Face AR occlusion mesh, auto skull scale
 10. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
     ~23 MB). Session RAM cache of a decoded demo after first load is in.
+11. Per-axis **Flip** checkboxes (display mirror). Cut: they reverse 3D
+    handle / rail motion and do not change Loop order; Flip Z also moved
+    the floor AABB. Ignition load remap stays (swap Y/Z, mirror Z). Do
+    not ship Flip until Loop, rails, and AABB stay in index space.
 
 Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face keeps the last Face pose until the face returns (no second WASM, no getImageData).
 

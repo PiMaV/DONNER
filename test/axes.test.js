@@ -39,8 +39,10 @@ import {
   focusBackFromVoxel,
   voxelPitch,
   voxelLocalCenter,
+  flipAxisIndex,
+  flipAxisRange,
 } from "../src/axes.js";
-import { clampVoxelGap, VOXEL_GAP_MAX } from "../src/config.js";
+import { clampVoxelGap, stepVoxelGap, VOXEL_GAP_MAX, VOXEL_GAP_STEP } from "../src/config.js";
 
 describe("product vs engine axes", () => {
   it("maps X Y playfield and Z time onto Three.js Y-up", () => {
@@ -493,7 +495,16 @@ describe("voxel gap lattice", () => {
     assert.equal(clampVoxelGap(9), VOXEL_GAP_MAX);
     assert.equal(VOXEL_GAP_MAX, 5);
     assert.equal(clampVoxelGap("0.5"), 0.5);
-    assert.equal(clampVoxelGap("no"), 0);
+    assert.equal(clampVoxelGap("no"), 0.01);
+  });
+
+  it("steps Gap on wheel: up grows, snaps, and stays in range", () => {
+    assert.equal(VOXEL_GAP_STEP, 0.01);
+    assert.equal(stepVoxelGap(0, -1), 0.01);
+    assert.equal(stepVoxelGap(0.01, 1), 0);
+    assert.equal(stepVoxelGap(0, 1), 0);
+    assert.equal(stepVoxelGap(5, -1), 5);
+    assert.equal(stepVoxelGap(0.05, 0), 0.05);
   });
 
   it("places neighbors one cube apart at gap 0 and two at gap 1", () => {
@@ -505,5 +516,11 @@ describe("voxel gap lattice", () => {
     assert.equal(openB.x - openA.x, 2);
     const below = voxelLocalCenter(0, 0, 9, 5, 5, 1, 10, 1, 1);
     assert.equal(openA.y - below.y, 2);
+  });
+
+  it("maps rail back indices", () => {
+    assert.equal(flipAxisIndex(0, 5, false), 0);
+    assert.equal(flipAxisIndex(0, 5, true), 4);
+    assert.deepEqual(flipAxisRange(0, 2, 5, true), { lo: 2, hi: 4 });
   });
 });

@@ -65,12 +65,13 @@ export function parseStartSearch(
   const source =
     normalizeStartSource(q.get("src") || q.get("source"), demos) || defaultSource;
   const qualityRaw = q.get("quality") || q.get("q");
-  const quality = qualityRaw
+  const qualityExplicit = Boolean(qualityRaw);
+  const quality = qualityExplicit
     ? normalizeViewQuality(qualityRaw)
     : defaultQuality;
   const face = parseFaceQuery(raw);
   const facePlacement = readFacePlacementParams(q);
-  return { source, quality, face, facePlacement };
+  return { source, quality, face, facePlacement, qualityExplicit };
 }
 
 export function startSearchFromState(

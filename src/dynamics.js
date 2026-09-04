@@ -33,7 +33,7 @@ export const MAX_STAB_GENS = 16;
 /** Tape stamp cap so the Tail slider can stretch past the default 16. */
 export const STAB_TAIL_MAX = 64;
 export const STAB_TAIL_MIN = 2;
-/** Occupancy fill. 1 packs faces at View Gap 0; open seams with the Gap slider. */
+/** Occupancy fill. 1 packs faces at View Gap 0; open seams with Gap. */
 export const SCALE_UNIFORM = 1;
 export const SCALE_OPEN = 0.52;
 export const SCALE_STAB_MIN = 0.5;

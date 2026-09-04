@@ -184,6 +184,24 @@ export function offsetLength(cam, target) {
   return Math.hypot(cam.x - target.x, cam.y - target.y, cam.z - target.z);
 }
 
+/** Radians this frame for a live spin around product Z (engine Y). */
+export function spinYawDelta(dt, revPerSec = 1 / 24) {
+  const t = Number(dt);
+  const r = Number(revPerSec);
+  if (!Number.isFinite(t) || !Number.isFinite(r) || t === 0 || r === 0) return 0;
+  return t * r * Math.PI * 2;
+}
+
+/**
+ * OrbitControls `autoRotateSpeed` for `update(deltaTime)` so one
+ * revolution takes `1 / revPerSec` seconds.
+ */
+export function spinAutoRotateSpeed(revPerSec = 1 / 24) {
+  const r = Number(revPerSec);
+  if (!Number.isFinite(r) || r === 0) return 0;
+  return r * 60;
+}
+
 /**
  * Slide camera and orbit target along a product axis (x→X, y→Z, z→Y).
  * In-plane pan and look offset stay. Used so a viewcube cut tracks the playhead.

@@ -108,6 +108,17 @@ describe("stand axis", () => {
     assert.equal(arStandLift("z", short, s), 12 * s);
     assert.equal(arStandLift("z", tall, s), 80 * s);
   });
+
+  it("flip sits the opposite end of the standing axis on the table", () => {
+    const q = standQuatFromAxis("z", true);
+    const up = rotateVecByQuat({ x: 0, y: -1, z: 0 }, q);
+    assert.ok(Math.abs(up.x) < 1e-6);
+    assert.ok(Math.abs(up.y - 1) < 1e-6);
+    assert.ok(Math.abs(up.z) < 1e-6);
+    const s = XR_BOARD_METERS / XR_BOARD_CELLS;
+    const box = volumeLocalAabb(32, 32, -48, 0, 1);
+    assert.equal(arStandLift("z", box, s, true), 0);
+  });
 });
 
 describe("clampArMag", () => {

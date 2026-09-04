@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind, startPlaneChromeFor, startShadeFor } from "./config.js";
-import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor } from "./config.js";
+import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
   PathTimer,
@@ -81,6 +81,8 @@ import {
   placeOnViewRay,
   slabYRange,
   snapPose,
+  spinAutoRotateSpeed,
+  spinYawDelta,
   translateAlongProductAxis,
   volumeRadius,
 } from "./orbit.js";
@@ -143,6 +145,7 @@ import {
   FACE_AR_SOURCE,
   FACE_AR_SOURCE_FALLBACK,
   FACE_DEFAULT_OFFSET,
+  FACE_MAG_DEFAULT,
   composeFaceStage,
   faceArSourceId,
   faceExtentCells,
@@ -150,20 +153,31 @@ import {
   isFaceProjectSource,
 } from "./face-calib.js";
 import {
-  FACE_IRIS_CENTER_INDEXES,
+  cameraFacingKind,
   closeFaceLandmarker,
   detectFaceForVideo,
-  faceIrisConnections,
   faceLipsConnections,
   faceMeshConnections,
   faceOvalConnections,
   isFaceArSupported,
   loadFaceLandmarker,
+  listFaceCameras,
+  mirrorFromCamera,
+  pickSelfieDeviceId,
   preferEnvironmentCamera,
   startFaceCamera,
   stopFaceCamera,
+  faceUsesPhoneChrome,
 } from "./face-ar.js";
-import { clearOverlay, drawFaceLandmarks, FACE_IRIS_FILL, FACE_PUPIL_FILL, fitOverlayCanvas } from "./face-draw.js";
+import {
+  clearOverlay,
+  drawFaceLandmarks,
+  drawIrisDiscs,
+  drawPupilDiscs,
+  FACE_IRIS_FILL,
+  FACE_PUPIL_FILL,
+  fitOverlayCanvas,
+} from "./face-draw.js";
 import {
   XR_PINCH_MIN_M,
   distance3,
@@ -190,6 +204,7 @@ if (versionEl) versionEl.textContent = `v${VERSION}`;
 const coarse = window.matchMedia("(pointer: coarse)").matches;
 const headsetBrowser = isHeadsetBrowser(navigator.userAgent || "");
 const gizmoNarrowMq = window.matchMedia("(max-width: 720px)");
+const shortViewportMq = window.matchMedia("(max-height: 520px)");
 function showGizmo() {
   return gizmoOnScreen({
     coarse,
@@ -375,6 +390,9 @@ let focusSurfaces = { x: null, y: null, z: null };
 let nowGrid;
 let playing = false;
 let looping = false;
+let spinning = false;
+let spinYawHeld = false;
+let spinStickHeld = false;
 let editing = false;
 let parallax = DEFAULTS.parallax;
 let alignZ = DEFAULTS.alignZ;
@@ -398,6 +416,7 @@ let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
 let voxelGap = DEFAULTS.voxelGap;
 let viewQuality = DEFAULTS.viewQuality;
+let qualityLocked = false;
 let stabMode = DEFAULTS.stabSize ? "time" : "none";
 let stabStart = DEFAULTS.stabStart;
 let stabTail = DEFAULTS.stabTail;
@@ -447,6 +466,7 @@ let faceAnchored = false;
 let faceMirrored = false;
 let faceLandmarker = null;
 let faceStream = null;
+let faceCamerasReady = false;
 let facePose = null;
 let faceStagePose = null;
 let faceLastDetect = 0;
@@ -455,11 +475,11 @@ let faceSavedQuality = null;
 const faceTracker = createFaceTracker();
 let faceMeshLinks = [];
 let faceOvalLinks = [];
-let faceIrisLinks = [];
 let faceLipsLinks = [];
 let faceTrackerError = "";
 let faceDetectTs = 0;
 let faceEnvironment = false;
+let faceDeviceId = "";
 let faceLandmarkN = 0;
 
 const clock = new FrameClock();
@@ -472,6 +492,7 @@ let gpuInfo = null;
 const ui = bindUI({
   togglePlay,
   toggleLoop,
+  toggleSpin,
   toggleEdit,
   toggleParallax,
   fitVolume,
@@ -484,11 +505,14 @@ const ui = bindUI({
   yaw: (deg) => {
     setTurntableYaw(yawFromDegrees(deg ?? ui.getYawDegrees()));
   },
+  spinHold: (held) => {
+    spinYawHeld = Boolean(held);
+  },
   sliceAxis: (axis) => setActiveAxis(axis),
   activeAxis: (axis) => setActiveAxis(axis),
   loopAxis: (axis) => setLoopAxis(axis),
   shade: (mode) => setShadeMode(mode),
-  viewQuality: (id) => applyViewQuality(id),
+  viewQuality: (id) => applyViewQuality(id, { user: true }),
   slab: (next) => {
     enterInspect();
     applySlab(next.axis, next, next.dragged || "focus");
@@ -577,7 +601,12 @@ const ui = bindUI({
   enterAr,
   enterFaceAr,
   toggleFaceProject,
-  toggleFaceFacing,
+  faceCameraFacing: (environment) => {
+    void setFaceCamera({ environment: Boolean(environment) });
+  },
+  faceCameraDevice: (deviceId) => {
+    void setFaceCamera({ deviceId });
+  },
   exitAr,
   arMag: () => {
     setArMag(ui.getArMag());
@@ -854,7 +883,11 @@ function syncArVolumeVisible() {
 }
 
 function facePhoneChrome() {
-  return Boolean(coarse || gizmoNarrowMq.matches);
+  return faceUsesPhoneChrome({
+    narrow: gizmoNarrowMq.matches,
+    coarse,
+    short: shortViewportMq.matches,
+  });
 }
 
 function syncArOverlayChrome() {
@@ -1011,7 +1044,7 @@ function applyFaceStagePose() {
     syncArVolumeVisible();
     return;
   }
-  const s = faceStageScale(DEFAULTS.cellSize, arMag, faceVolumeExtent());
+  const s = faceStageScale(DEFAULTS.cellSize, FACE_MAG_DEFAULT, faceVolumeExtent());
   if (!(s > 0)) return;
   const calib = ui.getFaceCalib?.() || { offset: FACE_DEFAULT_OFFSET, flipLR: false };
   const composed = composeFaceStage(pose, { ...calib, scale: s });
@@ -1092,6 +1125,20 @@ function syncFaceMirror() {
   faceOverlay?.classList.toggle("is-mirror", flip);
 }
 
+function syncFaceMirrorFromStream(cameras = []) {
+  const track = faceStream?.getVideoTracks?.()[0];
+  const settings = track && typeof track.getSettings === "function" ? track.getSettings() : {};
+  const id = String(settings.deviceId || faceDeviceId || "");
+  const cam = (Array.isArray(cameras) ? cameras : []).find((c) => c.deviceId === id) || {};
+  const facing = settings.facingMode || (faceEnvironment ? "environment" : "user");
+  faceMirrored = mirrorFromCamera({
+    facingMode: facing,
+    label: cam.label,
+  });
+  ui.setFaceFlip?.(faceMirrored);
+  syncFaceMirror();
+}
+
 function recaptureFace() {
   faceTracker.reset();
   faceLocked = false;
@@ -1135,18 +1182,18 @@ async function enterFaceAr() {
     planeLock = false;
     dirtyView = true;
   }
+  stopSpin();
   if (!parallax) toggleParallax();
-  const environment = preferEnvironmentCamera({
-    coarse,
-    userAgent: navigator.userAgent || "",
-  });
+  const environment = preferEnvironmentCamera();
+  faceDeviceId = "";
   faceMirrored = !environment;
   faceEnvironment = environment;
   faceSavedQuality = viewQuality;
   faceTrackerError = "";
   faceActive = true;
-  if (facePhoneChrome()) applyViewQuality("low");
+  faceCamerasReady = false;
   setShadeMode("ghost");
+  applyFacePlaneChrome();
   setArDocument(facePhoneChrome());
   document.documentElement.classList.toggle("is-face-ar", true);
   document.body.classList.toggle("is-face-ar", true);
@@ -1162,11 +1209,14 @@ async function enterFaceAr() {
   syncFog();
   resize();
   syncArOverlayChrome();
-  ui.setFaceFacing?.(faceEnvironment);
   ui.setFaceFlip?.(!environment);
+  ui.setFaceCameras?.([], { environment });
   syncFaceMirror();
+  syncPlaceBanner();
   try {
-    faceStream = await startFaceCamera(faceVideo, { environment });
+    await startPreferredFaceCamera();
+    faceCamerasReady = true;
+    syncPlaceBanner();
   } catch (err) {
     console.warn("DONNER Face AR camera failed", err);
     ui.setHint(err && err.message ? String(err.message) : "Camera could not start");
@@ -1178,7 +1228,6 @@ async function enterFaceAr() {
     faceLandmarker = await loadFaceLandmarker();
     faceMeshLinks = faceMeshConnections(faceLandmarker);
     faceOvalLinks = faceOvalConnections(faceLandmarker);
-    faceIrisLinks = faceIrisConnections(faceLandmarker);
     faceLipsLinks = faceLipsConnections(faceLandmarker);
     faceTrackerError = "";
   } catch (err) {
@@ -1202,44 +1251,87 @@ async function toggleFaceProject() {
   await enterFaceAr();
 }
 
-async function setFaceCamera(environment) {
+function faceTrackSettings() {
+  const track = faceStream?.getVideoTracks?.()[0];
+  return track && typeof track.getSettings === "function" ? track.getSettings() : {};
+}
+
+function bindFaceCameraUi(cameras = []) {
+  const settings = faceTrackSettings();
+  const id = String(settings.deviceId || faceDeviceId || "");
+  const cam = (Array.isArray(cameras) ? cameras : []).find((c) => c.deviceId === id) || {};
+  const facing = settings.facingMode || (faceEnvironment ? "environment" : "user");
+  faceEnvironment = cameraFacingKind({ ...cam, facingMode: facing }) === "rear";
+  faceDeviceId = id;
+  ui.setFaceCameras?.(cameras, { deviceId: id, environment: faceEnvironment });
+  syncFaceMirrorFromStream(cameras);
+}
+
+async function startPreferredFaceCamera() {
+  const environment = preferEnvironmentCamera();
+  faceEnvironment = environment;
+  faceDeviceId = "";
+  faceStream = await startFaceCamera(faceVideo, { environment, deviceId: "" });
+  const cameras = await listFaceCameras();
+  const selfieId = pickSelfieDeviceId(cameras);
+  const settings = faceTrackSettings();
+  const currentId = String(settings.deviceId || "");
+  const current = cameras.find((c) => c.deviceId === currentId) || {};
+  const kind = cameraFacingKind({ ...current, facingMode: settings.facingMode });
+  if (selfieId && kind === "rear" && selfieId !== currentId) {
+    stopFaceCamera(faceStream, faceVideo);
+    faceStream = await startFaceCamera(faceVideo, {
+      environment: false,
+      deviceId: selfieId,
+    });
+  }
+  bindFaceCameraUi(await listFaceCameras());
+}
+
+async function setFaceCamera({ environment, deviceId = "" } = {}) {
   if (!facePresenting()) return;
-  const next = Boolean(environment);
-  if (next === faceEnvironment) return;
-  faceEnvironment = next;
-  ui.setFaceFacing?.(faceEnvironment);
-  ui.setFaceFlip?.(!faceEnvironment);
+  const id = String(deviceId || "").trim();
+  let nextEnv = Boolean(environment);
+  if (id) {
+    const listed = await listFaceCameras();
+    const cam = listed.find((c) => String(c.deviceId) === id);
+    if (cam) nextEnv = cameraFacingKind(cam) === "rear";
+  }
+  if (id && id === faceDeviceId) return;
+  if (!id && nextEnv === faceEnvironment && !faceDeviceId) return;
+  faceDeviceId = id;
+  faceEnvironment = nextEnv;
   recaptureFace();
-  syncFaceMirror();
   try {
     stopFaceCamera(faceStream, faceVideo);
     faceStream = null;
-    faceStream = await startFaceCamera(faceVideo, { environment: faceEnvironment });
+    faceStream = await startFaceCamera(faceVideo, {
+      environment: faceEnvironment,
+      deviceId: faceDeviceId,
+    });
+    bindFaceCameraUi(await listFaceCameras());
   } catch (err) {
     console.warn("DONNER Face AR camera switch failed", err);
     ui.setHint(err && err.message ? String(err.message) : "Camera switch failed");
   }
 }
 
-async function toggleFaceFacing() {
-  await setFaceCamera(!faceEnvironment);
-}
-
 async function exitFaceAr() {
   if (!faceActive && !faceStream && !faceLandmarker) {
     document.documentElement.classList.remove("is-face-ar");
     document.body.classList.remove("is-face-ar");
+    faceCamerasReady = false;
     return;
   }
   faceActive = false;
   faceLocked = false;
   faceAnchored = false;
+  faceCamerasReady = false;
   facePose = null;
   faceStagePose = null;
   faceTrackerError = "";
   faceMeshLinks = [];
   faceOvalLinks = [];
-  faceIrisLinks = [];
   faceLipsLinks = [];
   faceLandmarkN = 0;
   faceDetectTs = 0;
@@ -1291,7 +1383,6 @@ function paintFaceOverlay(result) {
   const face = result?.faceLandmarks?.[0];
   if (!face) return;
   if (faceLocked) {
-    const w = faceOverlayCtx.canvas.width;
     drawFaceLandmarks(faceOverlayCtx, face, faceOvalLinks, {
       mirrored: false,
       stroke: "#ffc53d",
@@ -1302,23 +1393,8 @@ function paintFaceOverlay(result) {
       stroke: "#e53935",
       dots: false,
     });
-    drawFaceLandmarks(faceOverlayCtx, face, faceIrisLinks, {
-      mirrored: false,
-      stroke: "#87CEEB",
-      dots: false,
-    });
-    drawFaceLandmarks(faceOverlayCtx, face, [], {
-      mirrored: false,
-      fill: FACE_IRIS_FILL,
-      dots: FACE_IRIS_CENTER_INDEXES,
-      dotRadius: Math.max(4.5, w / 160),
-    });
-    drawFaceLandmarks(faceOverlayCtx, face, [], {
-      mirrored: false,
-      fill: FACE_PUPIL_FILL,
-      dots: FACE_IRIS_CENTER_INDEXES,
-      dotRadius: Math.max(2.2, w / 420),
-    });
+    drawIrisDiscs(faceOverlayCtx, face, { mirrored: false, fill: FACE_IRIS_FILL });
+    drawPupilDiscs(faceOverlayCtx, face, { mirrored: false, fill: FACE_PUPIL_FILL });
     return;
   }
   drawFaceLandmarks(faceOverlayCtx, face, faceMeshLinks, { mirrored: false, dots: false });
@@ -1349,7 +1425,6 @@ function tickFaceAr(now) {
     faceLocked = true;
     faceAnchored = true;
     setArPlacedDocument(true);
-    ui.setArYawEnabled(true);
     syncArOverlayChrome();
     updateHint();
   }
@@ -1618,12 +1693,14 @@ function setArMag(next) {
 }
 
 function updateXrControllerPose(dt) {
+  spinStickHeld = false;
   if (!xrPresenting() || !arLocked) {
     arPinch = null;
     if (arFrameDrag) updateArFrameDrag();
     return;
   }
   if (arFrameDrag) {
+    spinStickHeld = true;
     updateArFrameDrag();
     return;
   }
@@ -1643,6 +1720,7 @@ function updateXrControllerPose(dt) {
       { x: _gripB.x, y: _gripB.y, z: _gripB.z },
     );
     if (!(dist >= XR_PINCH_MIN_M)) return;
+    spinStickHeld = true;
     if (!arPinch) arPinch = { dist, mag: arMag };
     else setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
     return;
@@ -1650,7 +1728,10 @@ function updateXrControllerPose(dt) {
   arPinch = null;
   const x = strongestStickX(sources.map((s) => thumbstickXFromAxes(s.gamepad?.axes)));
   const dYaw = yawDeltaFromStick(x, dt);
-  if (dYaw) setTurntableYaw(turntableYaw + dYaw);
+  if (dYaw) {
+    spinStickHeld = true;
+    setTurntableYaw(turntableYaw + dYaw);
+  }
 }
 
 function updateXrHud() {
@@ -1702,12 +1783,20 @@ function updateReticle(xrFrame) {
     reticle.visible = true;
     reticle.matrix.fromArray(chosen);
   } finally {
-    syncArPlaceBanner();
+    syncPlaceBanner();
   }
 }
 
-function syncArPlaceBanner() {
-  ui.setArPlaceBanner?.(xrPresenting() && !arLocked && Boolean(reticle.visible));
+function syncPlaceBanner() {
+  if (facePresenting()) {
+    ui.setArPlaceBanner?.(!faceCamerasReady, "Initializing cameras…");
+    return;
+  }
+  if (xrPresenting() && !arLocked) {
+    ui.setArPlaceBanner?.(true, reticle.visible ? "Tap to place" : "Searching for a surface…");
+    return;
+  }
+  ui.setArPlaceBanner?.(false);
 }
 
 function setArDocument(on) {
@@ -1716,7 +1805,7 @@ function setArDocument(on) {
   if (!on) {
     setArPlacedDocument(false);
     reticle.visible = false;
-    syncArPlaceBanner();
+    syncPlaceBanner();
   }
 }
 
@@ -1726,15 +1815,15 @@ function setArPlacedDocument(on) {
 }
 
 async function enterAr() {
-  if (arPresenting()) return;
+  if (arPresenting() || facePresenting()) return;
+  const xr = navigator.xr;
+  if (!(await isImmersiveArSupported(xr))) return;
   if (planeLock) {
     planeLock = false;
     dirtyView = true;
   }
   if (!parallax) toggleParallax();
   if (activeAxis !== "z") setActiveAxis("z");
-  const xr = navigator.xr;
-  if (!(await isImmersiveArSupported(xr))) return;
   const overlay = overlayRootForAr(
     document.getElementById("xr-overlay"),
     navigator.userAgent || "",
@@ -1800,7 +1889,11 @@ async function onArSessionStart() {
     ui.setArStandAxis?.("z");
     setArPlacedDocument(false);
     syncArVolumeVisible();
-    if (!arPhoneOverlay) captureViewerAnchor();
+    if (!arPhoneOverlay) {
+      stopSpin();
+      captureViewerAnchor();
+    }
+    syncSpinControls();
     const session = renderer.xr.getSession();
     requestViewerHitTestSource(session).then((src) => {
       if (!xrPresenting()) return;
@@ -1850,6 +1943,7 @@ function onArSessionEnd() {
   dirtyView = true;
   syncFog();
   pinOrbitPivot();
+  syncSpinControls();
   ui.setArActive(false);
   ui.setArYawEnabled(true);
   syncClipPlanes();
@@ -1886,6 +1980,16 @@ function applyStartShade(kind) {
   dirtyView = true;
 }
 
+function applyFacePlaneChrome() {
+  const chrome = facePlaneChrome();
+  hideCenter = Boolean(chrome.hideCenter);
+  hideOuter = Boolean(chrome.hideOuter);
+  ui.setPlaneChrome(chrome);
+  setFrameHover(null);
+  syncClipPlanes();
+  dirtyView = true;
+}
+
 function applyStartPlaneChrome(kind) {
   const chrome = startPlaneChromeFor(kind);
   hideCenter = Boolean(chrome.hideCenter);
@@ -1898,10 +2002,15 @@ function applyStartPlaneChrome(kind) {
 
 function applyStartLook(kind) {
   applyStartShade(kind);
-  applyStartPlaneChrome(kind);
+  if (facePresenting()) applyFacePlaneChrome();
+  else applyStartPlaneChrome(kind);
+  ui.setVoxelGap(startVoxelGapFor(kind));
+  applyVoxelGap();
+  setLoopAxis(startLoopAxisFor(kind));
 }
 
-function applyViewQuality(id) {
+function applyViewQuality(id, { user = false } = {}) {
+  if (user) qualityLocked = true;
   viewQuality = normalizeViewQuality(id ?? ui.getConfig().viewQuality);
   const spec = viewQualitySpec(viewQuality);
   cubes.setUnlit(spec.unlit);
@@ -1911,6 +2020,12 @@ function applyViewQuality(id) {
   if (arPresenting()) refreshGpu();
   else resize();
   syncStartUrl();
+}
+
+function suggestQualityFromCells(cells) {
+  if (qualityLocked) return;
+  const next = autoViewQuality({ cells });
+  if (next !== viewQuality) applyViewQuality(next);
 }
 
 function syncStartUrl() {
@@ -2344,6 +2459,7 @@ function bootCount(vol) {
   sourceId = "count";
   countVol = vol;
   ensureCubeCapForCells(countInstanceCap(vol));
+  suggestQualityFromCells(vol.count);
   gensPerSec = ui.getConfig().gensPerSec;
   loopPerSec = ui.getConfig().loopPerSec;
   decay = ui.getConfig().decay;
@@ -2449,7 +2565,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     const buf = await res.arrayBuffer();
-    const vol = countVolumeFromNpy(buf, name);
+    const vol = countVolumeFromNpy(buf, name, countDemoLoadOpts(kind));
     if (COUNT_DEMOS[kind]) rememberDemoVolume(kind, vol);
     bootCount(vol);
     ui.setCountHint(COUNT_HINT);
@@ -2698,6 +2814,7 @@ function bootWorld(resizeGrid) {
   fillAndUpload();
   syncCacheUi();
   updateHint();
+  suggestQualityFromCells(tape?.eventCount || 0);
 }
 
 function stopLoop() {
@@ -2710,6 +2827,45 @@ function stopLoop() {
   syncClipPlanes();
   applyGridLook();
   dirtyView = true;
+}
+
+function syncSpinControls() {
+  const orbit = spinning && !arPresenting() && !facePresenting() && !planeLock;
+  controls.autoRotate = orbit;
+  if (orbit) controls.autoRotateSpeed = spinAutoRotateSpeed(DEFAULTS.spinRevPerSec);
+}
+
+function arSpinBlocked() {
+  return Boolean(yawDrag || spinYawHeld || spinStickHeld || arPinch || arFrameDrag);
+}
+
+function tickSpin(dt) {
+  if (!spinning || facePresenting()) return;
+  if (!arPresenting()) return;
+  if (!arLocked || arSpinBlocked()) return;
+  setTurntableYaw(turntableYaw + spinYawDelta(dt, DEFAULTS.spinRevPerSec));
+}
+
+function stopSpin() {
+  spinning = false;
+  spinYawHeld = false;
+  spinStickHeld = false;
+  controls.autoRotate = false;
+  ui.setSpinning(false);
+}
+
+function toggleSpin() {
+  if (facePresenting()) return;
+  if (spinning) {
+    stopSpin();
+    updateHint();
+    return;
+  }
+  if (planeLock) exitPlaneLock();
+  spinning = true;
+  syncSpinControls();
+  ui.setSpinning(true);
+  updateHint();
 }
 
 function toggleLoop() {
@@ -2859,6 +3015,7 @@ function planeRectSize(axis) {
 
 function enterPlaneLock(axis, sign) {
   if (arPresenting() || !world) return;
+  stopSpin();
   const a = normalizeSliceAxis(axis);
   const s = sign >= 0 ? 1 : -1;
   if (lockedFaceAction(planeLock, activeAxis, planeLockSign, a, s) === "page") {
@@ -3075,17 +3232,18 @@ function updateHint() {
         : !faceLandmarker
           ? "Face — camera live · loading tracker…"
           : faceLocked
-            ? "Face — brain follows the head · Selfie switches camera · Exit"
+            ? "Face — brain follows the head · camera menu · Exit"
             : faceLandmarkN
               ? `Face — ${faceLandmarkN} landmarks · hold still until the brain locks`
               : "Face — point the camera at a face · hold still until the brain locks",
     );
+    syncPlaceBanner();
     applyGridLook();
     playfields.z.setEditing(editing);
     return;
   }
   if (arPresenting()) {
-    syncArPlaceBanner();
+    syncPlaceBanner();
     if (!arLocked) {
       ui.setHint(
         !arHitTestResolved
@@ -3916,6 +4074,7 @@ function frame(now, xrFrame) {
       }
       updateXrHud();
       updateXrControllerPose(dt);
+      tickSpin(dt);
     } else if (facePresenting()) {
       tickFaceAr(now);
     } else {
@@ -3923,7 +4082,8 @@ function frame(now, xrFrame) {
         xrHud.visible = false;
         setXrRaysVisible(false);
       }
-      controls.update();
+      syncSpinControls();
+      controls.update(dt);
       if (!planeLock) pinOrbitPivot();
     }
     syncHeadlamp();
@@ -3979,6 +4139,7 @@ function frame(now, xrFrame) {
           focus: foc,
           playing,
           looping,
+          spinning,
           ortho: !parallax,
           software: Boolean(gpuInfo && gpuInfo.software),
         });
@@ -4026,6 +4187,8 @@ function frame(now, xrFrame) {
 
 const start = parseStartSearch(window.location.search);
 ui.setSourceKind(start.source);
+ui.setFaceAvailable(isFaceArSupported({ userAgent: navigator.userAgent || "" }));
+qualityLocked = Boolean(start.qualityExplicit);
 applyViewQuality(start.quality);
 if (start.facePlacement) {
   ui.setFacePlacement?.(start.facePlacement);
@@ -4042,9 +4205,9 @@ try {
 }
 ui.setPlaying(playing);
 ui.setLooping(looping);
+ui.setSpinning(spinning);
 renderer.xr.addEventListener("sessionstart", onArSessionStart);
 renderer.xr.addEventListener("sessionend", onArSessionEnd);
 isImmersiveArSupported().then((ok) => ui.setArAvailable(ok));
-ui.setFaceAvailable(isFaceArSupported({ userAgent: navigator.userAgent || "" }));
 if (start.face) void enterFaceAr();
 renderer.setAnimationLoop(frame);

@@ -19,6 +19,7 @@ import { copyAnyPlanes, copyAxisPlane, EventSoA } from "../src/spacetime.js";
 import { COUNT_LUT_RUNGS } from "../src/encoding.js";
 import {
   COUNT_DEMOS,
+  countDemoLoadOpts,
   isCountSourceKind,
 } from "../src/config.js";
 
@@ -75,6 +76,36 @@ describe("count volume", () => {
     assert.equal(vol.liveAt(1), 1);
     assert.equal(vol.sumAt(0), 3);
     assert.equal(vol.newestT(), 1);
+  });
+
+  it("swaps product Y and Z so file T becomes Y", () => {
+    const dense = new Uint16Array(2 * 3 * 2);
+    dense[(1 * 3 + 2) * 2 + 0] = 9;
+    const vol = countVolumeFromDense(dense, [2, 3, 2], "swap", { swapYZ: true });
+    assert.equal(vol.width, 2);
+    assert.equal(vol.height, 2);
+    assert.equal(vol.nT, 3);
+    assert.equal(vol.count, 1);
+    assert.equal(vol.x[0], 0);
+    assert.equal(vol.y[0], 1);
+    assert.equal(vol.t[0], 2);
+    assert.ok(vol.eventIndexAt(0, 1, 2) >= 0);
+  });
+
+  it("mirrors product Z after the swap (Ignition export fix)", () => {
+    const dense = new Uint16Array(2 * 3 * 2);
+    dense[(1 * 3 + 2) * 2 + 0] = 9;
+    const vol = countVolumeFromDense(dense, [2, 3, 2], "ign", {
+      swapYZ: true,
+      flipZ: true,
+    });
+    assert.equal(vol.width, 2);
+    assert.equal(vol.height, 2);
+    assert.equal(vol.nT, 3);
+    assert.equal(vol.x[0], 0);
+    assert.equal(vol.y[0], 1);
+    assert.equal(vol.t[0], 0);
+    assert.ok(vol.eventIndexAt(0, 1, 0) >= 0);
   });
 
   it("sums an ON/OFF pair on the last axis", () => {
@@ -520,6 +551,23 @@ describe("count source demos", () => {
     assert.equal(COUNT_DEMOS["mni152-low"].url, "data/mni152_low_stack.npy");
     assert.equal(COUNT_DEMOS.ignition.url, "data/ignition_stack.npy");
     assert.equal(COUNT_DEMOS.ignition.label, "Lighter Ignition");
+    assert.equal(COUNT_DEMOS.ignition.swapYZ, true);
+    assert.equal(COUNT_DEMOS.ignition.flipY, undefined);
+    assert.equal(COUNT_DEMOS.ignition.flipZ, true);
+    assert.deepEqual(countDemoLoadOpts("ignition"), {
+      swapYZ: true,
+      flipX: false,
+      flipY: false,
+      flipZ: true,
+    });
+    assert.deepEqual(countDemoLoadOpts("mni152"), {
+      swapYZ: false,
+      flipX: false,
+      flipY: false,
+      flipZ: false,
+    });
+    assert.equal(COUNT_DEMOS.ignition.loopAxis, "y");
+    assert.equal(COUNT_DEMOS.mni152.swapYZ, undefined);
     assert.equal(COUNT_DEMOS.mni152.label, "Brain MRI High");
     assert.equal(COUNT_DEMOS["mni152-low"].label, "Brain MRI Low");
   });
