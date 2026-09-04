@@ -699,7 +699,7 @@ grow the DOM.
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader; `parseNpyHeader` / `peekNpyBlob` for ingest |
-| `src/volume-prep.js` | Count-cube ingest gate, 500k comfort warn, streaming mean/max-bin (skip short axes) |
+| `src/volume-prep.js` | Count-cube ingest gate, 500k comfort warn, streaming mean/max-bin (skip short axes), landscape ingest preview |
 | `src/count.js` | Sparse count volume → `EventSoA` |
 | `src/wolke.js` | WOLKE viewer contract: Socket.IO notify + same-origin `/stream-npy` GET |
 | `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the static HTTP/HTTPS servers |

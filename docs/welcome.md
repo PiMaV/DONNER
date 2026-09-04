@@ -82,7 +82,7 @@ dtype, payload, and cell count. About 500k cells is the comfort cap —
 reduce, or analyze in BLITZ. Binning skips a short axis (one Z plane still
 bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
 preview of the first output plane. A taller-than-wide plane rotates 90°
-first, then scales to the dialog (width and height). Streamer / sidecar Connect is not on this static host.
+first, then scales to the dialog width. Streamer / sidecar Connect is not on this static host.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
 Ignition ~3 % occupancy). Dense bricks like Brain MRI High are the expensive

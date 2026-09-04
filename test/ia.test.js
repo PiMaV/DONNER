@@ -226,8 +226,7 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="ingest-preview"/);
     assert.match(html, /id="ingest-preview-frame"/);
     assert.match(css, /dialog\.ingest-dialog:not\(:open\)\s*\{[^}]*display:\s*none\s*!important/s);
-    assert.match(css, /\.ingest-preview\s*\{[^}]*max-height:\s*min\(36vh,\s*280px\)/s);
-    assert.match(css, /\.ingest-preview\s*\{[^}]*max-width:\s*100%/s);
+    assert.match(css, /\.ingest-preview\s*\{[^}]*width:\s*100%/s);
     assert.doesNotMatch(html, /id="ingest-chip"/);
     assert.doesNotMatch(html, /id="ingest-open"/);
     const src = sourcePanel();

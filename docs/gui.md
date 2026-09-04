@@ -356,8 +356,8 @@ and cell count. About **500k** occupied-scale cells is the comfort cap
 (warn; reduce or analyze in BLITZ). Optional 2/4/8 binning skips an axis
 shorter than the factor (one Z plane still bins X/Y), uses **mean**
 (downsample) or **max** (keep peaks), and a **Plasma** preview of the
-first output plane. A taller-than-wide plane rotates 90° first; the
-image then scales to the dialog width and is capped by height.
+first output plane. A taller-than-wide plane rotates 90° first, then
+scales to the dialog width.
 Curated demos skip the gate.
 The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
 Pages). See [`backlog.md`](../backlog.md). Visitor copy:

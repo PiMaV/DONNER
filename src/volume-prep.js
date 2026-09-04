@@ -443,6 +443,36 @@ export function stretchGrayU8(plane) {
 }
 
 /**
+ * Rotate a gray preview 90° clockwise when it is taller than wide.
+ * Dialog CSS scales to width; a portrait plane would otherwise blow the height.
+ *
+ * @param {{ width: number, height: number, gray: Uint8Array, frames?: number }} shot
+ */
+export function landscapePreview(shot) {
+  if (!shot) return shot;
+  const w = shot.width | 0;
+  const h = shot.height | 0;
+  const gray = shot.gray;
+  if (!gray || w < 1 || h < 1 || gray.length < w * h) {
+    return { ...shot, rotated: false };
+  }
+  if (h <= w) return { ...shot, rotated: false };
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      out[x * h + (h - 1 - y)] = gray[y * w + x];
+    }
+  }
+  return {
+    ...shot,
+    width: h,
+    height: w,
+    gray: out,
+    rotated: true,
+  };
+}
+
+/**
  * First output plane after the chosen factor / reduce, for the ingest preview.
  * Reads only the first `ft` source T-planes from the blob.
  *

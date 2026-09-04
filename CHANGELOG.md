@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Ingest preview: a taller-than-wide first plane rotates 90° so the gate can scale it to the full dialog width.
 - The previous native Brain MRI cube is now **Brain MRI High** (id `mni152`, ~23 MB). High stays opt-in; Quality Low/Medium/High is still the renderer, not the MRI grid.
 
 ## [0.13.0] - 2026-09-03

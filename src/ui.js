@@ -4,6 +4,7 @@ import { normalizeViewQuality } from "./quality.js";
 import { countCmapCss, DEFAULT_COUNT_CMAP, DEFAULT_COUNT_TRIM, grayToCmapRgba, normalizeCountCmap, normalizeCountTrim } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
+import { landscapePreview } from "./volume-prep.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
 
 const PATTERN_HINT = {
@@ -1337,23 +1338,25 @@ export function bindUI(on) {
         ingestPreviewWrap.hidden = true;
         return;
       }
-      ingestPreview.width = shot.width;
-      ingestPreview.height = shot.height;
+      const view = landscapePreview(shot);
+      ingestPreview.width = view.width;
+      ingestPreview.height = view.height;
       const ctx = ingestPreview.getContext("2d");
       if (!ctx) {
         ingestPreviewWrap.hidden = true;
         return;
       }
-      const img = ctx.createImageData(shot.width, shot.height);
-      img.data.set(grayToCmapRgba(shot.gray, "plasma"));
+      const img = ctx.createImageData(view.width, view.height);
+      img.data.set(grayToCmapRgba(view.gray, "plasma"));
       ctx.putImageData(img, 0, 0);
       ingestPreview.style.width = "100%";
       ingestPreview.style.height = "auto";
       ingestPreviewWrap.hidden = false;
       if (ingestPreviewCap) {
-        ingestPreviewCap.textContent = shot.frames > 1
-          ? `First output plane (${shot.frames} source frames)`
+        const base = view.frames > 1
+          ? `First output plane (${view.frames} source frames)`
           : "First plane";
+        ingestPreviewCap.textContent = view.rotated ? `${base} · rotated 90° to fit` : base;
       }
     },
     setWolkeConnected(on) {

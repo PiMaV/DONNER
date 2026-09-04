@@ -10,6 +10,7 @@ import {
   binCountDense,
   ingestDialogModel,
   ingestPlan,
+  landscapePreview,
   previewIngestFromBlob,
 } from "../src/volume-prep.js";
 
@@ -240,6 +241,34 @@ describe("per-axis bin", () => {
 });
 
 describe("ingest preview", () => {
+  it("rotates a taller-than-wide plane 90° clockwise so the dialog can scale to width", () => {
+    const shot = {
+      width: 2,
+      height: 3,
+      gray: Uint8Array.from([1, 2, 3, 4, 5, 6]),
+      frames: 1,
+    };
+    const view = landscapePreview(shot);
+    assert.equal(view.rotated, true);
+    assert.equal(view.width, 3);
+    assert.equal(view.height, 2);
+    assert.deepEqual(Array.from(view.gray), [5, 3, 1, 6, 4, 2]);
+    const wide = landscapePreview({
+      width: 3,
+      height: 2,
+      gray: Uint8Array.from([1, 2, 3, 4, 5, 6]),
+    });
+    assert.equal(wide.rotated, false);
+    assert.equal(wide.width, 3);
+    assert.equal(wide.height, 2);
+    const square = landscapePreview({
+      width: 2,
+      height: 2,
+      gray: Uint8Array.from([1, 2, 3, 4]),
+    });
+    assert.equal(square.rotated, false);
+  });
+
   it("renders the first output plane without reading later frames", async () => {
     const dense = new Uint16Array(2 * 2 * 2);
     dense[0] = 8;
