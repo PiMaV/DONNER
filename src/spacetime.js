@@ -355,6 +355,19 @@ export class GenerationRing {
   }
 }
 
+/** Compact id so the View cache line is not rewritten every rAF tick. */
+export function cacheStatusKey({
+  gens,
+  events,
+  full,
+  inspect,
+  atNow = true,
+  tick = "gen",
+  source = "conway",
+} = {}) {
+  return `${gens | 0}:${events | 0}:${full ? 1 : 0}:${inspect ? 1 : 0}:${atNow ? 1 : 0}:${tick}:${source}`;
+}
+
 /** One-line RAM tape status for the View sheet. */
 export function formatCacheStatus({ gens, events, full, tapeMode, tick = "gen" }) {
   const n = events | 0;

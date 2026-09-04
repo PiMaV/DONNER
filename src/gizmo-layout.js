@@ -66,3 +66,23 @@ export function gizmoScissor(box, canvasRect, viewW, viewH) {
   const y = Math.max(0, Math.min(viewH - size, Math.round(canvasRect.bottom - (box.top || 0) - size)));
   return { x, y, size };
 }
+
+/** Remember one CSS measure until chrome/resize invalidates it. */
+export class GizmoCssCache {
+  constructor() {
+    this._hit = null;
+  }
+
+  invalidate() {
+    this._hit = null;
+  }
+
+  peek() {
+    return this._hit;
+  }
+
+  remember(value) {
+    this._hit = value;
+    return value;
+  }
+}

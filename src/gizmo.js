@@ -10,6 +10,7 @@ import { productViewDir } from "./axes.js";
 import {
   GIZMO_CSS,
   GIZMO_CSS_COARSE,
+  GizmoCssCache,
   MARGIN_CSS,
   gizmoCssBox,
   gizmoOnScreen,
@@ -24,6 +25,7 @@ export {
   gizmoOnScreen,
   gizmoScissor,
   GIZMO_CSS,
+  GizmoCssCache,
   MARGIN_CSS,
   viewFromLocalNormal,
 };
@@ -38,6 +40,18 @@ const FACE = 1.22;
 const FACE_OPACITY = 0.28;
 const FACE_HOVER = 0.7;
 
+function copyRect(r) {
+  if (!r) return null;
+  return {
+    left: r.left,
+    top: r.top,
+    right: r.right,
+    bottom: r.bottom,
+    width: r.width,
+    height: r.height,
+  };
+}
+
 function overlayRects() {
   if (typeof document === "undefined") return [];
   const out = [];
@@ -49,7 +63,7 @@ function overlayRects() {
     if (el.hidden) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
-    out.push(r);
+    out.push(copyRect(r));
   }
   return out;
 }
@@ -62,7 +76,7 @@ function slotRect() {
   if (st.display === "none" || st.visibility === "hidden") return null;
   const r = el.getBoundingClientRect();
   if (r.width < 1 || r.height < 1) return null;
-  return r;
+  return copyRect(r);
 }
 
 function makeLabel(text, cssColor) {
@@ -119,6 +133,7 @@ export class ViewGizmo {
     this._ndc = new THREE.Vector2();
     this._size = new THREE.Vector2();
     this._look = new THREE.Vector3();
+    this._css = new GizmoCssCache();
     this._build();
   }
 
@@ -126,14 +141,22 @@ export class ViewGizmo {
     return this.coarse ? GIZMO_CSS_COARSE : GIZMO_CSS;
   }
 
+  invalidateCss() {
+    this._css.invalidate();
+  }
+
+  _measureCss(canvas) {
+    const hit = this._css.peek();
+    if (hit) return hit;
+    const canvasRect = copyRect(canvas.getBoundingClientRect());
+    const slot = slotRect();
+    const overlays = slot ? [] : overlayRects();
+    const box = gizmoCssBox(canvasRect, this.cssSize(), MARGIN_CSS, overlays, slot);
+    return this._css.remember({ canvasRect, slot, overlays, box });
+  }
+
   cssBox(canvas) {
-    return gizmoCssBox(
-      canvas.getBoundingClientRect(),
-      this.cssSize(),
-      MARGIN_CSS,
-      overlayRects(),
-      slotRect(),
-    );
+    return this._measureCss(canvas).box;
   }
 
   _build() {
@@ -233,14 +256,14 @@ export class ViewGizmo {
 
   layoutHit(el, canvas) {
     if (!el) return;
-    if (slotRect()) {
+    const { slot, box } = this._measureCss(canvas);
+    if (slot) {
       el.style.left = "";
       el.style.top = "";
       el.style.width = "";
       el.style.height = "";
       return;
     }
-    const box = this.cssBox(canvas);
     el.style.left = `${Math.round(box.left)}px`;
     el.style.top = `${Math.round(box.top)}px`;
     el.style.width = `${Math.round(box.size)}px`;
@@ -249,11 +272,10 @@ export class ViewGizmo {
 
   render(renderer, hitEl) {
     const canvas = renderer.domElement;
+    const { canvasRect, box } = this._measureCss(canvas);
     this.layoutHit(hitEl, canvas);
     const full = renderer.getSize(this._size);
-    const box = this.cssBox(canvas);
-    const rect = canvas.getBoundingClientRect();
-    const { x, y, size } = gizmoScissor(box, rect, full.x, full.y);
+    const { x, y, size } = gizmoScissor(box, canvasRect, full.x, full.y);
     const tone = renderer.toneMapping;
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.clearDepth();

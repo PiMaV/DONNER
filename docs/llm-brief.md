@@ -271,6 +271,7 @@ advantage, not a deployment convenience.
   [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
   — Serve, **Tests and visual QA**, layers, XR/Face
+- FPS notes (Kleinvieh + later fill-rate ideas): [`docs/fps_opti.md`](fps_opti.md)
 - Later / XR ladder: [`backlog.md`](../backlog.md)
   — Dataset Contract after the public host; MRI stays a dense count `.npy`
   until `ScalarVolume` (no NIfTI parser / NiiVue)

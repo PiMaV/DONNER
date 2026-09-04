@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FrameClock, formatSourceHud, formatViewHud, meanSlowestMs, SPARK_LEN, LOW_LEN } from "../src/hud.js";
+import { FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen, meanSlowestMs, SPARK_LEN, LOW_LEN } from "../src/hud.js";
 
 describe("FrameClock", () => {
   it("records frame times and a rolling average", () => {
@@ -201,5 +201,13 @@ describe("HUD copy", () => {
       software: true,
     });
     assert.match(view, /SOFTWARE/);
+  });
+});
+
+describe("hudTelemetryOpen", () => {
+  it("is off unless the FPS card class is on the root", () => {
+    assert.equal(hudTelemetryOpen(null), false);
+    assert.equal(hudTelemetryOpen({ classList: { contains: (n) => n === "hud-bench-open" } }), true);
+    assert.equal(hudTelemetryOpen({ classList: { contains: () => false } }), false);
   });
 });

@@ -40,6 +40,14 @@ export function viewQualitySpec(id) {
   return { id: "high", dprCap: 1.25, unlit: false, toneMapping: true, fillLight: true };
 }
 
+/** Low hides unused lights (`visible = false`), not only intensity 0. */
+export function qualityLightsOn(spec) {
+  if (!spec || spec.unlit) {
+    return { hemi: false, key: false, fill: false };
+  }
+  return { hemi: true, key: true, fill: Boolean(spec.fillLight) };
+}
+
 /** Drawing-buffer scale. Headset / coarse still clamp a cap above 1.5. */
 export function pixelRatioForQuality(
   quality,

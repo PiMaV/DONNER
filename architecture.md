@@ -1120,6 +1120,10 @@ XR-unsafe). Auto quality from Bench metrics is later.
 
 ## Performance envelope
 
+Paused-orbit CPU/DOM cuts (cached viewcube CSS, throttled FPS chip, headlamp skip)
+live in [`docs/fps_opti.md`](docs/fps_opti.md). Fill-rate / Ghost ideas stay there
+as later work.
+
 Instanced cubes: solid + ghost `InstancedMesh`, default **200 000**
 instances (View **Cube cap** up to 20 000 000). Game of Life Play stays
 at 200 000; Pause fits the tape. Dense MRI raises to the hull size, not

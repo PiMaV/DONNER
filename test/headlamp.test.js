@@ -7,6 +7,8 @@ import {
   HEADLAMP_UNDER_LOCAL,
   headlampPose,
   offsetInView,
+  skipOrbitHeadlamp,
+  snapshotHeadlampCam,
   viewLookTarget,
 } from "../src/headlamp.js";
 import { yawQuatY } from "../src/turntable.js";
@@ -58,5 +60,30 @@ describe("headlampPose", () => {
     const pose = headlampPose(ORIGIN, ID, 40, { under: true });
     assert.equal(pose.fill.y, HEADLAMP_UNDER_LOCAL.y);
     assert.ok(pose.fill.y < 0);
+  });
+});
+
+describe("skipOrbitHeadlamp", () => {
+  const pos = { x: 1, y: 2, z: 3 };
+  const quat = { x: 0, y: 0, z: 0, w: 1 };
+
+  it("never skips in XR", () => {
+    const prev = snapshotHeadlampCam(pos, quat, false);
+    assert.equal(skipOrbitHeadlamp({ xr: true, under: false, pos, quat, prev }), false);
+  });
+
+  it("skips a settled orbit camera", () => {
+    const prev = snapshotHeadlampCam(pos, quat, false);
+    assert.equal(skipOrbitHeadlamp({ xr: false, under: false, pos, quat, prev }), true);
+  });
+
+  it("runs when the camera moved or Face-under flipped", () => {
+    const prev = snapshotHeadlampCam(pos, quat, false);
+    assert.equal(
+      skipOrbitHeadlamp({ xr: false, under: false, pos: { ...pos, x: 8 }, quat, prev }),
+      false,
+    );
+    assert.equal(skipOrbitHeadlamp({ xr: false, under: true, pos, quat, prev }), false);
+    assert.equal(skipOrbitHeadlamp({ xr: false, under: false, pos, quat, prev: null }), false);
   });
 });

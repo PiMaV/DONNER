@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-04
+
+### Changed
+
+- Paused orbit does less DOM and layout work: the viewcube CSS box is cached, the FPS chip follows the 0.4 s display tick, spark/stats paint only while the FPS card is open, and the headlamp skips a still camera. Quality Low hides unused lights.
+
 ## [0.16.0] - 2026-09-04
 
 ### Added

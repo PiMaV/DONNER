@@ -888,6 +888,7 @@ export function bindUI(on) {
     foldSource.setAttribute("aria-expanded", sourceOpen ? "true" : "false");
     foldView.textContent = viewOpen ? "View ▾" : "View ▸";
     foldSource.textContent = sourceOpen ? "Source ▾" : "Source ▸";
+    on.gizmoLayout?.();
   };
   foldView.addEventListener("click", () => {
     setFold(panelView.classList.contains("is-open") ? "" : "view");
@@ -910,6 +911,7 @@ export function bindUI(on) {
     if (narrow.matches) return;
     panel.classList.toggle("is-collapsed");
     syncRailFolds();
+    on.gizmoLayout?.();
   };
   railSource?.addEventListener("click", () => onRailFold(panelSource));
   railView?.addEventListener("click", () => onRailFold(panelView));
@@ -930,16 +932,22 @@ export function bindUI(on) {
   });
   syncConwaySetup();
   const setLookMore = (open) => {
-    document.body.classList.toggle("is-look-more", open);
-    lookMoreBtn?.setAttribute("aria-expanded", open ? "true" : "false");
-    lookMoreBtn?.classList.toggle("is-on", open);
+    const onMore = Boolean(open);
+    const was = document.body.classList.contains("is-look-more");
+    document.body.classList.toggle("is-look-more", onMore);
+    lookMoreBtn?.setAttribute("aria-expanded", onMore ? "true" : "false");
+    lookMoreBtn?.classList.toggle("is-on", onMore);
+    if (was !== onMore) on.gizmoLayout?.();
   };
   lookMoreBtn?.addEventListener("click", () => {
     setLookMore(!document.body.classList.contains("is-look-more"));
   });
   const setBenchOpen = (open) => {
-    document.body.classList.toggle("hud-bench-open", open);
-    fpsChip?.setAttribute("aria-expanded", open ? "true" : "false");
+    const onCard = Boolean(open);
+    const was = document.body.classList.contains("hud-bench-open");
+    document.body.classList.toggle("hud-bench-open", onCard);
+    fpsChip?.setAttribute("aria-expanded", onCard ? "true" : "false");
+    if (was !== onCard) on.gizmoLayout?.();
   };
   fpsChip?.addEventListener("click", () => {
     setBenchOpen(!document.body.classList.contains("hud-bench-open"));
@@ -1421,7 +1429,10 @@ export function bindUI(on) {
       if (overlayLabel && label) overlayLabel.textContent = label;
     },
     setFps(fps) {
-      if (fpsChip) fpsChip.textContent = `${Number(fps).toFixed(0)} FPS`;
+      if (!fpsChip) return;
+      const text = `${Number(fps).toFixed(0)} FPS`;
+      if (fpsChip.textContent === text) return;
+      fpsChip.textContent = text;
     },
     setBenchHud(text) {
       if (!viewBench) return;

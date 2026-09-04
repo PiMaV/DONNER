@@ -7,6 +7,7 @@ import {
   autoViewQuality,
   normalizeViewQuality,
   pixelRatioForQuality,
+  qualityLightsOn,
   viewQualitySpec,
 } from "../src/quality.js";
 
@@ -39,6 +40,21 @@ describe("view quality", () => {
       unlit: false,
       toneMapping: true,
       fillLight: true,
+    });
+    assert.deepEqual(qualityLightsOn(viewQualitySpec("low")), {
+      hemi: false,
+      key: false,
+      fill: false,
+    });
+    assert.deepEqual(qualityLightsOn(viewQualitySpec("medium")), {
+      hemi: true,
+      key: true,
+      fill: false,
+    });
+    assert.deepEqual(qualityLightsOn(viewQualitySpec("high")), {
+      hemi: true,
+      key: true,
+      fill: true,
     });
   });
 

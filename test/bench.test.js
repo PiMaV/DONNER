@@ -11,7 +11,7 @@ import {
 import { KIND_MOVING, KIND_STILL } from "../src/dynamics.js";
 import { seedPattern, stepClassic } from "../src/conway.js";
 import { mulberry32 } from "../src/rng.js";
-import { EventSoA, GenerationRing, drawnWindow, fadePastSpan, formatCacheStatus, visibleTimeSpan } from "../src/spacetime.js";
+import { EventSoA, GenerationRing, cacheStatusKey, drawnWindow, fadePastSpan, formatCacheStatus, visibleTimeSpan } from "../src/spacetime.js";
 
 describe("isSoftwareRenderer", () => {
   it("flags known CPU rasterizers", () => {
@@ -256,6 +256,22 @@ describe("append-only tape", () => {
     assert.match(
       formatCacheStatus({ gens: 800, events: 12000, full: true, tapeMode: true }),
       /inspect/,
+    );
+    assert.equal(
+      cacheStatusKey({
+        gens: 12,
+        events: 40,
+        full: false,
+        inspect: false,
+        atNow: true,
+        tick: "gen",
+        source: "conway",
+      }),
+      "12:40:0:0:1:gen:conway",
+    );
+    assert.notEqual(
+      cacheStatusKey({ gens: 12, events: 40, full: false, inspect: false, atNow: true, tick: "gen", source: "conway" }),
+      cacheStatusKey({ gens: 13, events: 40, full: false, inspect: false, atNow: true, tick: "gen", source: "conway" }),
     );
   });
 });

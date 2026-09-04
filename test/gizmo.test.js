@@ -9,7 +9,7 @@ import {
   slabIndices,
   sliceMaxBack,
 } from "../src/axes.js";
-import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
+import { GizmoCssCache, gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { gizmoFollowYaw } from "../src/turntable.js";
 import { clampCubeCap, cubeCapForLoadedCells, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
@@ -217,5 +217,25 @@ describe("axis colors", () => {
     assert.equal(hexCss(AXIS_COLOR.z), "#3ecf8e");
     assert.notEqual(AXIS_COLOR.z, 0x00fff2);
     assert.notEqual(AXIS_COLOR.x, 0xffc53d);
+  });
+});
+
+describe("viewcube CSS cache", () => {
+  it("keeps one measure until invalidate", () => {
+    const cache = new GizmoCssCache();
+    const canvas = { left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 };
+    let n = 0;
+    const measure = () => {
+      n += 1;
+      return gizmoCssBox(canvas, 96, MARGIN_CSS);
+    };
+    const a = cache.peek() || cache.remember(measure());
+    const b = cache.peek() || cache.remember(measure());
+    assert.equal(n, 1);
+    assert.equal(a, b);
+    assert.equal(a.left, 800 - MARGIN_CSS - 96);
+    cache.invalidate();
+    cache.remember(measure());
+    assert.equal(n, 2);
   });
 });

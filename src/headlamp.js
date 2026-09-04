@@ -42,3 +42,37 @@ export function headlampPose(camPos, camQuat, dist = 40, { under = false } = {})
     target: viewLookTarget(camPos, camQuat, dist),
   };
 }
+
+/** Orbit can skip a light move when the camera pose (and Face-under flag) did not change. XR never skips. */
+export const HEADLAMP_POSE_EPS = 1e-7;
+
+export function snapshotHeadlampCam(pos, quat, under = false) {
+  return {
+    x: Number(pos?.x) || 0,
+    y: Number(pos?.y) || 0,
+    z: Number(pos?.z) || 0,
+    qx: Number(quat?.x) || 0,
+    qy: Number(quat?.y) || 0,
+    qz: Number(quat?.z) || 0,
+    qw: Number(quat?.w) || 1,
+    under: Boolean(under),
+  };
+}
+
+export function skipOrbitHeadlamp({ xr = false, under = false, pos, quat, prev, eps = HEADLAMP_POSE_EPS } = {}) {
+  if (xr) return false;
+  if (!prev) return false;
+  if (Boolean(prev.under) !== Boolean(under)) return false;
+  const next = snapshotHeadlampCam(pos, quat, under);
+  const e = Number(eps);
+  const lim = Number.isFinite(e) && e > 0 ? e : HEADLAMP_POSE_EPS;
+  return (
+    Math.abs(next.x - prev.x) <= lim &&
+    Math.abs(next.y - prev.y) <= lim &&
+    Math.abs(next.z - prev.z) <= lim &&
+    Math.abs(next.qx - prev.qx) <= lim &&
+    Math.abs(next.qy - prev.qy) <= lim &&
+    Math.abs(next.qz - prev.qz) <= lim &&
+    Math.abs(next.qw - prev.qw) <= lim
+  );
+}

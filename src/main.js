@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor } from "./config.js";
-import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec, autoViewQuality } from "./quality.js";
+import { normalizeViewQuality, pixelRatioForQuality, qualityLightsOn, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
   PathTimer,
@@ -19,7 +19,7 @@ import { peekNpyBlob } from "./npy.js";
 import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
-import { drawSparkline, FrameClock, formatSourceHud, formatViewHud } from "./hud.js";
+import { drawSparkline, FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen } from "./hud.js";
 import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import { io } from "../vendor/socket.io/socket.io.esm.min.js";
@@ -38,6 +38,7 @@ import {
   copyAxisPlane,
   fadePastSpan,
   visibleTimeSpan,
+  cacheStatusKey,
 } from "./spacetime.js";
 import {
   aabbFromSlabs,
@@ -92,7 +93,7 @@ import {
   yawDeltaFromDrag,
   yawFromDegrees,
 } from "./turntable.js";
-import { headlampPose } from "./headlamp.js";
+import { headlampPose, skipOrbitHeadlamp, snapshotHeadlampCam } from "./headlamp.js";
 import { bindUI } from "./ui.js";
 import {
   applyOrthoAspect,
@@ -325,13 +326,26 @@ const gizmo = new ViewGizmo({ coarse });
 const gizmoHit = document.getElementById("gizmo-hit");
 const gizmoSlot = document.getElementById("gizmo-slot");
 const gizmoCol = document.querySelector(".gizmo-col");
+let lastGizmoOn = null;
+function invalidateGizmoCss() {
+  gizmo.invalidateCss();
+}
 function syncGizmoChrome() {
   const on = showGizmo();
+  if (on === lastGizmoOn) return;
+  lastGizmoOn = on;
   if (gizmoHit) gizmoHit.hidden = !on;
   if (gizmoSlot) gizmoSlot.hidden = !on;
   if (gizmoCol) gizmoCol.hidden = !on;
+  invalidateGizmoCss();
 }
 syncGizmoChrome();
+if (typeof gizmoNarrowMq.addEventListener === "function") {
+  gizmoNarrowMq.addEventListener("change", () => {
+    invalidateGizmoCss();
+    syncGizmoChrome();
+  });
+}
 
 const hemi = new THREE.HemisphereLight(0xb8c8e0, 0x0a0e13, 0.72);
 scene.add(hemi);
@@ -344,6 +358,7 @@ scene.add(fill.target);
 const _headPos = new THREE.Vector3();
 const _headQuat = new THREE.Quaternion();
 const _headScale = new THREE.Vector3();
+let lastHeadlampCam = null;
 
 let soa = new EventSoA(DEFAULTS.maxInstances);
 let soaPlane = new EventSoA(DEFAULTS.maxInstances);
@@ -485,6 +500,8 @@ let faceLandmarkN = 0;
 const clock = new FrameClock();
 const paths = new PathTimer();
 paths.setEnabled(false);
+let lastHudDisplayFps = NaN;
+let lastCacheHudKey = "";
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let gpuInfo = null;
@@ -519,6 +536,7 @@ const ui = bindUI({
   },
   slabHold: (held) => setShadeHeld(held),
   cubeCap: () => applyCubeCap(),
+  gizmoLayout: invalidateGizmoCss,
   bench: () => {
     const on = Boolean(ui.getConfig().bench);
     paths.setEnabled(on);
@@ -922,12 +940,22 @@ function syncHeadlamp() {
   const cam = headlampCamera();
   cam.updateMatrixWorld();
   cam.matrixWorld.decompose(_headPos, _headQuat, _headScale);
-  const pose = headlampPose(
-    { x: _headPos.x, y: _headPos.y, z: _headPos.z },
-    { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w },
-    40,
-    { under: facePresenting() },
-  );
+  const under = facePresenting();
+  const pos = { x: _headPos.x, y: _headPos.y, z: _headPos.z };
+  const quat = { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w };
+  if (
+    skipOrbitHeadlamp({
+      xr: xrPresenting(),
+      under,
+      pos,
+      quat,
+      prev: lastHeadlampCam,
+    })
+  ) {
+    return;
+  }
+  lastHeadlampCam = snapshotHeadlampCam(pos, quat, under);
+  const pose = headlampPose(pos, quat, 40, { under });
   key.position.set(pose.key.x, pose.key.y, pose.key.z);
   fill.position.set(pose.fill.x, pose.fill.y, pose.fill.z);
   key.target.position.set(pose.target.x, pose.target.y, pose.target.z);
@@ -1959,6 +1987,10 @@ function syncFog() {
   const ar = arPresenting();
   scene.fog = !parallax || inspect || ar ? null : fog;
   const spec = viewQualitySpec(viewQuality);
+  const lights = qualityLightsOn(spec);
+  hemi.visible = lights.hemi;
+  key.visible = lights.key;
+  fill.visible = lights.fill;
   if (spec.unlit) {
     hemi.intensity = 0;
     key.intensity = 0;
@@ -3807,6 +3839,7 @@ function clearHover() {
 
 function resize() {
   if (xrPresenting()) return;
+  invalidateGizmoCss();
   renderer.setPixelRatio(
     pixelRatioForQuality(viewQuality, {
       devicePixelRatio: window.devicePixelRatio || 1,
@@ -4125,9 +4158,15 @@ function frame(now, xrFrame) {
     paths.measure("hud", () => {
       const foc = tFocus();
       const store = viewStore();
-      const fps = clock.displayFps || 1000 / clock.emaMs;
+      const shown = clock.displayFps;
+      if (shown !== lastHudDisplayFps) {
+        lastHudDisplayFps = shown;
+        ui.setFps(shown || 1000 / clock.emaMs);
+      }
+      const cardOpen = hudTelemetryOpen();
       const ms = clock.displayMs || clock.emaMs;
-      if (hudViewEl) {
+      const fps = shown || 1000 / clock.emaMs;
+      if (cardOpen && hudViewEl) {
         hudViewEl.textContent = formatViewHud({
           fps,
           avgFps: clock.avgFps,
@@ -4144,8 +4183,7 @@ function frame(now, xrFrame) {
           software: Boolean(gpuInfo && gpuInfo.software),
         });
       }
-      ui.setFps(fps);
-      if (paths.enabled) {
+      if (cardOpen && paths.enabled) {
         const rows = paths.snapshot();
         ui.setBenchHud(
           `${formatBenchHud({
@@ -4168,7 +4206,7 @@ function frame(now, xrFrame) {
         });
       }
       if (tape) {
-        ui.setCache({
+        const cacheOpts = {
           gens: tape.size,
           events: tape.eventCount,
           full: tape.stopped,
@@ -4176,9 +4214,14 @@ function frame(now, xrFrame) {
           atNow: slabs.z.focus === 0,
           tick: sourceId === "count" ? "t" : "gen",
           source: sourceId,
-        });
+        };
+        const cacheKey = cacheStatusKey(cacheOpts);
+        if (cacheKey !== lastCacheHudKey) {
+          lastCacheHudKey = cacheKey;
+          ui.setCache(cacheOpts);
+        }
       }
-      if (hudSparkEl) drawSparkline(hudSparkEl, clock);
+      if (cardOpen && hudSparkEl) drawSparkline(hudSparkEl, clock);
     });
   } catch (err) {
     console.warn("DONNER hud", err);

@@ -125,6 +125,11 @@ export class FrameClock {
   }
 }
 
+/** Spark / FPS card next to the viewcube (`body.hud-bench-open`). */
+export function hudTelemetryOpen(root = typeof document !== "undefined" ? document.body : null) {
+  return Boolean(root?.classList?.contains("hud-bench-open"));
+}
+
 export function formatViewHud({
   fps,
   avgFps,

@@ -51,6 +51,19 @@ CPU `rend` 0.3 ms → `bound GPU fill`.
 - DEV Bench path timers off until checked. SOFTWARE warning on the FPS chip.
 - No FPS cap (vsync / `setAnimationLoop` only).
 - Session RAM cache of decoded demo cubes (switch Source without refetch).
+- Kleinvieh (paused orbit): cached viewcube CSS box, FPS chip on the 0.4 s
+  display tick, spark/stats only while the FPS card is open, cache status on
+  change, headlamp skip when the orbit camera is still, Quality Low lights
+  `visible = false`.
+
+```mermaid
+flowchart LR
+  raf[every rAF]
+  raf --> cache[cached gizmo CSS]
+  raf --> hud[HUD writes if card open]
+  raf --> lamp[headlamp if camera moved]
+  raf --> draw[still renderer.render]
+```
 
 ## Unreleased working tree — brakes vs wins
 
@@ -74,76 +87,6 @@ Game of Life stay High.
 
 **Wins in the same tree:** extra One-Euro on the Face stage gone; demo
 RAM cache; Face hides plane frames; dock/AR FPS chip opaque.
-
----
-
-## Next slice — Kleinvieh (CPU / DOM every frame)
-
-Cheap work that runs **every** rAF tick while paused. Does not change cube
-look, Quality, or Ghost blending. Does **not** skip `renderer.render` (XR,
-Face AR, and damping still need a draw). Fill-rate slices stay later.
-
-### 1. Cache viewcube CSS layout
-
-[`src/gizmo.js`](../src/gizmo.js) `cssBox()` / `render()` / `layoutHit()` call
-`getBoundingClientRect` and `getComputedStyle` on the canvas, `#gizmo-slot`,
-and overlay selectors (`.stack`, `.look-strip`, `.look-more`, `.gizmo-fps`,
-`.hud-cards`) **every frame**. Desktop uses the slot; overlays are unused
-once a slot exists, but they are still measured.
-
-Cache `{ canvasRect, slot, overlays, box }`. Invalidate on window /
-`visualViewport` resize, `showGizmo()` flip, Look More, FPS card open/close,
-and fold layout. `gizmoCssBox` math in [`src/gizmo-layout.js`](../src/gizmo-layout.js)
-stays pure.
-
-`syncGizmoChrome()` in [`src/main.js`](../src/main.js) must not set `hidden`
-when the flag did not change.
-
-### 2. Throttle HUD DOM
-
-[`src/main.js`](../src/main.js) `frame()` HUD block writes every tick:
-
-- `hudViewEl.textContent = formatViewHud(...)` even when `#hud-engine` is
-  closed (`body.hud-bench-open` is off).
-- `ui.setFps(fps)` with `displayFps || 1000 / emaMs` — EMA changes every
-  frame, so the chip text changes every frame.
-- `drawSparkline` on `#hud-spark` every frame.
-- `ui.setCache(...)` every frame.
-
-Keep `FrameClock` sampling every frame (honest FPS). Write the chip from
-`displayFps` (already ~0.4 s). Write spark + `#hud-view` + Bench text only
-while `hud-bench-open`. Write cache status only when the status key changes.
-Conway live overlay already runs only while playing.
-
-### 3. Skip headlamp when the camera is still
-
-[`src/main.js`](../src/main.js) `syncHeadlamp()` decomposes the camera and
-moves two lights every frame. In XR, always update (headset moves). In orbit,
-skip when position / quaternion match the last pose within a small epsilon
-(after damping has settled).
-
-### 4. Hide unused lights on Quality Low
-
-`syncFog()` already sets hemi / key / fill **intensity** to 0 on Low. Also
-set `visible = false` so Three does not keep them in the light list. Restore
-key on Medium / High; fill only on High.
-
-### Out of this slice
-
-Idle skip of `renderer.render`, Ghost hashed-alpha, phone `backdrop-filter`,
-canvas `alpha`, adaptive DPR, exposed faces, greedy hull, Conway SoA append.
-
-### Test / docs when implementing
-
-- Gizmo: layout cache invalidates; `gizmoCssBox` tests stay.
-- HUD: chip text stable between `displayFps` ticks; spark not required when
-  the card is closed (unit-test the guard if extracted).
-- Headlamp: no pose write when camera frozen (unit-test the skip predicate).
-- CHANGELOG `[Unreleased]`: paused orbit does less DOM / layout work; FPS
-  chip still honest.
-- One pointer from `architecture.md` Performance envelope and
-  [`docs/llm-brief.md`](llm-brief.md) Related list to this file (if not
-  already linked).
 
 ---
 
