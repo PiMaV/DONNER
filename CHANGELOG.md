@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Public doors: bare URL is **Brain MRI Low** (Ghost). `?src=life` is Game of Life (Hull). `?src=ignition` is Lighter Ignition (Ghost). **Face** is always visible when the camera exists; `?face=1` enters. Laptop webcam is the doctor path.
+- World AR **Tap to place** banner when the gold floor reticle is visible.
+
 ### Changed
 
 - Chrome splits **Look** (Hull / Ghost / Cuts / Fit top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. AR **Loop** sits behind **More** with Hide, Reset Planes, and Quality.
 - Compact brand: tagline is **Xplore Data in 3D & XR**. Guide sits beside it; both stay within the left-rail width.
-- FPS is a small overlay on the viewcube (bottom-right). Tap it for the spark / DEV Bench card, independent of the View sheet so you can change settings while reading telemetry. Hidden in AR.
+- FPS is a small overlay on the viewcube (bottom-right). Tap it for the spark / DEV Bench card, independent of the View sheet so you can change settings while reading telemetry. Stays on Face and phone AR (Quest has no DOM overlay).
 - Footer **M.E.S.S.** and **WETTER** links are cyan; About and the version stay muted.
 - Cube cap default is **200 000** again. Game of Life **Play** stays on that live envelope. **Pause** raises the cap to the tape’s occupied cells (288k cubes → 288k instances, no `trunc`). A dense count cube (Brain MRI) raises only to the **hull** instance count, not every occupied voxel. Sparse Ignition still uses occupied cells. Switching back to Game of Life Play drops to 200 000.
+- Face chrome is slim: no millimetre sliders, Flip, Size, or XYZ rails. **Selfie** replaces Front/Back. Recapture is gone; a lost face keeps the last pose until tracking resumes. Hide center and Hide outer start on. AR/Face bottom buttons are opaque on passthrough.
 
 ### Fixed
 

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>DONNER | 3D & XR Explore</title>
   <meta name="description"
-    content="DONNER is a browser-native scientific 3D/XR explorer. Examples: Game of Life, Lighter Ignition, and Brain MRI Low / High." />
+    content="DONNER is a browser-native scientific 3D/XR explorer. Examples: Brain MRI Low / High, Lighter Ignition, and Game of Life." />
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -59,6 +59,7 @@
   </div>
 
   <div id="xr-overlay" class="xr-overlay">
+  <p id="ar-place-banner" class="ar-place-banner" hidden>Tap to place</p>
   <div class="hud-rail">
     <div class="gizmo-col">
       <div id="gizmo-slot" class="gizmo-slot">
@@ -67,8 +68,8 @@
       <button type="button" id="hud-fps" class="gizmo-fps" aria-expanded="false" aria-controls="hud-engine">— FPS</button>
       <div class="look-strip" role="group" aria-label="Look">
         <div class="btn-row shade-modes look-shade" role="radiogroup" aria-label="Inspect shade">
-          <button type="button" id="shade-hull" class="btn btn-shade is-on" aria-pressed="true" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
-          <button type="button" id="shade-ghost" class="btn btn-shade" aria-pressed="false" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
+          <button type="button" id="shade-hull" class="btn btn-shade" aria-pressed="false" title="Outer hull of the crop is solid. Grab a playhead edge to peek. Clip edges keep the hull.">Hull</button>
+          <button type="button" id="shade-ghost" class="btn btn-shade is-on" aria-pressed="true" title="Active plane solid; the crop hull stays as glass. Same peek for Brain MRI and Lighter Ignition.">Ghost</button>
           <button type="button" id="shade-triple" class="btn btn-shade" aria-pressed="false" title="The three orthogonal cut planes only. No hull.">Cuts</button>
         </div>
         <button type="button" id="btn-fit" class="btn look-fit" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
@@ -76,8 +77,8 @@
       <div class="look-more">
         <button type="button" id="btn-look-more" class="btn-show-planes" aria-expanded="false" aria-controls="look-more-panel" title="Loop, hide frames, Reset Planes, and Quality">More</button>
         <div id="look-more-panel" class="look-more-panel">
-          <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
-          <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
+          <button type="button" id="btn-hide-center" class="btn-show-planes is-on" aria-pressed="true" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
+          <button type="button" id="btn-hide-outer" class="btn-show-planes is-on" aria-pressed="true" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
           <div id="look-more-loop" class="look-more-loop"></div>
           <button type="button" id="btn-look-reset-planes" class="btn look-more-reset" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
           <div class="field look-more-quality">
@@ -214,7 +215,7 @@
           title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
-        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden>Front</button>
+        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden aria-pressed="false" title="Rear camera. Tap to use the selfie camera.">Selfie</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
@@ -242,15 +243,15 @@
       <label class="field">
         <span>Source</span>
         <select id="source-kind">
-          <option value="conway" selected>Game of Life</option>
-          <option value="ignition">Lighter Ignition</option>
-          <option value="mni152-low">Brain MRI Low</option>
+          <option value="mni152-low" selected>Brain MRI Low</option>
           <option value="mni152">Brain MRI High</option>
+          <option value="ignition">Lighter Ignition</option>
+          <option value="conway">Game of Life</option>
           <option value="npy">Load NumPy</option>
           <option value="count" hidden>Own cube</option>
         </select>
       </label>
-      <p id="source-blurb" class="hint source-blurb">A generator: each cube is a living cell, Z is generations. A short run fills the brick; Play grows it further.</p>
+      <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Face hangs this Ghost on a webcam or phone camera. Not a patient scan.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
       <button type="button" id="btn-face-ar-sheet" class="btn btn-face-ar" hidden>Face AR</button>
       <div id="source-conway">
@@ -453,13 +454,13 @@
       <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
       <h3>Examples</h3>
       <ul>
-        <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape.</li>
-        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.</li>
-        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Not a patient scan. Visitor default for <code>?src=brain</code>.</li>
+        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Not a patient scan. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. <strong>Face</strong> hangs it on the laptop webcam or a phone camera.</li>
         <li><strong>Brain MRI High</strong> — the same atlas at native grid. Larger download. <code>?src=mni152</code>.</li>
+        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording. <code>?src=ignition</code>. Starts in Ghost.</li>
+        <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape. <code>?src=life</code>. Starts in Hull.</li>
       </ul>
       <h3>Share</h3>
-      <p>The address bar follows the example: <code>?src=ignition</code>, <code>?src=mni152-low</code> (or <code>?src=brain</code>), <code>?src=mni152</code> (High), <code>?src=conway</code>. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
+      <p>The address bar follows the example. Bare URL is Brain MRI Low. <code>?src=life</code> (or <code>conway</code>) is Game of Life. <code>?src=ignition</code> is Lighter Ignition. <code>?src=mni152</code> is Brain MRI High. <code>?face=1</code> opens Face. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
       <h3>Credit</h3>
       <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
       <button type="submit" class="btn" value="close">Close</button>

@@ -304,6 +304,7 @@ export function bindUI(on) {
   const faceFacing = $("btn-face-facing");
   const xrExit = $("btn-xr-exit");
   const arReset = $("btn-ar-reset");
+  const arPlaceBanner = $("ar-place-banner");
   const arMag = $("ar-mag");
   const faceOffX = $("face-off-x");
   const faceOffY = $("face-off-y");
@@ -363,7 +364,6 @@ export function bindUI(on) {
   };
   let arSupported = false;
   let faceSupported = false;
-  let faceGate = false;
   const grid = $("grid");
   const wrap = $("wrap");
   const stopStable = $("stop-stable");
@@ -1174,18 +1174,12 @@ export function bindUI(on) {
     },
     setFaceAvailable(ok) {
       faceSupported = Boolean(ok);
-      const active = document.body.classList.contains("is-ar");
-      const show = faceGate && faceSupported && !active;
+      const show = faceSupported && !document.body.classList.contains("is-ar");
       if (faceBtn) faceBtn.hidden = !show;
       if (faceSheetBtn) faceSheetBtn.hidden = !show;
     },
-    setFaceGate(onGate) {
-      faceGate = Boolean(onGate);
-      document.body.classList.toggle("is-face-gate", faceGate);
-      const active = document.body.classList.contains("is-ar");
-      const show = faceGate && faceSupported && !active;
-      if (faceBtn) faceBtn.hidden = !show;
-      if (faceSheetBtn) faceSheetBtn.hidden = !show;
+    setFaceGate() {
+      this.setFaceAvailable(faceSupported);
     },
     setArActive(active, { locked = false, face = false } = {}) {
       if (xrExit) xrExit.hidden = !active;
@@ -1193,28 +1187,30 @@ export function bindUI(on) {
         faceFacing.hidden = !active || !face;
       }
       if (arReset) {
-        arReset.hidden = !active || !locked;
-        arReset.disabled = !locked;
-        arReset.textContent = face ? "Recapture" : "Reset Anchor";
-        arReset.title = face
-          ? "Drop the lock and scan the head again. Does not exit Face AR."
-          : "Despawn the volume and search for a floor plane again. Does not exit the session.";
+        arReset.hidden = !active || !locked || Boolean(face);
+        arReset.disabled = !locked || Boolean(face);
+        arReset.textContent = "Reset Anchor";
+        arReset.title =
+          "Despawn the volume and search for a floor plane again. Does not exit the session.";
       }
       if (arBtn) arBtn.hidden = !arSupported || active;
-      const showFace = faceGate && faceSupported && !active;
+      const showFace = faceSupported && !active;
       if (faceBtn) faceBtn.hidden = !showFace;
       if (faceSheetBtn) faceSheetBtn.hidden = !showFace;
       parkInspectTransport(Boolean(active && locked));
       if (!active || !locked) setLookMore(false);
       if (active) setBenchOpen(false);
+      if (!active) this.setArPlaceBanner(false);
     },
     setFaceFacing(environment) {
       if (!faceFacing) return;
-      const back = Boolean(environment);
-      faceFacing.textContent = back ? "Back" : "Front";
-      faceFacing.title = back
-        ? "Using the back camera. Tap to switch to the front camera."
-        : "Using the front camera. Tap to switch to the back camera.";
+      const selfie = !Boolean(environment);
+      faceFacing.textContent = "Selfie";
+      faceFacing.setAttribute("aria-pressed", selfie ? "true" : "false");
+      faceFacing.classList.toggle("is-on", selfie);
+      faceFacing.title = selfie
+        ? "Selfie camera. Tap to use the rear camera."
+        : "Rear camera. Tap to use the selfie camera.";
     },
     setFaceFlip(on) {
       if (!faceFlip) return;
@@ -1511,6 +1507,10 @@ export function bindUI(on) {
     },
     setHint(text) {
       if (hint) hint.textContent = text;
+    },
+    setArPlaceBanner(on) {
+      if (!arPlaceBanner) return;
+      arPlaceBanner.hidden = !on;
     },
     collapsePhoneSourceFold() {
       if (phoneFolds()) setFold("");

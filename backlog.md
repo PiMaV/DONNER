@@ -27,7 +27,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
 - Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
 - Phone AR search on enter (no Search Anchor), no Z-height slider, footprint-fit scale
-- Face AR PoC (`?face=1`) and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest)
+- Face AR PoC and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest). Face button is always visible when the camera exists; `?face=1` enters.
 
 **Later / next candidates** (keep; do not implement in this slice):
 
@@ -41,9 +41,9 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
-9. Face AR occlusion mesh, auto skull scale, Face button without `?face=1`
+9. Face AR occlusion mesh, auto skull scale
 
-Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face AR keeps the last Face pose until Recapture (no second WASM, no getImageData).
+Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face keeps the last Face pose until the face returns (no second WASM, no getImageData).
 
 ## Product roadmap
 

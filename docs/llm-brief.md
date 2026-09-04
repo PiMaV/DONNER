@@ -61,7 +61,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop top-right above the Look strip, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade is Hull / Ghost / Cuts on the Look strip (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). FPS is a viewcube overlay; tap it for the spark / DEV Bench card (not in View). Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop top-right above the Look strip, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade is Hull / Ghost / Cuts on the Look strip (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list; bare URL is Brain MRI Low). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). FPS is a viewcube overlay on desktop and a top-right chip on phone / Face / phone AR; tap it for the spark / DEV Bench card (not in View). Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -153,22 +153,26 @@ advantage, not a deployment convenience.
   to AR, named Hull / Ghost / Cuts top-right (no viewcube, no Fit).
   **More** holds Loop, Hide center / Hide outer, Reset Planes, Quality.
   Size / Yaw / Floor stay on the overlay. Same `setEvents`.
-  Face AR is a second mode (`?face=1`), not `immersive-ar`: getUserMedia
-  + MediaPipe Face Landmarker writes the same `stage` every frame. After
-  lock, keep the last pose if the mesh drops (until Recapture). No Pose
+  Face AR is a second mode, not `immersive-ar`: getUserMedia
+  + MediaPipe Face Landmarker writes the same `stage` every frame. The
+  Face button is always on when the camera exists; `?face=1` enters.
+  After lock, keep the last pose if the mesh drops; tracking resumes
+  when the face returns. No Pose
   Landmarker, no hull follow, no video getImageData sampler.
-  Prove camera + mesh on `face-lab.html` first (no Three.js). Phone uses
-  the back camera; desktop webcam is the lab path. Default overlay is
-  Brain MRI Low, Ghost, Quality Low. Pin `@mediapipe/tasks-vision@0.10.21`.
+  Prove camera + mesh on `face-lab.html` first (no Three.js). Phone starts
+  on the rear camera; desktop webcam is the doctor path (Selfie on).
+  Default overlay is Brain MRI Low, Ghost, Quality Low. Pin
+  `@mediapipe/tasks-vision@0.10.21`.
   Do not let `bootCount` move the orbit camera during Face AR. Infer
-  row- vs column-major facial matrices from translation. Front/Back
-  toggle matches the lab page. Flip L/R (default on for the user camera)
-  mirrors video, mesh, and pose. After lock, Shift / Lift / Inset place
-  the brain behind the face front. Defaults: Lift 141 mm, Inset 50 mm,
-  Size 1.2. Non-default placement mm + Size live in the door query
-  (`shift`, `lift`, `inset`, `size`). Full mesh overlay is only while
-  locking; after lock the outer oval, lips, and iris/pupil marks stay
-  while the face is visible. Overlay canvas caps at 640 px wide. Do not
+  row- vs column-major facial matrices from translation. Selfie toggle
+  (`aria-pressed`) is the user camera. Flip L/R still follows facing
+  internally. Lab millimetre defaults stay (Lift 141 mm, Inset 50 mm,
+  Size 1.2); Face chrome does not show those sliders, Size, or XYZ rails.
+  `?face=1` is the share door while the session is open. Full mesh overlay
+  is only while locking; after lock the outer oval, lips, and iris/pupil
+  marks stay while the face is visible. Overlay canvas caps at 640 px
+  wide. FPS stays on Face and phone AR (Quest has no DOM overlay). World
+  AR shows Tap to place when the gold reticle is visible. Do not
   put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
   spawn rails / Play / Size / Yaw / Floor / Reset Anchor / Exit plus Look

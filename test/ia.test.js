@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide } from "../src/config.js";
+import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startShadeFor } from "../src/config.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
@@ -142,6 +142,8 @@ describe("View sheet vs gizmo chrome", () => {
     const view = viewPanel();
     assert.match(gizmo, /id="btn-hide-center"/);
     assert.match(gizmo, /id="btn-hide-outer"/);
+    assert.match(html, /id="btn-hide-center"[^>]*aria-pressed="true"/);
+    assert.match(html, /id="btn-hide-outer"[^>]*aria-pressed="true"/);
     assert.doesNotMatch(view, /id="hide-center"|id="hide-outer"|id="btn-hide-center"|id="btn-hide-outer"/);
     assert.doesNotMatch(view, />Hide center</);
     assert.doesNotMatch(view, />Hide outer</);
@@ -268,10 +270,10 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     const src = sourcePanel();
     assert.doesNotMatch(src, /Drop \.npy/);
     assert.doesNotMatch(src, /id="drop-overlay"/);
-    assert.match(src, /<option value="conway"[^>]*>Game of Life</);
-    assert.match(src, /<option value="ignition">Lighter Ignition</);
-    assert.match(src, /<option value="mni152-low">Brain MRI Low</);
+    assert.match(src, /<option value="mni152-low"[^>]*selected[^>]*>Brain MRI Low</);
     assert.match(src, /<option value="mni152">Brain MRI High</);
+    assert.match(src, /<option value="ignition">Lighter Ignition</);
+    assert.match(src, /<option value="conway">Game of Life</);
     assert.match(src, /<option value="npy">Load NumPy</);
     assert.doesNotMatch(src, /id="source-welcome"/);
     assert.match(src, /id="source-blurb"/);
@@ -302,6 +304,15 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(sourceGuide("ignition").label, "Lighter Ignition");
     assert.equal(sourceGuide("mni152").label, "Brain MRI High");
     assert.equal(sourceGuide("mni152-low").label, "Brain MRI Low");
+    assert.equal(startShadeFor("conway"), "hull");
+    assert.equal(startShadeFor("mni152-low"), "ghost");
+    assert.equal(startShadeFor("mni152"), "ghost");
+    assert.equal(startShadeFor("ignition"), "ghost");
+    assert.equal(startShadeFor("count"), "ghost");
+    assert.equal(DEFAULTS.sourceKind, "mni152-low");
+    assert.equal(DEFAULTS.shadeMode, "ghost");
+    assert.equal(DEFAULTS.hideCenter, true);
+    assert.equal(DEFAULTS.hideOuter, true);
     assert.doesNotMatch(html, /id="source-welcome"/);
     assert.match(html, />Game of Life</);
     assert.match(html, />Lighter Ignition</);

@@ -138,7 +138,7 @@ describe("one-euro and tracker", () => {
     assert.ok(out.position.x > 0 && out.position.x < 10);
   });
 
-  it("keeps the last pose after lock until Recapture", () => {
+  it("keeps the last pose after lock; tracking resumes when the face returns", () => {
     const tracker = createFaceTracker({ freezeFrames: 2, lockMs: 40, minConfidence: 0.5 });
     const pose = poseFromColumnMajor(translationColumnMajor(2, 0, 0));
     assert.equal(tracker.push(pose, 0).locked, false);
@@ -150,8 +150,13 @@ describe("one-euro and tracker", () => {
     const still = tracker.push(null, 200);
     assert.equal(still.locked, true);
     assert.equal(still.pose.position.x, 2);
+    const back = poseFromColumnMajor(translationColumnMajor(2.2, 0, 0));
+    const resumed = tracker.push(back, 216);
+    assert.equal(resumed.locked, true);
+    assert.equal(resumed.frozen, false);
+    assert.ok(resumed.pose);
     tracker.reset();
     assert.equal(tracker.locked, false);
-    assert.equal(tracker.push(null, 216).pose, null);
+    assert.equal(tracker.push(null, 232).pose, null);
   });
 });

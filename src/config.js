@@ -76,7 +76,11 @@ export const DEFAULTS = {
   loopAxis: "z",
   /** Playhead steps per second while View Loop is on. */
   loopPerSec: 8,
-  shadeMode: "hull",
+  /** Visitor Brain starts Ghost; Game of Life overrides via startShadeFor. */
+  shadeMode: "ghost",
+  /** Playhead / clip frames off until the visitor turns Hide off. */
+  hideCenter: true,
+  hideOuter: true,
   maxVisible: 128,
   maxStepCatchUp: 8,
   stabSize: true,
@@ -91,7 +95,7 @@ export const DEFAULTS = {
   viewQuality: "medium",
   maxTapeSlices: 4096,
   maxTapeEvents: 400_000,
-  sourceKind: "conway",
+  sourceKind: "mni152-low",
   countDemoUrl: "data/ignition_stack.npy",
   countDemoName: "ignition_stack",
   wolkeUrl: "http://127.0.0.1:5055",
@@ -115,7 +119,7 @@ export const SOURCE_GUIDE = {
   },
   "mni152-low": {
     label: "Brain MRI Low",
-    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Not a patient scan.",
+    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Face hangs this Ghost on a webcam or phone camera. Not a patient scan.",
     cite: MNI_CITE,
   },
   mni152: {
@@ -132,6 +136,14 @@ export const SOURCE_GUIDE = {
 
 export function sourceGuide(kind) {
   return SOURCE_GUIDE[kind] || SOURCE_GUIDE.conway;
+}
+
+/**
+ * Look shade when a source boots or the visitor picks it.
+ * Game of Life is Hull; Brain, Ignition, and own cubes are Ghost.
+ */
+export function startShadeFor(kind) {
+  return kind === "conway" ? "hull" : "ghost";
 }
 
 /** Opt-in Look walkthrough. About stays identity; this is how to look. */
@@ -162,7 +174,7 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Viewcube",
-    body: "Face-click the cube for an ortho cut. Hide center hides playhead frames and the slice grid. Hide outer hides the crop box. Phone: use the rails; the cube is desktop-only.",
+    body: "Face-click the cube for an ortho cut. Hide center and Hide outer start on (no CAD frames). Turn them off to show playhead and clip frames. Phone: use the rails; the cube is desktop-only.",
     targets: ["gizmo-hit", "btn-hide-center", "btn-hide-outer"],
     fold: "",
   },

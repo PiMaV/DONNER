@@ -82,7 +82,30 @@ while serving an older `xr.js` / `orbit.js`.
 GitHub Pages is live at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
 Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
-Door: `?src=ignition`, `?src=mni152-low` (or `?src=brain`), `?src=mni152` (High), `?quality=high`, Face AR `?face=1`. Face lab (camera + mesh only): `face-lab.html`.
+Door: bare URL is Brain MRI Low (Ghost). `?src=life` Game of Life (Hull),
+`?src=ignition` Lighter Ignition (Ghost), `?src=mni152` High, `?quality=high`,
+Face `?face=1` (webcam / phone, not WebXR). Face lab: `face-lab.html`.
+
+```mermaid
+flowchart LR
+  bare["donner.mess.engineering/"]
+  life["?src=life"]
+  ign["?src=ignition"]
+  faceQ["?face=1"]
+  brain[Brain MRI Low]
+  gol[Game of Life]
+  lighter[Lighter Ignition]
+  faceBtn[Face button]
+  cam[Webcam or phone camera]
+  bare --> brain
+  bare --> faceBtn
+  faceQ --> brain
+  faceQ --> cam
+  life --> gol
+  ign --> lighter
+  faceBtn --> cam
+  cam --> overlay[Ghost brain on head]
+```
 
 ## Layers
 
@@ -1318,7 +1341,7 @@ flowchart TB
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
-| **Face AR** | Not WebXR. Prove mesh on `face-lab.html`, then `?face=1`. Phone back camera / desktop webcam + MediaPipe Face Landmarker writes `stage`. After lock, keep last pose until Recapture if the mesh drops. Overlay canvas caps at 640 px. Ghost Brain MRI Low (~16 cm). Occlusion mesh later. | Pixel / flagship Chrome; webcam for lab. Not Quest |
+| **Face AR** | Not WebXR. Face button is always on when the camera exists. `?face=1` enters. Phone rear / desktop selfie webcam + MediaPipe Face Landmarker writes `stage`. After lock, keep last pose if the mesh drops; tracking resumes when the face returns. Overlay canvas caps at 640 px. Ghost Brain MRI Low (~16 cm). No Size / Flip / millimetre sliders / XYZ rails in Face. Occlusion mesh later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
 
 ## Face AR (phone camera, not WebXR)
 
@@ -1329,25 +1352,19 @@ a turning head and a phone walking around that head. Quest is unchanged
 (no camera frames for CV).
 
 Prove the camera and mesh first on **`face-lab.html`** (no Three.js, no
-MRI). Then open `?face=1`. MediaPipe is pinned to Tasks Vision **0.10.21**
-(`vision_bundle.mjs`); 0.10.22 404s on jsDelivr. Enter starts the camera
-before WASM/MRI; a tracker failure keeps the preview and shows the error
-in the hint. Loading the brain must not move the orbit camera (volume
-lives in camera space). Facial matrices may be row- or column-major;
-layout is inferred from the translation vector. **Front / Back** switches
-facing without leaving the session. **Flip L/R** (on for the front camera)
-mirrors the video, the landmark overlay, and the head pose so a selfie
-matches a mirror. After lock, **Shift / Lift / Inset** place the brain in
-head space: Inset is millimetres behind the face front (canonical −Z).
-Lift defaults to 141 mm toward the forehead (range −80…160 mm), Inset
-50 mm, Size 1.2.
-The fit is the page URL: `shift`, `lift`, `inset` (mm) and `size`. Copy
-that link to the phone on the same host (`lab.ole.icu` or localhost).
-The full landmark mesh is only while locking. After lock the overlay
-keeps the outer face oval, lips, and iris/pupil marks while the face is
-still in view. The overlay canvas caps at 640 px wide. If the mesh
-drops after lock, keep the last pose until Recapture (no second
-tracker).
+MRI). Then **Face** on the main page, or `?face=1`. MediaPipe is pinned
+to Tasks Vision **0.10.21** (`vision_bundle.mjs`); 0.10.22 404s on
+jsDelivr. Enter starts the camera before WASM/MRI; a tracker failure
+keeps the preview and shows the error in the hint. Loading the brain
+must not move the orbit camera (volume lives in camera space). Facial
+matrices may be row- or column-major; layout is inferred from the
+translation vector. **Selfie** (`aria-pressed`) is the user camera; off
+is the rear camera. Desktop starts Selfie on; phone starts Selfie off.
+Flip L/R still follows that facing internally (no checkbox). Lab
+millimetre Shift / Lift / Inset / Size stay at the defaults; Face chrome
+does not show those sliders or XYZ rails. FPS stays on. If the mesh
+drops after lock, keep the last pose; tracking resumes when the face
+returns. Exit Face is the way out.
 
 ```mermaid
 flowchart TB
@@ -1360,7 +1377,7 @@ flowchart TB
   lock --> brain
   lock -->|"face miss"| freeze
   freeze --> brain
-  recapture[Recapture] --> face
+  freeze -->|"face returns"| lock
 ```
 
 ```mermaid
@@ -1369,8 +1386,8 @@ flowchart TB
   video[live camera]
   mesh[full mesh while locking]
   guides[oval + pupils after lock]
-  donner["index.html ?face=1"]
-  phone[Pixel back camera]
+  donner["index.html Face or ?face=1"]
+  phone[Pixel rear camera]
   cam[getUserMedia]
   mp[MediaPipe FaceLandmarker]
   pose[head pose in camera space]
@@ -1385,11 +1402,12 @@ flowchart TB
   mp --> mesh --> guides
 ```
 
-Enter with **Face** (`?face=1`). Default source is Brain MRI Low, Ghost
-shade, Quality Low. After ~0.7 s of tracking the brain locks; **Size**,
-**Flip L/R**, and **Shift / Lift / Inset** calibrate. **Recapture** scans
-again. Frames stay on-device. MediaPipe WASM loads lazily from a pinned
-CDN.
+Enter with **Face** (always visible when the camera exists) or `?face=1`.
+Default source is Brain MRI Low, Ghost shade, Quality Low. After ~0.7 s
+of tracking the brain locks. **Selfie** switches cameras. **Exit** returns
+to orbit. Frames stay on-device. MediaPipe WASM loads lazily from a
+pinned CDN. World AR shows **Tap to place** when the gold reticle is
+visible.
 
 ## WETTER context
 

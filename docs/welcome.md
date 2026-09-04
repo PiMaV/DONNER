@@ -68,13 +68,17 @@ flowchart LR
 - **Game of Life** — a generator. Each cube is a living cell. **Z** is
   generations. Boot runs 12 generations, then stays paused so the brick
   has depth. **Play** grows the stack further.
-  **Loop** (under the rails) walks a cut of that tape.
+  **Loop** (under the rails) walks a cut of that tape. Starts in **Hull**.
+  Share as `?src=life`.
 - **Lighter Ignition** — event-camera **counts** of a lighter strike.
   Sparse XY; **Z** is time. **Loop** scrubs the recording. ~4 MB download.
+  Starts in **Ghost**. First door for event-camera visitors: `?src=ignition`.
 - **Brain MRI Low** — example T1 atlas (ICBM 152), 2× mean-binned.
   All three axes are space. **Loop** walks a cut. Not a patient scan.
-  ~3 MB download. Visitor default for `?src=brain`.
+  ~3 MB download. **Visitor default** (bare URL). Starts in **Ghost**.
+  **Face** hangs this overlay on the laptop webcam or a phone camera.
 - **Brain MRI High** — the same atlas at native grid. ~23 MB download.
+  Starts in **Ghost**.
 
 Load a `(T × H × W)` `.npy` count cube from Source → **Load NumPy**, or
 drop the file onto the volume from any source. The gate shows shape,
@@ -93,23 +97,39 @@ case; Brain MRI Low is the visitor default.
 
 ## Share URL
 
-The address bar follows the example (allow-list only, no file paths):
-
-- `?src=conway` — Game of Life (default; may be omitted)
-- `?src=ignition` or `?src=lighter`
-- `?src=mni152-low` or `?src=brain` / `?src=mri` — Brain MRI Low (visitor default)
-- `?src=mni152` or `?src=mri-high` — Brain MRI High (native grid)
-- `?quality=medium` (default; omitted) · `high` · `low`
-
-Example: `?src=ignition&quality=high`
+The address bar follows the example (allow-list only, no file paths).
+Bare URL is Brain MRI Low.
 
 ```mermaid
 flowchart LR
-  url["?src= ignition"]
-  allow[Allow-list]
-  src[Source example]
-  url --> allow --> src
+  bare["donner.mess.engineering/"]
+  life["?src=life"]
+  ign["?src=ignition"]
+  faceQ["?face=1"]
+  brain[Brain MRI Low]
+  gol[Game of Life]
+  lighter[Lighter Ignition]
+  faceBtn[Face button]
+  cam[Webcam or phone camera]
+  bare --> brain
+  bare --> faceBtn
+  faceQ --> brain
+  faceQ --> cam
+  life --> gol
+  ign --> lighter
+  faceBtn --> cam
+  cam --> overlay[Ghost brain on head]
 ```
+
+- Bare URL or `?src=brain` / `?src=mri` — Brain MRI Low (visitor default)
+- `?src=life` or `?src=conway` / `?src=gol` — Game of Life
+- `?src=ignition` or `?src=lighter` — Lighter Ignition
+- `?src=mni152` or `?src=mri-high` — Brain MRI High
+- `?face=1` — enter Face (Brain Ghost on the camera). Lab millimetre
+  fit is still parsed from old links; it is not written back.
+- `?quality=medium` (default; omitted) · `high` · `low`
+
+Example: `?src=ignition&quality=high`
 
 ## Credit
 

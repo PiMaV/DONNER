@@ -10,17 +10,17 @@ import {
 import { DEFAULT_VIEW_QUALITY } from "../src/quality.js";
 
 describe("public door query", () => {
-  it("defaults to Game of Life and Medium", () => {
-    assert.equal(DEFAULT_START_SOURCE, "conway");
+  it("defaults to Brain MRI Low and Medium", () => {
+    assert.equal(DEFAULT_START_SOURCE, "mni152-low");
     assert.equal(DEFAULT_VIEW_QUALITY, "medium");
     assert.deepEqual(parseStartSearch(""), {
-      source: "conway",
+      source: "mni152-low",
       quality: "medium",
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
     });
     assert.deepEqual(parseStartSearch("?foo=bar"), {
-      source: "conway",
+      source: "mni152-low",
       quality: "medium",
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
@@ -40,18 +40,18 @@ describe("public door query", () => {
     assert.equal(parseStartSearch("?src=brain").source, "mni152-low");
     assert.equal(parseStartSearch("?src=mni152&quality=high").source, "mni152");
     assert.equal(parseStartSearch("?source=lighter&q=low").quality, "low");
-    assert.equal(parseStartSearch("?src=nope").source, "conway");
+    assert.equal(parseStartSearch("?src=nope").source, "mni152-low");
   });
 
-  it("writes only non-default query keys", () => {
-    assert.equal(startSearchFromState({ source: "conway", quality: "medium" }), "");
+  it("writes only non-default query keys and Face without millimetre fit", () => {
+    assert.equal(startSearchFromState({ source: "mni152-low", quality: "medium" }), "");
+    assert.equal(
+      startSearchFromState({ source: "conway", quality: "medium" }),
+      "?src=conway",
+    );
     assert.equal(
       startSearchFromState({ source: "ignition", quality: "medium" }),
       "?src=ignition",
-    );
-    assert.equal(
-      startSearchFromState({ source: "mni152-low", quality: "medium" }),
-      "?src=mni152-low",
     );
     assert.equal(
       startSearchFromState({ source: "mni152", quality: "high" }),
@@ -59,26 +59,25 @@ describe("public door query", () => {
     );
     assert.equal(startSearchFromState({ source: "count", quality: "low" }), "?quality=low");
     assert.equal(
-      startSearchFromState({ source: "conway", quality: "medium", face: true }),
+      startSearchFromState({ source: "mni152-low", quality: "medium", face: true }),
       "?face=1",
     );
     assert.equal(
       startSearchFromState({
-        source: "mni152-low",
+        source: "conway",
         quality: "medium",
         face: true,
-        facePlacement: { shift: 12, lift: 96, inset: 40, mag: 1.2 },
       }),
-      "?src=mni152-low&face=1&shift=12&lift=96&inset=40",
+      "?src=conway&face=1",
     );
     assert.equal(
       startSearchFromState({
         source: "mni152-low",
         quality: "medium",
         face: true,
-        facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1 },
+        facePlacement: { shift: 12, lift: 96, inset: 40, mag: 1 },
       }),
-      "?src=mni152-low&face=1&size=1",
+      "?face=1",
     );
     assert.equal(parseStartSearch("?face=1").face, true);
     assert.equal(parseStartSearch("?face=1&lift=96&inset=40").facePlacement.lift, 96);

@@ -87,34 +87,33 @@ describe("phone AR overlay chrome", () => {
     assert.match(html, /id="btn-look-more"/);
     assert.doesNotMatch(html, /id="ar-shade-hull"/);
     assert.doesNotMatch(html, /class="ar-inspect-chrome"/);
-    assert.match(css, /body\.is-ar\s+\.gizmo-slot/);
-    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.gizmo-col/);
+    assert.match(css, /body\.is-ar\.is-ar-placed\s+\.gizmo-col|body\.is-ar\s+\.gizmo-col/);
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.look-more/);
     assert.match(css, /body\.is-ar \.look-fit/);
   });
 });
 
 describe("Face AR chrome", () => {
-  it("gates Face AR on a video layer and a second button, not WebXR", () => {
+  it("keeps Face enter and Selfie toggle; hides lab calib in Face", () => {
     assert.match(html, /id="face-video"/);
     assert.match(html, /id="face-overlay"/);
     assert.match(html, /id="btn-face-ar"/);
     assert.match(html, /id="btn-face-facing"/);
+    assert.match(html, />Selfie</);
+    assert.doesNotMatch(html, />Recapture</);
+    assert.doesNotMatch(html, />Front</);
     assert.match(html, /id="btn-face-ar-sheet"/);
-    assert.match(html, /id="face-off-x"/);
+    assert.match(html, /id="ar-place-banner"/);
+    assert.match(html, />Tap to place</);
     assert.match(html, /class="face-calib"/);
     assert.match(css, /body\.is-face-ar \.face-video/);
     assert.match(css, /body\.is-face-ar \.face-video\.is-mirror/);
     assert.match(css, /body\.is-face-ar \.face-overlay/);
     assert.match(css, /body\.is-face-ar \.face-calib/);
-    assert.match(css, /body\.is-face-ar:not\(\.is-ar-placed\)\s+\.face-off/);
-    assert.match(css, /body\.is-face-ar\.is-ar-placed\s+\.face-off/);
-    assert.match(css, /body\.is-face-ar\.is-ar-placed \.ar-stand/);
-    assert.match(html, />Inset</);
-    assert.match(html, /id="face-off-y"[^>]*max="160"/);
-    assert.match(html, /id="face-off-y"[^>]*value="141"/);
-    assert.match(html, /id="face-off-z"[^>]*value="50"/);
-    assert.match(html, /Flip L\/R/);
+    assert.match(css, /body\.is-face-ar \.ar-size/);
+    assert.match(css, /body\.is-face-ar \.stack/);
+    assert.match(css, /body\.is-ar \.gizmo-fps/);
+    assert.doesNotMatch(css, /body\.is-ar \.gizmo-fps\s*\{[^}]*display:\s*none/s);
     assert.doesNotMatch(css, /#view\s*\{[^}]*transform\s*:/);
   });
 });

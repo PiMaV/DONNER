@@ -122,22 +122,17 @@ yaws; squeeze both grips and move the hands apart or together to
 **Size**. Exit with the headset / browser system gesture. Headset 2D
 Browser skips the viewcube scissor; XR uses the native layer scale.
 
-**Face AR** (`?face=1`) is a second placement mode, not WebXR. Prove the
-camera first on **`face-lab.html`**: live video plus a gold/cyan landmark
-mesh, no Three.js and no MRI. Then open `?face=1`. The phone uses the
-**back camera** (desktop: webcam). MediaPipe tracks a face; a Ghost Brain
-MRI Low overlay locks to the head after a short hold and follows as the
-head turns or the camera walks around it. **Front / Back** switches
-cameras. **Flip L/R** (on for cameras that look at you) mirrors the live
-planes. After lock, **Shift / Lift / Inset** sit the brain behind the
-face front. Defaults: Lift 141 mm, Inset 50 mm, Size 1.2, Shift 0.
-**Recapture** scans again. Quest does not show Face.
-Non-default Shift / Lift / Inset / Size sit in the URL — copy the bar
-to the other device. Landmark mesh is only while locking; after lock the
-outer oval, lips, and iris/pupil marks stay while the face is visible.
-If the mesh drops after lock, the last pose stays until Recapture.
-Camera frames stay on the device. Tracker errors stay on screen; the
-preview is not torn down if WASM fails.
+**Face** is a second placement mode, not WebXR. The **Face** button is
+visible whenever the camera exists (laptop webcam or phone). `?face=1`
+enters immediately. Prove the camera first on **`face-lab.html`** if
+needed (live video plus landmark mesh, no Three.js). The phone starts on
+the **rear** camera; desktop starts **Selfie**. MediaPipe tracks a face;
+a Ghost Brain MRI Low overlay locks to the head after a short hold.
+After lock: oval + lips + pupils while the face is in view; if the mesh
+drops, the last pose stays and tracking resumes when the face returns.
+**Selfie** toggles the user camera. Face does not show Size, Flip, millimetre
+sliders, or XYZ rails. Quest does not show Face. Camera frames stay on
+the device.
 
 ```mermaid
 flowchart TB
@@ -150,7 +145,7 @@ flowchart TB
   lock --> brain
   lock -->|"face miss"| freeze
   freeze --> brain
-  recapture[Recapture] --> face
+  freeze -->|"face returns"| lock
 ```
 
 ```mermaid
@@ -316,10 +311,10 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Hidden on phone orbit. Phone AR: Hide lives in **More** (no cube). |
-| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**, tap the gold square to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
-| **Face** | Opt-in (`?face=1`). Not WebXR. Phone back camera (desktop webcam in the lab) + MediaPipe. Point at a face; a transparent Brain MRI Low overlay locks to the head and follows as the head or camera moves. After lock: oval + lips + pupils while the face is in view; if the mesh drops, keep the last pose until Recapture. **Flip L/R** on the front camera; **Shift / Lift / Inset** after lock (defaults Lift 141 mm, Inset 50 mm, Size 1.2); **Recapture** scans again. Hidden on Quest. |
-| **Exit** | End the AR or Face AR session; orbit returns. Visible in AR only. |
-| **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Face AR label is **Recapture**. Does not steal a scene tap. Hidden until a pose is locked. |
+| **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. When the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
+| **Face** | Always visible when the camera exists. Not WebXR. Phone rear camera (desktop selfie webcam) + MediaPipe. Point at a face; a transparent Brain MRI Low overlay locks to the head. After lock: oval + lips + pupils; if the mesh drops, keep the last pose until the face returns. **Selfie** toggles the user camera. No Size / Flip / millimetre sliders / XYZ rails. Hidden on Quest. `?face=1` enters Face. |
+| **Exit** | End the AR or Face session; orbit returns. Visible in AR / Face only. |
+| **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Hidden in Face. Does not steal a scene tap. Hidden until a pose is locked. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
 | `]` / `↑` | Focus toward Now |
@@ -345,15 +340,15 @@ rectangle select on the playfield).
 | Reset Anchor | AR overlay only (phone, next to Exit): despawn and search again on the floor. |
 | Fit | Look strip (desktop and phone orbit; hidden in AR). Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
-| Hide center | Viewcube (desktop) and phone AR **More**: hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. |
-| Hide outer | Viewcube (desktop) and phone AR **More**: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. |
+| Hide center | Viewcube (desktop) and phone AR **More**: hide the playhead (now) frames and the slice grid on the current plane. **Starts on.** Independent of Hide outer. A viewcube cut still shows that plane. |
+| Hide outer | Viewcube (desktop) and phone AR **More**: hide the outer clip / bound frames of the crop box (Inspect). **Starts on.** Independent of Hide center. |
 | Gap | Visual lattice spacing (0–5 cube-widths, default **0**). 0 packs voxel faces (solid MRI cube). Higher values move instances apart; Conway can live-tune. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | Manual **Low / Medium / High** (default **Medium**). Low: unlit cubes, pixel ratio 1. Medium: Lambert headlamp, pixel ratio ≤ 1.25. High: Lambert + ACES, pixel ratio ≤ 2 (≤ 1.5 on phone / headset). `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
-| Shade | Look strip (all surfaces). Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). |
+| Shade | Look strip (all surfaces). **Start:** Brain MRI Low/High, Lighter Ignition, and own cubes open **Ghost**; Game of Life opens **Hull**. Inspect: **Hull** (outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | View instance envelope (default **200 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Game of Life **Play** uses 200 000; **Pause** raises to the tape’s occupied cells so a 300k brick is not truncated. A dense count cube (Brain MRI) raises to the **hull** size, not every occupied voxel (High hull ~140k inside 5 M occupied). Sparse Ignition still uses occupied cells. |
-| FPS | Small overlay on the viewcube (bottom-right). Tap to open the spark / FPS / AVG card with DEV Bench. Independent of the left View rail. Hidden in AR. Phone: same chip on the Look strip (no cube). |
+| FPS | Small overlay on the viewcube (bottom-right). Tap to open the spark / FPS / AVG card with DEV Bench. Independent of the left View rail. Stays on Face and phone AR. Phone: same chip on the Look strip (no cube). Quest has no DOM overlay. |
 | DEV Bench | Opt-in checkbox on that FPS card. CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. |
 | **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
 
@@ -803,11 +798,11 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   standing plane. **URL door query is in** (`?src=` / `?quality=`). QR
   print, path `/ignition`, and AR-from-QR stay later. Do not start a points renderer
   in the same slice as further XR work.
-- **Face AR PoC is in** (`?face=1`): phone/webcam camera + MediaPipe, not
-  WebXR. Prove tracking on `face-lab.html` first. Ghost Brain MRI Low
-  follows the head. Flip L/R on selfie cameras; Shift / Lift / Inset
-  behind the face front (defaults Lift 141 mm, Inset 50 mm, Size 1.2).
-  After lock the overlay keeps oval + lips + pupils while the face is
-  in view; if the mesh drops, keep the last pose until Recapture.
-  Occlusion mesh and a button without the query
-  stay later. Quest is unchanged.
+- **Face is in:** the Face button is always visible when the camera
+  exists. `?face=1` enters. Phone/webcam + MediaPipe, not WebXR. Ghost
+  Brain MRI Low follows the head. **Selfie** toggles the user camera.
+  After lock the overlay keeps oval + lips + pupils; if the mesh drops,
+  keep the last pose until the face returns. No Recapture, no millimetre
+  sliders, no Size, no XYZ rails in Face. World AR shows **Tap to place**
+  when the gold reticle is visible. Occlusion mesh stays later. Quest is
+  unchanged.

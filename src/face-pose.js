@@ -300,7 +300,8 @@ function copyPose(pose) {
 
 /**
  * Confidence gate, One-Euro. Before lock: freeze a few missed frames, then drop.
- * After lock: keep the last pose until Recapture (no second tracker).
+ * After lock: keep the last pose if the mesh drops. Tracking resumes
+ * when the face returns — no Recapture button.
  */
 export function createFaceTracker({
   freezeFrames = FACE_FREEZE_FRAMES,

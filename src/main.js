@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind, startShadeFor } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -145,7 +145,6 @@ import {
   composeFaceStage,
   faceArSourceId,
   faceExtentCells,
-  facePlacementFromCalib,
   faceStageScale,
 } from "./face-calib.js";
 import {
@@ -384,8 +383,8 @@ let shadeMode = DEFAULTS.shadeMode;
 let shadeHeld = false;
 let planeLock = false;
 let planeLockSign = 1;
-let hideCenter = false;
-let hideOuter = false;
+let hideCenter = Boolean(DEFAULTS.hideCenter);
+let hideOuter = Boolean(DEFAULTS.hideOuter);
 let slabs = {
   x: { near: 0, focus: 0, far: 0 },
   y: { near: 0, focus: 0, far: 0 },
@@ -450,8 +449,6 @@ let facePose = null;
 let faceLastDetect = 0;
 let faceSavedCam = null;
 let faceSavedQuality = null;
-let faceSavedShade = null;
-let faceWanted = false;
 const faceTracker = createFaceTracker();
 let faceMeshLinks = [];
 let faceOvalLinks = [];
@@ -586,7 +583,6 @@ const ui = bindUI({
       syncFaceMirror();
       applyFaceStagePose();
     }
-    if (faceWanted) syncStartUrl();
   },
   arStand: (axis) => setArStandAxis(axis),
   resetArAnchor,
@@ -1135,7 +1131,6 @@ async function enterFaceAr() {
   faceMirrored = !environment;
   faceEnvironment = environment;
   faceSavedQuality = viewQuality;
-  faceSavedShade = shadeMode;
   faceTrackerError = "";
   faceActive = true;
   applyViewQuality("low");
@@ -1183,6 +1178,7 @@ async function enterFaceAr() {
   void ensureFaceBrainSource().catch((err) => {
     console.warn("DONNER Face AR brain source", err);
   });
+  syncStartUrl();
 }
 
 async function toggleFaceFacing() {
@@ -1244,8 +1240,7 @@ async function exitFaceAr() {
   syncTurntableVisual();
   if (faceSavedQuality) applyViewQuality(faceSavedQuality);
   faceSavedQuality = null;
-  if (faceSavedShade) setShadeMode(faceSavedShade);
-  faceSavedShade = null;
+  applyStartShade(ui.getConfig().sourceKind);
   dirtySource = true;
   dirtyView = true;
   syncFog();
@@ -1255,6 +1250,7 @@ async function exitFaceAr() {
   syncGizmoChrome();
   updateHint();
   resize();
+  syncStartUrl();
 }
 
 function paintFaceOverlay(result) {
@@ -1581,7 +1577,6 @@ function setArMag(next) {
   const el = document.getElementById("ar-mag");
   if (el) el.value = String(arMag);
   applyArStagePose();
-  if (faceWanted) syncStartUrl();
 }
 
 function updateXrControllerPose(dt) {
@@ -1627,52 +1622,64 @@ function updateXrHud() {
 }
 
 function updateReticle(xrFrame) {
-  if (
-    !arReticleAllowed({
-      presenting: xrPresenting(),
-      searching: arSearching,
-      locked: arLocked,
-      hasHitTest: Boolean(arUseHitTest && arHitTestSource),
-    }) ||
-    !xrFrame
-  ) {
-    reticle.visible = false;
-    return;
-  }
-  const refSpace = renderer.xr.getReferenceSpace();
-  if (!refSpace || typeof xrFrame.getHitTestResults !== "function") {
-    reticle.visible = false;
-    return;
-  }
-  let hits;
   try {
-    hits = xrFrame.getHitTestResults(arHitTestSource);
-  } catch {
-    reticle.visible = false;
-    return;
+    if (
+      !arReticleAllowed({
+        presenting: xrPresenting(),
+        searching: arSearching,
+        locked: arLocked,
+        hasHitTest: Boolean(arUseHitTest && arHitTestSource),
+      }) ||
+      !xrFrame
+    ) {
+      reticle.visible = false;
+      return;
+    }
+    const refSpace = renderer.xr.getReferenceSpace();
+    if (!refSpace || typeof xrFrame.getHitTestResults !== "function") {
+      reticle.visible = false;
+      return;
+    }
+    let hits;
+    try {
+      hits = xrFrame.getHitTestResults(arHitTestSource);
+    } catch {
+      reticle.visible = false;
+      return;
+    }
+    if (!hits.length) {
+      reticle.visible = false;
+      return;
+    }
+    const matrices = [];
+    for (const hit of hits) {
+      const pose = hit.getPose(refSpace);
+      if (pose?.transform?.matrix) matrices.push(pose.transform.matrix);
+    }
+    const chosen = arPhoneOverlay ? firstFloorHitMatrix(matrices) : matrices[0];
+    if (!chosen) {
+      reticle.visible = false;
+      return;
+    }
+    reticle.visible = true;
+    reticle.matrix.fromArray(chosen);
+  } finally {
+    syncArPlaceBanner();
   }
-  if (!hits.length) {
-    reticle.visible = false;
-    return;
-  }
-  const matrices = [];
-  for (const hit of hits) {
-    const pose = hit.getPose(refSpace);
-    if (pose?.transform?.matrix) matrices.push(pose.transform.matrix);
-  }
-  const chosen = arPhoneOverlay ? firstFloorHitMatrix(matrices) : matrices[0];
-  if (!chosen) {
-    reticle.visible = false;
-    return;
-  }
-  reticle.visible = true;
-  reticle.matrix.fromArray(chosen);
+}
+
+function syncArPlaceBanner() {
+  ui.setArPlaceBanner?.(xrPresenting() && !arLocked && Boolean(reticle.visible));
 }
 
 function setArDocument(on) {
   document.documentElement.classList.toggle("is-ar", Boolean(on));
   document.body.classList.toggle("is-ar", Boolean(on));
-  if (!on) setArPlacedDocument(false);
+  if (!on) {
+    setArPlacedDocument(false);
+    reticle.visible = false;
+    syncArPlaceBanner();
+  }
 }
 
 function setArPlacedDocument(on) {
@@ -1829,6 +1836,14 @@ function syncFog() {
   fill.intensity = spec.fillLight ? 0.22 : 0;
 }
 
+function applyStartShade(kind) {
+  const next = startShadeFor(kind);
+  shadeMode = next === "ghost" || next === "triple" ? next : "hull";
+  ui.setShade(shadeMode);
+  if (inspectMode()) dirtySource = true;
+  dirtyView = true;
+}
+
 function applyViewQuality(id) {
   viewQuality = normalizeViewQuality(id ?? ui.getConfig().viewQuality);
   const spec = viewQualitySpec(viewQuality);
@@ -1844,14 +1859,10 @@ function applyViewQuality(id) {
 function syncStartUrl() {
   const kind = ui.getConfig().sourceKind;
   const source = isCountSourceKind(kind) && kind !== "count" ? kind : "conway";
-  const placement = faceWanted
-    ? facePlacementFromCalib(ui.getFaceCalib?.() || {}, ui.getArMag?.() ?? arMag)
-    : null;
   const next = startSearchFromState({
     source,
     quality: viewQuality,
-    face: faceWanted,
-    facePlacement: placement,
+    face: facePresenting(),
   });
   const url = new URL(window.location.href);
   if (url.search === next) return;
@@ -2293,6 +2304,7 @@ function bootCount(vol) {
   vol.applyTrim(DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM);
   cubes.setKindHex(currentCountLut(), -1);
   ui.setSourceKind(countKindForVolume(vol));
+  applyStartShade(countKindForVolume(vol));
   syncStartUrl();
   ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
   ui.setCountMeta(
@@ -2382,6 +2394,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
     if (!countVol) {
       ui.setSourceKind("conway");
       sourceId = "conway";
+      applyStartShade("conway");
     }
     updateHint();
   }
@@ -2391,6 +2404,7 @@ function switchSource(kind) {
   const next =
     kind === "conway" || COUNT_DEMOS[kind] ? kind : "conway";
   ui.setSourceKind(next);
+  applyStartShade(next);
   syncStartUrl();
   void withLoading("Loading…", async () => {
     if (next === "conway") {
@@ -2572,6 +2586,7 @@ function bootWorld(resizeGrid) {
   layoutPlayfield(cfg.width, cfg.height);
   cubes.setKindHex(CONWAY_KIND_HEX, CONWAY_BASE_K);
   ui.setSourceKind("conway");
+  applyStartShade("conway");
 
   acc = 0;
   stableStreak = 0;
@@ -2984,24 +2999,27 @@ function updateHint() {
       faceTrackerError
         ? faceTrackerError
         : !faceLandmarker
-          ? "Face AR — camera live · loading tracker…"
+          ? "Face — camera live · loading tracker…"
           : faceLocked
-            ? "Face AR — brain follows the head · Size · Shift / Lift / Inset · Flip L/R · URL keeps the fit · Recapture · Exit"
+            ? "Face — brain follows the head · Selfie switches camera · Exit"
             : faceLandmarkN
-              ? `Face AR — ${faceLandmarkN} landmarks · hold still until the brain locks`
-              : "Face AR — point the camera at a face · hold still until the brain locks",
+              ? `Face — ${faceLandmarkN} landmarks · hold still until the brain locks`
+              : "Face — point the camera at a face · hold still until the brain locks",
     );
     applyGridLook();
     playfields.z.setEditing(editing);
     return;
   }
   if (arPresenting()) {
+    syncArPlaceBanner();
     if (!arLocked) {
       ui.setHint(
         !arHitTestResolved
           ? "AR — looking for the floor…"
           : arUseHitTest
-            ? "AR — look at the floor until the gold square appears, then tap to place"
+            ? reticle.visible
+              ? "AR — Tap to place"
+              : "AR — look at the floor"
             : "AR — tap to place the volume in front of you",
       );
     } else if (arUseHitTest) {
@@ -3933,14 +3951,14 @@ function frame(now, xrFrame) {
 }
 
 const start = parseStartSearch(window.location.search);
-faceWanted = Boolean(start.face);
 ui.setSourceKind(start.source);
 applyViewQuality(start.quality);
-ui.setFaceGate(faceWanted);
-if (faceWanted && start.facePlacement) {
+if (start.facePlacement) {
   ui.setFacePlacement?.(start.facePlacement);
   setArMag(start.facePlacement.mag);
 }
+hideCenter = Boolean(ui.getConfig().hideCenter);
+hideOuter = Boolean(ui.getConfig().hideOuter);
 requestAnimationFrame(resize);
 try {
   if (start.source === "conway") bootWorld(true);
@@ -3954,4 +3972,5 @@ renderer.xr.addEventListener("sessionstart", onArSessionStart);
 renderer.xr.addEventListener("sessionend", onArSessionEnd);
 isImmersiveArSupported().then((ok) => ui.setArAvailable(ok));
 ui.setFaceAvailable(isFaceArSupported({ userAgent: navigator.userAgent || "" }));
+if (start.face) void enterFaceAr();
 renderer.setAnimationLoop(frame);

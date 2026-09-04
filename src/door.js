@@ -1,15 +1,15 @@
 /**
  * Public door query. Allow-list only — no arbitrary .npy paths.
  * `?src=` picks an example; `?quality=` is Low / Medium / High.
- * `?face=1` shows the Face AR button (phone camera overlay, not WebXR).
- * With Face, `shift` / `lift` / `inset` (mm) and `size` are the saved
- * head placement — copy the URL onto the phone.
- * Path `/ignition` and QR spawn stay later.
+ * Bare URL is Brain MRI Low. `?src=life` / `conway` is Game of Life.
+ * `?src=ignition` is Lighter Ignition. `?face=1` enters Face AR
+ * (webcam / phone camera overlay, not WebXR). Lab millimetre fit is
+ * still parsed; it is not written back. Path `/ignition` and QR stay later.
  */
 
 import { COUNT_DEMOS } from "./config.js";
 import { parseFaceQuery } from "./face-ar.js";
-import { readFacePlacementParams, writeFacePlacementParams } from "./face-calib.js";
+import { readFacePlacementParams } from "./face-calib.js";
 import { DEFAULT_VIEW_QUALITY, normalizeViewQuality } from "./quality.js";
 
 const SOURCE_ALIASES = {
@@ -33,7 +33,7 @@ const SOURCE_ALIASES = {
   "mri-low": "mni152-low",
 };
 
-export const DEFAULT_START_SOURCE = "conway";
+export const DEFAULT_START_SOURCE = "mni152-low";
 
 function canonKey(raw) {
   return String(raw || "")
@@ -74,7 +74,7 @@ export function parseStartSearch(
 }
 
 export function startSearchFromState(
-  { source, quality, face = false, facePlacement = null },
+  { source, quality, face = false },
   {
     demos = COUNT_DEMOS,
     defaultSource = DEFAULT_START_SOURCE,
@@ -86,10 +86,7 @@ export function startSearchFromState(
   if (src && src !== defaultSource) params.set("src", src);
   const q = normalizeViewQuality(quality);
   if (q !== defaultQuality) params.set("quality", q);
-  if (face) {
-    params.set("face", "1");
-    writeFacePlacementParams(params, facePlacement);
-  }
+  if (face) params.set("face", "1");
   const s = params.toString();
   return s ? `?${s}` : "";
 }
