@@ -745,7 +745,7 @@ grow the DOM.
 | `src/face-pose.js` | Face Landmarker matrix → pose, One-Euro, freeze/lock (Node-testable) |
 | `src/face-calib.js` | Head-frame fit (~16 cm skull) and millimetre offset |
 | `src/face-ar.js` | getUserMedia + lazy MediaPipe Face Landmarker (not WebXR) |
-| `src/face-draw.js` | 2D landmark mesh overlay (lab page and Face AR) |
+| `src/face-draw.js` | 2D overlay: full mesh while locking, oval + pupils after lock |
 | `src/face-lab.js` | Standalone camera + mesh lab (`face-lab.html`) |
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
@@ -1305,7 +1305,7 @@ flowchart TB
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
-| **Face AR** | Not WebXR. Prove mesh on `face-lab.html`, then `?face=1`. Phone back camera / desktop webcam + MediaPipe Face Landmarker. Head pose drives `stage`. Ghost Brain MRI Low (~16 cm). Occlusion mesh later. | Pixel / flagship Chrome; webcam for lab. Not Quest |
+| **Face AR** | Not WebXR. Prove mesh on `face-lab.html`, then `?face=1`. Phone back camera / desktop webcam + MediaPipe Face Landmarker writes `stage`. After lock, keep last pose until Recapture if the mesh drops. Overlay canvas caps at 640 px. Ghost Brain MRI Low (~16 cm). Occlusion mesh later. | Pixel / flagship Chrome; webcam for lab. Not Quest |
 
 ## Face AR (phone camera, not WebXR)
 
@@ -1330,14 +1330,32 @@ Lift defaults to 141 mm toward the forehead (range −80…160 mm), Inset
 50 mm, Size 1.2.
 The fit is the page URL: `shift`, `lift`, `inset` (mm) and `size`. Copy
 that link to the phone on the same host (`lab.ole.icu` or localhost).
-The landmark mesh hides after lock (scan-proof only). Eyes/mouth overlay
-is later and optional.
+The full landmark mesh is only while locking. After lock the overlay
+keeps the outer face oval, lips, and iris/pupil marks while the face is
+still in view. The overlay canvas caps at 640 px wide. If the mesh
+drops after lock, keep the last pose until Recapture (no second
+tracker).
+
+```mermaid
+flowchart TB
+  face[Face Landmarker 6DoF]
+  lock[HEAD LOCKED]
+  brain[stage brain]
+  freeze[keep last pose]
+  face -->|"0.7s hold"| lock
+  lock --> face
+  lock --> brain
+  lock -->|"face miss"| freeze
+  freeze --> brain
+  recapture[Recapture] --> face
+```
 
 ```mermaid
 flowchart TB
   lab[face-lab.html]
   video[live camera]
-  mesh[2D landmark mesh]
+  mesh[full mesh while locking]
+  guides[oval + pupils after lock]
   donner["index.html ?face=1"]
   phone[Pixel back camera]
   cam[getUserMedia]
@@ -1349,7 +1367,9 @@ flowchart TB
   brain[downsampled brain Ghost]
   lab --> video --> mesh
   mesh -.-> donner
-  phone --> cam --> mp --> pose --> front --> inset --> stage --> brain
+  phone --> cam --> mp
+  mp --> pose --> front --> inset --> stage --> brain
+  mp --> mesh --> guides
 ```
 
 Enter with **Face** (`?face=1`). Default source is Brain MRI Low, Ghost

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
+  FACE_IRIS_CENTER_INDEXES,
+  FACE_LEFT_IRIS_CONNECTIONS,
+  FACE_OVAL_CONNECTIONS,
+  FACE_RIGHT_IRIS_CONNECTIONS,
   FACE_LANDMARKER_VERSION,
   FACE_MODEL_URL,
   FACE_VISION_MODULE_URL,
@@ -9,7 +14,9 @@ import {
   closeFaceLandmarker,
   detectFaceForVideo,
   faceCameraConstraints,
+  faceIrisConnections,
   faceMeshConnections,
+  faceOvalConnections,
   isFaceArSupported,
   loadFaceLandmarker,
   parseFaceQuery,
@@ -54,8 +61,24 @@ describe("face AR gate and camera", () => {
   it("reads tessellation from the landmarker constructor", () => {
     function Fake() {}
     Fake.FACE_LANDMARKS_TESSELATION = [{ start: 0, end: 1 }];
-    assert.deepEqual(faceMeshConnections(new Fake()), [{ start: 0, end: 1 }]);
+    Fake.FACE_LANDMARKS_FACE_OVAL = [{ start: 10, end: 338 }];
+    Fake.FACE_LANDMARKS_LEFT_IRIS = [{ start: 474, end: 475 }];
+    Fake.FACE_LANDMARKS_RIGHT_IRIS = [{ start: 469, end: 470 }];
+    const inst = new Fake();
+    assert.deepEqual(faceMeshConnections(inst), [{ start: 0, end: 1 }]);
     assert.deepEqual(faceMeshConnections(null), []);
+    assert.deepEqual(faceOvalConnections(inst), [{ start: 10, end: 338 }]);
+    assert.equal(faceOvalConnections(null).length, FACE_OVAL_CONNECTIONS.length);
+    assert.equal(faceOvalConnections(null)[0].start, 10);
+    assert.deepEqual(faceIrisConnections(inst), [
+      { start: 474, end: 475 },
+      { start: 469, end: 470 },
+    ]);
+    assert.equal(
+      faceIrisConnections(null).length,
+      FACE_LEFT_IRIS_CONNECTIONS.length + FACE_RIGHT_IRIS_CONNECTIONS.length,
+    );
+    assert.deepEqual(FACE_IRIS_CENTER_INDEXES, [468, 473]);
   });
 
   it("starts and stops a fake camera stream", async () => {
@@ -103,5 +126,17 @@ describe("face AR gate and camera", () => {
     });
     closeFaceLandmarker(landmarker);
     assert.deepEqual(created, ["GPU", "close"]);
+  });
+
+  it("keeps oval and iris marks after lock instead of hiding the overlay", () => {
+    const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+    assert.match(main, /faceOvalLinks = faceOvalConnections/);
+    assert.match(main, /faceIrisLinks = faceIrisConnections/);
+    assert.match(main, /if \(faceLocked\) \{[\s\S]*?drawFaceLandmarks\(faceOverlayCtx, face, faceOvalLinks/);
+    assert.match(main, /dots: FACE_IRIS_CENTER_INDEXES/);
+    assert.match(main, /createFaceTracker/);
+    assert.doesNotMatch(main, /createHeadLock/);
+    assert.doesNotMatch(main, /tryLoadPoseLandmarker/);
+    assert.doesNotMatch(main, /faceNeedsHeadFollow/);
   });
 });

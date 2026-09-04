@@ -43,6 +43,8 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
    for antialias.
 9. Face AR occlusion mesh, auto skull scale, Face button without `?face=1`
 
+Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face AR keeps the last Face pose until Recapture (no second WASM, no getImageData).
+
 ## Product roadmap
 
 Do not rewrite DONNER. Do not merge it into BLITZ. Do not start a

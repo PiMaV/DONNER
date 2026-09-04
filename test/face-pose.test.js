@@ -137,4 +137,21 @@ describe("one-euro and tracker", () => {
     const out = filter.push(b, 16);
     assert.ok(out.position.x > 0 && out.position.x < 10);
   });
+
+  it("keeps the last pose after lock until Recapture", () => {
+    const tracker = createFaceTracker({ freezeFrames: 2, lockMs: 40, minConfidence: 0.5 });
+    const pose = poseFromColumnMajor(translationColumnMajor(2, 0, 0));
+    assert.equal(tracker.push(pose, 0).locked, false);
+    assert.equal(tracker.push(pose, 40).locked, true);
+    const held = tracker.push(null, 56);
+    assert.equal(held.locked, true);
+    assert.equal(held.frozen, true);
+    assert.equal(held.pose.position.x, 2);
+    const still = tracker.push(null, 200);
+    assert.equal(still.locked, true);
+    assert.equal(still.pose.position.x, 2);
+    tracker.reset();
+    assert.equal(tracker.locked, false);
+    assert.equal(tracker.push(null, 216).pose, null);
+  });
 });

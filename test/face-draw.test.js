@@ -11,6 +11,13 @@ describe("face 2D overlay", () => {
     assert.equal(canvas.width, 640);
     assert.equal(canvas.height, 480);
     assert.equal(fitOverlayCanvas(canvas, { videoWidth: 640, videoHeight: 480 }), true);
+    const hd = { width: 0, height: 0 };
+    assert.equal(fitOverlayCanvas(hd, { videoWidth: 1280, videoHeight: 720 }), true);
+    assert.equal(hd.width, 640);
+    assert.equal(hd.height, 360);
+    assert.equal(fitOverlayCanvas(hd, { videoWidth: 1280, videoHeight: 720 }, { maxWidth: 320 }), true);
+    assert.equal(hd.width, 320);
+    assert.equal(hd.height, 180);
   });
 
   it("draws tessellation and dots into a fake 2D context", () => {
@@ -32,6 +39,17 @@ describe("face 2D overlay", () => {
     assert.equal(ops.includes("stroke"), true);
     drawFaceLandmarks(ctx, landmarks, [{ start: 0, end: 1 }], { mirrored: true });
     assert.ok(ops.some((op) => Array.isArray(op) && op[0] === "move" && op[1] === 75));
+    const beforeSkip = ops.length;
+    drawFaceLandmarks(ctx, landmarks, [{ start: 0, end: 1 }], { dots: false });
+    assert.equal(ops.slice(beforeSkip).includes("fill"), false);
+    const beforePupils = ops.length;
+    const many = Array.from({ length: 474 }, () => ({ x: 0.1, y: 0.1 }));
+    many[468] = { x: 0.4, y: 0.5 };
+    many[473] = { x: 0.6, y: 0.5 };
+    drawFaceLandmarks(ctx, many, [], { dots: [468, 473] });
+    const pupilArcs = ops.slice(beforePupils).filter((op) => Array.isArray(op) && op[0] === "arc");
+    assert.equal(pupilArcs.length, 2);
+    assert.deepEqual(pupilArcs[0].slice(0, 3), ["arc", 40, 50]);
     clearOverlay(ctx);
     assert.deepEqual(ops.at(-1), ["clear", 0, 0, 100, 100]);
   });

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-04
+
+### Changed
+
+- Face AR after lock keeps a gold face oval, sky-blue iris rings, small black pupils, and red lips. The full mesh is lines-only while scanning. Overlay canvas caps at 640 px so the phone is not compositing 1280×720.
+
+### Fixed
+
+- Face AR keeps the last Face pose after lock until Recapture. A second Pose/hull tracker was too slow and wrong on a close-up phone face.
+
 ## [0.14.1] - 2026-09-04
 
 ### Fixed

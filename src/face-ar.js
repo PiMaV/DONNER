@@ -142,11 +142,77 @@ export function detectFaceForVideo(landmarker, video, timestampMs) {
   }
 }
 
+function asConnections(list) {
+  if (!Array.isArray(list) || !list.length) return [];
+  const out = [];
+  for (const c of list) {
+    const start = Number(c?.start);
+    const end = Number(c?.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) continue;
+    out.push({ start: start | 0, end: end | 0 });
+  }
+  return out;
+}
+
+function ctorConnections(landmarker, key) {
+  const Ctor = landmarker && landmarker.constructor;
+  return asConnections(Ctor && Ctor[key]);
+}
+
+function pairsToConnections(pairs) {
+  return asConnections(pairs.map(([start, end]) => ({ start, end })));
+}
+
+/**
+ * Canonical MediaPipe Face Oval / iris rings (478-point mesh). Used when
+ * the WASM constructor is not loaded (Node tests) or a field is missing.
+ */
+export const FACE_OVAL_CONNECTIONS = pairsToConnections([
+  [10, 338], [338, 297], [297, 332], [332, 284], [284, 251], [251, 389],
+  [389, 356], [356, 454], [454, 323], [323, 361], [361, 288], [288, 397],
+  [397, 365], [365, 379], [379, 378], [378, 400], [400, 377], [377, 152],
+  [152, 148], [148, 176], [176, 149], [149, 150], [150, 136], [136, 172],
+  [172, 58], [58, 132], [132, 93], [93, 234], [234, 127], [127, 162],
+  [162, 21], [21, 54], [54, 103], [103, 67], [67, 109], [109, 10],
+]);
+export const FACE_LEFT_IRIS_CONNECTIONS = pairsToConnections([
+  [474, 475], [475, 476], [476, 477], [477, 474],
+]);
+export const FACE_RIGHT_IRIS_CONNECTIONS = pairsToConnections([
+  [469, 470], [470, 471], [471, 472], [472, 469],
+]);
+export const FACE_LIPS_CONNECTIONS = pairsToConnections([
+  [61, 146], [146, 91], [91, 181], [181, 84], [84, 17], [17, 314], [314, 405],
+  [405, 321], [321, 375], [375, 291], [61, 185], [185, 40], [40, 39],
+  [39, 37], [37, 0], [0, 267], [267, 269], [269, 270], [270, 409], [409, 291],
+  [78, 95], [95, 88], [88, 178], [178, 87], [87, 14], [14, 317], [317, 402],
+  [402, 318], [318, 324], [324, 308], [78, 191], [191, 80], [80, 81],
+  [81, 82], [82, 13], [13, 312], [312, 311], [311, 310], [310, 415],
+  [415, 308],
+]);
+/** Refined iris centers in the 478-point Face Mesh. */
+export const FACE_IRIS_CENTER_INDEXES = Object.freeze([468, 473]);
+
 /** Connector list from the FaceLandmarker class, or empty when WASM is not loaded. */
 export function faceMeshConnections(landmarker) {
-  const Ctor = landmarker && landmarker.constructor;
-  const tess = Ctor && Ctor.FACE_LANDMARKS_TESSELATION;
-  return Array.isArray(tess) ? tess : [];
+  return ctorConnections(landmarker, "FACE_LANDMARKS_TESSELATION");
+}
+
+export function faceOvalConnections(landmarker) {
+  const fromCtor = ctorConnections(landmarker, "FACE_LANDMARKS_FACE_OVAL");
+  return fromCtor.length ? fromCtor : FACE_OVAL_CONNECTIONS;
+}
+
+export function faceIrisConnections(landmarker) {
+  const left = ctorConnections(landmarker, "FACE_LANDMARKS_LEFT_IRIS");
+  const right = ctorConnections(landmarker, "FACE_LANDMARKS_RIGHT_IRIS");
+  if (left.length || right.length) return left.concat(right);
+  return FACE_LEFT_IRIS_CONNECTIONS.concat(FACE_RIGHT_IRIS_CONNECTIONS);
+}
+
+export function faceLipsConnections(landmarker) {
+  const fromCtor = ctorConnections(landmarker, "FACE_LANDMARKS_LIPS");
+  return fromCtor.length ? fromCtor : FACE_LIPS_CONNECTIONS;
 }
 
 export function closeFaceLandmarker(landmarker) {

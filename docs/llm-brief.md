@@ -150,7 +150,9 @@ advantage, not a deployment convenience.
   to AR, named Hull / Ghost / Cuts, Hide center / Hide outer top-right
   (no viewcube), Size / Yaw / Floor. Same `setEvents`.
   Face AR is a second mode (`?face=1`), not `immersive-ar`: getUserMedia
-  + MediaPipe Face Landmarker writes the same `stage` every frame.
+  + MediaPipe Face Landmarker writes the same `stage` every frame. After
+  lock, keep the last pose if the mesh drops (until Recapture). No Pose
+  Landmarker, no hull follow, no video getImageData sampler.
   Prove camera + mesh on `face-lab.html` first (no Three.js). Phone uses
   the back camera; desktop webcam is the lab path. Default overlay is
   Brain MRI Low, Ghost, Quality Low. Pin `@mediapipe/tasks-vision@0.10.21`.
@@ -160,8 +162,10 @@ advantage, not a deployment convenience.
   mirrors video, mesh, and pose. After lock, Shift / Lift / Inset place
   the brain behind the face front. Defaults: Lift 141 mm, Inset 50 mm,
   Size 1.2. Non-default placement mm + Size live in the door query
-  (`shift`, `lift`, `inset`, `size`). Mesh overlay hides after
-  lock. Do not put Face AR on Quest. Occlusion mesh is later.
+  (`shift`, `lift`, `inset`, `size`). Full mesh overlay is only while
+  locking; after lock the outer oval, lips, and iris/pupil marks stay
+  while the face is visible. Overlay canvas caps at 640 px wide. Do not
+  put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
   spawn rails / Loop / Play / Size / Yaw / Floor / Reset Anchor / Exit plus shade and
   hide on `#xr-overlay` (not

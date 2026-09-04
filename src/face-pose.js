@@ -299,8 +299,8 @@ function copyPose(pose) {
 }
 
 /**
- * Confidence gate, One-Euro, freeze for a few lost frames, then drop.
- * Lock after `lockMs` of continuous tracking (HEAD LOCKED).
+ * Confidence gate, One-Euro. Before lock: freeze a few missed frames, then drop.
+ * After lock: keep the last pose until Recapture (no second tracker).
  */
 export function createFaceTracker({
   freezeFrames = FACE_FREEZE_FRAMES,
@@ -332,7 +332,7 @@ export function createFaceTracker({
       const ok = Boolean(raw && num(raw.confidence, 1) >= minConfidence);
       if (!ok) {
         lost += 1;
-        if (lost <= freezeFrames && last) {
+        if (last && (locked || lost <= freezeFrames)) {
           return { pose: copyPose(last), locked, frozen: true, lost: false };
         }
         return { pose: null, locked, frozen: false, lost: true };
@@ -348,3 +348,4 @@ export function createFaceTracker({
     },
   };
 }
+

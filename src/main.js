@@ -149,9 +149,13 @@ import {
   faceStageScale,
 } from "./face-calib.js";
 import {
+  FACE_IRIS_CENTER_INDEXES,
   closeFaceLandmarker,
   detectFaceForVideo,
+  faceIrisConnections,
+  faceLipsConnections,
   faceMeshConnections,
+  faceOvalConnections,
   isFaceArSupported,
   loadFaceLandmarker,
   preferEnvironmentCamera,
@@ -450,6 +454,9 @@ let faceSavedShade = null;
 let faceWanted = false;
 const faceTracker = createFaceTracker();
 let faceMeshLinks = [];
+let faceOvalLinks = [];
+let faceIrisLinks = [];
+let faceLipsLinks = [];
 let faceTrackerError = "";
 let faceDetectTs = 0;
 let faceEnvironment = false;
@@ -1162,6 +1169,9 @@ async function enterFaceAr() {
   try {
     faceLandmarker = await loadFaceLandmarker();
     faceMeshLinks = faceMeshConnections(faceLandmarker);
+    faceOvalLinks = faceOvalConnections(faceLandmarker);
+    faceIrisLinks = faceIrisConnections(faceLandmarker);
+    faceLipsLinks = faceLipsConnections(faceLandmarker);
     faceTrackerError = "";
   } catch (err) {
     console.warn("DONNER Face AR tracker failed", err);
@@ -1204,6 +1214,9 @@ async function exitFaceAr() {
   facePose = null;
   faceTrackerError = "";
   faceMeshLinks = [];
+  faceOvalLinks = [];
+  faceIrisLinks = [];
+  faceLipsLinks = [];
   faceLandmarkN = 0;
   faceDetectTs = 0;
   faceTracker.reset();
@@ -1246,17 +1259,37 @@ async function exitFaceAr() {
 
 function paintFaceOverlay(result) {
   if (!faceOverlayCtx || !faceVideo) return;
-  if (faceLocked) {
-    clearOverlay(faceOverlayCtx);
-    if (faceOverlay) faceOverlay.hidden = true;
-    return;
-  }
   if (faceOverlay) faceOverlay.hidden = false;
   if (!fitOverlayCanvas(faceOverlay, faceVideo)) return;
   clearOverlay(faceOverlayCtx);
   const face = result?.faceLandmarks?.[0];
   if (!face) return;
-  drawFaceLandmarks(faceOverlayCtx, face, faceMeshLinks, { mirrored: false });
+  if (faceLocked) {
+    const w = faceOverlayCtx.canvas.width;
+    drawFaceLandmarks(faceOverlayCtx, face, faceOvalLinks, {
+      mirrored: false,
+      stroke: "#ffc53d",
+      dots: false,
+    });
+    drawFaceLandmarks(faceOverlayCtx, face, faceLipsLinks, {
+      mirrored: false,
+      stroke: "#e53935",
+      dots: false,
+    });
+    drawFaceLandmarks(faceOverlayCtx, face, faceIrisLinks, {
+      mirrored: false,
+      stroke: "#87CEEB",
+      dots: false,
+    });
+    drawFaceLandmarks(faceOverlayCtx, face, [], {
+      mirrored: false,
+      fill: "#111111",
+      dots: FACE_IRIS_CENTER_INDEXES,
+      dotRadius: Math.max(1, w / 900),
+    });
+    return;
+  }
+  drawFaceLandmarks(faceOverlayCtx, face, faceMeshLinks, { mirrored: false, dots: false });
 }
 
 function tickFaceAr(now) {

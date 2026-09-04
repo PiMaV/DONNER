@@ -16,6 +16,9 @@ describe("Face lab page", () => {
     assert.match(js, /startFaceCamera/);
     assert.match(js, /loadFaceLandmarker/);
     assert.match(js, /drawFaceLandmarks/);
+    assert.doesNotMatch(js, /drawHeadHull/);
+    assert.doesNotMatch(js, /createHeadLock/);
+    assert.doesNotMatch(js, /tryLoadPoseLandmarker/);
     assert.match(js, /Camera stays on/);
   });
 });
