@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { depthFade, sliceDistanceFade } from "../src/fade.js";
+import { depthFade, ghostSliceFadeOn, sliceDistanceFade } from "../src/fade.js";
 
 describe("depthFade", () => {
   it("is 1 across the window when decay is off", () => {
@@ -40,5 +40,16 @@ describe("sliceDistanceFade", () => {
     assert.equal(sliceDistanceFade(7, 7, 7, 7), 1);
     assert.equal(sliceDistanceFade(6, 7, 7, 7), 0);
     assert.equal(sliceDistanceFade(8, 7, 7, 7), 0);
+  });
+});
+
+describe("ghostSliceFadeOn", () => {
+  it("is on for Ghost always and for Hull only in a viewcube cut", () => {
+    assert.equal(ghostSliceFadeOn({ shade: "ghost", sliceOnly: false }), true);
+    assert.equal(ghostSliceFadeOn({ shade: "ghost", sliceOnly: true }), true);
+    assert.equal(ghostSliceFadeOn({ shade: "hull", sliceOnly: true }), true);
+    assert.equal(ghostSliceFadeOn({ shade: "hull", sliceOnly: false }), false);
+    assert.equal(ghostSliceFadeOn({ shade: "triple", sliceOnly: true }), false);
+    assert.equal(ghostSliceFadeOn(null), false);
   });
 });

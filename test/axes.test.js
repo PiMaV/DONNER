@@ -265,7 +265,7 @@ describe("AABB crop and shade", () => {
     assert.equal(effectiveShade("ghost", true), "ghost");
     assert.equal(effectiveShade("triple", true), "triple");
     assert.equal(cutInspectShade("hull"), "hull");
-    assert.equal(cutInspectShade("hull", { planeLock: true }), "slice");
+    assert.equal(cutInspectShade("hull", { planeLock: true }), "hull");
     assert.equal(cutInspectShade("hull", { held: true, planeLock: true }), "ghost");
     assert.equal(cutInspectShade("ghost", { planeLock: true }), "ghost");
     assert.equal(cutInspectShade("triple", { planeLock: true }), "triple");
@@ -349,21 +349,44 @@ describe("AABB crop and shade", () => {
       inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 0, y: 0, z: 2 } }),
       inspectPlaneOccupancyKey({ shade: "hull", aabb, foci: { x: 9, y: 9, z: 8 } }),
     );
-    const lockShade = cutInspectShade("hull", { planeLock: true });
-    assert.equal(lockShade, "slice");
+    assert.equal(
+      inspectHullOccupancyKey({ shade: "hull", aabb, sliceOnly: true }),
+      inspectHullOccupancyKey({ shade: "ghost", aabb, sliceOnly: true }),
+    );
+    assert.notEqual(
+      inspectHullOccupancyKey({ shade: "hull", aabb, sliceOnly: true }),
+      inspectHullOccupancyKey({ shade: "triple", aabb, sliceOnly: true }),
+    );
     const c0 = inspectPlaneOccupancyKey({
-      shade: lockShade,
+      shade: "hull",
       aabb,
       foci: { x: 1, y: 1, z: 2 },
       activeAxis: "z",
+      sliceOnly: true,
     });
     const c1 = inspectPlaneOccupancyKey({
-      shade: lockShade,
+      shade: "hull",
       aabb,
       foci: { x: 1, y: 1, z: 3 },
       activeAxis: "z",
+      sliceOnly: true,
     });
     assert.notEqual(c0, c1);
+    const t0 = inspectPlaneOccupancyKey({
+      shade: "triple",
+      aabb,
+      foci: { x: 1, y: 1, z: 2 },
+      activeAxis: "z",
+      sliceOnly: true,
+    });
+    const t1 = inspectPlaneOccupancyKey({
+      shade: "triple",
+      aabb,
+      foci: { x: 9, y: 1, z: 2 },
+      activeAxis: "z",
+      sliceOnly: true,
+    });
+    assert.equal(t0, t1);
   });
 
   it("keeps the AABB from the axis origin through the playhead", () => {

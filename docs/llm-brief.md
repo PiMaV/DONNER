@@ -61,7 +61,7 @@ advantage, not a deployment convenience.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
-  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane of voxels plus frame and grid (Hull HUD still fills the slice). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
+  (deferred; later rectangle select). A CAD viewcube (desktop rail slot left of the View card, six face frames, product X/Y/Z: cornflower / maize / mint) **face click** is a 2D cut: that axis, ortho fitted to the slice rectangle, that plane's frame and grid. Shade stays Hull / Ghost / Cuts (Hull = glass potato + solid slice, Ghost = full silhouette + slice, Cuts = lock-axis plane). Wheel zooms, right-drag pans, Shift+wheel / Loop / same-face click page the stack and the camera tracks the playhead (no refit; zoom/pan stay). Left-drag orbits out to 3D. `B` leaves the cut (not the same as Parallax off in 3D). Hover lights a face; omit the cube on phone and in AR. Lighting is a **headlamp** (key/fill follow the view) on Quality Medium/High; Low is unlit. **Quality** Low / Medium / High is a View toggle (default Medium). `?src=` / `?quality=` is the public door (allow-list). Do not auto-switch from GPU strings. **Yaw** is AR-only (after place). The desktop View HUD heading collapses the telemetry. Scrub the **stack slider**
   (desktop: right, Now/max at top; phone: bottom, Now/max at right) or
   Shift+wheel. The stack axis is **Z time by default**; X or Y remaps the same
   playhead and slab grips onto that product axis (axis-colored in the volume).
@@ -112,13 +112,15 @@ advantage, not a deployment convenience.
   Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
   Phone Conway Play sits next to AR (Source Play stays on desktop).
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
-  Hull+Loop in 3D grows a potato from the axis origin through the plane.
-  A viewcube cut pages that slice on screen (camera tracks; no potato).
+  Hull+Loop grows a potato from the axis origin through the plane (opaque
+  in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
+  that one plane. The camera tracks the playhead.
   (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap, FPS on the fold).
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
-  must not either. A viewcube cut maps Hull to `slice` occupancy so the
-  plane refills; potato AABB is 3D Hull+Loop only. Ghost / peek / Cuts rebuild only the solid plane
+  must not either. A viewcube cut still fills the playhead plane under Hull
+  (glass hull + `fillPlaneSoA`); Hull+Loop uses the potato AABB. Ghost keeps
+  the full glass hull. Ghost / peek / Cuts rebuild only the solid plane
   (`fillPlaneSoA`, LRU + neighbor prefetch); the glass hull mesh stays.
   Clip uses the hull cache plus AABB faces, not a full occupancy scan.
   Size by age / Start / Tail must not call `fillSoA`.

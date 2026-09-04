@@ -28,7 +28,7 @@ import {
 } from "./axes.js";
 import { SCALE_UNIFORM } from "./dynamics.js";
 import { CONWAY_KIND_HEX, CONWAY_WARMUP_K, encodingFill } from "./encoding.js";
-import { depthFade, sliceDistanceFade } from "./fade.js";
+import { depthFade, ghostSliceFadeOn, sliceDistanceFade } from "./fade.js";
 import { frameBarThickness, frameHandleInset, frameRingBox, frameRingWorldEdges } from "./frame.js";
 import { isolationWeight } from "./observe.js";
 
@@ -197,13 +197,13 @@ export class CubeRenderer {
 
   /**
    * Ghost hull distance fade + hide glass on the solid playhead plane.
-   * `view` null disables the shader path (Hull, Cuts, live).
+   * Ghost always; Hull in a viewcube cut (glass potato). Cuts stay off.
    */
   setGhostSliceFade(view) {
     this._ghostFadeView = view || null;
     const u = this._ghostSlice;
     if (!u) return;
-    const on = Boolean(view && view.shade === "ghost" && !view.sliceOnly);
+    const on = ghostSliceFadeOn(view);
     u.uGhostFade.value = on ? 1 : 0;
     if (!on) return;
     const activeAxis = normalizeSliceAxis(view.activeAxis);

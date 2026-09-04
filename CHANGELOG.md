@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-04
+
+### Fixed
+
+- A viewcube cut keeps Hull / Ghost / Cuts: Hull is a glass potato plus the solid slice (thickness shimmers; Loop grows the potato), Ghost keeps the full silhouette, Cuts is that one plane. The camera still tracks the playhead.
+
 ## [0.14.0] - 2026-09-04
 
 ### Added

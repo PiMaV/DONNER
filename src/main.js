@@ -3111,7 +3111,7 @@ function fillHullVolume() {
   }
   if (countStore()) {
     const shade = inspectShade();
-    if (planeLock || shade === "slice" || shade === "triple") {
+    if (shade === "slice" || shade === "triple") {
       soa.count = 0;
       soa.truncated = false;
       return;
@@ -3124,17 +3124,19 @@ function fillHullVolume() {
 
 function fillPlaneVolume() {
   const shade = inspectShade();
-  if (!world || !shade || shade === "hull") {
+  if (!world || !shade || (shade === "hull" && !planeLock)) {
     soaPlane.count = 0;
     soaPlane.truncated = false;
     return;
   }
-  const opts = volumeFillOpts();
+  const planeShade = planeLock && (shade === "hull" || shade === "triple") ? "slice" : shade;
+  const opts = { ...volumeFillOpts(), shade: planeShade };
   const aabb = inspectDrawAabb();
   const foci = cropFoci();
+  const oneAxis = planeShade !== "triple";
   if (countStore()) {
     countVol.fillPlaneSoA(soaPlane, viewNow(), volumeWindow(), world.width, opts);
-    if (shade === "triple") {
+    if (!oneAxis) {
       for (const a of ["x", "y", "z"]) {
         const { lo, hi } = alongRange(aabb, a);
         countVol.prefetchPlanes(aabb, a, foci[a], false, { radius: 1, lo, hi });
@@ -3150,7 +3152,7 @@ function fillPlaneVolume() {
     }
     return;
   }
-  if (shade === "triple") copyAnyPlanes(soa, soaPlane, foci);
+  if (!oneAxis) copyAnyPlanes(soa, soaPlane, foci);
   else copyAxisPlane(soa, soaPlane, activeAxis, foci[normalizeSliceAxis(activeAxis)]);
 }
 
@@ -3168,6 +3170,13 @@ function uploadInspect({ hull, plane }) {
   if (!world) return;
   const view = cubeView();
   const shade = view.shade;
+  const cutGlass = view.sliceOnly && (shade === "hull" || shade === "ghost");
+  if (cutGlass) {
+    if (hull) cubes.setEvents(soa, view, "hull");
+    if (plane) cubes.setEvents(soaPlane, view, "plane");
+    cubes.setGhostSliceFade(view);
+    return;
+  }
   if (view.sliceOnly) {
     cubes.setEvents(soaPlane.count ? soaPlane : soa, view, "solid");
     cubes.setGhostSliceFade(null);
@@ -3262,6 +3271,7 @@ function syncVolume() {
     aabb: box,
     foci: cropFoci(),
     activeAxis,
+    sliceOnly: sliceOnlyFromPlaneLock(planeLock),
   });
   const look = instanceLookKey();
   const hullOccChanged = hullOcc !== lastHullOccKey;
@@ -3280,7 +3290,8 @@ function syncVolume() {
   }
 
   const uploadHull = fillHull || dirtyEncoding || lookChanged;
-  const uploadPlane = shade !== "hull" && (fillPlane || dirtyEncoding || lookChanged);
+  const uploadPlane =
+    (shade !== "hull" || planeLock) && (fillPlane || dirtyEncoding || lookChanged);
 
   if (uploadHull || uploadPlane) {
     paths.measure("inst", () => uploadInspect({ hull: uploadHull, plane: uploadPlane }));

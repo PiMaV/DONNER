@@ -21,6 +21,17 @@ export function depthFade(age, span, decayOn) {
 }
 
 /**
+ * Ghost-hull distance fade. Ghost always; Hull only in a viewcube cut
+ * (glass potato / silhouette). Cuts and 3D Hull stay unfaded.
+ */
+export function ghostSliceFadeOn(view) {
+  if (!view) return false;
+  const shade = view.shade;
+  if (shade === "ghost") return true;
+  return shade === "hull" && Boolean(view.sliceOnly);
+}
+
+/**
  * Fade of a ghost hull voxel along the active plane. 1 on the cyan
  * playhead, 0 at the AABB face on that axis.
  */

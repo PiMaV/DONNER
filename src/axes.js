@@ -151,13 +151,12 @@ export function effectiveShade(mode, held = false) {
 }
 
 /**
- * HUD shade stays Hull / Ghost / Cuts. A viewcube cut still draws the
- * active plane: Hull+lock is `slice` (no potato). Peek stays Ghost.
+ * HUD shade stays Hull / Ghost / Cuts. Peek stays Ghost.
+ * A viewcube cut does not remap Hull to slice; fill/upload treat the cut
+ * separately (glass hull + solid plane, potato AABB while looping).
  */
-export function cutInspectShade(mode, { held = false, planeLock = false } = {}) {
-  const shade = effectiveShade(mode, held);
-  if (planeLock && shade === "hull") return "slice";
-  return shade;
+export function cutInspectShade(mode, { held = false, planeLock: _planeLock = false } = {}) {
+  return effectiveShade(mode, held);
 }
 
 /**
@@ -328,7 +327,8 @@ export function inspectRebuildKey({
 /**
  * Hull instance list. Playhead does not belong here. `glass` vs `solid`
  * is which InstancedMesh the hull is uploaded to (Ghost vs Hull).
- * Viewcube plane-lock and Cuts have no hull mesh.
+ * Cuts / slice have no hull mesh. A viewcube cut still has a glass hull
+ * (full brick in Ghost, potato AABB in Hull+Loop).
  */
 export function inspectHullOccupancyKey({
   shade,
@@ -337,28 +337,35 @@ export function inspectHullOccupancyKey({
 } = {}) {
   const mode = normalizeShadeMode(shade);
   const box = aabbOccupancyKey(aabb);
-  if (sliceOnly || mode === "slice" || mode === "triple") return `${box}:hull:none`;
+  if (mode === "slice" || mode === "triple") return `${box}:hull:none`;
+  if (sliceOnly) return `${box}:hull:glass`;
   return `${box}:hull:${mode === "ghost" ? "glass" : "solid"}`;
 }
 
 /**
  * Solid cut plane(s). Ghost / Slice follow the highlighted playhead;
- * Cuts follows all three. Hull idle has no plane mesh. A viewcube cut
- * maps Hull to `slice` via `cutInspectShade` so occupancy follows focus.
+ * Cuts follows all three (one axis in a viewcube cut). Hull idle in 3D
+ * has no plane mesh; Hull in a cut follows the playhead like slice.
  */
 export function inspectPlaneOccupancyKey({
   shade,
   aabb,
   foci,
   activeAxis = "z",
+  sliceOnly = false,
 } = {}) {
   const mode = normalizeShadeMode(shade);
   const box = aabbOccupancyKey(aabb);
-  if (mode === "hull") return `${box}:plane:none`;
+  if (mode === "hull" && !sliceOnly) return `${box}:plane:none`;
   const f = foci || {};
-  if (mode === "ghost" || mode === "slice") {
+  if (mode === "hull" || mode === "ghost" || mode === "slice") {
     const axis = normalizeSliceAxis(activeAxis);
-    return `${box}:plane:${mode}:${axis}:${f[axis] | 0}`;
+    const planeMode = mode === "hull" ? "slice" : mode;
+    return `${box}:plane:${planeMode}:${axis}:${f[axis] | 0}`;
+  }
+  if (sliceOnly) {
+    const axis = normalizeSliceAxis(activeAxis);
+    return `${box}:plane:triple:${axis}:${f[axis] | 0}`;
   }
   return `${box}:plane:triple:${f.x | 0}:${f.y | 0}:${f.z | 0}`;
 }

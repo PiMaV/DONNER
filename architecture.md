@@ -125,9 +125,9 @@ flowchart LR
 Conway **Play** stays in Source. AR overlay still has Loop after spawn. Loop axis X/Y/Z
 is the **highlighted** playhead (same as grabbing that plane). Ghost
 solids that plane. Hull+Loop grows a potato from the axis origin through
-the playhead and hides the +side plus clip edges (3D only). In a viewcube
-cut, Loop pages that slice on screen (camera tracks; no potato). Cuts
-already shows three slices. For Conway, **Play** is Live View:
+the playhead and hides the +side plus clip edges. In a viewcube cut the
+camera tracks the playhead: Hull is a glass potato plus the solid slice,
+Ghost keeps the full glass silhouette, Cuts is that one plane. For Conway, **Play** is Live View:
 the generator runs, the playhead stays at Now, the Z stack is locked
 (`LIVE`); GEN / LIVE / RATE appear in a small overlay only while that
 Play is on. **Pause** is Inspect. A **count stack** or **MNI 152** opens
@@ -144,7 +144,7 @@ flowchart LR
   grab --> axis
   axis --> ghost[Ghost: that plane solid]
   axis --> hull[Hull loop: potato origin to plane]
-  axis --> cutCine[Viewcube cut: slice stays on screen]
+  axis --> cutShade["Viewcube cut: Hull glass potato Ghost silhouette Cuts slice"]
   axis --> cuts[Cuts: three slices, loop walks one]
 ```
 
@@ -303,9 +303,10 @@ flowchart TB
 
 Paint/edit applies only when `tFocus === tNow`. Scrubbing is view-only.
 Bird-eye is gone: **Parallax** off is orthographic at the current look.
-A CAD viewcube **face** is a 2D cut (ortho, that product axis, one plane
-of voxels, even when HUD shade is Hull). Loop and Shift+wheel keep that
-plane on screen (camera tracks the playhead). Orbit away from the axis
+A CAD viewcube **face** is a 2D cut (ortho, that product axis). Shade
+still applies: Hull = glass potato + solid slice, Ghost = full silhouette
++ slice, Cuts = slice only. Loop and Shift+wheel keep the plane on screen
+(camera tracks the playhead). Orbit away from the axis
 restores the 3D slab. Worldline
 isolation is deferred (later: rectangle select). Scrub the **stack**
 (desktop: right, Now/max at the top; phone: bottom, Now/max at the right)
@@ -461,27 +462,31 @@ A viewcube cut still shows the current plane.
 The right-hand rails stay as a dimmer second path.
 
 A viewcube **face** is a true 2D cut: orthographic, fitted to that
-rectangle, one playhead plane of **voxels** plus **that plane's frame and
-cell grid** (other axes and clips off). Hull in the HUD still fills that
-plane (`slice`); potato Hull+Loop stays 3D. Wheel zooms; **Shift+wheel**
-pages the stack and the camera follows the playhead along the cut axis
-(zoom and in-plane pan stay). Right-drag pans in the plane. A click on
-the cut does nothing. `B` or a left-drag orbit leaves to perspective and
-the slab immediately. The cut is not the same as Parallax off in 3D.
+rectangle, **that plane's frame and cell grid** (other axes and clips
+off). Shade stays Hull / Ghost / Cuts: Hull draws a glass potato (idle:
+glass crop hull) plus the solid playhead plane; Ghost keeps the full
+glass brick plus the plane; Cuts is the lock-axis plane only. Wheel
+zooms; **Shift+wheel** pages the stack and the camera follows the
+playhead along the cut axis (zoom and in-plane pan stay). Right-drag pans
+in the plane. A click on the cut does nothing. `B` or a left-drag orbit
+leaves to perspective and the slab immediately. The cut is not the same
+as Parallax off in 3D.
 
 ```mermaid
 flowchart TB
-  click[Viewcube face]
-  lock[planeLock ortho]
-  hull[HUD Hull]
-  slice[Shade slice voxels]
-  peek[Rail handle peek]
-  ghost[Shade ghost]
-  loop[Loop or Shift+wheel]
-  track[Camera tracks playhead]
-  click --> lock --> hull --> slice
-  peek --> ghost
-  lock --> loop --> track
+  subgraph cam [Viewcube camera]
+    cut[planeLock ortho]
+    track[Camera tracks playhead]
+    cut --> track
+  end
+  subgraph shade [HUD shade]
+    hullBtn[Hull]
+    ghostBtn[Ghost]
+    cutsBtn[Cuts]
+  end
+  hullBtn --> potato[Glass potato origin to plane plus solid slice]
+  ghostBtn --> sil[Full glass hull plus solid slice]
+  cutsBtn --> only[Solid slice only]
 ```
 
 Inspect shade:
@@ -523,9 +528,18 @@ Hold-to-Ghost applies to a **playhead** grab in Hull. A **clip** grab always
 shows the hull so the crop is readable. Shade does **not** change by source
 (MRI vs Ignition): dense volumes still emit the cached hull as glass during
 a peek, plus occupied voxels on the active plane. Ghost/Cuts emit interiors
-only if they sit on a playhead plane. Cuts never emits the hull. A viewcube
-cut maps Hull to `slice` (HUD stays Hull): the active plane of voxels, no
-potato.
+only if they sit on a playhead plane. Cuts never emits the hull.
+
+A viewcube cut does not remap the HUD shade. Hull is glass (potato while
+Loop) plus the solid slice so thickness shimmers behind the plane. Ghost
+is the full glass hull plus the slice. Cuts is that one plane.
+
+| Shade | 3D | Viewcube cut |
+|-------|----|----------------|
+| **Hull** idle | Opaque outer hull; peek = Ghost | Glass crop hull + solid playhead plane |
+| **Hull** + Loop | Opaque potato, +side hidden | Glass potato + solid plane |
+| **Ghost** | Glass brick + solid plane | Same (silhouette stays full) |
+| **Cuts** | Three planes, no hull | Lock-axis plane only |
 
 ```mermaid
 flowchart LR
@@ -565,8 +579,8 @@ current pose onto an orthographic camera so you can look from the side
 without a vanishing point. Escape turns parallax back on. `B` alone does
 **not** hide the slab (technical drawing). A viewcube **face** is a
 separate 2D cut (`planeLock`): that product axis, ortho fitted to the
-slice rectangle, the current plane of voxels plus that plane's frame and
-cell grid. Wheel zooms; Shift+wheel pages and the camera tracks the
+slice rectangle, that plane's frame and cell grid, and the current HUD
+shade (glass potato, full silhouette, or slice only). Wheel zooms; Shift+wheel pages and the camera tracks the
 playhead (no refit). Clicking the **same face** pages the stack. Right-drag
 pans. A click on the cut does nothing. `B` **leaves the cut** (restores
 perspective and Align-to-Z orbit). That is not toggling Parallax in 3D.
@@ -626,7 +640,7 @@ flowchart TB
   ortho[Parallax off]
   fit[Fit slice rectangle]
   axis[activeAxis]
-  one[one playhead plane voxels]
+  one[playhead plane plus shade]
   page[Loop or Shift+wheel]
   track[Camera tracks playhead]
   orbit[Orbit or B]
