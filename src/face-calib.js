@@ -183,6 +183,10 @@ export function composeFaceStage(headPose, calib = {}) {
 export const FACE_AR_SOURCE = "mni152-low";
 export const FACE_AR_SOURCE_FALLBACK = "mni152";
 
+export function isFaceProjectSource(kind) {
+  return kind === FACE_AR_SOURCE || kind === FACE_AR_SOURCE_FALLBACK;
+}
+
 export function faceArSourceId(demos = {}) {
   if (demos[FACE_AR_SOURCE]) return FACE_AR_SOURCE;
   if (demos[FACE_AR_SOURCE_FALLBACK]) return FACE_AR_SOURCE_FALLBACK;

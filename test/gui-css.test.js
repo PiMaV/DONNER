@@ -94,25 +94,39 @@ describe("phone AR overlay chrome", () => {
 });
 
 describe("Face AR chrome", () => {
-  it("keeps Face enter and Selfie toggle; hides lab calib in Face", () => {
+  it("puts Project on Face in Source; phone Face uses a Selfie/Rear toggle", () => {
     assert.match(html, /id="face-video"/);
     assert.match(html, /id="face-overlay"/);
     assert.match(html, /id="btn-face-ar"/);
+    assert.match(html, />Project on Face</);
     assert.match(html, /id="btn-face-facing"/);
-    assert.match(html, />Selfie</);
+    assert.match(html, /id="btn-face-facing-sheet"/);
+    assert.doesNotMatch(html, /id="face-facing-pair"/);
+    assert.doesNotMatch(html, /id="btn-face-selfie"/);
+    assert.doesNotMatch(html, /id="btn-face-rear"/);
     assert.doesNotMatch(html, />Recapture</);
     assert.doesNotMatch(html, />Front</);
     assert.match(html, /id="btn-face-ar-sheet"/);
     assert.match(html, /id="ar-place-banner"/);
     assert.match(html, />Tap to place</);
     assert.match(html, /class="face-calib"/);
+    assert.match(css, /body\.is-face-ar:not\(\.is-ar\) \.transport/);
+    assert.match(css, /\.transport\s*\{[^}]*position:\s*fixed/s);
     assert.match(css, /body\.is-face-ar \.face-video/);
     assert.match(css, /body\.is-face-ar \.face-video\.is-mirror/);
     assert.match(css, /body\.is-face-ar \.face-overlay/);
     assert.match(css, /body\.is-face-ar \.face-calib/);
     assert.match(css, /body\.is-face-ar \.ar-size/);
-    assert.match(css, /body\.is-face-ar \.stack/);
+    assert.match(css, /body\.is-ar\.is-face-ar \.stack/);
+    assert.match(css, /body\.is-ar\.is-face-ar \.loop-axes/);
+    assert.doesNotMatch(css, /body\.is-face-ar \.stack,/);
     assert.match(css, /body\.is-ar \.gizmo-fps/);
+    assert.match(css, /body\.is-ar \.stack\s*\{[^}]*opacity:\s*1/s);
+    assert.match(css, /body\.is-ar \.stack-rail/);
+    assert.doesNotMatch(
+      css,
+      /body\.is-ar \.transport \.btn[\s\S]{0,80}background:\s*var\(--bg\)/,
+    );
     assert.doesNotMatch(css, /body\.is-ar \.gizmo-fps\s*\{[^}]*display:\s*none/s);
     assert.doesNotMatch(css, /#view\s*\{[^}]*transform\s*:/);
   });

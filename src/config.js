@@ -78,9 +78,9 @@ export const DEFAULTS = {
   loopPerSec: 8,
   /** Visitor Brain starts Ghost; Game of Life overrides via startShadeFor. */
   shadeMode: "ghost",
-  /** Playhead / clip frames off until the visitor turns Hide off. */
-  hideCenter: true,
-  hideOuter: true,
+  /** Visitor Brain shows playhead and outer frames; Game of Life overrides via startPlaneChromeFor. */
+  hideCenter: false,
+  hideOuter: false,
   maxVisible: 128,
   maxStepCatchUp: 8,
   stabSize: true,
@@ -119,12 +119,12 @@ export const SOURCE_GUIDE = {
   },
   "mni152-low": {
     label: "Brain MRI Low",
-    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Face hangs this Ghost on a webcam or phone camera. Not a patient scan.",
+    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan.",
     cite: MNI_CITE,
   },
   mni152: {
     label: "Brain MRI High",
-    blurb: "Example T1 atlas at native grid. All three axes are space. Loop walks a cut. Not a patient scan. Larger download.",
+    blurb: "Example T1 atlas at native grid. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan. Larger download.",
     cite: MNI_CITE,
   },
   count: {
@@ -144,6 +144,17 @@ export function sourceGuide(kind) {
  */
 export function startShadeFor(kind) {
   return kind === "conway" ? "hull" : "ghost";
+}
+
+/**
+ * Plane chrome when a source boots or the visitor picks it.
+ * Brain / Ignition / own cubes show center and outer frames (surgeons
+ * expect the brick with planes). Game of Life hides the playhead frames
+ * and keeps the outer box so the playfield reads at a glance.
+ */
+export function startPlaneChromeFor(kind) {
+  if (kind === "conway") return { hideCenter: true, hideOuter: false };
+  return { hideCenter: false, hideOuter: false };
 }
 
 /** Opt-in Look walkthrough. About stays identity; this is how to look. */
@@ -174,7 +185,7 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Viewcube",
-    body: "Face-click the cube for an ortho cut. Hide center and Hide outer start on (no CAD frames). Turn them off to show playhead and clip frames. Phone: use the rails; the cube is desktop-only.",
+    body: "Face-click the cube for an ortho cut. Hide center / Hide outer sit under the cube. Brain starts with both frames on; Game of Life hides the playhead and keeps the outer box. Phone: use the rails; the cube is desktop-only.",
     targets: ["gizmo-hit", "btn-hide-center", "btn-hide-outer"],
     fold: "",
   },

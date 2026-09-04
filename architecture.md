@@ -82,8 +82,9 @@ while serving an older `xr.js` / `orbit.js`.
 GitHub Pages is live at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
 Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
-Door: bare URL is Brain MRI Low (Ghost). `?src=life` Game of Life (Hull),
-`?src=ignition` Lighter Ignition (Ghost), `?src=mni152` High, `?quality=high`,
+Door: bare URL is Brain MRI Low (Ghost, center and outer frames on).
+`?src=life` Game of Life (Hull, hide center, keep outer),
+`?src=ignition` Lighter Ignition (Ghost, both frames), `?src=mni152` High, `?quality=high`,
 Face `?face=1` (webcam / phone, not WebXR). Face lab: `face-lab.html`.
 
 ```mermaid
@@ -95,7 +96,7 @@ flowchart LR
   brain[Brain MRI Low]
   gol[Game of Life]
   lighter[Lighter Ignition]
-  faceBtn[Face button]
+  faceBtn[Project on Face]
   cam[Webcam or phone camera]
   bare --> brain
   bare --> faceBtn
@@ -105,6 +106,16 @@ flowchart LR
   ign --> lighter
   faceBtn --> cam
   cam --> overlay[Ghost brain on head]
+```
+
+```mermaid
+flowchart LR
+  brainDoor[Brain or Ignition]
+  golDoor[Game of Life]
+  brainDoor --> ghost[Ghost]
+  brainDoor --> both[Center and outer frames]
+  golDoor --> hull[Hull]
+  golDoor --> outer[Outer box only]
 ```
 
 ## Layers
@@ -1341,7 +1352,7 @@ flowchart TB
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
-| **Face AR** | Not WebXR. Face button is always on when the camera exists. `?face=1` enters. Phone rear / desktop selfie webcam + MediaPipe Face Landmarker writes `stage`. After lock, keep last pose if the mesh drops; tracking resumes when the face returns. Overlay canvas caps at 640 px. Ghost Brain MRI Low (~16 cm). No Size / Flip / millimetre sliders / XYZ rails in Face. Occlusion mesh later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
+| **Face AR** | Not WebXR. **Project on Face** in Source for Brain MRI Low / High. `?face=1` enters. Phone rear / desktop selfie + MediaPipe writes `stage`. Laptop keeps inspect chrome. Phone Face is slim (Selfie/Rear toggle). Switching Source leaves Face. After lock, keep last pose if the mesh drops. Overlay caps at 640 px. Ghost Brain (~16 cm). Blue iris discs, green pupils. Extra stage damping. Under-fill lights the Z plane. No Size / Flip / millimetre sliders. Occlusion later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
 
 ## Face AR (phone camera, not WebXR)
 
@@ -1358,13 +1369,17 @@ jsDelivr. Enter starts the camera before WASM/MRI; a tracker failure
 keeps the preview and shows the error in the hint. Loading the brain
 must not move the orbit camera (volume lives in camera space). Facial
 matrices may be row- or column-major; layout is inferred from the
-translation vector. **Selfie** (`aria-pressed`) is the user camera; off
-is the rear camera. Desktop starts Selfie on; phone starts Selfie off.
+translation vector. Phone Face is one **Selfie** / **Rear** toggle.
+Desktop starts Selfie; phone starts Rear.
 Flip L/R still follows that facing internally (no checkbox). Lab
 millimetre Shift / Lift / Inset / Size stay at the defaults; Face chrome
-does not show those sliders or XYZ rails. FPS stays on. If the mesh
+does not show those sliders. **Project on Face** is in Source for Brain
+Low / High. Laptop Face keeps rails, Loop, Source, and View. Switching
+Source leaves Face and restores orbit. Phone Face is the slim overlay.
+After lock, blue iris discs and green pupils. The brain stage is extra
+smoothed; contours stay live. FPS stays on. If the mesh
 drops after lock, keep the last pose; tracking resumes when the face
-returns. Exit Face is the way out.
+returns.
 
 ```mermaid
 flowchart TB
@@ -1404,7 +1419,7 @@ flowchart TB
 
 Enter with **Face** (always visible when the camera exists) or `?face=1`.
 Default source is Brain MRI Low, Ghost shade, Quality Low. After ~0.7 s
-of tracking the brain locks. **Selfie** switches cameras. **Exit** returns
+of tracking the brain locks. **Selfie** / **Rear** pick the camera. **Exit** returns
 to orbit. Frames stay on-device. MediaPipe WASM loads lazily from a
 pinned CDN. World AR shows **Tap to place** when the gold reticle is
 visible.

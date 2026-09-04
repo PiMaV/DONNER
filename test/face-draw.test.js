@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { clearOverlay, drawFaceLandmarks, fitOverlayCanvas } from "../src/face-draw.js";
+import { clearOverlay, drawFaceLandmarks, FACE_IRIS_FILL, FACE_PUPIL_FILL, fitOverlayCanvas } from "../src/face-draw.js";
 
 describe("face 2D overlay", () => {
   it("sizes the canvas to the video frame", () => {
@@ -28,6 +28,7 @@ describe("face 2D overlay", () => {
       moveTo(x, y) { ops.push(["move", x, y]); },
       lineTo(x, y) { ops.push(["line", x, y]); },
       stroke() { ops.push("stroke"); },
+      closePath() { ops.push("close"); },
       arc(x, y, r) { ops.push(["arc", x, y, r]); },
       fill() { ops.push("fill"); },
       clearRect(x, y, w, h) { ops.push(["clear", x, y, w, h]); },
@@ -52,5 +53,10 @@ describe("face 2D overlay", () => {
     assert.deepEqual(pupilArcs[0].slice(0, 3), ["arc", 40, 50]);
     clearOverlay(ctx);
     assert.deepEqual(ops.at(-1), ["clear", 0, 0, 100, 100]);
+  });
+
+  it("keeps distinct iris and pupil fills", () => {
+    assert.match(FACE_IRIS_FILL, /135, 206, 235/);
+    assert.match(FACE_PUPIL_FILL, /110, 196, 140/);
   });
 });

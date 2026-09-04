@@ -783,13 +783,38 @@ body.is-ar.is-look-more .look-more-panel .inspect-transport {
 }
 
 .transport {
-  position: static;
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + var(--safe-b));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(48vw, 14rem);
+  z-index: 5;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   pointer-events: auto;
   flex: 0 0 auto;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+}
+
+body.is-face-ar .transport {
+  max-width: min(92vw, 22rem);
+}
+
+.transport .btn-ar,
+.transport .btn-ar-reset,
+.transport .btn-xr-exit,
+.transport .btn-face-ar,
+.transport .btn-play-dock,
+.transport .btn-face-facing {
+  min-width: 4.6rem;
+  width: auto;
+  flex-shrink: 0;
+}
+
+body.is-face-ar:not(.is-ar) .transport {
+  display: none;
 }
 
 .stack-name,
@@ -1340,6 +1365,7 @@ body.pattern-random #random-fill-field {
 
 .btn-ar,
 .btn-ar-reset,
+.btn-face-ar,
 .btn-face-facing,
 .btn-xr-exit {
   width: 100%;
@@ -1350,14 +1376,20 @@ body.pattern-random #random-fill-field {
   color: var(--dampf);
 }
 
+.btn-face-ar {
+  border-color: rgba(179, 136, 255, 0.45);
+  color: var(--unsettled);
+}
+
+.btn-face-ar.is-on,
 .btn-face-facing.is-on {
   border-color: rgba(179, 136, 255, 0.55);
   color: var(--unsettled);
   background: rgba(179, 136, 255, 0.14);
 }
-}
 
-#btn-face-ar-sheet {
+#btn-face-ar-sheet,
+#btn-face-facing-sheet {
   margin-top: 6px;
 }
 
@@ -1497,8 +1529,16 @@ body.is-face-ar.is-ar-placed .ar-stand {
 
 body.is-face-ar .face-calib,
 body.is-face-ar .ar-size,
-body.is-face-ar .stack,
-body.is-face-ar .loop-axes {
+body.is-face-ar .look-fit,
+body.is-face-ar .gizmo-slot,
+body.is-face-ar .gizmo-hit {
+  display: none !important;
+}
+
+/* Phone Face stays a slim overlay. Laptop Face is the same inspect chrome with a camera switch. */
+body.is-ar.is-face-ar .stack,
+body.is-ar.is-face-ar .loop-axes,
+body.is-ar.is-face-ar .inspect-transport {
   display: none !important;
 }
 
@@ -1543,15 +1583,26 @@ html.is-ar .ar-place-banner:not([hidden]) {
   position: fixed;
 }
 
-body.is-ar .transport .btn,
-body.is-ar .ar-size,
-body.is-ar .ar-yaw,
-body.is-ar .ar-stand,
-body.is-face-ar .transport .btn {
-  background: var(--bg);
-  backdrop-filter: none;
-  border-width: 2px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+body.is-ar .stack {
+  opacity: 1;
+}
+
+body.is-ar .stack-rail {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 10px rgba(0, 255, 242, 0.28);
+}
+
+body.is-ar .stack-axis-label,
+body.is-ar .stack-cap,
+body.is-ar .stack-thumb-time {
+  text-shadow: 0 0 5px rgba(11, 15, 20, 0.95), 0 1px 2px rgba(11, 15, 20, 0.9);
+}
+
+body.is-ar .z-focus,
+body.is-ar .z-clip {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 0 12px color-mix(in srgb, var(--axis, var(--dampf)) 70%, transparent);
 }
 
 body.is-ar .ar-size input,
@@ -2447,10 +2498,10 @@ body.is-ar .guide-overlay {
 
   .transport .btn-ar,
   .transport .btn-ar-reset,
-  .transport .btn-face-facing,
   .transport .btn-xr-exit,
   .transport .btn-face-ar,
-  .transport .btn-play-dock {
+  .transport .btn-play-dock,
+  .transport .btn-face-facing {
     min-width: 4.6rem;
     width: auto;
     flex-shrink: 0;

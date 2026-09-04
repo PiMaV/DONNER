@@ -161,18 +161,25 @@ advantage, not a deployment convenience.
   Landmarker, no hull follow, no video getImageData sampler.
   Prove camera + mesh on `face-lab.html` first (no Three.js). Phone starts
   on the rear camera; desktop webcam is the doctor path (Selfie on).
-  Default overlay is Brain MRI Low, Ghost, Quality Low. Pin
+  Default overlay is Brain MRI Low, Ghost. Phone Face drops Quality to Low.
+  Pin
   `@mediapipe/tasks-vision@0.10.21`.
   Do not let `bootCount` move the orbit camera during Face AR. Infer
-  row- vs column-major facial matrices from translation. Selfie toggle
-  (`aria-pressed`) is the user camera. Flip L/R still follows facing
+  row- vs column-major facial matrices from translation. Phone Face is one
+  Selfie / Rear toggle. Flip L/R still follows facing
   internally. Lab millimetre defaults stay (Lift 141 mm, Inset 50 mm,
-  Size 1.2); Face chrome does not show those sliders, Size, or XYZ rails.
+  Size 1.2); Face chrome does not show those sliders or Size.
+  **Project on Face** is in Source for Brain Low / High only. Laptop Face
+  keeps Source, View, rails, and Loop (not `is-ar` chrome). Switching
+  Source leaves Face and restores orbit. Phone Face is the slim overlay.
+  After lock, blue iris discs and green pupils. Brain stage is extra
+  One-Euro; overlay contours stay live.
   `?face=1` is the share door while the session is open. Full mesh overlay
   is only while locking; after lock the outer oval, lips, and iris/pupil
   marks stay while the face is visible. Overlay canvas caps at 640 px
   wide. FPS stays on Face and phone AR (Quest has no DOM overlay). World
-  AR shows Tap to place when the gold reticle is visible. Do not
+  AR shows Tap to place when the gold reticle is visible. Plane rails in
+  AR stay bright without a black chrome slab. Do not
   put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
   spawn rails / Play / Size / Yaw / Floor / Reset Anchor / Exit plus Look

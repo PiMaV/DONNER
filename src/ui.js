@@ -6,7 +6,7 @@ import { formatCacheStatus } from "./spacetime.js";
 import { clampSlab, playheadCrossesMid, playheadMidBack, stackThumbFrac, stackTickMarks } from "./axes.js";
 import { landscapePreview } from "./volume-prep.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
-import { FACE_FRONT_INSET_M, FACE_FRONT_LIFT_M, offsetFromFaceFront } from "./face-calib.js";
+import { FACE_FRONT_INSET_M, FACE_FRONT_LIFT_M, isFaceProjectSource, offsetFromFaceFront } from "./face-calib.js";
 
 const PATTERN_HINT = {
   Blinker:
@@ -302,6 +302,7 @@ export function bindUI(on) {
   const faceBtn = $("btn-face-ar");
   const faceSheetBtn = $("btn-face-ar-sheet");
   const faceFacing = $("btn-face-facing");
+  const faceFacingSheet = $("btn-face-facing-sheet");
   const xrExit = $("btn-xr-exit");
   const arReset = $("btn-ar-reset");
   const arPlaceBanner = $("ar-place-banner");
@@ -552,10 +553,12 @@ export function bindUI(on) {
   playDock?.addEventListener("click", () => on.togglePlay());
   loopBtn?.addEventListener("click", () => on.toggleLoop?.());
   if (arBtn && on.enterAr) arBtn.addEventListener("click", () => on.enterAr());
-  const enterFace = () => on.enterFaceAr?.();
+  const enterFace = () => on.toggleFaceProject?.();
   faceBtn?.addEventListener("click", enterFace);
   faceSheetBtn?.addEventListener("click", enterFace);
-  faceFacing?.addEventListener("click", () => on.toggleFaceFacing?.());
+  const toggleFacing = () => on.toggleFaceFacing?.();
+  faceFacing?.addEventListener("click", toggleFacing);
+  faceFacingSheet?.addEventListener("click", toggleFacing);
   if (xrExit && on.exitAr) xrExit.addEventListener("click", () => on.exitAr());
   if (arReset && on.resetArAnchor) arReset.addEventListener("click", () => on.resetArAnchor());
   const xrOverlay = $("xr-overlay");
@@ -909,6 +912,24 @@ export function bindUI(on) {
     if (!dest || inspectTransport.parentElement === dest) return;
     dest.appendChild(inspectTransport);
   };
+  const phoneHud = () =>
+    window.matchMedia("(pointer: coarse)").matches || narrow.matches;
+  const syncFaceProject = () => {
+    const brain = isFaceProjectSource(sourceKind?.value);
+    const presenting = document.body.classList.contains("is-face-ar");
+    const phone = phoneHud();
+    if (faceBtn) faceBtn.hidden = true;
+    if (faceSheetBtn) {
+      faceSheetBtn.hidden = !faceSupported || !brain;
+      faceSheetBtn.textContent = "Project on Face";
+      faceSheetBtn.setAttribute("aria-pressed", presenting ? "true" : "false");
+      faceSheetBtn.classList.toggle("is-on", presenting);
+      faceSheetBtn.title = presenting
+        ? "Stop projecting. Or pick another Source to return to orbit."
+        : "Project this Brain Ghost onto a webcam or phone camera.";
+    }
+    if (faceFacingSheet) faceFacingSheet.hidden = !presenting || phone || !brain;
+  };
 
   const phoneFolds = () => Boolean(foldBar) && getComputedStyle(foldBar).display !== "none";
   const clearGuideSpots = () => {
@@ -1174,17 +1195,16 @@ export function bindUI(on) {
     },
     setFaceAvailable(ok) {
       faceSupported = Boolean(ok);
-      const show = faceSupported && !document.body.classList.contains("is-ar");
-      if (faceBtn) faceBtn.hidden = !show;
-      if (faceSheetBtn) faceSheetBtn.hidden = !show;
+      syncFaceProject();
     },
     setFaceGate() {
       this.setFaceAvailable(faceSupported);
     },
-    setArActive(active, { locked = false, face = false } = {}) {
-      if (xrExit) xrExit.hidden = !active;
+    setArActive(active, { locked = false, face = false, parkInspect } = {}) {
+      const phone = phoneHud();
+      if (xrExit) xrExit.hidden = !active || (face && !phone);
       if (faceFacing) {
-        faceFacing.hidden = !active || !face;
+        faceFacing.hidden = !active || !face || !phone;
       }
       if (arReset) {
         arReset.hidden = !active || !locked || Boolean(face);
@@ -1194,23 +1214,25 @@ export function bindUI(on) {
           "Despawn the volume and search for a floor plane again. Does not exit the session.";
       }
       if (arBtn) arBtn.hidden = !arSupported || active;
-      const showFace = faceSupported && !active;
-      if (faceBtn) faceBtn.hidden = !showFace;
-      if (faceSheetBtn) faceSheetBtn.hidden = !showFace;
-      parkInspectTransport(Boolean(active && locked));
+      parkInspectTransport(
+        parkInspect === undefined ? Boolean(active && locked) : Boolean(parkInspect),
+      );
       if (!active || !locked) setLookMore(false);
       if (active) setBenchOpen(false);
       if (!active) this.setArPlaceBanner(false);
+      syncFaceProject();
     },
     setFaceFacing(environment) {
-      if (!faceFacing) return;
-      const selfie = !Boolean(environment);
-      faceFacing.textContent = "Selfie";
-      faceFacing.setAttribute("aria-pressed", selfie ? "true" : "false");
-      faceFacing.classList.toggle("is-on", selfie);
-      faceFacing.title = selfie
-        ? "Selfie camera. Tap to use the rear camera."
-        : "Rear camera. Tap to use the selfie camera.";
+      const rear = Boolean(environment);
+      const label = rear ? "Rear" : "Selfie";
+      const next = rear ? "Selfie" : "Rear";
+      for (const btn of [faceFacing, faceFacingSheet]) {
+        if (!btn) continue;
+        btn.textContent = label;
+        btn.setAttribute("aria-pressed", rear ? "false" : "true");
+        btn.classList.toggle("is-on", !rear);
+        btn.title = `Switch to ${next} camera`;
+      }
     },
     setFaceFlip(on) {
       if (!faceFlip) return;
@@ -1349,6 +1371,7 @@ export function bindUI(on) {
       if (loopBtn) loopBtn.disabled = false;
       syncFillVisibility();
       syncSourceCopy();
+      syncFaceProject();
     },
     setCountMeta(text) {
       if (countMeta) countMeta.textContent = text || "";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startShadeFor } from "../src/config.js";
+import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startPlaneChromeFor, startShadeFor } from "../src/config.js";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
@@ -142,8 +142,8 @@ describe("View sheet vs gizmo chrome", () => {
     const view = viewPanel();
     assert.match(gizmo, /id="btn-hide-center"/);
     assert.match(gizmo, /id="btn-hide-outer"/);
-    assert.match(html, /id="btn-hide-center"[^>]*aria-pressed="true"/);
-    assert.match(html, /id="btn-hide-outer"[^>]*aria-pressed="true"/);
+    assert.match(html, /id="btn-hide-center"[^>]*aria-pressed="false"/);
+    assert.match(html, /id="btn-hide-outer"[^>]*aria-pressed="false"/);
     assert.doesNotMatch(view, /id="hide-center"|id="hide-outer"|id="btn-hide-center"|id="btn-hide-outer"/);
     assert.doesNotMatch(view, />Hide center</);
     assert.doesNotMatch(view, />Hide outer</);
@@ -309,10 +309,15 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(startShadeFor("mni152"), "ghost");
     assert.equal(startShadeFor("ignition"), "ghost");
     assert.equal(startShadeFor("count"), "ghost");
+    assert.deepEqual(startPlaneChromeFor("mni152-low"), { hideCenter: false, hideOuter: false });
+    assert.deepEqual(startPlaneChromeFor("mni152"), { hideCenter: false, hideOuter: false });
+    assert.deepEqual(startPlaneChromeFor("ignition"), { hideCenter: false, hideOuter: false });
+    assert.deepEqual(startPlaneChromeFor("count"), { hideCenter: false, hideOuter: false });
+    assert.deepEqual(startPlaneChromeFor("conway"), { hideCenter: true, hideOuter: false });
     assert.equal(DEFAULTS.sourceKind, "mni152-low");
     assert.equal(DEFAULTS.shadeMode, "ghost");
-    assert.equal(DEFAULTS.hideCenter, true);
-    assert.equal(DEFAULTS.hideOuter, true);
+    assert.equal(DEFAULTS.hideCenter, false);
+    assert.equal(DEFAULTS.hideOuter, false);
     assert.doesNotMatch(html, /id="source-welcome"/);
     assert.match(html, />Game of Life</);
     assert.match(html, />Lighter Ignition</);

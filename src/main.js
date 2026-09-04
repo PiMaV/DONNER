@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind, startShadeFor } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind, startPlaneChromeFor, startShadeFor } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -146,6 +146,7 @@ import {
   faceArSourceId,
   faceExtentCells,
   faceStageScale,
+  isFaceProjectSource,
 } from "./face-calib.js";
 import {
   FACE_IRIS_CENTER_INDEXES,
@@ -161,7 +162,7 @@ import {
   startFaceCamera,
   stopFaceCamera,
 } from "./face-ar.js";
-import { clearOverlay, drawFaceLandmarks, fitOverlayCanvas } from "./face-draw.js";
+import { clearOverlay, drawFaceLandmarks, FACE_IRIS_FILL, FACE_PUPIL_FILL, fitOverlayCanvas } from "./face-draw.js";
 import {
   XR_PINCH_MIN_M,
   distance3,
@@ -446,6 +447,7 @@ let faceMirrored = false;
 let faceLandmarker = null;
 let faceStream = null;
 let facePose = null;
+let faceStagePose = null;
 let faceLastDetect = 0;
 let faceSavedCam = null;
 let faceSavedQuality = null;
@@ -573,6 +575,7 @@ const ui = bindUI({
   },
   enterAr,
   enterFaceAr,
+  toggleFaceProject,
   toggleFaceFacing,
   exitAr,
   arMag: () => {
@@ -849,11 +852,16 @@ function syncArVolumeVisible() {
       });
 }
 
+function facePhoneChrome() {
+  return Boolean(coarse || gizmoNarrowMq.matches);
+}
+
 function syncArOverlayChrome() {
   ui.setArActive(arPresenting(), {
     locked: xrPresenting() ? arLocked : faceLocked,
     searching: xrPresenting() ? arSearching : faceActive && !faceLocked,
     face: facePresenting(),
+    parkInspect: xrPresenting() && arLocked,
   });
 }
 
@@ -884,6 +892,8 @@ function syncHeadlamp() {
   const pose = headlampPose(
     { x: _headPos.x, y: _headPos.y, z: _headPos.z },
     { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w },
+    40,
+    { under: facePresenting() },
   );
   key.position.set(pose.key.x, pose.key.y, pose.key.z);
   fill.position.set(pose.fill.x, pose.fill.y, pose.fill.z);
@@ -996,14 +1006,15 @@ function applyFaceStagePose() {
     syncArVolumeVisible();
     return;
   }
-  if (!facePose || !faceLocked) {
+  const pose = faceStagePose || facePose;
+  if (!pose || !faceLocked) {
     syncArVolumeVisible();
     return;
   }
   const s = faceStageScale(DEFAULTS.cellSize, arMag, faceVolumeExtent());
   if (!(s > 0)) return;
   const calib = ui.getFaceCalib?.() || { offset: FACE_DEFAULT_OFFSET, flipLR: false };
-  const composed = composeFaceStage(facePose, { ...calib, scale: s });
+  const composed = composeFaceStage(pose, { ...calib, scale: s });
   stage.quaternion.set(
     composed.quaternion.x,
     composed.quaternion.y,
@@ -1086,6 +1097,7 @@ function recaptureFace() {
   faceLocked = false;
   faceAnchored = false;
   facePose = null;
+  faceStagePose = null;
   faceLandmarkN = 0;
   faceAxes.visible = false;
   if (faceOverlay) faceOverlay.hidden = false;
@@ -1133,9 +1145,9 @@ async function enterFaceAr() {
   faceSavedQuality = viewQuality;
   faceTrackerError = "";
   faceActive = true;
-  applyViewQuality("low");
+  if (facePhoneChrome()) applyViewQuality("low");
   setShadeMode("ghost");
-  setArDocument(true);
+  setArDocument(facePhoneChrome());
   document.documentElement.classList.toggle("is-face-ar", true);
   document.body.classList.toggle("is-face-ar", true);
   if (faceVideo) faceVideo.hidden = false;
@@ -1181,9 +1193,19 @@ async function enterFaceAr() {
   syncStartUrl();
 }
 
-async function toggleFaceFacing() {
+async function toggleFaceProject() {
+  if (facePresenting()) {
+    await exitFaceAr();
+    return;
+  }
+  await enterFaceAr();
+}
+
+async function setFaceCamera(environment) {
   if (!facePresenting()) return;
-  faceEnvironment = !faceEnvironment;
+  const next = Boolean(environment);
+  if (next === faceEnvironment) return;
+  faceEnvironment = next;
   ui.setFaceFacing?.(faceEnvironment);
   ui.setFaceFlip?.(!faceEnvironment);
   recaptureFace();
@@ -1198,6 +1220,10 @@ async function toggleFaceFacing() {
   }
 }
 
+async function toggleFaceFacing() {
+  await setFaceCamera(!faceEnvironment);
+}
+
 async function exitFaceAr() {
   if (!faceActive && !faceStream && !faceLandmarker) {
     document.documentElement.classList.remove("is-face-ar");
@@ -1208,6 +1234,7 @@ async function exitFaceAr() {
   faceLocked = false;
   faceAnchored = false;
   facePose = null;
+  faceStagePose = null;
   faceTrackerError = "";
   faceMeshLinks = [];
   faceOvalLinks = [];
@@ -1240,7 +1267,7 @@ async function exitFaceAr() {
   syncTurntableVisual();
   if (faceSavedQuality) applyViewQuality(faceSavedQuality);
   faceSavedQuality = null;
-  applyStartShade(ui.getConfig().sourceKind);
+  applyStartLook(ui.getConfig().sourceKind);
   dirtySource = true;
   dirtyView = true;
   syncFog();
@@ -1279,9 +1306,15 @@ function paintFaceOverlay(result) {
     });
     drawFaceLandmarks(faceOverlayCtx, face, [], {
       mirrored: false,
-      fill: "#111111",
+      fill: FACE_IRIS_FILL,
       dots: FACE_IRIS_CENTER_INDEXES,
-      dotRadius: Math.max(1, w / 900),
+      dotRadius: Math.max(4.5, w / 160),
+    });
+    drawFaceLandmarks(faceOverlayCtx, face, [], {
+      mirrored: false,
+      fill: FACE_PUPIL_FILL,
+      dots: FACE_IRIS_CENTER_INDEXES,
+      dotRadius: Math.max(2.2, w / 420),
     });
     return;
   }
@@ -1308,6 +1341,7 @@ function tickFaceAr(now) {
   if (raw && faceMirrored) raw = mirrorPoseX(raw);
   const tracked = faceTracker.push(raw, now);
   facePose = tracked.pose;
+  faceStagePose = tracked.stagePose || tracked.pose;
   if (tracked.locked && !faceLocked) {
     faceLocked = true;
     faceAnchored = true;
@@ -1829,11 +1863,13 @@ function syncFog() {
     hemi.intensity = 0;
     key.intensity = 0;
     fill.intensity = 0;
+    hemi.groundColor.setHex(0x0a0e13);
     return;
   }
   hemi.intensity = inspect || ar ? 1.08 : 0.72;
   key.intensity = inspect || ar ? 1.05 : 0.9;
-  fill.intensity = spec.fillLight ? 0.22 : 0;
+  fill.intensity = spec.fillLight ? (facePresenting() ? 0.72 : 0.22) : 0;
+  hemi.groundColor.setHex(facePresenting() ? 0x4a6578 : 0x0a0e13);
 }
 
 function applyStartShade(kind) {
@@ -1842,6 +1878,21 @@ function applyStartShade(kind) {
   ui.setShade(shadeMode);
   if (inspectMode()) dirtySource = true;
   dirtyView = true;
+}
+
+function applyStartPlaneChrome(kind) {
+  const chrome = startPlaneChromeFor(kind);
+  hideCenter = Boolean(chrome.hideCenter);
+  hideOuter = Boolean(chrome.hideOuter);
+  ui.setPlaneChrome(chrome);
+  if (hideCenter && hideOuter) setFrameHover(null);
+  syncClipPlanes();
+  dirtyView = true;
+}
+
+function applyStartLook(kind) {
+  applyStartShade(kind);
+  applyStartPlaneChrome(kind);
 }
 
 function applyViewQuality(id) {
@@ -2304,7 +2355,7 @@ function bootCount(vol) {
   vol.applyTrim(DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM);
   cubes.setKindHex(currentCountLut(), -1);
   ui.setSourceKind(countKindForVolume(vol));
-  applyStartShade(countKindForVolume(vol));
+  applyStartLook(countKindForVolume(vol));
   syncStartUrl();
   ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
   ui.setCountMeta(
@@ -2394,7 +2445,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
     if (!countVol) {
       ui.setSourceKind("conway");
       sourceId = "conway";
-      applyStartShade("conway");
+      applyStartLook("conway");
     }
     updateHint();
   }
@@ -2403,10 +2454,13 @@ async function loadCountFromUrl(url, name, kind = "count") {
 function switchSource(kind) {
   const next =
     kind === "conway" || COUNT_DEMOS[kind] ? kind : "conway";
+  const leaveFace = facePresenting() && !isFaceProjectSource(next);
   ui.setSourceKind(next);
-  applyStartShade(next);
+  applyStartLook(next);
   syncStartUrl();
+  ui.setFaceGate?.();
   void withLoading("Loading…", async () => {
+    if (leaveFace) await exitFaceAr();
     if (next === "conway") {
       disconnectWolke();
       bootWorld(true);
@@ -2586,7 +2640,7 @@ function bootWorld(resizeGrid) {
   layoutPlayfield(cfg.width, cfg.height);
   cubes.setKindHex(CONWAY_KIND_HEX, CONWAY_BASE_K);
   ui.setSourceKind("conway");
-  applyStartShade("conway");
+  applyStartLook("conway");
 
   acc = 0;
   stableStreak = 0;

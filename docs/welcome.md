@@ -40,7 +40,8 @@ and draws gold arrows at the controls.
 4. **Rails** — Colored X / Y / Z playheads. Grab a matching frame edge
    in the volume. Loop axis sits under the rails.
 5. **Viewcube** — Face-click for an ortho cut. **Hide center** /
-   **Hide outer**. Phone uses the rails; the cube is desktop-only.
+   **Hide outer**. Brain starts with both frames on. Phone uses the rails;
+   the cube is desktop-only.
 6. **Inspect** — Hull / Ghost / Cuts. Grab a colored frame edge to peek.
 7. **Look** — Quality (starts at Medium), Parallax, Fit, Reset Planes.
 
@@ -68,15 +69,17 @@ flowchart LR
 - **Game of Life** — a generator. Each cube is a living cell. **Z** is
   generations. Boot runs 12 generations, then stays paused so the brick
   has depth. **Play** grows the stack further.
-  **Loop** (under the rails) walks a cut of that tape. Starts in **Hull**.
+  **Loop** (under the rails) walks a cut of that tape. Starts in **Hull**,
+  with Hide center on and the outer box kept so the playfield reads.
   Share as `?src=life`.
 - **Lighter Ignition** — event-camera **counts** of a lighter strike.
   Sparse XY; **Z** is time. **Loop** scrubs the recording. ~4 MB download.
   Starts in **Ghost**. First door for event-camera visitors: `?src=ignition`.
 - **Brain MRI Low** — example T1 atlas (ICBM 152), 2× mean-binned.
   All three axes are space. **Loop** walks a cut. Not a patient scan.
-  ~3 MB download. **Visitor default** (bare URL). Starts in **Ghost**.
-  **Face** hangs this overlay on the laptop webcam or a phone camera.
+  ~3 MB download. **Visitor default** (bare URL). Starts in **Ghost** with
+  center and outer frames on.
+  **Project on Face** hangs this overlay on the laptop webcam or a phone camera.
 - **Brain MRI High** — the same atlas at native grid. ~23 MB download.
   Starts in **Ghost**.
 
@@ -109,7 +112,7 @@ flowchart LR
   brain[Brain MRI Low]
   gol[Game of Life]
   lighter[Lighter Ignition]
-  faceBtn[Face button]
+  faceBtn[Project on Face]
   cam[Webcam or phone camera]
   bare --> brain
   bare --> faceBtn
@@ -119,6 +122,16 @@ flowchart LR
   ign --> lighter
   faceBtn --> cam
   cam --> overlay[Ghost brain on head]
+```
+
+```mermaid
+flowchart LR
+  brainDoor[Brain or Ignition]
+  golDoor[Game of Life]
+  brainDoor --> ghost[Ghost]
+  brainDoor --> both[Center and outer frames]
+  golDoor --> hull[Hull]
+  golDoor --> outer[Outer box only]
 ```
 
 - Bare URL or `?src=brain` / `?src=mri` — Brain MRI Low (visitor default)

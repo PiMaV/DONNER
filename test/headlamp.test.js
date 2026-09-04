@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  HEADLAMP_FILL_LOCAL,
   HEADLAMP_KEY_LOCAL,
+  HEADLAMP_UNDER_LOCAL,
   headlampPose,
   offsetInView,
   viewLookTarget,
@@ -49,5 +51,12 @@ describe("headlampPose", () => {
     const pose = headlampPose({ x: 5, y: 6, z: 7 }, ID, 20);
     assert.equal(pose.key.x, 5 + HEADLAMP_KEY_LOCAL.x);
     assert.equal(pose.target.z, 7 - 20);
+    assert.equal(pose.fill.y, 6 + HEADLAMP_FILL_LOCAL.y);
+  });
+
+  it("puts the Face fill under the volume so the Z plane is not a black slab", () => {
+    const pose = headlampPose(ORIGIN, ID, 40, { under: true });
+    assert.equal(pose.fill.y, HEADLAMP_UNDER_LOCAL.y);
+    assert.ok(pose.fill.y < 0);
   });
 });

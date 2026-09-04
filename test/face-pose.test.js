@@ -138,6 +138,16 @@ describe("one-euro and tracker", () => {
     assert.ok(out.position.x > 0 && out.position.x < 10);
   });
 
+  it("damps the brain stage more than the overlay pose", () => {
+    const tracker = createFaceTracker({ freezeFrames: 2, lockMs: 1000, minConfidence: 0.5 });
+    const a = poseFromColumnMajor(translationColumnMajor(0, 0, 0));
+    const b = poseFromColumnMajor(translationColumnMajor(10, 0, 0));
+    tracker.push(a, 0);
+    const out = tracker.push(b, 16);
+    assert.ok(out.stagePose.position.x < out.pose.position.x);
+    assert.ok(out.pose.position.x < 10);
+  });
+
   it("keeps the last pose after lock; tracking resumes when the face returns", () => {
     const tracker = createFaceTracker({ freezeFrames: 2, lockMs: 40, minConfidence: 0.5 });
     const pose = poseFromColumnMajor(translationColumnMajor(2, 0, 0));

@@ -134,6 +134,8 @@ describe("face AR gate and camera", () => {
     assert.match(main, /faceIrisLinks = faceIrisConnections/);
     assert.match(main, /if \(faceLocked\) \{[\s\S]*?drawFaceLandmarks\(faceOverlayCtx, face, faceOvalLinks/);
     assert.match(main, /dots: FACE_IRIS_CENTER_INDEXES/);
+    assert.match(main, /FACE_IRIS_FILL/);
+    assert.doesNotMatch(main, /drawGazeCones/);
     assert.match(main, /createFaceTracker/);
     assert.doesNotMatch(main, /createHeadLock/);
     assert.doesNotMatch(main, /tryLoadPoseLandmarker/);

@@ -77,8 +77,8 @@
       <div class="look-more">
         <button type="button" id="btn-look-more" class="btn-show-planes" aria-expanded="false" aria-controls="look-more-panel" title="Loop, hide frames, Reset Planes, and Quality">More</button>
         <div id="look-more-panel" class="look-more-panel">
-          <button type="button" id="btn-hide-center" class="btn-show-planes is-on" aria-pressed="true" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
-          <button type="button" id="btn-hide-outer" class="btn-show-planes is-on" aria-pressed="true" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
+          <button type="button" id="btn-hide-center" class="btn-show-planes" aria-pressed="false" title="Hide the playhead (now) frames and the slice grid on the current plane. A viewcube cut still shows that plane.">Hide center</button>
+          <button type="button" id="btn-hide-outer" class="btn-show-planes" aria-pressed="false" title="Hide the outer clip / bound frames of the crop box.">Hide outer</button>
           <div id="look-more-loop" class="look-more-loop"></div>
           <button type="button" id="btn-look-reset-planes" class="btn look-more-reset" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
           <div class="field look-more-quality">
@@ -210,12 +210,12 @@
       </div>
       <div id="transport" class="transport">
         <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Face</button>
+        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Project on Face</button>
         <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
           title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
         <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
           title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
-        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden aria-pressed="false" title="Rear camera. Tap to use the selfie camera.">Selfie</button>
+        <button type="button" id="btn-face-facing" class="btn btn-face-facing" hidden aria-pressed="false" title="Switch to Rear camera">Selfie</button>
         <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
       </div>
     </div>
@@ -251,9 +251,10 @@
           <option value="count" hidden>Own cube</option>
         </select>
       </label>
-      <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Face hangs this Ghost on a webcam or phone camera. Not a patient scan.</p>
+      <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Project on Face hangs this Ghost on a webcam or phone camera. Not a patient scan.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
-      <button type="button" id="btn-face-ar-sheet" class="btn btn-face-ar" hidden>Face AR</button>
+      <button type="button" id="btn-face-ar-sheet" class="btn btn-face-ar" hidden aria-pressed="false" title="Project this Brain Ghost onto a webcam or phone camera.">Project on Face</button>
+      <button type="button" id="btn-face-facing-sheet" class="btn btn-face-facing" hidden aria-pressed="false" title="Switch to Rear camera">Selfie</button>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"

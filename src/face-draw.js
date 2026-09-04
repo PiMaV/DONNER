@@ -92,3 +92,8 @@ export function clearOverlay(ctx) {
   if (!ctx) return;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
+
+/** Soft green pupils on the lock overlay. */
+export const FACE_PUPIL_FILL = "rgba(110, 196, 140, 0.92)";
+/** Iris / retina discs behind the pupils. */
+export const FACE_IRIS_FILL = "rgba(135, 206, 235, 0.88)";

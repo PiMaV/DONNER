@@ -15,6 +15,7 @@ import {
   faceExtentCells,
   facePlacementFromMm,
   faceStageScale,
+  isFaceProjectSource,
   offsetFromFaceFront,
   readFacePlacementParams,
   writeFacePlacementParams,
@@ -35,6 +36,10 @@ describe("face stage fit", () => {
     assert.equal(faceArSourceId(COUNT_DEMOS), FACE_AR_SOURCE);
     assert.equal(faceArSourceId({}), FACE_AR_SOURCE);
     assert.equal(faceArSourceId({ mni152: {} }), FACE_AR_SOURCE_FALLBACK);
+    assert.equal(isFaceProjectSource("mni152-low"), true);
+    assert.equal(isFaceProjectSource("mni152"), true);
+    assert.equal(isFaceProjectSource("ignition"), false);
+    assert.equal(isFaceProjectSource("conway"), false);
   });
 });
 

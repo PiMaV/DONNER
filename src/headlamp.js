@@ -9,6 +9,8 @@ import { rotateVecByQuat } from "./xr.js";
 /** Camera space: +X right, +Y up, −Z look (Three.js). */
 export const HEADLAMP_KEY_LOCAL = { x: 8, y: 12, z: 4 };
 export const HEADLAMP_FILL_LOCAL = { x: -10, y: 2, z: 6 };
+/** Face: lift the underside of the Z plane (camera −Y, a little in front). */
+export const HEADLAMP_UNDER_LOCAL = { x: 2, y: -16, z: -8 };
 
 export function offsetInView(camPos, camQuat, local) {
   const w = rotateVecByQuat(local, camQuat);
@@ -33,10 +35,10 @@ export function viewLookTarget(camPos, camQuat, dist = 40) {
   };
 }
 
-export function headlampPose(camPos, camQuat, dist = 40) {
+export function headlampPose(camPos, camQuat, dist = 40, { under = false } = {}) {
   return {
     key: offsetInView(camPos, camQuat, HEADLAMP_KEY_LOCAL),
-    fill: offsetInView(camPos, camQuat, HEADLAMP_FILL_LOCAL),
+    fill: offsetInView(camPos, camQuat, under ? HEADLAMP_UNDER_LOCAL : HEADLAMP_FILL_LOCAL),
     target: viewLookTarget(camPos, camQuat, dist),
   };
 }
