@@ -475,7 +475,11 @@ export function bindUI(on) {
     fill.value = String(DEFAULTS.density);
   }
   if (alignZ) alignZ.checked = DEFAULTS.alignZ;
-  if (cubeCap) cubeCap.value = String(DEFAULTS.maxInstances);
+  if (cubeCap) {
+    cubeCap.min = String(DEFAULTS.cubeCapMin);
+    cubeCap.max = String(DEFAULTS.cubeCapMax);
+    cubeCap.value = String(DEFAULTS.maxInstances);
+  }
   if (bench) bench.checked = DEFAULTS.bench;
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
   let lastSourceKind = sourceKind ? sourceKind.value : DEFAULTS.sourceKind;
@@ -1267,6 +1271,14 @@ export function bindUI(on) {
     },
     setCountHint(text) {
       if (countHint) countHint.textContent = text;
+    },
+    setCubeCap(n) {
+      const cap = clampCubeCap(n);
+      if (!cubeCap) return cap;
+      applying = true;
+      cubeCap.value = String(cap);
+      applying = false;
+      return cap;
     },
     openIngest(model) {
       const spec = model || {};

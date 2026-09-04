@@ -278,7 +278,7 @@ rectangle select on the playfield).
 | Shade | Inspect: **Hull** (default, outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead and hides the +side plus clip edges), **Ghost** (glass hull + the highlighted plane — Loop X/Y/Z or grab a frame selects it), **Cuts** (three orthogonal slices only, no hull; shade id `triple`). Phone AR overlay uses the same three buttons. |
 | Depth | Live wake only (8–128). Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
-| Cube cap | View instance envelope (default 200 000). Newest slices kept on overflow (`trunc`). |
+| Cube cap | View instance envelope (default **2 000 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Confirming **Load** on a `.npy` raises the cap to loaded cells + 1 000 000 when that is higher (10M cells → 11M). |
 | FPS | Realtime frame rate. Stays on the View fold when that sheet is collapsed (desktop analog of the phone FPS chip). The HUD View fold shows a compact FPS when collapsed; the expanded HUD already lists FPS/AVG/1%. Phone chip unchanged. |
 | DEV Bench | Opt-in checkbox on the **right** View HUD (not the left View sheet). CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. Phone: tap the FPS chip to open the same card. |
 | **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
@@ -357,7 +357,9 @@ and cell count. About **500k** occupied-scale cells is the comfort cap
 shorter than the factor (one Z plane still bins X/Y), uses **mean**
 (downsample) or **max** (keep peaks), and a **Plasma** preview of the
 first output plane. A taller-than-wide plane rotates 90° first, then
-scales to the dialog width.
+scales to the dialog width. Confirming **Load** raises **Cube cap** to
+the chosen cell count + 1 000 000 when that is above the current setting,
+so a comfort-warned brick is not silently truncated.
 Curated demos skip the gate.
 The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
 Pages). See [`backlog.md`](../backlog.md). Visitor copy:
@@ -371,14 +373,16 @@ flowchart TB
   gate{Cells and RAM OK?}
   refuse[Refuse or require bin]
   bin[Stream-bin mean or max; skip short axes]
+  cap[Cube cap to cells plus 1M]
   sparse[countVolumeFromDense]
   soa[EventSoA plus hull]
   drop --> peek
   load --> peek
   peek --> gate
-  gate -->|yes| sparse
+  gate -->|yes| cap
   gate -->|too big| refuse
-  refuse --> bin --> sparse
+  refuse --> bin --> cap
+  cap --> sparse
   sparse --> soa
 ```
 
@@ -599,7 +603,7 @@ scrubs the **active** inspect axis. **Play** on a volume walks the
 **loop** axis (Source X/Y/Z), which can differ from the viewcube.
 
 If INST hits the cap (`trunc`), live: lower Depth or Grid; inspect: the
-tape is denser than the 200 000-cube envelope (newest slices kept). RATE is
+tape is denser than the Cube cap envelope (newest slices kept). RATE is
 not frame rate. FPS, 1%/0.1% lows, and the sparkline are wall-clock
 frame times; they are not clamped to 10. **1%** / **0.1%** are the mean
 FPS of the slowest 1% / 0.1% of the last ~1000 frames — hitch, not AVG.

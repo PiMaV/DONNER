@@ -88,7 +88,8 @@ advantage, not a deployment convenience.
   (default on) orbits around the time axis without chasing Z clips;
   right-drag still slides along Z; off allows XY pan.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
-  Cube cap is a View number (default 200 000).
+  Cube cap is a View number (default 2 000 000; a confirmed NumPy load
+  raises it to cells + 1 000 000 when that is higher).
   Numbered X/Y overlay, hairlines, and cube hover outlines are off
   (units later). Grab the axis-colored frame edges in the volume
   (playhead full size, clips well inside; coincident clip hidden; ~28 px

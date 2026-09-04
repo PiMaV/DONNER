@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Ingest preview: a taller-than-wide first plane rotates 90° so the gate can scale it to the full dialog width.
 - The previous native Brain MRI cube is now **Brain MRI High** (id `mni152`, ~23 MB). High stays opt-in; Quality Low/Medium/High is still the renderer, not the MRI grid.
+- Source **About Data** is a small muted caption next to the fold heading (it no longer inherits body size).
+- Cube cap default is **2 000 000** (was 200 000). Ceiling is 20 000 000. Confirming **Load** on a `.npy` raises the cap to loaded cells + 1 000 000 when that is higher (10M cells → 11M), so a comfort-warned load is not silently truncated.
 
 ## [0.13.0] - 2026-09-03
 

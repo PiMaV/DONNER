@@ -916,9 +916,10 @@ is gen 0 (or the tape start). Off = even brick.
 Cache status lives in View. Conway Source does not own Depth, Decay, or
 the tape. Caps: 4096 gens or 400 000 cells, then `full` (recording from
 the start stops). Reset starts a new tape. Changing Depth resizes the
-wake ring only. The instance cap (View **Cube cap**, default 200 000)
+wake ring only. The instance cap (View **Cube cap**, default 2 000 000)
 still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
-envelope.
+envelope. A confirmed own-cube **Load** raises that cap to the loaded cell
+count + 1 000 000 when higher.
 
 Color coding defaults on for teaching. Conway **Size by age** defaults on
 (Start 0.5, Tail 16).
@@ -984,8 +985,8 @@ XR-unsafe). Auto quality from Bench metrics is later.
 
 ## Performance envelope
 
-Instanced cubes: one mesh, default 200 000 instances (View **Cube cap**
-up to 4 000 000). Conway is the synthetic
+Instanced cubes: one mesh, default 2 000 000 instances (View **Cube cap**
+up to 20 000 000; a confirmed `.npy` Load can set cells + 1 000 000). Conway is the synthetic
 load generator. Realtime FPS is in View (and the display HUD). Software
 rasterizers still warn **SOFTWARE** on the FPS chip.
 
@@ -1031,7 +1032,7 @@ motion-gate plaything (now removed); the row is kept as a cost record.
 | Same soup if visible = resident = 1000, color coding on | ~2.3 s and SoA truncates at 200k |
 
 Takeaway: occupancy Color coding is cheap; the old 5×5 gate dominated.
-Depth stops the 200k cap. Camera-only frames skip `fillSoA`. Do not copy
+Depth stops the Cube cap. Camera-only frames skip `fillSoA`. Do not copy
 these Node numbers as frame rate.
 
 ## MRI volume (later)
@@ -1097,7 +1098,7 @@ masks into DONNER git.
 fill — a sparse cloud. Native MNI (High) is ~5.4M occupied at **47 %**;
 `CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
 **and** inside the AABB, so idle Hull is ~140k surface cubes (under the
-200k default cap). Those hull indices are cached at load; a full-brick
+2M default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
 **Brain MRI Low** is the same anatomy at 1/8 the cells (~1.4M), so hull
 fill and fetch stay cheap for demos. Extra public `.npy` demos should

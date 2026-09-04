@@ -64,11 +64,11 @@ export const DEFAULTS = {
   timeScale: 1,
   /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. */
   voxelGap: 0,
-  maxInstances: 200_000,
+  maxInstances: 2_000_000,
   /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
   bench: false,
   cubeCapMin: 20_000,
-  cubeCapMax: 4_000_000,
+  cubeCapMax: 20_000_000,
   alignZ: true,
   parallax: true,
   sliceAxis: "z",
@@ -250,6 +250,20 @@ export function clampCubeCap(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return DEFAULTS.maxInstances;
   return Math.min(DEFAULTS.cubeCapMax, Math.max(DEFAULTS.cubeCapMin, Math.round(v)));
+}
+
+/** Extra instances beyond a loaded cell count so a full brick is not `trunc`. */
+export const CUBE_CAP_HEADROOM = 1_000_000;
+
+/**
+ * Cube cap after the visitor confirms Load on a count cube.
+ * 10M cells → 11M. Never lowers an existing cap.
+ */
+export function cubeCapForLoadedCells(cells, current = DEFAULTS.maxInstances) {
+  const have = clampCubeCap(current);
+  const n = Number(cells);
+  if (!Number.isFinite(n) || n <= 0) return have;
+  return clampCubeCap(Math.max(have, n + CUBE_CAP_HEADROOM));
 }
 
 export function clampStabStart(n) {

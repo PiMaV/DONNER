@@ -490,7 +490,6 @@ body.is-ar .gizmo-col {
 .source-about-data {
   flex: 0 0 auto;
   align-self: baseline;
-  font-size: 0.3rem;
   white-space: nowrap;
 }
 
@@ -1691,6 +1690,21 @@ body.source-count .encoding-conway {
 }
 
 .btn-link:hover {
+  color: var(--donner);
+}
+
+button.btn-link.source-about-data {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.5rem;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
+  color: var(--muted);
+}
+
+button.btn-link.source-about-data:hover {
   color: var(--donner);
 }
 

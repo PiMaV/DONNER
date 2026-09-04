@@ -12,7 +12,7 @@ import {
 import { gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { gizmoFollowYaw } from "../src/turntable.js";
-import { clampCubeCap, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
+import { clampCubeCap, cubeCapForLoadedCells, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
 
 describe("product view directions", () => {
   it("maps product +Z to world +Y (top-down)", () => {
@@ -194,10 +194,18 @@ describe("ortho and snap helpers", () => {
 
 describe("cube cap", () => {
   it("clamps to the bench range", () => {
-    assert.equal(clampCubeCap(200_000), 200_000);
+    assert.equal(clampCubeCap(2_000_000), 2_000_000);
     assert.equal(clampCubeCap(1), DEFAULTS.cubeCapMin);
     assert.equal(clampCubeCap(9e9), DEFAULTS.cubeCapMax);
     assert.equal(clampCubeCap("nope"), DEFAULTS.maxInstances);
+  });
+
+  it("raises to loaded cells plus 1M and never lowers", () => {
+    assert.equal(DEFAULTS.maxInstances, 2_000_000);
+    assert.equal(cubeCapForLoadedCells(10_000_000), 11_000_000);
+    assert.equal(cubeCapForLoadedCells(100_000), 2_000_000);
+    assert.equal(cubeCapForLoadedCells(3_000_000), 4_000_000);
+    assert.equal(cubeCapForLoadedCells(10_000_000, 15_000_000), 15_000_000);
   });
 });
 

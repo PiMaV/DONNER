@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, isCountSourceKind } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, cubeCapForLoadedCells, isCountSourceKind } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, viewQualitySpec } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -2006,6 +2006,7 @@ async function confirmCountIngest(picks) {
   const { file, header, name } = pending;
   try {
     await withLoading(`Loading ${file.name}…`, async () => {
+      ensureCubeCapForCells(opt.cells);
       if (f === 1) {
         const buf = await file.arrayBuffer();
         bootCount(countVolumeFromNpy(buf, name));
@@ -2378,6 +2379,12 @@ function setActiveAxis(next, opts = {}) {
 
 function setLoopAxis(next) {
   setActiveAxis(next);
+}
+
+function ensureCubeCapForCells(cells) {
+  const next = cubeCapForLoadedCells(cells, ui.getConfig().maxInstances);
+  ui.setCubeCap(next);
+  applyCubeCap();
 }
 
 function applyCubeCap() {
