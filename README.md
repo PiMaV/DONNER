@@ -18,12 +18,13 @@ BLITZ is the 2D analysis sibling. They share datasets, not a GUI.
 
 ## Open it
 
-Three examples in Source, on the left.
+Examples in Source, on the left.
 
 - **Game of Life** — *live generator.* Each cube is a living cell. Z is
   generations.
 - **Lighter Ignition** — static event-camera counts of a lighter strike.
-- **Brain MRI** — static example T1 atlas.
+- **Brain MRI Low** — static example T1 atlas, 2× binned (visitor default).
+- **Brain MRI High** — the same atlas at native grid.
 
 Drag to orbit. Scroll to zoom. Drop a `.npy` count cube onto the volume.
 On a phone, pinch. On Quest, grab the volume in the room.

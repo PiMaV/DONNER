@@ -5,7 +5,8 @@ can `fetch` them same-origin. They are examples, not a data portal.
 Subject / SHIP MRI stays off this tree.
 
 Further public example cubes should stay sparse (many zeros). A dense
-brick like Brain MRI is the expensive case.
+brick like Brain MRI High is the expensive case; Brain MRI Low is the
+visitor default.
 
 ## Lighter Ignition — `ignition_stack.npy`
 
@@ -14,7 +15,14 @@ cube `(T × H × W)` uint counts. Cubes are integer events per pixel per
 Δt. Shipped here as a public example. File name stays `ignition_stack`
 (source id `ignition`).
 
-## Brain MRI — `mni152_stack.npy`
+## Brain MRI Low — `mni152_low_stack.npy`
+
+Derived **example** T1 volume, 2× mean-binned from High (same reduce as
+Source → Load NumPy factor 2 / mean). Grid `(107, 128, 103)` uint16.
+Source id `mni152-low`. Visitor aliases `brain` / `mri`. Rebuild with
+`node scripts/bin_mni152_low.mjs`.
+
+## Brain MRI High — `mni152_stack.npy`
 
 Derived **example** T1 volume. Not a patient scan. Native grid
 `(215, 256, 207)` uint16 (intensity 1…32). Source id `mni152`.

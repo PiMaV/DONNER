@@ -162,6 +162,7 @@ describe("View sheet vs gizmo chrome", () => {
     assert.match(css, /body\.source-count \.encoding-conway\s*\{[^}]*display:\s*none/s);
     assert.equal(DEFAULTS.stabSize, true);
     assert.equal(isCountSourceKind("mni152"), true);
+    assert.equal(isCountSourceKind("mni152-low"), true);
     assert.equal(isCountSourceKind("ignition"), true);
     assert.equal(isCountSourceKind("conway"), false);
     assert.equal(isCountSourceKind("npy"), false);
@@ -187,6 +188,7 @@ describe("Random fill and static sources", () => {
     assert.equal(clampDensity(0), DEFAULTS.densityMin);
     assert.equal(clampDensity(1), DEFAULTS.densityMax);
     assert.equal(isStaticSourceKind("mni152"), true);
+    assert.equal(isStaticSourceKind("mni152-low"), true);
     assert.equal(isStaticSourceKind("conway"), false);
     assert.equal(isStaticSourceKind("ignition"), false);
   });
@@ -224,6 +226,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="ingest-preview"/);
     assert.match(html, /id="ingest-preview-frame"/);
     assert.match(css, /dialog\.ingest-dialog:not\(:open\)\s*\{[^}]*display:\s*none\s*!important/s);
+    assert.match(css, /\.ingest-preview\s*\{[^}]*max-height:\s*min\(36vh,\s*280px\)/s);
+    assert.match(css, /\.ingest-preview\s*\{[^}]*max-width:\s*100%/s);
     assert.doesNotMatch(html, /id="ingest-chip"/);
     assert.doesNotMatch(html, /id="ingest-open"/);
     const src = sourcePanel();
@@ -231,7 +235,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.doesNotMatch(src, /id="drop-overlay"/);
     assert.match(src, /<option value="conway"[^>]*>Game of Life</);
     assert.match(src, /<option value="ignition">Lighter Ignition</);
-    assert.match(src, /<option value="mni152">Brain MRI</);
+    assert.match(src, /<option value="mni152-low">Brain MRI Low</);
+    assert.match(src, /<option value="mni152">Brain MRI High</);
     assert.match(src, /<option value="npy">Load NumPy</);
     assert.doesNotMatch(src, /id="source-welcome"/);
     assert.match(src, /id="source-blurb"/);
@@ -260,11 +265,13 @@ describe("desktop loop, load, and live-ingest chrome", () => {
   it("uses visitor Source labels and About copy", () => {
     assert.equal(sourceGuide("conway").label, "Game of Life");
     assert.equal(sourceGuide("ignition").label, "Lighter Ignition");
-    assert.equal(sourceGuide("mni152").label, "Brain MRI");
+    assert.equal(sourceGuide("mni152").label, "Brain MRI High");
+    assert.equal(sourceGuide("mni152-low").label, "Brain MRI Low");
     assert.doesNotMatch(html, /id="source-welcome"/);
     assert.match(html, />Game of Life</);
     assert.match(html, />Lighter Ignition</);
-    assert.match(html, />Brain MRI</);
+    assert.match(html, />Brain MRI Low</);
+    assert.match(html, />Brain MRI High</);
     assert.match(html, />Load NumPy</);
     assert.match(html, />About Data</);
     assert.match(html, /id="about-dialog"/);

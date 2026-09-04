@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Source **Brain MRI Low**: a 2× mean-binned ICBM 152 cube (`data/mni152_low_stack.npy`, ~3 MB) for demos and light tests. Visitor aliases `?src=brain` / `?src=mri` open Low.
+
+### Changed
+
+- The previous native Brain MRI cube is now **Brain MRI High** (id `mni152`, ~23 MB). High stays opt-in; Quality Low/Medium/High is still the renderer, not the MRI grid.
+
 ## [0.13.0] - 2026-09-03
 
 ### Added

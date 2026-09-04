@@ -161,7 +161,7 @@ flowchart TB
     bench[DEV Bench opt-in]
   end
   subgraph source [Source]
-    kind[Game of Life Lighter Brain MRI]
+    kind[Game of Life Lighter Brain MRI Low High]
     golPlay[Conway Play]
     setup[Setup fold]
     load[Loading spinner]
@@ -308,7 +308,7 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI**, **Load NumPy** (ids `conway` / `ignition` / `mni152`; `npy` is a picker action, not a lasting kind). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Streamer stays hidden. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152` / `?src=conway` (allow-list; aliases `lighter`, `brain`). |
+| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Streamer stays hidden. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
 | Play / Speed | Conway **Play** in the slim Source chrome. Generator **Speed** is under Setup. Not the View loop. |
 | Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
 
@@ -347,14 +347,17 @@ flowchart LR
 
 ### Count stack (EVT)
 
-Curated demos **Lighter Ignition** and **Brain MRI** are Source options.
+Curated demos **Lighter Ignition**, **Brain MRI Low**, and **Brain MRI High**
+are Source options. Low is a 2× mean bin (~3 MB); High is native grid
+(~23 MB). Visitor aliases `brain` / `mri` open Low.
 Load a `(T × H × W)` `.npy` count cube from **Source → Load NumPy** or
 drop it onto the volume. A header-first gate shows shape, dtype, payload,
 and cell count. About **500k** occupied-scale cells is the comfort cap
 (warn; reduce or analyze in BLITZ). Optional 2/4/8 binning skips an axis
 shorter than the factor (one Z plane still bins X/Y), uses **mean**
 (downsample) or **max** (keep peaks), and a **Plasma** preview of the
-first output plane scaled to the dialog width.
+first output plane. A taller-than-wide plane rotates 90° first; the
+image then scales to the dialog width and is capped by height.
 Curated demos skip the gate.
 The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
 Pages). See [`backlog.md`](../backlog.md). Visitor copy:
@@ -394,11 +397,13 @@ flowchart LR
 flowchart LR
   life[Game of Life]
   light[Lighter Ignition]
-  brain[Brain MRI]
+  brainLow[Brain MRI Low]
+  brainHigh[Brain MRI High]
   npy[Load NumPy]
   life --> brick[3D brick]
   light --> brick
-  brain --> brick
+  brainLow --> brick
+  brainHigh --> brick
   npy --> brick
 ```
 

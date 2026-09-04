@@ -120,14 +120,17 @@ adjacency matrix. Same rule, different pictures.
 
 ## MRI demo volume (data source, not a viewer)
 
-DONNER is not a NIfTI viewer. Source → **Brain MRI** is a converted
-example cube in `data/mni152_stack.npy`. Notices: [`data/NOTICE.md`](../data/NOTICE.md).
+DONNER is not a NIfTI viewer. Source → **Brain MRI Low** / **High** are
+converted example cubes in `data/mni152_low_stack.npy` (2× mean bin,
+visitor default) and `data/mni152_stack.npy` (native). Notices:
+[`data/NOTICE.md`](../data/NOTICE.md).
 
 - **NiiVue demo images** — [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
   (BSD-2-Clause). Low-res `mni152.nii.gz`. Converted count cube:
   `data/mni152_stack.npy` (native grid `(215, 256, 207)` uint16;
-  DONNER culls enclosed voxels). NiiVue itself is unrelated to DONNER —
-  do not embed it.
+  DONNER culls enclosed voxels). **Brain MRI Low** is
+  `data/mni152_low_stack.npy` (`(107, 128, 103)`, 2× mean of High).
+  NiiVue itself is unrelated to DONNER — do not embed it.
 - **ICBM 152 Nonlinear atlases version 2009** — McGill BIC
   ([atlas page](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
   The NiiVue `mni152` file is derived from this atlas. The ICBM copyright

@@ -1940,7 +1940,7 @@ function switchSource(kind) {
       return;
     }
     ui.setSourceKind("count");
-    ui.setCountHint("Pick Load NumPy, drop a .npy on the volume, or choose Lighter Ignition or Brain MRI.");
+    ui.setCountHint("Pick Load NumPy, drop a .npy on the volume, or choose Lighter Ignition or Brain MRI Low / High.");
     updateHint();
   });
 }

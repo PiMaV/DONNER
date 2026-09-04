@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>DONNER | 3D & XR Explore</title>
   <meta name="description"
-    content="DONNER is a browser-native scientific 3D/XR explorer. Examples: Game of Life, Lighter Ignition, and Brain MRI." />
+    content="DONNER is a browser-native scientific 3D/XR explorer. Examples: Game of Life, Lighter Ignition, and Brain MRI Low / High." />
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -209,7 +209,8 @@
         <select id="source-kind">
           <option value="conway" selected>Game of Life</option>
           <option value="ignition">Lighter Ignition</option>
-          <option value="mni152">Brain MRI</option>
+          <option value="mni152-low">Brain MRI Low</option>
+          <option value="mni152">Brain MRI High</option>
           <option value="npy">Load NumPy</option>
           <option value="count" hidden>Own cube</option>
         </select>
@@ -425,10 +426,11 @@
       <ul>
         <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape.</li>
         <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.</li>
-        <li><strong>Brain MRI</strong> — example T1 atlas (ICBM 152). All three axes are space. Loop walks a cut. Not a patient scan.</li>
+        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Not a patient scan. Visitor default for <code>?src=brain</code>.</li>
+        <li><strong>Brain MRI High</strong> — the same atlas at native grid. Larger download. <code>?src=mni152</code>.</li>
       </ul>
       <h3>Share</h3>
-      <p>The address bar follows the example: <code>?src=ignition</code>, <code>?src=mni152</code>, <code>?src=conway</code>. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
+      <p>The address bar follows the example: <code>?src=ignition</code>, <code>?src=mni152-low</code> (or <code>?src=brain</code>), <code>?src=mni152</code> (High), <code>?src=conway</code>. Add <code>&amp;quality=high</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
       <h3>Credit</h3>
       <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
       <button type="submit" class="btn" value="close">Close</button>

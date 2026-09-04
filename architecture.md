@@ -78,7 +78,7 @@ while serving an older `xr.js` / `orbit.js`.
 GitHub Pages is live at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
 Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
-Door: `?src=ignition`, `?src=mni152`, `?quality=high`.
+Door: `?src=ignition`, `?src=mni152-low` (or `?src=brain`), `?src=mni152` (High), `?quality=high`.
 
 ## Layers
 
@@ -114,7 +114,7 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails, shade (Hull/Ghost/Cuts), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** + right display HUD + rails. **DEV Bench** is on the right HUD. |
-| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI (ids `conway` / `ignition` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
+| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Scale**, **Min/Max**, **Trim** (default 1%), and **Hide** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Scale / window / Hide in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
@@ -177,7 +177,7 @@ flowchart TB
     bench[DEV Bench opt-in]
   end
   subgraph source [Source]
-    kind[Game of Life Lighter Brain MRI]
+    kind[Game of Life Lighter Brain MRI Low High]
     golPlay[Conway Play]
     setup[Setup fold]
   end
@@ -256,17 +256,23 @@ flowchart LR
 ```mermaid
 flowchart LR
   nii[datasets/MRT/mni152.nii.gz]
-  mniNpy[datasets/MRT/mni152_stack.npy]
-  countLoad[Count source Load npy]
+  mniHigh[data/mni152_stack.npy High]
+  mniLow[data/mni152_low_stack.npy Low]
+  countLoad[Count source]
   soaMri[EventSoA]
   cubesMri[Cubes]
-  nii -->|"native dense uint16"| mniNpy --> countLoad --> soaMri --> cubesMri
+  nii -->|"native dense uint16"| mniHigh
+  mniHigh -->|"2× mean"| mniLow
+  mniHigh --> countLoad
+  mniLow --> countLoad
+  countLoad --> soaMri --> cubesMri
 ```
 
 MRI is a **later** source addon, not a second product. A public T1
 is converted to a count-shaped `.npy` (see
 [MRI volume (later)](#mri-volume-later)). There is no NIfTI parser in the
-browser. Source → **MNI 152** loads the native-grid hull.
+browser. Source → **Brain MRI Low** is the visitor default; **High** is
+the native-grid hull.
 
 ```mermaid
 flowchart TB
@@ -1039,15 +1045,17 @@ and a `ScalarVolume` (not `CountVolume`) are the next MRI/CT path — after
 the Dataset Contract, not as a medical-imaging product.
 
 There is **no** NIfTI parser in the browser. The public T1 is a one-shot
-convert to the count interchange `(T, H, W)` uint16. Source → **MNI 152**
-loads it. Count **Play** walks the **loop-axis** playhead (X, Y, or Z;
-default Z; not the viewcube).
+convert to the count interchange `(T, H, W)` uint16. Source → **Brain MRI
+High** loads the native grid; **Brain MRI Low** is a 2× mean bin of that
+cube (visitor default for `?src=brain`). Count **Play** walks the
+**loop-axis** playhead (X, Y, or Z; default Z; not the viewcube).
 Clips start at **full extent**, focus in the
 middle. Decay is off on dense stacks (a time-fade on anatomy is wrong).
 
 ```mermaid
 flowchart TB
-  dense[Dense mni152_stack npy]
+  dense[Dense mni152_stack npy High]
+  low[mni152_low_stack npy 2x mean]
   hull[Hull index cache at load]
   aabb[AABB crop]
   hullSoA[hull EventSoA]
@@ -1055,7 +1063,9 @@ flowchart TB
   cache[plane index LRU]
   ghost[ghost InstancedMesh]
   solid[solid InstancedMesh]
-  dense --> hull --> hullSoA --> ghost
+  dense -->|"opt-in High"| hull
+  low -->|"visitor Low"| hull
+  hull --> hullSoA --> ghost
   aabb -->|clip window| faces[Hull cache plus AABB faces]
   faces --> hullSoA
   aabb --> cache
@@ -1064,25 +1074,35 @@ flowchart TB
 
 Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the cube list is the cached surface. A clip crop is `_hull ∩ aabb` plus occupied voxels on the AABB faces (the new cut through interiors) — not a scan of every occupied cell. **Ghost** keeps that hull on the glass InstancedMesh and only rebuilds the solid playhead plane (`fillPlaneSoA`, ring-cached). Peek (hold playhead) is the same split. **Cuts** is the three planes (no hull). Plane indices are an LRU of 48 cuts plus prefetch of neighbors — not a copy of every MRI slice at load. Ghost distance fade is a shader uniform so hull instance buffers stay put while scrubbing.
 
-**Public demo** (in git for Pages): `data/mni152_stack.npy` from
-[niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
-(BSD-2-Clause wrapper; derived from [ICBM 152 NLin 2009](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
-Dense native grid `(215, 256, 207)` uint16, intensity 1…32 (~23 MB).
-Visitor label **Brain MRI**. Notices in [`data/NOTICE.md`](data/NOTICE.md).
-Local working copy may still live at `datasets/MRT/mni152_stack.npy`.
+**Public demo** (in git for Pages):
+
+- **Brain MRI High** — `data/mni152_stack.npy` from
+  [niivue/niivue-demo-images](https://github.com/niivue/niivue-demo-images)
+  (BSD-2-Clause wrapper; derived from [ICBM 152 NLin 2009](https://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin2009)).
+  Dense native grid `(215, 256, 207)` uint16, intensity 1…32 (~23 MB).
+  Source id `mni152`. Opt-in.
+- **Brain MRI Low** — `data/mni152_low_stack.npy`, 2× mean bin of High
+  (`(107, 128, 103)` uint16, ~3 MB). Same reduce as ingest factor 2 /
+  mean. Source id `mni152-low`. Visitor default (`?src=brain` / `?src=mri`).
+  Rebuild: `node scripts/bin_mni152_low.mjs`.
+
+Notices in [`data/NOTICE.md`](data/NOTICE.md).
+Local working copy of native may still live at `datasets/MRT/mni152_stack.npy`.
 
 **SHIP working data** under `datasets/MRT/raw image/` and
 `Segmentierungen/` stays on disk only. Do not copy subject NIfTIs or
 masks into DONNER git.
 
 **Cube budget** is occupancy, not INST. Ignition is ~70k cubes at **3 %**
-fill — a sparse cloud. Native MNI is ~5.4M occupied at **47 %**;
+fill — a sparse cloud. Native MNI (High) is ~5.4M occupied at **47 %**;
 `CountVolume.fillSoA` skips a voxel whose six neighbors are occupied
 **and** inside the AABB, so idle Hull is ~140k surface cubes (under the
 200k default cap). Those hull indices are cached at load; a full-brick
 Hull fill copies the cache instead of walking 5.4M occupied cells.
-Extra public `.npy` demos should stay sparse (many zeros), like Ignition.
-Dense atlas bricks stay the exception.
+**Brain MRI Low** is the same anatomy at 1/8 the cells (~1.4M), so hull
+fill and fetch stay cheap for demos. Extra public `.npy` demos should
+stay sparse (many zeros), like Ignition. Dense atlas bricks stay the
+exception.
 Ghost keeps that hull on the GPU and rebuilds only the solid playhead
 plane (LRU + prefetch). Cuts is the three planes (no hull). Play/Loop
 steps the **loop-axis** playhead (default Z). Affine / RAS is ignored — the gizmo is array X/Y/Z.
@@ -1114,6 +1134,13 @@ if mx > 0:
     q[(stack > 0) & (q == 0)] = 1
     out = np.ascontiguousarray(q)
 np.save(dst, out)
+```
+
+From the DONNER repo, rebuild Low from that High cube (same 2× mean as
+ingest):
+
+```bash
+node scripts/bin_mni152_low.mjs
 ```
 
 Next (not this tree): a dedicated MRI encoding / source kind, or a volume

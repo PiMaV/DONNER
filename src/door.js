@@ -17,9 +17,15 @@ const SOURCE_ALIASES = {
   "lighter-ignition": "ignition",
   mni152: "mni152",
   mni: "mni152",
-  brain: "mni152",
-  mri: "mni152",
-  "brain-mri": "mni152",
+  "mni152-high": "mni152",
+  "brain-high": "mni152",
+  "mri-high": "mni152",
+  "mni152-low": "mni152-low",
+  brain: "mni152-low",
+  mri: "mni152-low",
+  "brain-mri": "mni152-low",
+  "brain-low": "mni152-low",
+  "mri-low": "mni152-low",
 };
 
 export const DEFAULT_START_SOURCE = "conway";

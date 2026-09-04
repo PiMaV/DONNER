@@ -26,10 +26,14 @@ describe("public door query", () => {
   it("allow-lists src aliases and COUNT_DEMOS ids", () => {
     assert.equal(normalizeStartSource("LIFE"), "conway");
     assert.equal(normalizeStartSource("lighter-ignition"), "ignition");
-    assert.equal(normalizeStartSource("brain"), "mni152");
+    assert.equal(normalizeStartSource("brain"), "mni152-low");
+    assert.equal(normalizeStartSource("mri"), "mni152-low");
+    assert.equal(normalizeStartSource("mni152-low"), "mni152-low");
+    assert.equal(normalizeStartSource("mri-high"), "mni152");
     assert.equal(normalizeStartSource("ignition"), "ignition");
     assert.equal(normalizeStartSource("count"), null);
     assert.equal(normalizeStartSource("https://evil.example/x.npy"), null);
+    assert.equal(parseStartSearch("?src=brain").source, "mni152-low");
     assert.equal(parseStartSearch("?src=mni152&quality=high").source, "mni152");
     assert.equal(parseStartSearch("?source=lighter&q=low").quality, "low");
     assert.equal(parseStartSearch("?src=nope").source, "conway");
@@ -40,6 +44,10 @@ describe("public door query", () => {
     assert.equal(
       startSearchFromState({ source: "ignition", quality: "medium" }),
       "?src=ignition",
+    );
+    assert.equal(
+      startSearchFromState({ source: "mni152-low", quality: "medium" }),
+      "?src=mni152-low",
     );
     assert.equal(
       startSearchFromState({ source: "mni152", quality: "high" }),

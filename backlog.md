@@ -84,9 +84,8 @@ WOLKE. Domain adapters (CT/MRI) only when needed.
 below. Count-stack `.npy` and the WOLKE-contract stream (EVT sidecar)
 are in. P1 instrumentation and P2 dirty-state / visible window are in
 this tree. Dense count cubes (occupancy > 15 %) already open at full
-AABB with enclosed voxels culled. Source → **MNI 152** is the public T1
-(`datasets/MRT/mni152_stack.npy`, native grid, local symlink). Do not
-embed NiiVue.
+AABB with enclosed voxels culled. Source → **Brain MRI Low** is the
+visitor T1; **High** is the native-grid cube. Do not embed NiiVue.
 
 ## MRI volume (later)
 
@@ -94,10 +93,12 @@ Anatomical MRI is not a NIfTI viewer. Same cube engine, later source
 addon. Until a dedicated kind exists, the public MNI stack is a count
 cube.
 
-- **Now:** Source → **Brain MRI** loads `data/mni152_stack.npy` (committed
-  example, native `(215, 256, 207)` uint16, intensity 1…32).
-  Occupancy > 15 % → Inspect, Decay off, `fillSoA` skips 6-enclosed
-  voxels (~140k hull). Play/Loop walks the active playhead. Notices in
+- **Now:** Source → **Brain MRI Low** loads `data/mni152_low_stack.npy`
+  (2× mean bin, `(107, 128, 103)`). **Brain MRI High** loads
+  `data/mni152_stack.npy` (committed example, native `(215, 256, 207)`
+  uint16, intensity 1…32). Occupancy > 15 % → Inspect, Decay off,
+  `fillSoA` skips 6-enclosed voxels (~140k hull on High). Play/Loop
+  walks the active playhead. Notices in
   [`data/NOTICE.md`](data/NOTICE.md).
   Recipe in [`architecture.md`](architecture.md#mri-volume-later).
 - **Next:** Dataset Contract + `ScalarVolume` (intensity, spacing,
@@ -334,8 +335,9 @@ Print or HUD-share a QR that opens the lab door **`https://lab.ole.icu/`**
 existing button when `immersive-ar` is supported.
 
 **URL spawn query is in.** `?src=` picks Game of Life / Lighter Ignition /
-Brain MRI (allow-list + aliases; no arbitrary `.npy` URLs). `?quality=`
-is low / medium / high (default medium). The address bar follows those
+Brain MRI Low / High (allow-list + aliases; no arbitrary `.npy` URLs).
+`brain` / `mri` open Low. `?quality=` is renderer low / medium / high
+(default medium), not the MRI grid. The address bar follows those
 controls. Path `/ignition`, printed QR, and AR-from-QR stay later.
 Optional `pattern=` allow-list is still later.
 

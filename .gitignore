@@ -16,3 +16,4 @@ __pycache__/
 data/*.npy
 !data/ignition_stack.npy
 !data/mni152_stack.npy
+!data/mni152_low_stack.npy

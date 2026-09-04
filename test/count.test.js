@@ -499,18 +499,25 @@ describe("count source demos", () => {
     assert.equal(isCountSourceKind("count"), true);
     assert.equal(isCountSourceKind("ignition"), true);
     assert.equal(isCountSourceKind("mni152"), true);
+    assert.equal(isCountSourceKind("mni152-low"), true);
     assert.equal(COUNT_DEMOS.mni152.url, "data/mni152_stack.npy");
+    assert.equal(COUNT_DEMOS["mni152-low"].url, "data/mni152_low_stack.npy");
     assert.equal(COUNT_DEMOS.ignition.url, "data/ignition_stack.npy");
     assert.equal(COUNT_DEMOS.ignition.label, "Lighter Ignition");
-    assert.equal(COUNT_DEMOS.mni152.label, "Brain MRI");
+    assert.equal(COUNT_DEMOS.mni152.label, "Brain MRI High");
+    assert.equal(COUNT_DEMOS["mni152-low"].label, "Brain MRI Low");
   });
 
   it("ships real example cubes, not symlinks", () => {
     const ign = lstatSync(new URL("../data/ignition_stack.npy", import.meta.url));
     const mni = lstatSync(new URL("../data/mni152_stack.npy", import.meta.url));
+    const mniLow = lstatSync(new URL("../data/mni152_low_stack.npy", import.meta.url));
     assert.equal(ign.isSymbolicLink(), false);
     assert.equal(mni.isSymbolicLink(), false);
+    assert.equal(mniLow.isSymbolicLink(), false);
     assert.ok(ign.size > 3_000_000);
     assert.ok(mni.size > 20_000_000);
+    assert.ok(mniLow.size > 2_000_000);
+    assert.ok(mniLow.size < 6_000_000);
   });
 });

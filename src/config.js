@@ -98,7 +98,10 @@ export const DEFAULTS = {
   wolkeToken: "evt",
 };
 
-/** Visitor-facing Source copy. Ids stay `conway` / `ignition` / `mni152`. */
+/** Visitor-facing Source copy. Ids stay `conway` / `ignition` / `mni152-low` / `mni152`. */
+const MNI_CITE =
+  "Derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). See data/NOTICE.md.";
+
 export const SOURCE_GUIDE = {
   conway: {
     label: "Game of Life",
@@ -110,10 +113,15 @@ export const SOURCE_GUIDE = {
     blurb: "Event-camera count cube of a lighter strike. Sparse XY; Z is time. Loop scrubs the recording.",
     cite: "Own recording. Cubes are event counts per pixel per Δt, not a video frame.",
   },
+  "mni152-low": {
+    label: "Brain MRI Low",
+    blurb: "Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut. Not a patient scan.",
+    cite: MNI_CITE,
+  },
   mni152: {
-    label: "Brain MRI",
-    blurb: "Example T1 atlas. All three axes are space. Loop walks a cut. Not a patient scan.",
-    cite: "Derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). See data/NOTICE.md.",
+    label: "Brain MRI High",
+    blurb: "Example T1 atlas at native grid. All three axes are space. Loop walks a cut. Not a patient scan. Larger download.",
+    cite: MNI_CITE,
   },
   count: {
     label: "Own cube",
@@ -136,13 +144,13 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Source",
-    body: "Pick Source on the left (phone: the Source fold): Game of Life, Lighter Ignition, Brain MRI, or Load NumPy. Drag-and-drop onto the volume always works. Game of Life keeps Play here; Pattern and grid sit under Setup.",
+    body: "Pick Source on the left (phone: the Source fold): Game of Life, Lighter Ignition, Brain MRI Low or High, or Load NumPy. Drag-and-drop onto the volume always works. Game of Life keeps Play here; Pattern and grid sit under Setup.",
     targets: ["source-kind"],
     fold: "source",
   },
   {
     title: "Play vs Loop",
-    body: "Game of Life Play grows the stack. Loop, under the rails, walks a cut of that tape. Ignition and Brain MRI scrub with Loop.",
+    body: "Game of Life Play grows the stack. Loop, under the rails, walks a cut of that tape. Ignition and Brain MRI Low / High scrub with Loop.",
     targets: ["btn-play", "btn-loop"],
     fold: "source",
   },
@@ -196,10 +204,17 @@ export const COUNT_DEMOS = {
     name: "ignition_stack",
     label: SOURCE_GUIDE.ignition.label,
   },
+  "mni152-low": {
+    url: "data/mni152_low_stack.npy",
+    name: "mni152_low_stack",
+    label: SOURCE_GUIDE["mni152-low"].label,
+    static: true,
+  },
   mni152: {
     url: "data/mni152_stack.npy",
     name: "mni152_stack",
     label: SOURCE_GUIDE.mni152.label,
+    static: true,
   },
 };
 
@@ -209,7 +224,7 @@ export function isCountSourceKind(kind) {
 
 /** MRI / static volumes: no Conway Play/Speed transport. */
 export function isStaticSourceKind(kind) {
-  return kind === "mni152";
+  return Boolean(COUNT_DEMOS[kind]?.static);
 }
 
 export function clampDensity(n) {

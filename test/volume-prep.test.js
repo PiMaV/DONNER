@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { countVolumeFromDense } from "../src/count.js";
-import { parseNpyHeader, serializeNpy } from "../src/npy.js";
+import { parseNpy, parseNpyHeader, serializeNpy } from "../src/npy.js";
 import {
   PREP_MAX_CELLS,
   binCountCubeFromBlob,
@@ -276,5 +276,31 @@ describe("demo header peek", () => {
     assert.deepEqual(header.shape, [215, 256, 207]);
     assert.equal(plan.asIsOk, true);
     assert.equal(plan.suggested, 4);
+  });
+
+  it("peeks Brain MRI Low as the 2× mean of High", () => {
+    const path = new URL("../data/mni152_low_stack.npy", import.meta.url);
+    const fd = openSync(path, "r");
+    const peek = Buffer.alloc(4096);
+    try {
+      readSync(fd, peek, 0, 4096, 0);
+    } finally {
+      closeSync(fd);
+    }
+    const header = parseNpyHeader(peek);
+    assert.deepEqual(header.shape, [107, 128, 103]);
+  });
+
+  it("keeps the shipped Low cube in lockstep with 2× mean of High", () => {
+    const high = parseNpy(readFileSync(new URL("../data/mni152_stack.npy", import.meta.url)));
+    const low = parseNpy(readFileSync(new URL("../data/mni152_low_stack.npy", import.meta.url)));
+    const binned = binCountDense(high.data, high.shape, 2, "mean");
+    assert.deepEqual(low.shape, binned.shape);
+    assert.equal(low.data.length, binned.data.length);
+    for (let i = 0; i < binned.data.length; i++) {
+      if (low.data[i] !== binned.data[i]) {
+        assert.fail(`Low cube differs from 2× mean of High at index ${i}`);
+      }
+    }
   });
 });

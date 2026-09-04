@@ -20,8 +20,8 @@ advantage, not a deployment convenience.
   event-camera files exist — seeding, teaching, and a performance
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
   **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
-  **source addon** (Game of Life, Lighter Ignition, or Brain MRI; ids
-  `conway` / `ignition` / `mni152`; **Load NumPy** in Source or drop
+  **source addon** (Game of Life, Lighter Ignition, or Brain MRI Low / High; ids
+  `conway` / `ignition` / `mni152-low` / `mni152`; **Load NumPy** in Source or drop
   `.npy` on the volume with a header-first gate; WOLKE-contract Streamer
   stays hidden — no sidecar on Pages),
   **encoding slot**
@@ -169,7 +169,8 @@ advantage, not a deployment convenience.
 
 - Event-camera `.raw` / EVT3 decode in the browser
 - NIfTI / `.nii.gz` parser in the browser; embedding NiiVue. The public T1
-  is Source → **Brain MRI** (`data/mni152_stack.npy`, native grid, enclosed
+  is Source → **Brain MRI Low** (`data/mni152_low_stack.npy`, 2× mean bin)
+  or **Brain MRI High** (`data/mni152_stack.npy`, native grid, enclosed
   voxels culled). Do not convert to a static surface. Do not build a
   DICOM / PACS / diagnostic workstation.
 - Treating `CountVolume` as a generic scalar volume

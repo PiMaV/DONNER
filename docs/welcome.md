@@ -32,11 +32,11 @@ the current step) and draws gold arrows at the controls.
 1. **Orbit** — Drag to orbit, scroll to zoom, right-drag to pan. Phone:
    one-finger orbit, pinch zoom.
 2. **Source** — Pick **Source** on the left (phone: the Source fold):
-   Game of Life, Lighter Ignition, or Brain MRI. Game of Life keeps
+   Game of Life, Lighter Ignition, or Brain MRI Low / High. Game of Life keeps
    **Play** here; Pattern and grid sit under **Setup**.
 3. **Play vs Loop** — Game of Life **Play** grows the stack. **Loop**,
    under the rails, walks a cut of that tape. Ignition and Brain MRI
-   scrub with Loop.
+   Low / High scrub with Loop.
 4. **Rails** — Colored X / Y / Z playheads. Grab a matching frame edge
    in the volume. Loop axis sits under the rails.
 5. **Viewcube** — Face-click for an ortho cut. **Hide center** /
@@ -55,11 +55,13 @@ Pick **Source** on the left (phone: the Source fold).
 flowchart LR
   life[Game of Life]
   light[Lighter Ignition]
-  brain[Brain MRI]
+  brainLow[Brain MRI Low]
+  brainHigh[Brain MRI High]
   npy[Load NumPy]
   life --> brick[3D brick]
   light --> brick
-  brain --> brick
+  brainLow --> brick
+  brainHigh --> brick
   npy --> brick
 ```
 
@@ -69,19 +71,22 @@ flowchart LR
   **Loop** (under the rails) walks a cut of that tape.
 - **Lighter Ignition** — event-camera **counts** of a lighter strike.
   Sparse XY; **Z** is time. **Loop** scrubs the recording. ~4 MB download.
-- **Brain MRI** — example T1 atlas (ICBM 152). All three axes are space.
-  **Loop** walks a cut. Not a patient scan. ~23 MB download.
+- **Brain MRI Low** — example T1 atlas (ICBM 152), 2× mean-binned.
+  All three axes are space. **Loop** walks a cut. Not a patient scan.
+  ~3 MB download. Visitor default for `?src=brain`.
+- **Brain MRI High** — the same atlas at native grid. ~23 MB download.
 
 Load a `(T × H × W)` `.npy` count cube from Source → **Load NumPy**, or
 drop the file onto the volume from any source. The gate shows shape,
 dtype, payload, and cell count. About 500k cells is the comfort cap —
 reduce, or analyze in BLITZ. Binning skips a short axis (one Z plane still
 bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
-preview of the first output plane, scaled to the dialog width. Streamer / sidecar Connect is not on this static host.
+preview of the first output plane. A taller-than-wide plane rotates 90°
+first, then scales to the dialog (width and height). Streamer / sidecar Connect is not on this static host.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
-Ignition ~3 % occupancy). Dense bricks like Brain MRI are the expensive
-case — keep those rare.
+Ignition ~3 % occupancy). Dense bricks like Brain MRI High are the expensive
+case; Brain MRI Low is the visitor default.
 
 ## Share URL
 
@@ -89,7 +94,8 @@ The address bar follows the example (allow-list only, no file paths):
 
 - `?src=conway` — Game of Life (default; may be omitted)
 - `?src=ignition` or `?src=lighter`
-- `?src=mni152` or `?src=brain`
+- `?src=mni152-low` or `?src=brain` / `?src=mri` — Brain MRI Low (visitor default)
+- `?src=mni152` or `?src=mri-high` — Brain MRI High (native grid)
 - `?quality=medium` (default; omitted) · `high` · `low`
 
 Example: `?src=ignition&quality=high`
