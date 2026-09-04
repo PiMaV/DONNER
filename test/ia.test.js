@@ -123,7 +123,7 @@ describe("Source | View information architecture", () => {
     assert.match(html, /id="boot-fail"/);
     assert.match(html, /import\("\.\/src\/main\.js\?v=/);
     assert.match(css, /body\.is-ar:not\(\.source-count\)\s+\.btn-play-dock/);
-    assert.match(css, /body\.is-ar\.is-look-more \.look-more-panel \.inspect-transport/);
+    assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.inspect-transport/);
   });
 
   it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {

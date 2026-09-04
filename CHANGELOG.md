@@ -11,15 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Public doors: bare URL is **Brain MRI Low** (Ghost). `?src=life` is Game of Life (Hull). `?src=ignition` is Lighter Ignition (Ghost). **Project on Face** sits in Source for Brain MRI Low / High when a camera exists; `?face=1` enters. Laptop webcam is the doctor path.
 - World AR **Tap to place** banner when the gold floor reticle is visible.
+- Loaded example cubes (Brain MRI Low / High, Lighter Ignition) stay in a session RAM cache so switching Source does not re-download.
 
 ### Changed
 
-- Chrome splits **Look** (Hull / Ghost / Cuts / Fit top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. AR **Loop** sits behind **More** with Hide, Reset Planes, and Quality.
+- Chrome splits **Look** (Hull / Ghost / Cuts / Fit top-right) from **View** setup (Quality, Gap, Parallax, Reset Planes, Color). Phone and AR share that Look strip; desktop keeps the viewcube under it. After place, AR **Loop** and Speed sit under the rails; **More** holds Hide, Reset Planes, and Quality.
 - Compact brand: tagline is **Xplore Data in 3D & XR**. Guide sits beside it; both stay within the left-rail width.
 - FPS is a small overlay on the viewcube (bottom-right). Tap it for the spark / DEV Bench card, independent of the View sheet so you can change settings while reading telemetry. Stays on Face and phone AR (Quest has no DOM overlay).
 - Footer **M.E.S.S.** and **WETTER** links are cyan; About and the version stay muted.
 - Cube cap default is **200 000** again. Game of Life **Play** stays on that live envelope. **Pause** raises the cap to the tape’s occupied cells (288k cubes → 288k instances, no `trunc`). A dense count cube (Brain MRI) raises only to the **hull** instance count, not every occupied voxel. Sparse Ignition still uses occupied cells. Switching back to Game of Life Play drops to 200 000.
-- **Project on Face** sits in Source when Brain MRI Low or High is selected (not the bottom dock). Click again or pick Lighter Ignition / Game of Life to leave and restore orbit. Phone Face keeps a **Selfie** / **Rear** toggle plus Exit. Overlay: green pupil discs, blue iris discs, no gaze cones. The brain stage is extra-smoothed; face contours stay live.
+- **Project on Face** sits in Source when Brain MRI Low or High is selected (not the bottom dock). Click again or pick Lighter Ignition / Game of Life to leave and restore orbit. Phone Face keeps a **Selfie** / **Rear** toggle plus Exit. Overlay: green pupil discs, blue iris discs, no gaze cones. After lock, Face shows **Size** and **Yaw** like world AR. Exit AR or Face runs **Fit** so the brain is framed in orbit.
 - Door plane chrome follows the source: Brain MRI and Lighter Ignition show **center and outer** frames; Game of Life hides the playhead and keeps the outer box. AR stack rails stay bright on passthrough without a black panel behind the chrome.
 
 ### Fixed
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Face lights the Z plane from below so the underside is not a black slab.
 - Game of Life hitch from the 2 000 000 default GPU envelope (solid + ghost InstancedMesh plus SoA), leftover from the MRI cube-cap bump.
 - Brain MRI High no longer sets Cube cap to ~5 M occupied cells. Hull is ~140k; the 5 M InstancedMesh envelope made inspect unusable. Manual 200 000 was already enough.
+- Extra One-Euro on the Face brain stage is gone (it lagged the Ghost and cost frames). Overlay pose smoothing stays.
 
 ## [0.15.0] - 2026-09-04
 

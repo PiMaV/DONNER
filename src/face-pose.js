@@ -232,16 +232,6 @@ export function quatNlerp(a, b, t) {
   return { x: x / len, y: y / len, z: z / len, w: w / len };
 }
 
-/**
- * Extra One-Euro on the brain stage. Overlay landmarks stay on the live
- * tracker; this only calms the Ghost so it does not chatter with the head.
- */
-export const FACE_STAGE_FILTER = Object.freeze({
-  translate: { minCutoff: 0.2, beta: 0.006, dCutoff: 1 },
-  rotate: { minCutoff: 0.35, beta: 0.012, dCutoff: 1 },
-  scale: { minCutoff: 0.1, beta: 0.003, dCutoff: 1 },
-});
-
 export function createPoseFilter({
   translate = { minCutoff: 0.7, beta: 0.04, dCutoff: 1 },
   rotate = { minCutoff: 1.4, beta: 0.08, dCutoff: 1 },
@@ -319,10 +309,8 @@ export function createFaceTracker({
   minConfidence = FACE_MIN_CONFIDENCE,
 } = {}) {
   const filter = createPoseFilter();
-  const stageFilter = createPoseFilter(FACE_STAGE_FILTER);
   let lost = 0;
   let last = null;
-  let lastStage = null;
   let locked = false;
   let trackStart = null;
   return {
@@ -331,10 +319,8 @@ export function createFaceTracker({
     },
     reset() {
       filter.reset();
-      stageFilter.reset();
       lost = 0;
       last = null;
-      lastStage = null;
       locked = false;
       trackStart = null;
     },
@@ -348,9 +334,10 @@ export function createFaceTracker({
       if (!ok) {
         lost += 1;
         if (last && (locked || lost <= freezeFrames)) {
+          const held = copyPose(last);
           return {
-            pose: copyPose(last),
-            stagePose: copyPose(lastStage || last),
+            pose: held,
+            stagePose: copyPose(held),
             locked,
             frozen: true,
             lost: false,
@@ -360,16 +347,15 @@ export function createFaceTracker({
       }
       lost = 0;
       const smoothed = filter.push(raw, t);
-      const staged = stageFilter.push(raw, t);
       last = smoothed;
-      lastStage = staged;
       if (!locked) {
         if (trackStart == null) trackStart = t;
         if (t - trackStart >= lockMs) locked = true;
       }
+      const pose = copyPose(smoothed);
       return {
-        pose: copyPose(smoothed),
-        stagePose: copyPose(staged),
+        pose,
+        stagePose: copyPose(smoothed),
         locked,
         frozen: false,
         lost: false,

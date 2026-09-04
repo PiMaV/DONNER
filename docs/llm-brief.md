@@ -149,9 +149,10 @@ advantage, not a deployment convenience.
   Lighting is a
   **headlamp** (key/fill follow the view in orbit and in AR walk) on
   Quality Medium/High. **Quality** is a View Low / Medium / High toggle.
-  After lock, phone AR is inspect: three rails, Conway Play next
+  After lock, phone AR is inspect: three rails, Loop and Speed under the
+  rails, Conway Play next
   to AR, named Hull / Ghost / Cuts top-right (no viewcube, no Fit).
-  **More** holds Loop, Hide center / Hide outer, Reset Planes, Quality.
+  **More** holds Hide center / Hide outer, Reset Planes, Quality.
   Size / Yaw / Floor stay on the overlay. Same `setEvents`.
   Face AR is a second mode, not `immersive-ar`: getUserMedia
   + MediaPipe Face Landmarker writes the same `stage` every frame. The
@@ -168,12 +169,14 @@ advantage, not a deployment convenience.
   row- vs column-major facial matrices from translation. Phone Face is one
   Selfie / Rear toggle. Flip L/R still follows facing
   internally. Lab millimetre defaults stay (Lift 141 mm, Inset 50 mm,
-  Size 1.2); Face chrome does not show those sliders or Size.
+  Size 1.2). After lock, Face shows Size and Yaw like world AR (no Floor
+  / millimetre chrome). Exit AR or Face runs Fit so the orbit camera
+  frames the volume.
   **Project on Face** is in Source for Brain Low / High only. Laptop Face
   keeps Source, View, rails, and Loop (not `is-ar` chrome). Switching
   Source leaves Face and restores orbit. Phone Face is the slim overlay.
-  After lock, blue iris discs and green pupils. Brain stage is extra
-  One-Euro; overlay contours stay live.
+  After lock, blue iris discs and green pupils. Overlay and brain share
+  the same One-Euro pose.
   `?face=1` is the share door while the session is open. Full mesh overlay
   is only while locking; after lock the outer oval, lips, and iris/pupil
   marks stay while the face is visible. Overlay canvas caps at 640 px
@@ -182,8 +185,8 @@ advantage, not a deployment convenience.
   AR stay bright without a black chrome slab. Do not
   put Face AR on Quest. Occlusion mesh is later.
   Decay is off in AR. AR chrome on a phone is hit-test on enter, then after
-  spawn rails / Play / Size / Yaw / Floor / Reset Anchor / Exit plus Look
-  strip (shade) and **More** (Loop / hide / quality) on `#xr-overlay` (not
+  spawn rails / Play / Loop / Size / Yaw / Floor / Reset Anchor / Exit plus Look
+  strip (shade) and **More** (hide / quality) on `#xr-overlay` (not
   `document.body` — that paints the page over passthrough). The overlay is
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
   the AR session. On a headset,
@@ -208,7 +211,8 @@ advantage, not a deployment convenience.
 - NIfTI / `.nii.gz` parser in the browser; embedding NiiVue. The public T1
   is Source → **Brain MRI Low** (`data/mni152_low_stack.npy`, 2× mean bin)
   or **Brain MRI High** (`data/mni152_stack.npy`, native grid, enclosed
-  voxels culled). Do not convert to a static surface. Do not build a
+  voxels culled). Session RAM cache of a decoded demo after first load is
+  in; persistent Cache Storage is later. Do not convert to a static surface. Do not build a
   DICOM / PACS / diagnostic workstation.
 - Treating `CountVolume` as a generic scalar volume
 - Dataset Contract / `ScalarVolume` / PointRenderer on the live host

@@ -14,6 +14,7 @@ import {
 import { ConwayWorld, gridCyclePeriod, seedPattern } from "./conway.js";
 import { MAX_OSC_PERIOD } from "./dynamics.js";
 import { COUNT_HIDE_DEBOUNCE_MS, countInstanceCap, countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
+import { cachedDemoVolume, rememberDemoVolume } from "./demo-cache.js";
 import { peekNpyBlob } from "./npy.js";
 import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
@@ -861,7 +862,6 @@ function syncArOverlayChrome() {
     locked: xrPresenting() ? arLocked : faceLocked,
     searching: xrPresenting() ? arSearching : faceActive && !faceLocked,
     face: facePresenting(),
-    parkInspect: xrPresenting() && arLocked,
   });
 }
 
@@ -874,7 +874,7 @@ function resetStageOrbit() {
 }
 
 function syncTurntableVisual() {
-  turntable.rotation.y = xrPresenting() ? turntableYaw : 0;
+  turntable.rotation.y = arPresenting() ? turntableYaw : 0;
 }
 
 function headlampCamera() {
@@ -1022,7 +1022,7 @@ function applyFaceStagePose() {
     composed.quaternion.w,
   );
   stand.quaternion.identity();
-  turntable.rotation.y = 0;
+  syncTurntableVisual();
   const flip = composed.flipLR < 0 ? -1 : 1;
   stage.scale.set(s * flip, s, s);
   stage.position.set(composed.position.x, composed.position.y, composed.position.z);
@@ -1158,6 +1158,7 @@ async function enterFaceAr() {
   renderer.setClearAlpha(0);
   scene.fog = null;
   recaptureFace();
+  setTurntableYaw(0);
   syncFog();
   resize();
   syncArOverlayChrome();
@@ -1277,6 +1278,8 @@ async function exitFaceAr() {
   syncGizmoChrome();
   updateHint();
   resize();
+  syncOrbitPan();
+  fitVolume({ force: true });
   syncStartUrl();
 }
 
@@ -1346,6 +1349,7 @@ function tickFaceAr(now) {
     faceLocked = true;
     faceAnchored = true;
     setArPlacedDocument(true);
+    ui.setArYawEnabled(true);
     syncArOverlayChrome();
     updateHint();
   }
@@ -1852,6 +1856,8 @@ function onArSessionEnd() {
   syncGizmoChrome();
   updateHint();
   resize();
+  syncOrbitPan();
+  fitVolume({ force: true });
 }
 
 function syncFog() {
@@ -1994,8 +2000,8 @@ function syncOrbitPan() {
   controls.touches.ONE = THREE.TOUCH.ROTATE;
 }
 
-function fitVolume() {
-  if (!world || arPresenting()) return;
+function fitVolume({ force = false } = {}) {
+  if (!world || (!force && arPresenting())) return;
   const box = cropAabb();
   const { yMin, yMax, yMid } = currentSlabY();
   const cs = layoutCell();
@@ -2432,12 +2438,20 @@ async function withLoading(label, fn) {
 
 async function loadCountFromUrl(url, name, kind = "count") {
   ui.setSourceKind(kind);
+  const cached = COUNT_DEMOS[kind] ? cachedDemoVolume(kind) : null;
+  if (cached) {
+    bootCount(cached);
+    ui.setCountHint(COUNT_HINT);
+    return;
+  }
   ui.setCountHint(`Loading ${name}…`);
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     const buf = await res.arrayBuffer();
-    bootCount(countVolumeFromNpy(buf, name));
+    const vol = countVolumeFromNpy(buf, name);
+    if (COUNT_DEMOS[kind]) rememberDemoVolume(kind, vol);
+    bootCount(vol);
     ui.setCountHint(COUNT_HINT);
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
@@ -2459,14 +2473,15 @@ function switchSource(kind) {
   applyStartLook(next);
   syncStartUrl();
   ui.setFaceGate?.();
-  void withLoading("Loading…", async () => {
+  const demo = COUNT_DEMOS[next];
+  const cached = Boolean(demo && cachedDemoVolume(next));
+  const run = async () => {
     if (leaveFace) await exitFaceAr();
     if (next === "conway") {
       disconnectWolke();
       bootWorld(true);
       return;
     }
-    const demo = COUNT_DEMOS[next];
     if (demo) {
       await loadCountFromUrl(demo.url, demo.name, next);
       return;
@@ -2479,7 +2494,12 @@ function switchSource(kind) {
     ui.setSourceKind("count");
     ui.setCountHint("Pick Load NumPy, drop a .npy on the volume, or choose Lighter Ignition or Brain MRI Low / High.");
     updateHint();
-  });
+  };
+  if (cached && !leaveFace) {
+    void run();
+    return;
+  }
+  void withLoading("Loading…", run);
 }
 
 async function offerCountFile(file) {

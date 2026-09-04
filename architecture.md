@@ -151,12 +151,14 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (AR Loop in More), shade (Hull/Ghost/Cuts Look strip), Fit (Look strip), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit (Look strip; also on Exit AR / Face), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
 | **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a desktop button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Scale**, **Min/Max**, **Trim** (default 1%), and **Hide** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Scale / window / Hide in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
-Conway **Play** stays in Source. AR overlay hides Loop behind **More** after spawn. Loop axis X/Y/Z
+Conway **Play** stays in Source. After spawn the AR overlay keeps Loop
+and Speed under the rails; **More** is Hide, Reset Planes, and Quality.
+Loop axis X/Y/Z
 is the **highlighted** playhead (same as grabbing that plane). Ghost
 solids that plane. Hull+Loop grows a potato from the axis origin through
 the playhead and hides the +side plus clip edges. In a viewcube cut the
@@ -783,6 +785,7 @@ grow the DOM.
 | `src/headlamp.js` | View-locked key/fill pose (desktop orbit and AR walk) |
 | `src/quality.js` | View Quality Low / Medium / High (DPR cap, unlit, ACES) |
 | `src/door.js` | Public `?src=` / `?quality=` / `?face=1` allow-list (no arbitrary .npy URLs) |
+| `src/demo-cache.js` | Session RAM cache of decoded COUNT_DEMOS volumes |
 | `src/face-pose.js` | Face Landmarker matrix → pose, One-Euro, freeze/lock (Node-testable) |
 | `src/face-calib.js` | Head-frame fit (~16 cm skull) and millimetre offset |
 | `src/face-ar.js` | getUserMedia + lazy MediaPipe Face Landmarker (not WebXR) |
@@ -798,7 +801,7 @@ grow the DOM.
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
-| `src/main.js` | Scene, loop, dirty flags, edit/paint, camera, slice slab |
+| `src/main.js` | Scene, loop, dirty flags, edit/paint, camera, slice slab, demo cache |
 | `src/hud.js` | Display vs source HUD copy; frame-time sparkline; 1%/0.1% lows |
 | `src/ui.js` | Two left sheets (View / Source), transport Play, slice stack |
 
@@ -1184,6 +1187,9 @@ Inspect **Hull** playhead does not refill SoA: the cyan plane is a mesh, and the
   (`(107, 128, 103)` uint16, ~3 MB). Same reduce as ingest factor 2 /
   mean. Source id `mni152-low`. Visitor default (`?src=brain` / `?src=mri`).
   Rebuild: `node scripts/bin_mni152_low.mjs`.
+  After the first load in a tab, decoded COUNT_DEMOS volumes stay in a
+  session RAM cache (`src/demo-cache.js`) so switching Source does not
+  re-fetch. Persistent Cache Storage is later.
 
 Notices in [`data/NOTICE.md`](data/NOTICE.md).
 Local working copy of native may still live at `datasets/MRT/mni152_stack.npy`.
@@ -1352,7 +1358,7 @@ flowchart TB
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
 | **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
 | **XR-C-1** | Same | Later: hands, wrist attach |
-| **Face AR** | Not WebXR. **Project on Face** in Source for Brain MRI Low / High. `?face=1` enters. Phone rear / desktop selfie + MediaPipe writes `stage`. Laptop keeps inspect chrome. Phone Face is slim (Selfie/Rear toggle). Switching Source leaves Face. After lock, keep last pose if the mesh drops. Overlay caps at 640 px. Ghost Brain (~16 cm). Blue iris discs, green pupils. Extra stage damping. Under-fill lights the Z plane. No Size / Flip / millimetre sliders. Occlusion later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
+| **Face AR** | Not WebXR. **Project on Face** in Source for Brain MRI Low / High. `?face=1` enters. Phone rear / desktop selfie + MediaPipe writes `stage`. Laptop keeps inspect chrome. Phone Face is slim (Selfie/Rear toggle). Switching Source leaves Face. After lock, keep last pose if the mesh drops. Overlay caps at 640 px. Ghost Brain (~16 cm). Blue iris discs, green pupils. Size + Yaw after lock (same as world AR). Under-fill lights the Z plane. No Floor / Flip / millimetre sliders. Exit runs Fit. Occlusion later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
 
 ## Face AR (phone camera, not WebXR)
 
@@ -1372,12 +1378,13 @@ matrices may be row- or column-major; layout is inferred from the
 translation vector. Phone Face is one **Selfie** / **Rear** toggle.
 Desktop starts Selfie; phone starts Rear.
 Flip L/R still follows that facing internally (no checkbox). Lab
-millimetre Shift / Lift / Inset / Size stay at the defaults; Face chrome
-does not show those sliders. **Project on Face** is in Source for Brain
+millimetre Shift / Lift / Inset stay at the defaults (no millimetre
+chrome). After lock, Face shows **Size** and **Yaw** like world AR.
+**Project on Face** is in Source for Brain
 Low / High. Laptop Face keeps rails, Loop, Source, and View. Switching
-Source leaves Face and restores orbit. Phone Face is the slim overlay.
-After lock, blue iris discs and green pupils. The brain stage is extra
-smoothed; contours stay live. FPS stays on. If the mesh
+Source leaves Face and restores orbit (**Fit**). Phone Face is the slim overlay.
+After lock, blue iris discs and green pupils. Overlay and brain share
+the same One-Euro pose. FPS stays on. If the mesh
 drops after lock, keep the last pose; tracking resumes when the face
 returns.
 
@@ -1419,8 +1426,8 @@ flowchart TB
 
 Enter with **Face** (always visible when the camera exists) or `?face=1`.
 Default source is Brain MRI Low, Ghost shade, Quality Low. After ~0.7 s
-of tracking the brain locks. **Selfie** / **Rear** pick the camera. **Exit** returns
-to orbit. Frames stay on-device. MediaPipe WASM loads lazily from a
+of tracking the brain locks. **Selfie** / **Rear** pick the camera. After lock,
+**Size** and **Yaw** match world AR. **Exit** returns to orbit and runs **Fit**. Frames stay on-device. MediaPipe WASM loads lazily from a
 pinned CDN. World AR shows **Tap to place** when the gold reticle is
 visible.
 

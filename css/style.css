@@ -778,6 +778,10 @@ body.is-ar.is-ar-placed .loop-axes {
   display: flex !important;
 }
 
+body.is-ar.is-ar-placed:not(.is-face-ar) .inspect-transport {
+  display: flex !important;
+}
+
 body.is-ar.is-look-more .look-more-panel .inspect-transport {
   display: flex !important;
 }
@@ -1518,9 +1522,23 @@ body.is-ar.is-ar-placed .ar-stand {
   letter-spacing: 0.08em;
 }
 
-body.is-face-ar.is-ar-placed .ar-yaw,
 body.is-face-ar.is-ar-placed .ar-stand {
   display: none !important;
+}
+
+body.is-face-ar.is-ar-placed .ar-size,
+body.is-face-ar.is-ar-placed .ar-yaw {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px 2px;
+  color: var(--dampf);
+  font-family: Orbitron, sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  pointer-events: auto;
 }
 
 .face-calib {
@@ -1528,7 +1546,6 @@ body.is-face-ar.is-ar-placed .ar-stand {
 }
 
 body.is-face-ar .face-calib,
-body.is-face-ar .ar-size,
 body.is-face-ar .look-fit,
 body.is-face-ar .gizmo-slot,
 body.is-face-ar .gizmo-hit {
@@ -1547,7 +1564,9 @@ body.is-ar:not(.is-ar-placed) .stack {
 }
 
 body.is-ar.is-ar-placed .ar-size input,
-body.is-ar.is-ar-placed .ar-yaw input {
+body.is-ar.is-ar-placed .ar-yaw input,
+body.is-face-ar.is-ar-placed .ar-size input,
+body.is-face-ar.is-ar-placed .ar-yaw input {
   flex: 1 1 auto;
   min-width: 0;
   accent-color: var(--donner);
@@ -1606,7 +1625,9 @@ body.is-ar .z-clip {
 }
 
 body.is-ar .ar-size input,
-body.is-ar .ar-yaw input {
+body.is-ar .ar-yaw input,
+body.is-face-ar .ar-size input,
+body.is-face-ar .ar-yaw input {
   accent-color: var(--donner);
 }
 
@@ -2294,7 +2315,9 @@ body.is-ar .guide-overlay {
 
   body.is-ar.is-ar-placed .ar-size,
   body.is-ar.is-ar-placed .ar-yaw,
-  body.is-ar.is-ar-placed .ar-stand {
+  body.is-ar.is-ar-placed .ar-stand,
+  body.is-face-ar.is-ar-placed .ar-size,
+  body.is-face-ar.is-ar-placed .ar-yaw {
     order: -1;
   }
 

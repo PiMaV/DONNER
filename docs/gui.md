@@ -100,16 +100,16 @@ on the plane; **Size** scales it; **Yaw** turns it around the standing
 axis. Scale fits the table footprint to 40 cm; **Play** grows the
 standing axis up from the plane (gen 0 stays put). **Floor** X / Y / Z
 picks which product axis grows out of the plane (default Z). Walk with
-the phone after that. Three inspect rails, Conway **Play /
-Pause** next to AR, and **Hull / Ghost / Cuts** (top-right Look strip).
-**Loop**, **Hide center / Hide outer**, **Reset Planes**, and **Quality**
-sit behind **More**. On a **phone** in orbit,
+the phone after that. Three inspect rails, **Loop** and Speed under the
+rails, Conway **Play / Pause** next to AR, and **Hull / Ghost / Cuts**
+(top-right Look strip). **Hide center / Hide outer**, **Reset Planes**,
+and **Quality** sit behind **More**. On a **phone** in orbit,
 fingers rotate and pinch-zoom; Conway **Play** sits next to **AR** in the
 fold-bar gap between Source and View. The Look strip is top-right (shade plus Fit). The stack **sliders** move planes and stop
 short of the right edge (system back-swipe). On a
 **headset**, grab a frame edge to slide the whole volume in the room.
 Point at a **cube** to isolate the standing plane (Ghost). **Exit** (or
-Escape) returns to orbit. On a **phone** the WebXR DOM overlay is
+Escape) returns to orbit and runs **Fit** so the volume is framed. On a **phone** the WebXR DOM overlay is
 `#xr-overlay` (HUD chrome only, not a painted full-screen sheet), not
 `document.body`, so the camera passthrough and the volume stay visible.
 Outside AR the overlay is 0×0 so it does not cover the orbit canvas; it
@@ -133,8 +133,8 @@ the face is in view; if the mesh drops, the last pose stays and tracking
 resumes when the face returns.
 **Project on Face** is in Source for Brain MRI Low / High. Click again or
 pick another Source to leave (orbit returns). Phone Face: one **Selfie** /
-**Rear** toggle plus Exit. Face does not show Size, Flip, or millimetre
-sliders. On a **laptop**, rails, Loop, Source, and View stay. Phone Face stays slim (no rails). Quest does not show Face. Camera frames stay on
+**Rear** toggle plus Exit. After lock, Face shows **Size** and **Yaw** like
+world AR (no Floor, Flip, or millimetre sliders). On a **laptop**, rails, Loop, Source, and View stay. Phone Face stays slim (no rails). Quest does not show Face. Camera frames stay on
 the device.
 
 ```mermaid
@@ -325,8 +325,8 @@ rectangle select on the playfield).
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Hidden on phone orbit. Phone AR: Hide lives in **More** (no cube). |
 | **AR** | Start `immersive-ar` when the device supports it (Android Chrome / Quest). Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. When the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). Not shown on desktop orbit. |
-| **Face** | **Project on Face** in Source when Brain MRI Low or High is selected. Not WebXR. Phone rear camera (desktop selfie webcam) + MediaPipe. Ghost Brain overlay locks to the head. After lock: oval + lips + blue iris discs + green pupils; if the mesh drops, keep the last pose until the face returns. Phone: **Selfie** / **Rear** toggle. Laptop keeps rails / Loop / Source / View. Switching Source leaves Face and restores orbit. No Size / Flip / millimetre sliders. Hidden on Quest. `?face=1` enters. |
-| **Exit** | End the AR or Face session; orbit returns. Visible in AR / Face only. |
+| **Face** | **Project on Face** in Source when Brain MRI Low or High is selected. Not WebXR. Phone rear camera (desktop selfie webcam) + MediaPipe. Ghost Brain overlay locks to the head. After lock: oval + lips + blue iris discs + green pupils; if the mesh drops, keep the last pose until the face returns. Phone: **Selfie** / **Rear** toggle. Laptop keeps rails / Loop / Source / View. Switching Source leaves Face and restores orbit. After lock: **Size** and **Yaw** like world AR. Hidden on Quest. `?face=1` enters. |
+| **Exit** | End the AR or Face session; orbit returns and **Fit** frames the volume. Visible in AR / Face only. |
 | **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Hidden in Face. Does not steal a scene tap. Hidden until a pose is locked. |
 | `.` or `N` | Simulation step |
 | `[` / `↓` | Focus one generation into the past |
@@ -339,7 +339,7 @@ rectangle select on the playfield).
 | Control | Meaning |
 |---------|---------|
 | Play / Pause | Conway **Source** on desktop. On phone (orbit and AR overlay) also next to **AR**. Run the generator. Pause inspects the tape. Key Space on Conway. Play collapses the phone Source sheet. |
-| Loop | Under the slice rails on desktop and phone orbit. In AR after spawn it sits in **More**. Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
+| Loop | Under the slice rails on desktop, phone orbit, and phone AR after spawn. Walks the marked axis through the volume (or Conway tape after Pause). Independent of Source Play. Key Space on MNI / Ignition. |
 | Loop axis | **X / Y / Z** directly under the three rails (default **Z**). Independent of the viewcube / camera. |
 | Loop Speed | Same cluster as Loop, under the rails (slices/s). |
 | Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Scale**, Min/Max, Trim, Hide. |
@@ -347,11 +347,11 @@ rectangle select on the playfield).
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut (`B` in a cut leaves it). |
 | Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key/fill follow the view (orbit and AR walk). No slider. A visible sun is later. |
-| Yaw | AR overlay only (after spawn): turn the pillar around the standing axis (floor normal), then walk. |
-| Size | AR overlay only (after spawn): uniform scale of the brick (0.4×–5× on the table-footprint fit). Tabletop stays comfortable near 2.5×; floor placement can go larger. Play grows up without changing this cell scale. |
+| Yaw | AR overlay after spawn, and Face after lock: turn the brick around the standing axis (floor in world AR; head in Face). |
+| Size | AR overlay after spawn, and Face after lock: uniform scale (0.4×–5×). World AR is table-footprint fit; Face is ~16 cm skull × Size. |
 | Floor | AR overlay only (after spawn): which product axis grows out of the plane (X / Y / Z, default Z). Yaw always spins around that axis. |
 | Reset Anchor | AR overlay only (phone, next to Exit): despawn and search again on the floor. |
-| Fit | Look strip (desktop and phone orbit; hidden in AR). Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. The only automatic reframe. |
+| Fit | Look strip (desktop and phone orbit; hidden in AR). Frame the camera to the drawn brick (Inspect: between the clip cuts). Key `F`. Also runs automatically on Exit AR / Face. |
 | Reset Planes | Open all clips to the full volume and move the X/Y/Z playheads to mid-volume. Same pose as first paint / source change. Does not move the camera. Does not run when switching shade. |
 | Hide center | Viewcube (desktop) and phone AR **More**: hide the playhead (now) frames and the slice grid on the current plane. Independent of Hide outer. A viewcube cut still shows that plane. **Start:** Brain MRI and Lighter Ignition leave this off (frames on). Game of Life starts with Hide center on. |
 | Hide outer | Viewcube (desktop) and phone AR **More**: hide the outer clip / bound frames of the crop box (Inspect). Independent of Hide center. **Start:** off for Brain, Ignition, and Game of Life (outer box stays). |
@@ -794,8 +794,9 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   viewer-front preview. The brick sits on the plane; **Size** scales;
   **Yaw** turns around the standing axis. Table footprint maps to
   40 cm; **Play** grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the
-  plane. Phone chrome after spawn is three inspect rails, Conway
-  Play next to AR, Hull / Ghost / Cuts top-right, **More** (Loop, Hide,
+  plane. Phone chrome after spawn is three inspect rails, Loop and Speed
+  under the rails, Conway
+  Play next to AR, Hull / Ghost / Cuts top-right, **More** (Hide,
   Reset Planes, Quality), Size,
   Yaw, Floor, Reset Anchor, Exit on `#xr-overlay`. **AR** only if
   `navigator.xr` supports
@@ -816,8 +817,8 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   Brain MRI follows the head. Phone: one **Selfie** / **Rear** toggle plus Exit.
   Laptop Face keeps rails, Loop, Source, and View. Pick another Source to leave.
   After lock the overlay keeps oval + lips + blue iris discs and green pupils; if the mesh drops,
-  keep the last pose until the face returns. No Recapture, no millimetre
-  sliders, no Size in Face. World AR shows **Tap to place**
+  keep the last pose until the face returns. After lock, **Size** and **Yaw**
+  like world AR (no Floor / millimetre chrome). Exit runs Fit. World AR shows **Tap to place**
   when the gold reticle is visible. Plane rails in AR stay bright without
   a black chrome slab. Occlusion mesh stays later. Quest is
   unchanged.

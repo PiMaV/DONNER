@@ -1214,9 +1214,7 @@ export function bindUI(on) {
           "Despawn the volume and search for a floor plane again. Does not exit the session.";
       }
       if (arBtn) arBtn.hidden = !arSupported || active;
-      parkInspectTransport(
-        parkInspect === undefined ? Boolean(active && locked) : Boolean(parkInspect),
-      );
+      parkInspectTransport(Boolean(parkInspect));
       if (!active || !locked) setLookMore(false);
       if (active) setBenchOpen(false);
       if (!active) this.setArPlaceBanner(false);

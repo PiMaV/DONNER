@@ -42,6 +42,8 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
 9. Face AR occlusion mesh, auto skull scale
+10. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
+    ~23 MB). Session RAM cache of a decoded demo after first load is in.
 
 Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face keeps the last Face pose until the face returns (no second WASM, no getImageData).
 
