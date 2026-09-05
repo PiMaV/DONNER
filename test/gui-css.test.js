@@ -77,7 +77,8 @@ describe("phone AR overlay chrome", () => {
   });
 
   it("hides the stack until the volume is placed, then shows rails and Loop", () => {
-    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
+    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\):not\(\.is-face-ar\)\s+\.stack/);
+    assert.doesNotMatch(css, /body\.is-ar:not\(\.is-ar-placed\)\s+\.stack/);
     assert.doesNotMatch(css, /body\.is-ar\s+\.stack-axis:not\(\.is-z\)/);
     assert.match(css, /body\.is-ar\.is-ar-placed:not\(\.is-face-ar\) \.inspect-transport/);
   });
@@ -131,6 +132,7 @@ describe("Face AR chrome", () => {
     assert.match(css, /body\.is-face-ar \.look-orbit/);
     assert.match(css, /body\.is-face-ar \.ar-yaw[\s\S]{0,80}display:\s*none\s*!important/);
     assert.match(css, /body\.is-ar\.is-face-ar \.stack/);
+    assert.match(css, /body\.is-ar:not\(\.is-ar-placed\):not\(\.is-face-ar\)\s+\.stack/);
     assert.match(css, /body\.is-ar\.is-face-ar \.loop-axes/);
     assert.match(css, /body\.is-ar \.gizmo-fps/);
     assert.match(css, /body\.is-ar \.stack-rail/);

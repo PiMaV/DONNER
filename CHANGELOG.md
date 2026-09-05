@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-05
+
+### Fixed
+
+- Phone Face keeps the three plane sliders before head-lock (World AR still hides them until place).
+
 ## [1.0.0] - 2026-09-04
 
 ### Changed

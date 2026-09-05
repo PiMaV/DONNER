@@ -1683,7 +1683,7 @@ body.is-ar.is-face-ar .inspect-transport {
   display: flex !important;
 }
 
-body.is-ar:not(.is-ar-placed) .stack {
+body.is-ar:not(.is-ar-placed):not(.is-face-ar) .stack {
   display: none !important;
 }
 
