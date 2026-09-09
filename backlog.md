@@ -33,7 +33,10 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
-3. Streamer UI (WOLKE-contract Connect). File drop + volume preloader is in; Streamer stays hidden — static Pages has no sidecar.
+3. **Streamer UI (local QA)** — show WOLKE/EVT Connect under Source for
+   LAN/sidecar only; stay hidden on Pages. Client already seeks/`viewer_index`.
+   Load NumPy / drop is in. Unlocks EVT+BLITZ+DONNER dual-scrub. Suite note:
+   [`../WETTER/TODO.MD`](../WETTER/TODO.MD) (2026-09 Viewer Contract follow-ups).
 4. Decay opt-in
 5. Dataset Contract / ScalarVolume
 6. 500k voxel note / volume-texture pass under DATA
@@ -48,6 +51,9 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
     handle / rail motion and do not change Loop order; Flip Z also moved
     the floor AABB. Ignition load remap stays (swap Y/Z, mirror Z). Do
     not ship Flip until Loop, rails, and AABB stay in index space.
+12. **Open-in / ROI** — contract extension via hub (not peer socket); see
+    suite TODO 2026-09.
+13. **WOLKE packed `__selection__.npy`** multi-row ingest (table sync parity).
 
 Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face keeps the last Face pose until the face returns (no second WASM, no getImageData).
 
@@ -76,10 +82,10 @@ stays later). Do not decide every later feature first.
 
 **Phase 4 — Dataset Contract.** Source adapter → Dataset Contract → core
 → renderer. Axis role / unit / spacing / affine. Keep `CountVolume` for
-counts; add `ScalarVolume` for generic volumes. Formalize WETTER Viewer
-Contract (packed `__selection__.npy`, `viewer_index`). NPZ + optional
-`dataset.json`. Demo shell vs product core. See
-[`architecture.md`](architecture.md#later-dataset-contract).
+counts; add `ScalarVolume` for generic volumes. Packed `__selection__.npy`
+multi-row packages. NPZ + optional `dataset.json`. Demo shell vs product
+core. Viewer Contract playhead (`index` / `viewer_index`) is already in.
+See [`architecture.md`](architecture.md#later-dataset-contract).
 
 **Phase 5 — renderers.** PointRenderer vs CubeRenderer (benchmarks
 first). VolumeTextureRenderer only if dense volumes justify it.
@@ -90,12 +96,14 @@ physical head so Brain MRI locks onto the model. Quest interaction.
 WOLKE. Domain adapters (CT/MRI) only when needed.
 
 **Later detail:** polarity / occupancy / states encodings on the same
-`EventSoA`, packed WOLKE selection / `viewer_index`, then the XR ladder
-below. Count-stack `.npy` and the WOLKE-contract stream (EVT sidecar)
-are in. P1 instrumentation and P2 dirty-state / visible window are in
-this tree. Dense count cubes (occupancy > 15 %) already open at full
-AABB with enclosed voxels culled. Source → **Brain MRI Low** is the
-visitor T1; **High** is the native-grid cube. Do not embed NiiVue.
+`EventSoA`, packed WOLKE selection packages, then Open-in / ROI handoffs
+as Viewer Contract extensions (hub only — no peer mesh), then the XR
+ladder below. Count-stack `.npy`, stream ingest, and playhead
+`index` / `viewer_index` are in. P1 instrumentation and P2 dirty-state /
+visible window are in this tree. Dense count cubes (occupancy > 15 %)
+already open at full AABB with enclosed voxels culled. Source → **Brain
+MRI Low** is the visitor T1; **High** is the native-grid cube. Do not
+embed NiiVue.
 
 ## MRI volume (later)
 
@@ -334,9 +342,10 @@ desktop. Remaining:
   NumPy; drop on the volume still works). Header peek, ~500k comfort warn,
   256³ hard cap, optional 2/4/8 mean/max-bin that skips short axes, first-plane
   preview.
-- **Streamer + Connect** stays hidden. WOLKE-contract stream needs a
-  sidecar; GitHub Pages has none. Loaders stay in the tree. The Source
-  **Loading…** spinner is the seed for “something is arriving.”
+- **Streamer + Connect** stays hidden on Pages. Local QA: show Connect so
+  EVT/WOLKE dual-scrub with BLITZ works in 3D (client index path is in).
+  Loaders stay in the tree. The Source **Loading…** spinner is the seed
+  for “something is arriving.”
 
 ## QR door (later)
 

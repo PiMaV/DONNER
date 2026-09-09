@@ -6,30 +6,35 @@ import {
   cubeFetchUrl,
   downloadUrl,
   fileNameFromPayload,
+  indexFromPayload,
   normalizeBaseUrl,
 } from "../src/wolke.js";
 
 function fakeIo() {
   const handlers = new Map();
+  const emitted = [];
   const socket = {
     on(event, fn) {
       handlers.set(event, fn);
       return socket;
     },
+    emit(event, data) {
+      emitted.push([event, data]);
+      handlers.get(event)?.(data);
+    },
     disconnect() {
       socket.disconnected = true;
-    },
-    emit(event, data) {
-      handlers.get(event)?.(data);
     },
   };
   function io(url, opts) {
     io.url = url;
     io.opts = opts;
     io.socket = socket;
+    io.emitted = emitted;
     return socket;
   }
   io.socket = socket;
+  io.emitted = emitted;
   return io;
 }
 
@@ -54,6 +59,13 @@ describe("WOLKE viewer URLs", () => {
     assert.equal(fileNameFromPayload({ file_name: "stack.npy", index: 2 }), "stack.npy");
     assert.equal(fileNameFromPayload("stack.npy"), "stack.npy");
     assert.equal(fileNameFromPayload({}), "");
+  });
+
+  it("reads optional index from the socket payload", () => {
+    assert.equal(indexFromPayload({ file_name: "stack.npy", index: 2 }), 2);
+    assert.equal(indexFromPayload({ file_name: "stack.npy" }), null);
+    assert.equal(indexFromPayload("stack.npy"), null);
+    assert.equal(indexFromPayload({ index: 1.5 }), null);
   });
 
   it("rewrites the cube GET through the same-origin proxy", () => {
@@ -177,5 +189,40 @@ describe("WolkeViewer", () => {
     viewer.disconnect();
     assert.equal(viewer.listening, false);
     assert.equal(io.socket.disconnected, true);
+  });
+
+  it("seeks by index without a second GET when the cube is cached", async () => {
+    let fetches = 0;
+    const fetch = async () => {
+      fetches += 1;
+      return { ok: true, arrayBuffer: async () => new ArrayBuffer(3) };
+    };
+    const io = fakeIo();
+    const viewer = new WolkeViewer({ io, fetch, pageOrigin: "" });
+    const got = [];
+    const seeks = [];
+    viewer.connect({
+      baseUrl: "http://127.0.0.1:5055",
+      token: "evt",
+      onNpy: (_buf, name, index) => got.push([name, index]),
+      onIndex: (index, name) => seeks.push([name, index]),
+    });
+    await viewer._onFile({ file_name: "stack.npy", index: 0 });
+    await viewer._onFile({ file_name: "stack.npy", index: 4 });
+    assert.equal(fetches, 1);
+    assert.deepEqual(got, [["stack.npy", 0]]);
+    assert.deepEqual(seeks, [["stack.npy", 4]]);
+  });
+
+  it("emits viewer_index to the hub", () => {
+    const io = fakeIo();
+    const viewer = new WolkeViewer({
+      io,
+      fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) }),
+      pageOrigin: "",
+    });
+    viewer.connect({ baseUrl: "http://127.0.0.1:5055", token: "evt" });
+    viewer.emitIndex(7);
+    assert.deepEqual(io.emitted, [["viewer_index", { index: 7 }]]);
   });
 });

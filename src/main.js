@@ -399,6 +399,8 @@ let countVol = null;
 let pendingIngest = null;
 let ingestPreviewGen = 0;
 const wolke = new WolkeViewer({ io });
+/** Suppress viewer_index while applying a hub seek (avoid echo loops). */
+let wolkeSuppressEmit = false;
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt.";
 let focusSurfaces = { x: null, y: null, z: null };
@@ -2224,6 +2226,7 @@ function applySlab(axis, next, dragged = "focus") {
       cam.lookAt(controls.target);
     }
   }
+  const focusChanged = nextFocus !== cur.focus;
   slabs[a] = {
     near: clamped.topBack,
     focus: nextFocus,
@@ -2243,6 +2246,7 @@ function applySlab(axis, next, dragged = "focus") {
     !looping;
   dirtyView = !hullFocus;
   if (arPresenting()) applyArStagePose();
+  if (a === "z" && dragged === "focus" && focusChanged) maybeEmitWolkeIndex();
 }
 
 function enterInspect() {
@@ -2734,6 +2738,27 @@ async function confirmCountIngest(picks) {
   }
 }
 
+function seekWolkeIndex(index) {
+  if (sourceId !== "count" || !countVol) return;
+  const n = Math.max(1, countVol.nT | 0);
+  const idx = Math.max(0, Math.min(index | 0, n - 1));
+  const back = Math.max(0, n - 1 - idx);
+  wolkeSuppressEmit = true;
+  try {
+    if (!tapeMode) enterInspect();
+    applySlab("z", { ...slabs.z, focus: back }, "focus");
+  } finally {
+    wolkeSuppressEmit = false;
+  }
+}
+
+function maybeEmitWolkeIndex() {
+  if (wolkeSuppressEmit || !wolke.listening || sourceId !== "count" || !countVol) {
+    return;
+  }
+  wolke.emitIndex(tFocus());
+}
+
 function connectWolke() {
   const cfg = ui.getConfig();
   ui.setWolkeStatus("connecting");
@@ -2741,16 +2766,20 @@ function connectWolke() {
   wolke.connect({
     baseUrl: cfg.wolkeUrl,
     token: cfg.wolkeToken,
-    onNpy: (buf, fileName) => {
+    onNpy: (buf, fileName, index) => {
       try {
         const name = String(fileName || "stack").replace(/\.npy$/i, "");
         bootCount(countVolumeFromNpy(buf, name));
         ui.setCountHint(COUNT_HINT);
+        if (index != null) seekWolkeIndex(index);
       } catch (err) {
         const msg = err && err.message ? err.message : String(err);
         ui.setCountHint(`Stream cube rejected (${msg}). Need (T × H × W) .npy; Send as counts.`);
         updateHint();
       }
+    },
+    onIndex: (index) => {
+      seekWolkeIndex(index);
     },
     onStatus: (status) => {
       ui.setWolkeStatus(status);
@@ -2769,6 +2798,7 @@ function connectWolke() {
 
 function disconnectWolke() {
   wolke.disconnect();
+  wolkeSuppressEmit = false;
   ui.setWolkeConnected(false);
   ui.setWolkeStatus("disconnected");
 }

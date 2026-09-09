@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Stream playhead sync on the WETTER Viewer Contract: seek Z from hub `index`, emit `viewer_index` while connected (hub-and-spoke with BLITZ / EVT; no peer socket).
+
 ## [1.0.1] - 2026-09-05
 
 ### Fixed

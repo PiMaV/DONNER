@@ -218,8 +218,10 @@ on phone it also sits next to **AR**. Conway **GEN / LIVE / RATE**
 only while Conway Play is on. Generator setup does not share a panel
 with View. Desktop stacks both folds; collapse Source after setup and
 live in View. Phone uses the same two folds (bottom bar, one sheet at a
-time). A short **Loading…** spinner (Source fold + canvas overlay) runs
-while a source, pattern, grid, or cube is switching.
+time). An open sheet closes with another tap on its fold button or a short
+tap on the volume view above it; a drag still orbits. A short **Loading…**
+spinner (Source fold + canvas overlay) runs while a source, pattern, grid,
+or cube is switching.
 
 ```mermaid
 flowchart TB
@@ -804,8 +806,9 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   cache). Dense Encoding can still slim further.
 - **Isolation later:** rectangle select on the playfield (not cube double-click). AR poke already isolates the standing plane. Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)
-- NPZ, packed WOLKE selection / `viewer_index`, BLITZ widget sync, in-browser EVT3
-- **Streamer later:** WOLKE Connect stays hidden (no sidecar on Pages). Load NumPy / drop `.npy` + header gate is in.
+- NPZ, packed WOLKE `__selection__.npy` multi-row, BLITZ widget sync, in-browser EVT3
+- Open-in / ROI handoff via Viewer Contract hub (later; no peer mesh)
+- **Streamer later:** WOLKE Connect stays hidden (no sidecar on Pages). Load NumPy / drop `.npy` + header gate is in. Local stream client already supports playhead `index` / `viewer_index`.
 - **MRI / scalar volume later.** Dense count `.npy` (occupancy > 15 %)
   already opens a mid-volume slab with enclosed voxels hidden. Dedicated
   kind + `ScalarVolume` wait on the Dataset Contract. Do not embed

@@ -1,8 +1,10 @@
 /**
- * WOLKE viewer contract client (Socket.IO notify + HTTP GET .npy).
+ * WETTER Viewer Contract client (Socket.IO notify + HTTP GET .npy).
  *
  * Same events as BLITZ and the EVT sidecar. DONNER stays a static
- * browser viewer — the cube bytes never ride the socket.
+ * browser viewer — the cube bytes never ride the socket. Playhead
+ * sync uses optional `index` on `send_file_message` and emit
+ * `viewer_index` (hub-and-spoke; no Viewer↔Viewer peer link).
  */
 
 export function normalizeBaseUrl(url) {
@@ -38,10 +40,16 @@ export function fileNameFromPayload(payload) {
   return typeof name === "string" ? name : "";
 }
 
+export function indexFromPayload(payload) {
+  if (payload == null || typeof payload !== "object") return null;
+  const idx = payload.index;
+  return typeof idx === "number" && Number.isInteger(idx) ? idx : null;
+}
+
 export class WolkeViewer {
   /**
    * @param {{
-   *   io: (url: string, opts?: object) => { on: Function, disconnect: Function },
+   *   io: (url: string, opts?: object) => { on: Function, emit?: Function, disconnect: Function },
    *   fetch?: typeof fetch,
    *   pageOrigin?: string,
    * }} deps
@@ -52,10 +60,12 @@ export class WolkeViewer {
     this._pageOrigin = deps.pageOrigin;
     this._socket = null;
     this._gen = 0;
+    this._lastFileName = "";
     this.connected = false;
     this.baseUrl = "";
     this.token = "";
     this.onNpy = null;
+    this.onIndex = null;
     this.onStatus = null;
     this.onError = null;
   }
@@ -64,11 +74,16 @@ export class WolkeViewer {
     return this._socket != null;
   }
 
-  connect({ baseUrl, token, onNpy, onStatus, onError } = {}) {
+  get lastFileName() {
+    return this._lastFileName;
+  }
+
+  connect({ baseUrl, token, onNpy, onIndex, onStatus, onError } = {}) {
     this.disconnect();
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.token = String(token || "");
     this.onNpy = onNpy || null;
+    this.onIndex = onIndex || null;
     this.onStatus = onStatus || null;
     this.onError = onError || null;
     if (!this.baseUrl || !this.token) {
@@ -102,21 +117,41 @@ export class WolkeViewer {
 
   disconnect() {
     this._gen += 1;
+    this._lastFileName = "";
     const socket = this._socket;
     this._socket = null;
     this.connected = false;
     if (socket && typeof socket.disconnect === "function") socket.disconnect();
   }
 
+  /**
+   * Tell the hub which T-axis frame is shown (Viewer Contract: viewer_index).
+   * @param {number} index
+   */
+  emitIndex(index) {
+    const socket = this._socket;
+    if (!socket || typeof socket.emit !== "function") return;
+    const idx = index | 0;
+    if (idx < 0) return;
+    socket.emit("viewer_index", { index: idx });
+  }
+
   async _onFile(payload) {
     const fileName = fileNameFromPayload(payload);
     if (!fileName) return;
+    const index = indexFromPayload(payload);
+    if (index != null && fileName === this._lastFileName) {
+      this.onIndex?.(index, fileName);
+      this.onStatus?.("ready");
+      return;
+    }
     const gen = ++this._gen;
     this.onStatus?.(`loading ${fileName}`);
     try {
       const buf = await this._download(fileName);
       if (gen !== this._gen) return;
-      this.onNpy?.(buf, fileName);
+      this._lastFileName = fileName;
+      this.onNpy?.(buf, fileName, index);
       this.onStatus?.("ready");
     } catch (err) {
       if (gen !== this._gen) return;

@@ -242,7 +242,8 @@ advantage, not a deployment convenience.
 - Dataset Contract / `ScalarVolume` / PointRenderer on the live host
   without a separate slice (XR-C baseline and thin View are in; see [`backlog.md`](../backlog.md))
 - NPZ loaders; polarity / occupancy / states encodings
-- Packed WOLKE `__selection__.npy` / `viewer_index` table sync / BLITZ widget sync
+- Packed WOLKE `__selection__.npy` multi-row packages / BLITZ widget sync
+- Open-in DONNER or space-time ROI handoff (later contract extension via hub; no Viewer↔Viewer peer API)
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
   hit-test, phone inspect rails / named shade / More, stick yaw, grip-pinch size, grab-frame room slide, and

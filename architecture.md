@@ -53,8 +53,10 @@ that showcase UI is not the internal architecture.
 units, spacing, affine, and value semantics are not hardcoded.
 `ScalarVolume` for generic scientific volumes (MRI/CT, including
 negative Hounsfield units). Point renderer for large sparse clouds.
-WETTER Viewer Contract (packed selection / `viewer_index`). See
-[Later: Dataset Contract](#later-dataset-contract).
+Packed WOLKE `__selection__.npy` multi-row packages remain later.
+Playhead `index` / `viewer_index` on the Viewer Contract is **in** (stream
+client). See [Later: Dataset Contract](#later-dataset-contract) and
+[`../WETTER/docs/interoperability.md`](../WETTER/docs/interoperability.md).
 
 Do not start that contract, `ScalarVolume`, or a PointRenderer in the
 same slice as XR follow-ups or own-data ingest.
@@ -876,13 +878,15 @@ Size is 0.4×–5× on that fit, so a floor placement can grow larger than a tab
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
 
-No DONNER backend, no EVT3 decode in the browser, no packed-selection /
-`viewer_index` sync. A **WOLKE-contract viewer** (`src/wolke.js`) may
-connect to the EVT sidecar or WOLKE: Socket.IO announces
-`send_file_message`, the page GETs `/stream-npy` (allowlisted loopback /
-RFC1918 only), then the count adapter unpacks EventSoA. Cubes do not
-ride the socket. Restart `npm start` / `start:lan` after pulling this
-so the proxy exists; `python3 -m http.server` will not.
+No DONNER backend, no EVT3 decode in the browser. Packed WOLKE
+`__selection__.npy` multi-row packages are later. A **Viewer Contract**
+client (`src/wolke.js`) connects to the EVT sidecar or WOLKE: Socket.IO
+announces `send_file_message`, the page GETs `/stream-npy` (allowlisted
+loopback / RFC1918 only), then the count adapter unpacks EventSoA. Cubes
+do not ride the socket. While connected, Z playhead changes emit
+`viewer_index`; hub `index` seeks without re-download. Restart
+`npm start` / `start:lan` after pulling this so the proxy exists;
+`python3 -m http.server` will not.
 
 ```text
 Event camera → sidecar → count cube .npy
@@ -891,6 +895,8 @@ Event camera → sidecar → count cube .npy
                           └─ DONNER XR (same scene)
 ```
 
+Hub-and-spoke only — no DONNER↔BLITZ peer socket. See
+[`../WETTER/docs/interoperability.md`](../WETTER/docs/interoperability.md).
 File format is not the runtime contract. A **source adapter** unpacks
 `.npy` count cubes (`src/npy.js` + `src/count.js`) into `EventSoA`. A
 monolithic NPZ is still a transport container — do not teach the renderer
@@ -939,21 +945,24 @@ manifest are later transport, not the runtime. The demo shell can keep
 several adapters; a productive deploy can expose one source and a
 thinner UI.
 
-WOLKE’s current viewer protocol (`send_file_message`, `file_name`,
-`index`, later `__selection__.npy` / `viewer_index`) should become a
-**WETTER Viewer Contract** shared with BLITZ — not a BLITZ-only API.
+WOLKE’s viewer protocol (`send_file_message`, `file_name`, `index`,
+`viewer_index`, later packed `__selection__.npy`) is the **WETTER Viewer
+Contract** shared with BLITZ — not a BLITZ-only API. Canonical:
+[`../WOLKE/WETTER_Viewer_Contract.md`](../WOLKE/WETTER_Viewer_Contract.md).
 
 ```mermaid
 flowchart TB
-  wolke[WOLKE]
-  contract[WETTER Viewer Contract]
-  donner[DONNER Explore]
-  blitz[BLITZ Analyze]
+  wolke[WOLKE_or_sidecar]
+  contract[WETTER_Viewer_Contract]
+  donner[DONNER_Explore]
+  blitz[BLITZ_Analyze]
   wolke --> contract
   contract --> donner
   contract --> blitz
 ```
 
+Later handoffs (**Open in DONNER** / space-time ROI back to BLITZ) extend
+this contract via the hub — never a peer link and never shared widgets.
 XR-B AprilTag comes after this contract exists. A marker may carry
 dataset identity (resolved via WOLKE / sidecar — never secrets in the
 tag) and a spatial origin (pose, metric scale).
@@ -1343,8 +1352,10 @@ flowchart LR
    [backlog.md](backlog.md).
    Do not start a new renderer in the same slice as XR.
 4. **Integration** — WOLKE-contract stream is in (sidecar / WOLKE →
-   DONNER count cube). Later: Open in DONNER / send space-time ROI back
-   to BLITZ. No shared widgets.
+   DONNER count cube), including playhead `index` / `viewer_index`.
+   Later: Open in DONNER / send space-time ROI back to BLITZ as a
+   **contract extension** through the hub. No shared widgets; no
+   Viewer↔Viewer peer API.
 
 Product **Z** (time) already stands on the playfield plane, so a floor
 is a natural origin. In phone AR the brick sits on that floor pose.
