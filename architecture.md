@@ -61,13 +61,56 @@ client). See [Later: Dataset Contract](#later-dataset-contract) and
 Do not start that contract, `ScalarVolume`, or a PointRenderer in the
 same slice as XR follow-ups or own-data ingest.
 
+## Deployment surfaces
+
+Two public faces, one JS app. Best host for the job — not the same
+packaging as every other WETTER tool.
+
+| Surface | Artifact | Sidecar stream |
+|---|---|---|
+| **Online Demo** | GitHub Pages ([donner.mess.engineering](https://donner.mess.engineering/)) | No — static showcase |
+| **Local Viewer** | Go one-binary (`DONNER.exe` / `DONNER-linux-x86_64`) from GitHub Releases | Yes — host serves static files + `/stream-npy` proxy; Socket.IO stays in the browser client |
+| **Dev (Local Viewer chrome)** | `npm start` / `start:lan` / `start:https` | Yes — `/local-viewer.json` + `/stream-npy` |
+| **Dev (Online Demo chrome)** | `npm run start:demo` / `start:https:demo` | No — Pages parity; LAN bind for `lab.ole.icu` |
+
+**Online Demo** is the tech/tag demo: curated cubes, Load/Drop `.npy`,
+orbit / AR / Face. It is deliberately not a sidecar client (Chrome
+private-network rules and no laptop proxy on Pages).
+
+**Local Viewer** is the fuller product for third parties: download, run,
+no Python required. Same page opens in the default browser. Stream from
+EVT/WOLKE, LAN phone against this host, versioned releases. Go — not
+PyInstaller — because the host is only HTTP static + allowlisted cube
+proxy (WOLKE-style Dash would still be Python; this shell is not).
+
+```mermaid
+flowchart LR
+  online[Online Demo Pages]
+  rel[GitHub Releases]
+  local[Local Viewer Go binary]
+  js[Same JS app]
+  evt[EVT or WOLKE sidecar]
+  online -->|"Get Local Viewer"| rel
+  rel --> local
+  local --> js
+  js -->|"Socket.IO client"| evt
+  js -->|"GET stream-npy"| local
+  local -->|"allowlisted fetch"| evt
+```
+
+Visitor copy never says “lab” for these surfaces. Phone on the public
+demo stays Online Demo. Phone next to a running Local Viewer opens that
+host’s LAN URL — not Pages → localhost.
+
 ## Serve
 
 Static files. ES modules need HTTP (`file://` will not load).
 
 ```bash
-npm start             # http://127.0.0.1:8765/
-npm run start:lan     # phone on the same Wi-Fi
+npm start             # http://127.0.0.1:8765/  (Local Viewer chrome)
+npm run start:demo    # 0.0.0.0:8765 Online Demo chrome — lab.ole.icu / phone fog+GoL tests
+npm run start:lan     # 0.0.0.0 Local Viewer chrome (stream on phone)
+npm run start:viewer  # Go Local Viewer from repo root (dev tags)
 npm test
 ```
 
@@ -76,15 +119,20 @@ DONNER Face AR: `http://127.0.0.1:8765/?face=1`. Phone HTTPS:
 `https://lab.ole.icu/face-lab.html`.
 
 WebXR needs HTTPS. Lab door: `https://lab.ole.icu/` (Caddy →
-`start:lan`). Fallback: `npm run start:https` (mkcert). Servers send
-`Permissions-Policy: xr-spatial-tracking=(self), camera=(self)`. HTML/JS/CSS are
+laptop `:8765`). For **Online Demo** device tests use `npm run start:demo`
+upstream; for **Local Viewer** chrome on the phone use `npm run start:lan`.
+Fallback: `npm run start:https` / `start:https:demo` (mkcert). Servers send
+Permissions-Policy: `xr-spatial-tracking=(self), camera=(self)`. HTML/JS/CSS are
 `Cache-Control: no-store` so Chrome on a phone does not keep `main.js`
-while serving an older `xr.js` / `orbit.js`.
+while serving an older `xr.js` / `orbit.js`. Local Viewer chrome answers
+`GET /local-viewer.json` so the page can show Stream / Connect.
 
-GitHub Pages is live at
+GitHub Pages is the **Online Demo** at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
 Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
-Door: bare URL is Brain MRI Low (Ghost, center and outer frames on).
+**Local Viewer** binaries ship from GitHub Releases (workflow
+`.github/workflows/release.yml`, tag `v*`). Door: bare URL is Brain MRI Low
+(Ghost, center and outer frames on).
 `?src=life` Game of Life (Hull, both frames),
 `?src=ignition` Lighter Ignition (Ghost, both frames), `?src=mni152` High, `?quality=medium` or `low`,
 Face `?face=1` (webcam / phone, not WebXR). Face lab: `face-lab.html`.
@@ -177,8 +225,8 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit and Spin (Look strip; Fit also on Exit AR / Face), Depth (live wake), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
-| **Source** | Kind switch. Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`); **Load NumPy**. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, Wrap, Grid, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Streamer hidden (no sidecar on Pages). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** is a desktop button right of the brand chip (Look, arrows: orbit, source, play/loop, rails, viewcube, inspect, quality). | Sheet **Source** (config, top of the left rail) |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit and Spin (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
+| **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy**. **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
@@ -641,7 +689,8 @@ move the camera; does not run when switching to Cuts). Load, pattern
 change, and source change start on that pose.
 Live: only the Z playhead exists (locked at Now). Fog
 is **off** while Inspect so a zoomed-out brick stays lit; Live keeps
-distance fog.
+distance fog, with near/far scaled to the orbit distance so Conway Play
+does not sit inside a fixed fog band.
 
 ## Parallax, gizmo, Align to Z, yaw, light
 
@@ -834,7 +883,8 @@ grow the DOM.
 | `src/volume-prep.js` | Count-cube ingest gate, 500k comfort warn, streaming mean/max-bin (skip short axes), landscape ingest preview |
 | `src/count.js` | Sparse count volume → `EventSoA` |
 | `src/wolke.js` | WOLKE viewer contract: Socket.IO notify + same-origin `/stream-npy` GET |
-| `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the static HTTP/HTTPS servers |
+| `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the Python dev HTTP/HTTPS servers |
+| `host/` | Go **Local Viewer** binary: static embed, `/stream-npy`, `/local-viewer.json`, open browser |
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
@@ -884,9 +934,10 @@ client (`src/wolke.js`) connects to the EVT sidecar or WOLKE: Socket.IO
 announces `send_file_message`, the page GETs `/stream-npy` (allowlisted
 loopback / RFC1918 only), then the count adapter unpacks EventSoA. Cubes
 do not ride the socket. While connected, Z playhead changes emit
-`viewer_index`; hub `index` seeks without re-download. Restart
-`npm start` / `start:lan` after pulling this so the proxy exists;
-`python3 -m http.server` will not.
+`viewer_index`; hub `index` seeks without re-download. Use **Local Viewer**
+(Go) or `npm start` / `start:lan` so the proxy exists; bare
+`python3 -m http.server` will not. Online Demo (Pages) does not offer
+Connect.
 
 ```text
 Event camera → sidecar → count cube .npy
@@ -989,24 +1040,24 @@ flowchart TB
     later[Points shader or native GPU later]
   end
   subgraph shells [Shells]
-    demo[Static demo URL]
-    desk[Desktop wrap later]
+    demo[Online Demo Pages]
+    local[Local Viewer Go host]
     xr[WebXR immersive-ar]
   end
   src --> soa
   soa --> three
   soa --> later
   three --> demo
-  three --> desk
+  three --> local
   three --> xr
 ```
 
-1. **Now — demo shell:** static HTML+JS. That is Stage 1, not a deficit.
-2. **Later — desktop wrap:** only once local files / sidecar exist (WOLKE-style
-   host, or a thin WebView). Empty `DONNER.exe` around `index.html` is not
-   worth it today.
+1. **Online Demo shell:** static HTML+JS on Pages. Showcase, not a deficit.
+2. **Local Viewer host (now):** Go one-binary serves that same shell, opens
+   the browser, and proxies `/stream-npy`. Not a Qt port and not
+   PyInstaller — thin HTTP for a JS app. Users need no Python.
 3. **XR shell:** same Three.js scene, WebXR. Native OpenXR/Unity only if
-   WebXR fails the lab case.
+   WebXR fails the headset case.
 
 ## Wake vs RAM tape
 
@@ -1055,15 +1106,15 @@ Inspect (Pause)
 the **oldest drawn slice**. Live that is the back of Depth; Inspect that
 is gen 0 (or the tape start). Off = even brick.
 
-Cache status lives in View. Conway Source does not own Depth, Decay, or
+Cache status lives in View. Conway Source owns **Depth** (under Setup); Decay and
 the tape. Caps: 4096 gens or 400 000 cells, then `full` (recording from
 the start stops). Reset starts a new tape. Changing Depth resizes the
-wake ring only. The instance cap (View **Cube cap**, default 200 000)
-still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
-envelope. Game of Life **Play** keeps that 200 000 envelope; **Pause**
-raises it to the tape’s occupied cell count. A dense count cube (MRI)
-raises to the hull instance count, not occupied voxels. Sparse Ignition
-uses occupied cells. Play on Game of Life drops back to 200 000.
+wake ring only. The instance cap (View **Cube cap**, default **250k**,
+steps 100k…10M) still newest-first (`trunc` in the HUD) if Inspect is denser than the GPU
+envelope. Game of Life **Play** keeps that default envelope; **Pause**
+raises to the next preset that covers the tape’s occupied cells. A dense count cube (MRI)
+raises to the hull preset, not occupied voxels. Sparse Ignition
+uses occupied cells. Play on Game of Life drops back to the default.
 
 Color coding defaults on for teaching. Conway **Size by age** defaults on
 (Start 0.5, Tail 16).
@@ -1133,9 +1184,9 @@ Paused-orbit CPU/DOM cuts (cached viewcube CSS, throttled FPS chip, headlamp ski
 live in [`docs/fps_opti.md`](docs/fps_opti.md). Fill-rate / Ghost ideas stay there
 as later work.
 
-Instanced cubes: solid + ghost `InstancedMesh`, default **200 000**
-instances (View **Cube cap** up to 20 000 000). Game of Life Play stays
-at 200 000; Pause fits the tape. Dense MRI raises to the hull size, not
+Instanced cubes: solid + ghost `InstancedMesh`, default **250k**
+(View **Cube cap** dropdown, steps to **10M**). Game of Life Play stays
+at the default; Pause fits the tape to the next step. Dense MRI raises to the hull size, not
 occupied voxels (High hull ~140k inside 5 M occupied). Sparse Ignition
 uses occupied cells. Conway is the synthetic load generator and must boot
 at the default, not at an MRI occupancy envelope. Realtime FPS is the cube overlay.

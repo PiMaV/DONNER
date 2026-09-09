@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, stepVoxelGap } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, CUBE_CAP_PRESETS, CUBE_CAP_MAX, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, formatCubeCapLabel, isCubeCapMaxChoice, resolveCubeCap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, stepVoxelGap } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
 import { countCmapCss, DEFAULT_COUNT_CMAP, DEFAULT_COUNT_TRIM, grayToCmapRgba, normalizeCountCmap, normalizeCountTrim } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
@@ -342,6 +342,7 @@ export function bindUI(on) {
   const loopSpeed = $("loop-speed");
   const loopSpeedVal = $("loop-speed-val");
   const cacheStatus = $("cache-status");
+  const fpsCapHint = $("fps-cap-hint");
   const history = $("history");
   const historyVal = $("history-val");
   const voxelGapNum = $("voxel-gap-num");
@@ -403,6 +404,9 @@ export function bindUI(on) {
   let guideOpen = false;
   const guideSpots = [];
   const countFile = $("count-file");
+  const btnLoadNpy = $("btn-load-npy");
+  const sourceWork = $("source-work");
+  const sourceDemoChrome = $("source-demo-chrome");
   const dropOverlay = $("drop-overlay");
   const ingestDialog = $("ingest-dialog");
   const ingestFileName = $("ingest-file");
@@ -423,10 +427,13 @@ export function bindUI(on) {
   };
   const countMeta = $("count-meta");
   const countHint = $("count-hint");
+  const sourceStream = $("source-stream");
+  const sourceCount = $("source-count");
   const wolkeUrl = $("wolke-url");
   const wolkeToken = $("wolke-token");
   const wolkeConnect = $("btn-wolke-connect");
   const wolkeStatus = $("wolke-status");
+  let localViewer = false;
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
   const countLegHi = $("count-leg-hi");
@@ -498,10 +505,22 @@ export function bindUI(on) {
   }
   if (alignZ) alignZ.checked = DEFAULTS.alignZ;
   if (cubeCap) {
-    cubeCap.min = String(DEFAULTS.cubeCapMin);
-    cubeCap.max = String(DEFAULTS.cubeCapMax);
+    cubeCap.replaceChildren();
+    for (const n of CUBE_CAP_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = String(n);
+      opt.textContent = formatCubeCapLabel(n);
+      if (n === DEFAULTS.maxInstances) opt.selected = true;
+      cubeCap.appendChild(opt);
+    }
+    const maxOpt = document.createElement("option");
+    maxOpt.value = CUBE_CAP_MAX;
+    maxOpt.textContent = "MAX";
+    maxOpt.title = "Draw every arrived voxel (can be huge)";
+    cubeCap.appendChild(maxOpt);
     cubeCap.value = String(DEFAULTS.maxInstances);
   }
+  let arrivedCubeCells = 0;
   if (bench) bench.checked = DEFAULTS.bench;
   if (sourceKind) sourceKind.value = DEFAULTS.sourceKind;
   let lastSourceKind = sourceKind ? sourceKind.value : DEFAULTS.sourceKind;
@@ -646,7 +665,9 @@ export function bindUI(on) {
   syncQualityButtons(DEFAULTS.viewQuality);
   cubeCap?.addEventListener("change", () => {
     if (applying) return;
-    cubeCap.value = String(clampCubeCap(cubeCap.value));
+    if (!isCubeCapMaxChoice(cubeCap.value)) {
+      cubeCap.value = String(clampCubeCap(cubeCap.value));
+    }
     on.cubeCap?.();
   });
   bench?.addEventListener("change", () => {
@@ -820,6 +841,9 @@ export function bindUI(on) {
     countFile.value = "";
     if (file) on.countFile?.(file);
   });
+  btnLoadNpy?.addEventListener("click", () => {
+    countFile?.click();
+  });
   const isFileDrag = (e) => Array.from(e.dataTransfer?.types || []).includes("Files");
   let dragDepth = 0;
   const showDrop = (on) => {
@@ -988,7 +1012,8 @@ export function bindUI(on) {
       arBtn.title = "Place this volume on a floor plane.";
     }
     if (faceBtn) {
-      faceBtn.hidden = !faceSupported || !brain || worldAr || presenting;
+      faceBtn.hidden =
+        localViewer || !faceSupported || !brain || worldAr || presenting;
       faceBtn.textContent = "Face";
       faceBtn.setAttribute("aria-pressed", presenting ? "true" : "false");
       faceBtn.classList.toggle("is-on", presenting);
@@ -998,6 +1023,32 @@ export function bindUI(on) {
   };
 
   const phoneFolds = () => Boolean(foldBar) && getComputedStyle(foldBar).display !== "none";
+  const canvas = $("view");
+  const FOLD_TAP_PX = 10;
+  let foldTap = null;
+  const foldSheetOpen = () =>
+    panelSource.classList.contains("is-open") || panelView.classList.contains("is-open");
+  canvas?.addEventListener("pointerdown", (e) => {
+    if (!phoneFolds() || !foldSheetOpen()) {
+      foldTap = null;
+      return;
+    }
+    if (e.button !== 0 && e.pointerType !== "touch") return;
+    foldTap = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  });
+  canvas?.addEventListener("pointerup", (e) => {
+    if (!foldTap || e.pointerId !== foldTap.id) return;
+    const { x, y } = foldTap;
+    foldTap = null;
+    if (!phoneFolds() || !foldSheetOpen()) return;
+    const dx = e.clientX - x;
+    const dy = e.clientY - y;
+    if (dx * dx + dy * dy > FOLD_TAP_PX * FOLD_TAP_PX) return;
+    setFold("");
+  });
+  canvas?.addEventListener("pointercancel", (e) => {
+    if (foldTap && e.pointerId === foldTap.id) foldTap = null;
+  });
   const clearGuideSpots = () => {
     for (const el of guideSpots) el.classList.remove("guide-spot");
     guideSpots.length = 0;
@@ -1228,7 +1279,10 @@ export function bindUI(on) {
         wolkeUrl: wolkeUrl ? wolkeUrl.value : DEFAULTS.wolkeUrl,
         wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
         alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
-        maxInstances: cubeCap ? clampCubeCap(cubeCap.value) : DEFAULTS.maxInstances,
+        maxInstances: cubeCap
+          ? resolveCubeCap(cubeCap.value, arrivedCubeCells)
+          : DEFAULTS.maxInstances,
+        cubeCapMax: cubeCap ? isCubeCapMaxChoice(cubeCap.value) : false,
         bench: bench ? bench.checked : DEFAULTS.bench,
       };
     },
@@ -1434,6 +1488,20 @@ export function bindUI(on) {
       if (fpsChip.textContent === text) return;
       fpsChip.textContent = text;
     },
+    setFpsCapHint(text) {
+      const tip = text ? String(text) : "";
+      if (fpsCapHint) {
+        fpsCapHint.hidden = !tip;
+        fpsCapHint.textContent = tip;
+      }
+      if (fpsChip) {
+        if (tip) fpsChip.title = tip;
+        else fpsChip.removeAttribute("title");
+      }
+      if (cacheStatus) {
+        cacheStatus.classList.toggle("is-perf-warn", Boolean(tip));
+      }
+    },
     setBenchHud(text) {
       if (!viewBench) return;
       const on = Boolean(text);
@@ -1466,6 +1534,8 @@ export function bindUI(on) {
       if (sourceKind) sourceKind.value = k;
       lastSourceKind = k;
       document.body.classList.toggle("source-count", isCountSourceKind(k));
+      document.body.classList.toggle("is-local-conway", localViewer && k === "conway");
+      if (sourceCount) sourceCount.hidden = !(localViewer && isCountSourceKind(k));
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
       if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
       for (const btn of [playBtn, playDock]) {
@@ -1483,12 +1553,27 @@ export function bindUI(on) {
       if (countHint) countHint.textContent = text;
     },
     setCubeCap(n) {
-      const cap = clampCubeCap(n);
-      if (!cubeCap) return cap;
+      if (!cubeCap) {
+        return isCubeCapMaxChoice(n)
+          ? resolveCubeCap(CUBE_CAP_MAX, arrivedCubeCells)
+          : clampCubeCap(n);
+      }
       applying = true;
-      cubeCap.value = String(cap);
+      if (isCubeCapMaxChoice(n)) {
+        cubeCap.value = CUBE_CAP_MAX;
+      } else {
+        cubeCap.value = String(clampCubeCap(n));
+      }
       applying = false;
-      return cap;
+      return resolveCubeCap(cubeCap.value, arrivedCubeCells);
+    },
+    setArrivedCubeCells(n) {
+      const v = Math.max(0, Math.round(Number(n)) || 0);
+      arrivedCubeCells = v;
+      return v;
+    },
+    isCubeCapMax() {
+      return Boolean(cubeCap && isCubeCapMaxChoice(cubeCap.value));
     },
     openIngest(model) {
       const spec = model || {};
@@ -1589,6 +1674,31 @@ export function bindUI(on) {
     },
     setWolkeStatus(text) {
       if (wolkeStatus) wolkeStatus.textContent = text || "";
+    },
+    setLocalViewer(on) {
+      localViewer = Boolean(on);
+      document.body.classList.toggle("is-local-viewer", localViewer);
+      if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer;
+      if (sourceWork) sourceWork.hidden = !localViewer;
+      if (sourceStream) sourceStream.hidden = !localViewer;
+      if (sourceCount) {
+        sourceCount.hidden = !(localViewer && document.body.classList.contains("source-count"));
+      }
+      // Work tool chrome. Conway only via ?src=life (is-local-conway); no Source dropdown.
+      if (localViewer) {
+        faceSupported = false;
+        document.body.classList.toggle(
+          "is-local-conway",
+          Boolean(sourceKind && sourceKind.value === "conway"),
+        );
+        syncSourceCopy();
+      } else {
+        document.body.classList.remove("is-local-conway");
+      }
+      syncFaceProject();
+    },
+    isLocalViewer() {
+      return localViewer;
     },
     setCountLegend(spec) {
       const dataMin = Math.max(1, (spec && spec.dataMin) != null ? spec.dataMin | 0 : spec | 0 || 1);

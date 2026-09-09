@@ -375,9 +375,9 @@ rectangle select on the playfield).
 | Gap | Visual lattice spacing (0–5 cube-widths, step **0.01**). **Start:** Brain MRI / loaded cubes **0.01**; Game of Life and Ignition **0.05** (resets when Source changes). Gap **0** packs faces with no air. Label sits to the left of a wide spinner; hover-wheel on the Gap field steps 0.01. Higher Gap moves instance centers apart. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | **Low / Medium / High** in one row (default **High**). Cubes with more than 500k occupied cells drop to Medium. Low is only a manual pick. Low: unlit cubes, pixel ratio 1. Medium: Lambert key, no ACES, no fill, pixel ratio 1. High: Lambert + ACES + fill, pixel ratio ≤ 1.25. `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
 | Shade | Look strip (all surfaces). **Start:** Brain MRI Low/High, Lighter Ignition, and own cubes open **Ghost** with center and outer frames; Game of Life opens **Hull** with both frames on. Inspect: **Hull** (outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). |
-| Depth | Live wake only (8–128). Hidden while Inspect. |
+| Depth | Conway live wake only (8–128), under **Source → Setup**. Hidden while Inspect. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
-| Cube cap | View instance envelope (default **200 000**, max 20 000 000). Newest slices kept on overflow (`trunc`). Game of Life **Play** uses 200 000; **Pause** raises to the tape’s occupied cells so a 300k brick is not truncated. A dense count cube (Brain MRI) raises to the **hull** size, not every occupied voxel (High hull ~140k inside 5 M occupied). Sparse Ignition still uses occupied cells. |
+| Cube cap | View instance envelope (dropdown **100k / 250k / 500k / 1M / 2M / 5M / 10M / MAX**, default **250k**). **MAX** draws every arrived voxel. Fixed steps auto-raise to the next preset that covers drawn cells. Soft low-FPS tip can suggest a concrete lower step. |
 | FPS | Small overlay on the viewcube (bottom-right). Tap to open the spark / FPS / AVG card with DEV Bench. Independent of the left View rail. Stays on Face and phone AR. Phone: same chip on the Look strip (no cube). Quest has no DOM overlay. |
 | DEV Bench | Opt-in checkbox on that FPS card. CPU path timers (sim / soa / inst / rend / hud) and GPU probe. Labelled DEV; costs performance. Off the hot path until checked. |
 | **Slice stack** | Live Z: locked, label **LIVE**. Inspect: three rails, playheads, AABB clips. Dragging a clip handle past the playhead pushes it. Z matches X/Y: the volume stays put. |
@@ -416,7 +416,7 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Streamer stays hidden. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (desktop button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
+| Source | **Online Demo:** **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). **Local Viewer** / `npm start`: no Source dropdown — **Load NumPy** + **Connect** only (Brain / Ignition / Conway / **Face** stay Online Demo). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (desktop button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
 | Play / Speed | Conway **Play** in the slim Source chrome. Generator **Speed** is under Setup. Not the View loop. |
 | Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
 
@@ -439,7 +439,7 @@ flowchart LR
 | Edit | Paint cells on the focus plane (only at Now) |
 | Reset | Same pattern and seed |
 | Seed | New RNG seed, then reset |
-| Grid | 16…64; rebuilds the world |
+| Grid | 16…512; rebuilds the world |
 | Wrap | Torus vs hard edges |
 | Stop when stable | Pause into Inspect after 5 generations in a short cycle (period 1–15): stills and oscillators. Wrapping gliders keep running. A glider on a hard edge dies, then the empty board pauses — leave Wrap on. Default on. |
 
@@ -467,11 +467,12 @@ shorter than the factor (one Z plane still bins X/Y), uses **mean**
 first output plane. A taller-than-wide plane rotates 90° first, then
 scales to the dialog width. Confirming **Load** raises **Cube cap** to
 drawn instances (dense **hull**, sparse occupied cells) when that is
-above the current setting. Game of Life Play keeps 200 000; Pause fits
+above the current setting. Game of Life Play keeps **250k**; Pause fits
 the tape.
 Curated demos skip the gate.
-The WOLKE **Stream** / Connect chrome stays later (hidden; no sidecar on
-Pages). See [`backlog.md`](../backlog.md). Visitor copy:
+The WOLKE **Stream** / Connect chrome is **Local Viewer** only (and
+`npm start` via `/local-viewer.json`). It stays off the Online Demo
+(Pages). See [`backlog.md`](../backlog.md). Visitor copy:
 [`docs/welcome.md`](welcome.md).
 
 ```mermaid
@@ -808,7 +809,12 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, packed WOLKE `__selection__.npy` multi-row, BLITZ widget sync, in-browser EVT3
 - Open-in / ROI handoff via Viewer Contract hub (later; no peer mesh)
-- **Streamer later:** WOLKE Connect stays hidden (no sidecar on Pages). Load NumPy / drop `.npy` + header gate is in. Local stream client already supports playhead `index` / `viewer_index`.
+- **Streamer / Local Viewer:** Connect shows when `/local-viewer.json` is
+  served (Go Local Viewer or `npm start`). Online Demo (Pages) keeps it
+  hidden and shows **Get Local Viewer** (Releases) next to Guide. Local
+  Viewer Source chrome is **Load NumPy** + **Connect** only; Game of Life
+  easter egg via `?src=life`. Load NumPy / drop `.npy` + header gate is in.
+  Stream client: full stack once, then index-only seek.
 - **MRI / scalar volume later.** Dense count `.npy` (occupancy > 15 %)
   already opens a mid-volume slab with enclosed voxels hidden. Dedicated
   kind + `ScalarVolume` wait on the Dataset Contract. Do not embed

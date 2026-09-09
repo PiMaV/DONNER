@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen, meanSlowestMs, SPARK_LEN, LOW_LEN } from "../src/hud.js";
+import { FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen, meanSlowestMs, SPARK_LEN, LOW_LEN, stepFpsCapHint, FPS_CAP_HINT_HOLD_MS, FPS_CAP_HINT_TEXT, FPS_CAP_HINT_CLEAR } from "../src/hud.js";
 
 describe("FrameClock", () => {
   it("records frame times and a rolling average", () => {
@@ -201,6 +201,35 @@ describe("HUD copy", () => {
       software: true,
     });
     assert.match(view, /SOFTWARE/);
+  });
+});
+
+describe("stepFpsCapHint", () => {
+  it("stays quiet until FPS is low for the hold window", () => {
+    let s = stepFpsCapHint({ active: false, since: null }, 12, 0, 4_000_000, () => 500_000, (n) => `${n}`);
+    assert.equal(s.active, false);
+    assert.equal(s.text, "");
+    s = stepFpsCapHint(s, 12, FPS_CAP_HINT_HOLD_MS - 1, 4_000_000, () => 500_000, (n) => `${n}`);
+    assert.equal(s.active, false);
+    s = stepFpsCapHint(s, 12, FPS_CAP_HINT_HOLD_MS, 4_000_000, () => 500_000, (n) => "500k");
+    assert.equal(s.active, true);
+    assert.match(s.text, /500k/);
+  });
+
+  it("clears only after FPS recovers past the hysteresis line", () => {
+    let s = stepFpsCapHint({ active: true, since: null }, 12, 10_000);
+    assert.equal(s.active, true);
+    s = stepFpsCapHint(s, 18, 10_100);
+    assert.equal(s.active, true);
+    s = stepFpsCapHint(s, FPS_CAP_HINT_CLEAR, 10_200);
+    assert.equal(s.active, false);
+    assert.equal(s.text, "");
+  });
+
+  it("ignores a zero FPS sample (display not ready)", () => {
+    const s = stepFpsCapHint({ active: true, since: 1 }, 0, 50);
+    assert.equal(s.active, false);
+    assert.equal(s.text, "");
   });
 });
 

@@ -2,10 +2,12 @@
 """HTTPS file server for LAN phone tests (WebXR needs a secure context).
 
 GET /stream-npy?u=... proxies a WOLKE-contract cube (same as serve-http.py).
+Pass --online-demo for Pages-parity chrome (no /local-viewer.json).
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import ssl
 import sys
@@ -20,6 +22,7 @@ _SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 from stream_proxy import StreamNpyMixin
+import stream_proxy as stream_proxy_mod
 
 
 class Handler(StreamNpyMixin, SimpleHTTPRequestHandler):
@@ -60,14 +63,24 @@ def main() -> None:
     if not os.path.isfile(CERT) or not os.path.isfile(KEY):
         sys.exit("Missing certs/dev.pem — install mkcert, then: npm run cert")
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--online-demo",
+        action="store_true",
+        help="Pages parity: do not serve /local-viewer.json (no Stream chrome)",
+    )
+    args = parser.parse_args()
+    stream_proxy_mod.LOCAL_VIEWER_JSON = not args.online_demo
+    mode = "Online Demo chrome" if args.online_demo else "Local Viewer chrome"
+
     httpd = Server((HOST, PORT), Handler)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(CERT, KEY)
     httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
 
-    print(f"https://127.0.0.1:{PORT}/")
+    print(f"https://127.0.0.1:{PORT}/  ({mode})")
     for ip in lan_ipv4s():
-        print(f"https://{ip}:{PORT}/")
+        print(f"https://{ip}:{PORT}/  ({mode})")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

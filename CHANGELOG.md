@@ -9,7 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.1.0] - 2026-09-09
+
+### Added
+
+- Soft **Low FPS** tip under Cube cap (and on the FPS chip title) when
+  display FPS stays under 15 for ~2.5 s — suggests a concrete lower Cube-cap
+  step from live FPS × drawn instances. Clears above ~22 FPS.
+- **Local Viewer** Source chrome is work-only: **Load NumPy** and **Connect**
+  (no Source dropdown, no Brain / Ignition / Face). Idle until a cube
+  arrives. Game of Life is an easter egg via `?src=life` (Play/Setup only,
+  no dropdown). Door junk is stripped unless that easter egg is active.
+- Online Demo desktop chrome: **Get Local Viewer** (GitHub Releases) next to
+  Guide; also linked from About. Dev: `npm run start:demo` binds LAN
+  (`0.0.0.0`) without `/local-viewer.json` so `https://lab.ole.icu/` can
+  smoke Pages-parity chrome; `npm run start:https:demo` is the mkcert
+  fallback.
+- **Online Demo** vs **Local Viewer** product surfaces: Pages stays the
+  browser showcase; Local Viewer is a Go one-binary host (static files,
+  `/stream-npy`, `/local-viewer.json`, opens the browser) shipped from
+  GitHub Releases — no Python for end users. Stream / Connect chrome
+  appears only when `/local-viewer.json` is present (`npm start` and the
+  Local Viewer).
+- Local DONNER favicon and apple-touch icon under `icon/` (replaces the shared mess.engineering favicons).
 - Stream playhead sync on the WETTER Viewer Contract: seek Z from hub `index`, emit `viewer_index` while connected (hub-and-spoke with BLITZ / EVT; no peer socket).
+
+### Changed
+
+- **Cube cap** is a dropdown of readable steps (**100k … 10M**) plus
+  **MAX** (= every arrived voxel, not a fixed 20M). Default **250k**.
+  Loading a larger brick on a fixed step snaps up to the next step; MAX
+  tracks the stream size. Low-FPS tip suggests a concrete lower step from
+  live FPS × drawn instances.
+- Phone Source / View sheets close with a short tap on the volume above them, not only via the fold button. The open fold button uses a stronger active style so it reads as dismissible.
+- GoL **Depth** moved from View into GoL **Setup** (Source), so Conway-only
+  controls stay together. GoL grid presets now extend up to **512 × 512**.
+- Brand chip now uses the DONNER icon image (not the yellow text `D`),
+  and **Get Local Viewer** is compacted to at most one-third of the brand row.
+
+### Fixed
+
+- Conway **Live** no longer sits in a fixed fog band (near=48): fog near/far
+  tracks the orbit distance, and Live hemisphere/key fill are a bit brighter,
+  so Play is not a dark “fog of war” over the brick.
+- Online Demo: **Face** is offered again as soon as `getUserMedia` exists
+  (not delayed until `/local-viewer.json` returns). Local Viewer still hides it.
 
 ## [1.0.1] - 2026-09-05
 

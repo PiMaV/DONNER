@@ -33,6 +33,10 @@ describe("phone Source sheet and canvas chrome", () => {
     assert.match(css, /\.controls-root:has\(\.is-open\)\s*\{[^}]*pointer-events:\s*auto/s);
   });
 
+  it("marks an open phone fold button so it reads as dismissible", () => {
+    assert.match(css, /\.fold\[aria-expanded="true"\]/);
+  });
+
   it("keeps phone fold sheets in landscape (coarse + short viewport)", () => {
     assert.match(
       css,
@@ -172,10 +176,13 @@ describe("desktop Source | View sheets", () => {
   });
 
   it("hides Guide on coarse pointers and phone-width chrome", () => {
-    assert.match(css, /@media\s*\(pointer:\s*coarse\)[\s\S]*?\.brand-guide\s*\{[^}]*display:\s*none/s);
     assert.match(
       css,
-      /@media\s*\(max-width:\s*720px\),[\s\S]*\.brand-guide\s*\{[^}]*display:\s*none/s,
+      /@media\s*\(pointer:\s*coarse\)[\s\S]*?\.brand-guide,\s*\n\s*\.brand-get-local\s*\{[^}]*display:\s*none/s,
+    );
+    assert.match(
+      css,
+      /@media\s*\(max-width:\s*720px\),[\s\S]*\.brand-guide,\s*\n\s*\.brand-get-local\s*\{[^}]*display:\s*none/s,
     );
   });
 });

@@ -12,7 +12,7 @@ import {
 import { GizmoCssCache, gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { gizmoFollowYaw } from "../src/turntable.js";
-import { clampCubeCap, cubeCapForLoadedCells, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
+import { clampCubeCap, clampCubeCapHard, cubeCapAtLeast, cubeCapForLoadedCells, formatCubeCapLabel, CUBE_CAP_PRESETS, CUBE_CAP_MAX, resolveCubeCap, suggestCubeCapPreset, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
 
 describe("product view directions", () => {
   it("maps product +Z to world +Y (top-down)", () => {
@@ -193,21 +193,41 @@ describe("ortho and snap helpers", () => {
 });
 
 describe("cube cap", () => {
-  it("clamps to the bench range", () => {
+describe("cube cap", () => {
+  it("snaps fixed steps and keeps MAX as arrived voxels", () => {
+    assert.deepEqual(CUBE_CAP_PRESETS[0], DEFAULTS.cubeCapMin);
+    assert.equal(CUBE_CAP_PRESETS.at(-1), 10_000_000);
     assert.equal(clampCubeCap(2_000_000), 2_000_000);
-    assert.equal(clampCubeCap(1), DEFAULTS.cubeCapMin);
-    assert.equal(clampCubeCap(9e9), DEFAULTS.cubeCapMax);
-    assert.equal(clampCubeCap("nope"), DEFAULTS.maxInstances);
+    assert.equal(clampCubeCap(1), 100_000);
+    assert.equal(clampCubeCap(9e9), 10_000_000);
+    assert.equal(clampCubeCap(180_000), 250_000);
+    assert.equal(formatCubeCapLabel(250_000), "250k");
+    assert.equal(formatCubeCapLabel(2_000_000), "2M");
+    assert.equal(resolveCubeCap(CUBE_CAP_MAX, 50_000_000), 50_000_000);
+    assert.equal(resolveCubeCap(CUBE_CAP_MAX, 1000), DEFAULTS.maxInstances);
+    assert.equal(clampCubeCapHard(200_000_000), DEFAULTS.cubeCapMax);
   });
 
-  it("raises to occupied cells when that exceeds the current cap, and never lowers", () => {
-    assert.equal(DEFAULTS.maxInstances, 200_000);
-    assert.equal(cubeCapForLoadedCells(100_000), 200_000);
-    assert.equal(cubeCapForLoadedCells(288_000), 288_000);
-    assert.equal(cubeCapForLoadedCells(10_000_000), 10_000_000);
-    assert.equal(cubeCapForLoadedCells(3_000_000), 3_000_000);
-    assert.equal(cubeCapForLoadedCells(10_000_000, 15_000_000), 15_000_000);
+  it("raises to the next fixed preset that covers drawn cells, and never lowers", () => {
+    assert.equal(DEFAULTS.maxInstances, 250_000);
+    assert.equal(cubeCapAtLeast(100_000), 100_000);
+    assert.equal(cubeCapAtLeast(288_000), 500_000);
+    assert.equal(cubeCapAtLeast(3_000_000), 5_000_000);
+    assert.equal(cubeCapAtLeast(12_000_000), 10_000_000);
+    assert.equal(cubeCapForLoadedCells(100_000), 250_000);
+    assert.equal(cubeCapForLoadedCells(288_000), 500_000);
+    assert.equal(cubeCapForLoadedCells(3_000_000), 5_000_000);
+    assert.equal(cubeCapForLoadedCells(100_000, 5_000_000), 5_000_000);
   });
+
+  it("suggests a lower preset from live FPS and instance count", () => {
+    // 4M cubes @ 3 FPS → aim ~30 FPS ≈ 400k → 250k (largest step ≤ 400k)
+    assert.equal(suggestCubeCapPreset(3, 4_000_000, 30), 250_000);
+    // same load, target 15 FPS ≈ 800k → 500k
+    assert.equal(suggestCubeCapPreset(3, 4_000_000, 15), 500_000);
+    assert.equal(suggestCubeCapPreset(60, 4_000_000, 30), null);
+  });
+});
 });
 
 describe("axis colors", () => {

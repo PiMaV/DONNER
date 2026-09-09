@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "1.0.1";
+export const VERSION = "1.1.0";
 
 export const COLOR = {
   bg: 0x0b0f14,
@@ -64,11 +64,12 @@ export const DEFAULTS = {
   timeScale: 1,
   /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. Visitor Brain starts at 0.01. */
   voxelGap: 0.01,
-  maxInstances: 200_000,
+  maxInstances: 250_000,
   /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
   bench: false,
-  cubeCapMin: 20_000,
-  cubeCapMax: 20_000_000,
+  cubeCapMin: 100_000,
+  /** Safety ceiling only (MAX mode follows arrived voxels up to this). */
+  cubeCapMax: 100_000_000,
   alignZ: true,
   parallax: true,
   sliceAxis: "z",
@@ -287,7 +288,7 @@ export function clampDensity(n) {
   return Math.min(DEFAULTS.densityMax, Math.max(DEFAULTS.densityMin, v));
 }
 
-export const GRID_PRESETS = [16, 24, 32, 48, 64];
+export const GRID_PRESETS = [16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512];
 
 /** View Gap spinner: 0 packs MRI faces; 5 leaves five cube-widths of air. */
 export const VOXEL_GAP_MIN = 0;
@@ -310,24 +311,115 @@ export function stepVoxelGap(current, deltaY, step = VOXEL_GAP_STEP) {
   return clampVoxelGap(Math.round(next / inc) * inc);
 }
 
+/** Readable Cube-cap steps (dropdown). MAX is separate — all arrived voxels. */
+export const CUBE_CAP_PRESETS = Object.freeze([
+  100_000,
+  250_000,
+  500_000,
+  1_000_000,
+  2_000_000,
+  5_000_000,
+  10_000_000,
+]);
+
+/** Select value for “draw everything that arrived”. */
+export const CUBE_CAP_MAX = "max";
+
+export function isCubeCapMaxChoice(choice) {
+  return String(choice || "") === CUBE_CAP_MAX;
+}
+
+export function formatCubeCapLabel(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return formatCubeCapLabel(DEFAULTS.maxInstances);
+  if (v >= 1_000_000) {
+    const m = v / 1_000_000;
+    const s = Number.isInteger(m) ? String(m) : String(Math.round(m * 10) / 10);
+    return `${s}M`;
+  }
+  return `${Math.round(v / 1000)}k`;
+}
+
+/** Snap a numeric choice to the nearest fixed preset. */
 export function clampCubeCap(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return DEFAULTS.maxInstances;
-  return Math.min(DEFAULTS.cubeCapMax, Math.max(DEFAULTS.cubeCapMin, Math.round(v)));
+  let best = CUBE_CAP_PRESETS[0];
+  let bestDist = Infinity;
+  for (const p of CUBE_CAP_PRESETS) {
+    const d = Math.abs(p - v);
+    if (d < bestDist) {
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
+}
+
+/** Absolute allocation guard (MAX mode and wild streams). */
+export function clampCubeCapHard(n) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v) || v <= 0) return DEFAULTS.maxInstances;
+  return Math.min(DEFAULTS.cubeCapMax, Math.max(CUBE_CAP_PRESETS[0], v));
+}
+
+/** Smallest fixed preset that can hold `cells` (or the top fixed step). */
+export function cubeCapAtLeast(cells) {
+  const n = Number(cells);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULTS.maxInstances;
+  for (const p of CUBE_CAP_PRESETS) {
+    if (p >= n) return p;
+  }
+  return CUBE_CAP_PRESETS[CUBE_CAP_PRESETS.length - 1];
+}
+
+/**
+ * Resolve the GPU envelope from the dropdown choice + arrived voxel count.
+ * MAX = all arrived cells (hard-clamped). Fixed steps snap to presets.
+ */
+export function resolveCubeCap(choice, arrivedCells = 0) {
+  if (isCubeCapMaxChoice(choice)) {
+    const need = Math.max(Number(arrivedCells) || 0, DEFAULTS.maxInstances);
+    return clampCubeCapHard(need);
+  }
+  return clampCubeCap(choice);
 }
 
 /**
  * Cube cap after a count cube is on screen, or after Game of Life Pause.
- * Raise to *drawn* instances (dense hull, sparse occupied cells) so the
- * brick is not `trunc`. Never lowers (Play resets Game of Life to the
- * default separately). Do not size dense MRI to occupied voxels.
+ * Raise to the next *fixed* preset that covers drawn instances. Never lowers.
+ * Callers on MAX mode skip this and use resolveCubeCap(..., arrived) instead.
  */
 export function cubeCapForLoadedCells(cells, current = DEFAULTS.maxInstances) {
   const have = clampCubeCap(current);
-  const n = Number(cells);
-  if (!Number.isFinite(n) || n <= 0) return have;
-  if (n <= have) return have;
-  return clampCubeCap(n);
+  const need = cubeCapAtLeast(cells);
+  return need > have ? need : have;
+}
+
+/**
+ * Estimate a lower fixed Cube-cap preset from live FPS and drawn instances.
+ * Assumes roughly FPS ∝ 1/N (GPU fill). Target ~30 FPS for the tip.
+ * @returns {number | null} preset value, or null if no useful step
+ */
+export function suggestCubeCapPreset(fps, instances, targetFps = 30) {
+  const f = Number(fps);
+  const n = Number(instances);
+  const goal = Number(targetFps);
+  if (!(f > 0) || !(n > 0) || !(goal > 0)) return null;
+  if (f >= goal) return null;
+  const ideal = Math.floor(n * (f / goal));
+  let sug = CUBE_CAP_PRESETS[0];
+  for (const p of CUBE_CAP_PRESETS) {
+    if (p <= ideal) sug = p;
+  }
+  if (sug >= n) {
+    sug = CUBE_CAP_PRESETS[0];
+    for (const p of CUBE_CAP_PRESETS) {
+      if (p < n) sug = p;
+    }
+  }
+  if (sug >= n) return null;
+  return sug;
 }
 
 export function clampStabStart(n) {

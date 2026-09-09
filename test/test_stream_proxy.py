@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, Thread
 from pathlib import Path
 from urllib.parse import quote
 from urllib.request import urlopen
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
@@ -85,6 +86,36 @@ class ProxyTests(unittest.TestCase):
                 urlopen(url, timeout=5)
             self.assertIn("403", str(ctx.exception))
         finally:
+            proxy.shutdown()
+            proxy.server_close()
+
+    def test_local_viewer_json(self):
+        proxy = ThreadingHTTPServer(("127.0.0.1", 0), _Proxy)
+        threading.Thread(target=proxy.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{proxy.server_address[1]}/local-viewer.json"
+            with urlopen(url, timeout=5) as res:
+                body = res.read().decode("utf-8")
+            self.assertIn("localViewer", body)
+            self.assertIn("true", body)
+        finally:
+            proxy.shutdown()
+            proxy.server_close()
+
+    def test_online_demo_hides_local_viewer_json(self):
+        import stream_proxy as sp
+
+        prev = sp.LOCAL_VIEWER_JSON
+        sp.LOCAL_VIEWER_JSON = False
+        proxy = ThreadingHTTPServer(("127.0.0.1", 0), _Proxy)
+        threading.Thread(target=proxy.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{proxy.server_address[1]}/local-viewer.json"
+            with self.assertRaises(HTTPError) as ctx:
+                urlopen(url, timeout=5)
+            self.assertEqual(ctx.exception.code, 404)
+        finally:
+            sp.LOCAL_VIEWER_JSON = prev
             proxy.shutdown()
             proxy.server_close()
 

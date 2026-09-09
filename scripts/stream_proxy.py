@@ -17,6 +17,10 @@ CHUNK = 256 * 1024
 MAX_BYTES = 512 * 1024 * 1024
 READ_TIMEOUT_S = 120
 
+# When False, /local-viewer.json is 404 — Online Demo chrome (Pages parity).
+# npm start leaves this True; npm run start:demo sets False.
+LOCAL_VIEWER_JSON = True
+
 
 class _BlockRedirects(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
@@ -69,10 +73,32 @@ class StreamNpyMixin:
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path.rstrip("/") == "/stream-npy":
+        path = parsed.path.rstrip("/") or "/"
+        if path == "/local-viewer.json":
+            if not LOCAL_VIEWER_JSON:
+                assert isinstance(self, SimpleHTTPRequestHandler)
+                self.send_response(404)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self._serve_local_viewer_json()
+            return
+        if path == "/stream-npy":
             self._serve_stream_npy(parsed.query)
             return
         super().do_GET()  # type: ignore[misc]
+
+    def _serve_local_viewer_json(self) -> None:
+        assert isinstance(self, SimpleHTTPRequestHandler)
+        body = b'{"localViewer":true}\n'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _serve_stream_npy(self, query: str) -> None:
         assert isinstance(self, SimpleHTTPRequestHandler)

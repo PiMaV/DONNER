@@ -1,0 +1,87 @@
+# Local Viewer release binaries on tag v* (Go one-file host).
+# Before tagging: bump package.json / CHANGELOG to match the tag (without "v").
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Sync web assets
+        run: bash scripts/sync-local-viewer-web.sh
+
+      - name: Build Linux binary
+        working-directory: host
+        run: |
+          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o ../dist/DONNER-linux-x86_64 .
+          chmod +x ../dist/DONNER-linux-x86_64
+
+      - name: Smoke Local Viewer
+        run: |
+          mkdir -p dist
+          dist/DONNER-linux-x86_64 -bind 127.0.0.1 -port 8765 -no-open > /tmp/donner-smoke.out 2>&1 &
+          pid=$!
+          cleanup() { kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS "http://127.0.0.1:8765/local-viewer.json" | grep -q localViewer; then
+              curl -fsS "http://127.0.0.1:8765/" | grep -q DONNER
+              exit 0
+            fi
+            sleep 0.5
+          done
+          cat /tmp/donner-smoke.out
+          echo "Local Viewer did not become ready"
+          exit 1
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/DONNER-linux-x86_64
+          generate_release_notes: true
+          body: |
+            **Local Viewer** — full DONNER on your machine (no Python).
+
+            - Linux: `chmod +x DONNER-linux-x86_64 && ./DONNER-linux-x86_64`
+            - Windows: run `DONNER.exe`
+            - Opens http://127.0.0.1:8765/ — Stream / Connect for EVT or WOLKE sidecars
+            - Online Demo (showcase only): https://donner.mess.engineering/
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Sync web assets
+        shell: bash
+        run: bash scripts/sync-local-viewer-web.sh
+
+      - name: Build Windows EXE
+        working-directory: host
+        shell: bash
+        run: |
+          mkdir -p ../dist
+          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o ../dist/DONNER.exe .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/DONNER.exe
+          generate_release_notes: true

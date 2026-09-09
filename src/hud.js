@@ -125,6 +125,65 @@ export class FrameClock {
   }
 }
 
+/** Sustained display FPS below this → soft Cube-cap tip. */
+export const FPS_CAP_HINT_BELOW = 15;
+/** Clear the tip only after FPS recovers past this (hysteresis). */
+export const FPS_CAP_HINT_CLEAR = 22;
+/** How long FPS must stay below the floor before showing the tip. */
+export const FPS_CAP_HINT_HOLD_MS = 2500;
+
+export const FPS_CAP_HINT_TEXT =
+  "Low FPS — try lowering Cube cap (View). Fewer cubes can help.";
+
+/**
+ * Soft perf tip when display FPS stays low. Pure state step for tests.
+ * @param {{ active: boolean, since: number | null }} state
+ * @param {number} fps display FPS (0 = not ready yet)
+ * @param {number} nowMs
+ * @param {number} [instances] drawn cubes — used to suggest a concrete step
+ * @param {(fps: number, instances: number) => number | null} [suggest]
+ * @param {(n: number) => string} [formatLabel]
+ * @returns {{ active: boolean, since: number | null, text: string }}
+ */
+export function stepFpsCapHint(
+  state,
+  fps,
+  nowMs = 0,
+  instances = 0,
+  suggest = null,
+  formatLabel = null,
+) {
+  const prev = state || { active: false, since: null };
+  let active = Boolean(prev.active);
+  let since = prev.since == null ? null : Number(prev.since);
+  const n = Number(fps);
+  if (!(n > 0)) {
+    return { active: false, since: null, text: "" };
+  }
+  if (n < FPS_CAP_HINT_BELOW) {
+    if (since == null) since = nowMs;
+    if (!active && nowMs - since >= FPS_CAP_HINT_HOLD_MS) active = true;
+  } else if (n >= FPS_CAP_HINT_CLEAR) {
+    active = false;
+    since = null;
+  } else {
+    // Between floor and clear: keep an active tip, but do not start a new hold.
+    since = null;
+  }
+  let text = "";
+  if (active) {
+    const step = typeof suggest === "function" ? suggest(n, instances) : null;
+    if (step && typeof formatLabel === "function") {
+      text = `Low FPS — try Cube cap ${formatLabel(step)}.`;
+    } else if (step) {
+      text = `Low FPS — try Cube cap ${step}.`;
+    } else {
+      text = FPS_CAP_HINT_TEXT;
+    }
+  }
+  return { active, since, text };
+}
+
 /** Spark / FPS card next to the viewcube (`body.hud-bench-open`). */
 export function hudTelemetryOpen(root = typeof document !== "undefined" ? document.body : null) {
   return Boolean(root?.classList?.contains("hud-bench-open"));

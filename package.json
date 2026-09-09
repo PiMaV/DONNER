@@ -1,14 +1,19 @@
 {
   "name": "donner",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "DONNER — browser-native scientific 3D/XR exploration for structured data (WETTER).",
   "scripts": {
     "start": "python3 scripts/serve-http.py --bind 127.0.0.1",
+    "start:demo": "python3 scripts/serve-http.py --bind 0.0.0.0 --online-demo",
     "start:lan": "python3 scripts/serve-http.py --bind 0.0.0.0",
+    "start:viewer": "bash scripts/run-local-viewer.sh",
     "cert": "bash scripts/mkcert-lan.sh",
     "start:https": "bash scripts/start-https.sh",
-    "test": "node --test test/*.test.js"
+    "start:https:demo": "bash scripts/start-https.sh --online-demo",
+    "test": "node --test test/*.test.js",
+    "test:host": "bash -c 'cd host && (test -x ../.tools/go/bin/go && ../.tools/go/bin/go test ./... || go test ./...)'",
+    "sync:viewer": "bash scripts/sync-local-viewer-web.sh"
   }
 }

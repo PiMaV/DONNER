@@ -16,7 +16,7 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Hull / Ghost universal (same peek for MRI and Ignition)
 - Mid-volume playhead catch
 - Loading spinner
-- Streamer hidden from Source (no sidecar on Pages). Drop `.npy` on the volume is in.
+- Streamer Connect hidden on the **Online Demo** (Pages). Drop `.npy` on the volume is in. **Local Viewer** (Go binary) and `npm start` expose Connect via `/local-viewer.json`.
 - Neighborhood gone
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
@@ -24,19 +24,25 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - View **Quality** Low / Medium / High (default High; Medium auto above 500k cells)
 - Visitor Source labels (**Game of Life**, **Lighter Ignition**, **Brain MRI**), About, committed example cubes
 - Opt-in **Guide** button to the right of the brand chip (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect, Look; arrows on the controls)
-- Public host live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
+- Public **Online Demo** live at [https://donner.mess.engineering/](https://donner.mess.engineering/) (GitHub Pages)
 - Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
 - Phone AR search on enter (no Search Anchor), no Z-height slider, footprint-fit scale
-- Face AR PoC and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest). Face button is always visible when the camera exists; `?face=1` enters.
+- Face AR PoC and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest). Face button on the **Online Demo** when the camera exists and Source is Brain; `?face=1` enters. **Local Viewer** hides Face and showcase demos (Source = Load NumPy + Connect only).
 
 **Later / next candidates** (keep; do not implement in this slice):
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
-3. **Streamer UI (local QA)** — show WOLKE/EVT Connect under Source for
-   LAN/sidecar only; stay hidden on Pages. Client already seeks/`viewer_index`.
-   Load NumPy / drop is in. Unlocks EVT+BLITZ+DONNER dual-scrub. Suite note:
+3. **Local Viewer polish** — Go host + Release workflow are the ship path.
+   Source chrome is Load NumPy + Connect only (no dropdown / Conway / Face).
+   Dual-scrub via EVT hub (`index` / `viewer_index`) is the intended couple
+   with BLITZ — already works when BLITZ seeks any cached cube by filename
+   (not only `__selection__.npy`). Suite note:
    [`../WETTER/TODO.MD`](../WETTER/TODO.MD) (2026-09 Viewer Contract follow-ups).
+
+   **Later (not this slice):** peer Connect BLITZ↔DONNER without a sidecar
+   (each app would need a listen + push path, and a clear who-owns-the-cube
+   rule). Hub-and-spoke via EVT/WOLKE stays the supported path until then.
 4. Decay opt-in
 5. Dataset Contract / ScalarVolume
 6. 500k voxel note / volume-texture pass under DATA
@@ -68,17 +74,21 @@ DOM overlay, `local` tracking, `XRWebGLLayer`). The in-world Play/stand/Exit
 plate is retired — confirm the four device follow-ups below on hardware
 (WWM). C-1 hands later. Freeze the Unreleased XR/MNI slice.
 
-**Phase 2 — public host (shipped).** Thin View (Neighborhood is gone; **DEV Bench** is an
+**Phase 2 — Online Demo (shipped).** Thin View (Neighborhood is gone; **DEV Bench** is an
 opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos.
 **Live** at [`https://donner.mess.engineering`](https://donner.mess.engineering/)
 (GitHub Pages + custom domain). Still open: add DONNER to the WETTER
 landing page (sibling repo `WETTER/`). Retire the
 old M.E.S.S. Java/browser point-cloud showcase from the active site
-(archive OK). Connected / sidecar mode stays off that static host.
+(archive OK). Connected / sidecar mode stays off the Online Demo.
+
+**Phase 2b — Local Viewer (shipping).** Go one-binary on GitHub Releases
+(no Python for end users). Same JS app + `/stream-npy` + Connect chrome.
+Best-fit host — not PyInstaller for a static file server.
 
 **Phase 3 — feedback.** Usability, slicing, mobile, AR, Quest,
-performance, own-data loading (file drop + preloader is in; Streamer
-stays later). Do not decide every later feature first.
+performance, own-data loading (file drop + preloader is in; Streamer on
+Local Viewer). Do not decide every later feature first.
 
 **Phase 4 — Dataset Contract.** Source adapter → Dataset Contract → core
 → renderer. Axis role / unit / spacing / affine. Keep `CountVolume` for
@@ -213,14 +223,17 @@ Not this slice.
 ## HTTPS / ops
 
 **Phone / XR URL:** `https://lab.ole.icu/` (Caddy LXC, Let’s Encrypt,
-LAN DNS). Upstream is the laptop: `npm run start:lan` on
-`192.168.178.30:8765`. A 502 means DONNER is not listening. Do not serve
-DONNER from `pve.ole.icu:8006`. The Caddyfile stays on the CT, not in
-this git.
+LAN DNS). Upstream is the laptop on `:8765`. A 502 means DONNER is not
+listening. Do not serve DONNER from `pve.ole.icu:8006`. The Caddyfile
+stays on the CT, not in this git.
+
+- **Online Demo chrome** (Pages parity, fog / GoL / Face): `npm run start:demo`
+- **Local Viewer chrome** (Stream / Connect): `npm run start:lan`
 
 **Fallback:** local mkcert — `npm run cert` then `npm run start:https`
-(see architecture.md *Serve*) when the LXC is down. Trust the mkcert CA on the phone
-once. Re-issue if the LAN IP changes.
+or `npm run start:https:demo` (see architecture.md *Serve*) when the LXC
+is down. Trust the mkcert CA on the phone once. Re-issue if the LAN IP
+changes.
 
 ## XR ladder
 
@@ -342,10 +355,14 @@ desktop. Remaining:
   NumPy; drop on the volume still works). Header peek, ~500k comfort warn,
   256³ hard cap, optional 2/4/8 mean/max-bin that skips short axes, first-plane
   preview.
-- **Streamer + Connect** stays hidden on Pages. Local QA: show Connect so
-  EVT/WOLKE dual-scrub with BLITZ works in 3D (client index path is in).
-  Loaders stay in the tree. The Source **Loading…** spinner is the seed
-  for “something is arriving.”
+- **Hosting policy (locked).** Online Demo (Pages) never offers Stream /
+  Connect. Local Viewer (Go binary) and `npm start` do, via
+  `/local-viewer.json`. Pages → laptop sidecar is declined (fragile).
+  End users get a one-binary Local Viewer — not a Python zip.
+- Streamer Connect chrome shows under Source when Local Viewer / dev
+  server answers `/local-viewer.json`. Client `index` / `viewer_index`
+  path is in. The Source **Loading…** spinner is the seed for “something
+  is arriving.”
 
 ## QR door (later)
 

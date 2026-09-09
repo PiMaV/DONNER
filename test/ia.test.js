@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startLoopAxisFor, startPlaneChromeFor, facePlaneChrome, startShadeFor, startVoxelGapFor } from "../src/config.js";
+import { DEFAULTS, CUBE_CAP_PRESETS, GRID_PRESETS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startLoopAxisFor, startPlaneChromeFor, facePlaneChrome, startShadeFor, startVoxelGapFor } from "../src/config.js";
 
 // IDs, order, show/hide, and config defaults — not pixel CSS.
 // See architecture.md "Tests and visual QA".
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/style.css", import.meta.url), "utf8");
+const uiJs = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
+const mainJs = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
 function sourcePanel() {
   const start = html.indexOf('id="panel-source"');
@@ -87,13 +89,22 @@ describe("Source | View information architecture", () => {
     assert.ok(pattern > setup);
     assert.match(src, /id="btn-conway-setup"/);
     assert.match(src, /id="conway-setup"[^>]*\bhidden\b/);
+    assert.match(src, /id="depth-field"/);
+    assert.match(src, /id="history"/);
     assert.doesNotMatch(view, /id="btn-play"/);
     assert.doesNotMatch(view, /id="btn-loop"/);
+    assert.doesNotMatch(view, /id="depth-field"/);
+    assert.doesNotMatch(view, /id="history"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="loop-speed"/);
     assert.match(view, /id="cube-cap"/);
-    assert.match(view, /id="cube-cap"[^>]*value="200000"/);
-    assert.match(view, /id="cube-cap"[^>]*max="20000000"/);
+    assert.match(view, /<select id="cube-cap"/);
+    assert.match(view, /id="fps-cap-hint"/);
+    assert.equal(DEFAULTS.maxInstances, 250_000);
+    assert.equal(GRID_PRESETS.includes(512), true);
+    assert.deepEqual(CUBE_CAP_PRESETS, [
+      100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000,
+    ]);
     assert.match(view, /id="voxel-gap-num"[^>]*type="number"/);
     assert.match(view, /id="voxel-gap-num"[^>]*step="0.01"/);
     assert.match(view, /id="voxel-gap-field"/);
@@ -261,13 +272,28 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.doesNotMatch(html, /id="loop-axis-x"[^>]*aria-pressed="true"/);
   });
 
-  it("puts Load NumPy in the Source list and keeps Streamer hidden", () => {
+  it("puts Load NumPy in the Source list and keeps Streamer hidden on Online Demo", () => {
     assert.match(html, /<option value="count" hidden>/);
     assert.match(html, /id="source-count"[^>]*\bhidden\b/);
+    assert.match(html, /id="source-stream"[^>]*\bhidden\b/);
+    assert.match(html, /id="source-work"[^>]*\bhidden\b/);
+    assert.match(html, /id="source-demo-chrome"/);
+    assert.match(html, /id="btn-load-npy"/);
+    assert.match(html, /id="btn-get-local"/);
+    assert.match(html, /href="https:\/\/github\.com\/PiMaV\/DONNER\/releases"/);
+    assert.match(css, /#source-stream,\s*#source-work\s*\{[^}]*display:\s*none/s);
+    assert.match(css, /body\.is-local-viewer #source-demo-chrome/s);
+    assert.match(css, /body\.is-local-viewer\.is-local-conway #source-conway/s);
+    assert.match(css, /body\.is-local-viewer #source-work/s);
+    assert.match(css, /body\.is-local-viewer #source-stream/s);
+    assert.match(css, /body\.is-local-viewer \.brand-get-local/s);
     assert.match(css, /body\.source-count #source-count\s*\{[^}]*display:\s*none/s);
+    assert.match(css, /body\.is-local-viewer\.source-count #source-count/s);
     assert.match(html, /id="count-file"/);
     assert.match(html, /id="wolke-url"/);
     assert.match(html, /id="btn-wolke-connect"/);
+    assert.match(uiJs, /is-local-conway|sourceWork\.hidden|localViewer \|\| !faceSupported/);
+    assert.match(mainJs, /isLocalViewer|enterLocalIdle|detectLocalViewer|\?src=life|start\.source === "conway"/);
     assert.match(html, /id="drop-overlay"/);
     assert.match(html, /id="ingest-dialog"/);
     assert.match(html, /id="ingest-reduce"/);
@@ -382,8 +408,10 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.equal(guideStepAt(-1).index, 0);
     assert.match(html, /class="brand-cluster"/);
     assert.match(html, /<\/header>\s*<button[^>]*id="btn-guide"/);
+    assert.match(html, /id="btn-guide"[\s\S]*?id="btn-get-local"/);
     const brand = html.match(/<header class="brand">[\s\S]*?<\/header>/)?.[0] || "";
     assert.doesNotMatch(brand, /id="btn-guide"/);
+    assert.doesNotMatch(brand, /id="btn-get-local"/);
     assert.match(html, /id="guide-overlay"/);
     assert.doesNotMatch(html, /id="guide-dialog"/);
     assert.match(html, /id="btn-guide-next"/);
@@ -392,6 +420,7 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(css, /\.brand-cluster/);
     assert.match(html, /class="tagline">Xplore Data in 3D/);
     assert.match(css, /\.brand-guide/);
+    assert.match(css, /\.brand-get-local/);
     assert.match(css, /\.guide-overlay/);
     assert.match(css, /\.inner-fold/);
     assert.match(css, /\.conway-setup\[hidden\]/);

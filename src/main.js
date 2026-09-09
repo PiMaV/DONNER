@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, qualityLightsOn, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -19,7 +19,7 @@ import { peekNpyBlob } from "./npy.js";
 import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
-import { drawSparkline, FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen } from "./hud.js";
+import { drawSparkline, FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen, stepFpsCapHint } from "./hud.js";
 import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import { io } from "../vendor/socket.io/socket.io.esm.min.js";
@@ -503,6 +503,8 @@ const clock = new FrameClock();
 const paths = new PathTimer();
 paths.setEnabled(false);
 let lastHudDisplayFps = NaN;
+let fpsCapHintState = { active: false, since: null };
+let lastFpsCapHintText = "";
 let lastCacheHudKey = "";
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -651,7 +653,8 @@ function arPillar() {
 }
 
 function viewNow() {
-  return (tapeMode || arPillar()) && tape ? tape.newestT() : world.generation;
+  if ((tapeMode || arPillar()) && tape) return tape.newestT();
+  return world ? world.generation : 0;
 }
 
 function viewStore() {
@@ -1987,7 +1990,14 @@ function onArSessionEnd() {
 function syncFog() {
   const inspect = inspectMode();
   const ar = arPresenting();
-  scene.fog = !parallax || inspect || ar ? null : fog;
+  const useFog = parallax && !inspect && !ar;
+  scene.fog = useFog ? fog : null;
+  if (useFog) {
+    // Fixed near=48 used to swallow Conway Live when the orbit sat inside the fog band.
+    const dist = camera.position.distanceTo(controls.target);
+    fog.near = Math.max(20, dist * 1.2);
+    fog.far = Math.max(fog.near + 48, dist * 2.6, camera.far * 0.85);
+  }
   const spec = viewQualitySpec(viewQuality);
   const lights = qualityLightsOn(spec);
   hemi.visible = lights.hemi;
@@ -2000,9 +2010,9 @@ function syncFog() {
     hemi.groundColor.setHex(0x0a0e13);
     return;
   }
-  hemi.intensity = inspect || ar ? 1.08 : 0.72;
-  key.intensity = inspect || ar ? 1.05 : 0.9;
-  fill.intensity = spec.fillLight ? (facePresenting() ? 0.72 : 0.22) : 0;
+  hemi.intensity = inspect || ar ? 1.08 : 0.88;
+  key.intensity = inspect || ar ? 1.05 : 0.98;
+  fill.intensity = spec.fillLight ? (facePresenting() ? 0.72 : 0.28) : 0;
   hemi.groundColor.setHex(facePresenting() ? 0x4a6578 : 0x0a0e13);
 }
 
@@ -2063,6 +2073,17 @@ function suggestQualityFromCells(cells) {
 }
 
 function syncStartUrl() {
+  if (ui.isLocalViewer?.()) {
+    const kind = ui.getConfig().sourceKind;
+    // Easter egg only: keep ?src=life while on Conway; otherwise strip door junk.
+    const next =
+      kind === "conway" ? startSearchFromState({ source: "conway", quality: viewQuality }) : "";
+    const url = new URL(window.location.href);
+    if (url.search === next) return;
+    url.search = next;
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    return;
+  }
   const kind = ui.getConfig().sourceKind;
   const source = isCountSourceKind(kind) && kind !== "count" ? kind : "conway";
   const next = startSearchFromState({
@@ -3159,31 +3180,39 @@ function setLoopAxis(next) {
 }
 
 function ensureCubeCapForCells(cells) {
+  ui.setArrivedCubeCells?.(cells);
+  if (ui.isCubeCapMax?.()) {
+    applyCubeCap();
+    return;
+  }
   const next = cubeCapForLoadedCells(cells, ui.getConfig().maxInstances);
   ui.setCubeCap(next);
   applyCubeCap();
 }
 
-/** Pause: fit the RAM tape. Play keeps the 200k live envelope. */
+/** Pause: fit the RAM tape. Play keeps the default live envelope. */
 function fitConwayInspectCubeCap() {
   ensureCubeCapForCells(tape?.eventCount || 0);
 }
 
 function resetCubeCapDefault() {
   const cap = DEFAULTS.maxInstances;
-  if (soa.capacity === cap && clampCubeCap(ui.getConfig().maxInstances) === cap) return;
+  const cfg = ui.getConfig();
+  if (!cfg.cubeCapMax && soa.capacity === cap && clampCubeCap(cfg.maxInstances) === cap) {
+    return;
+  }
   ui.setCubeCap(cap);
   applyCubeCap();
 }
 
 function applyCubeCap() {
-  const cap = clampCubeCap(ui.getConfig().maxInstances);
-  if (soa.capacity === cap) return;
-  soa = new EventSoA(cap);
-  soaPlane = new EventSoA(cap);
+  const next = ui.getConfig().maxInstances;
+  if (soa.capacity === next) return;
+  soa = new EventSoA(next);
+  soaPlane = new EventSoA(next);
   cubes.dispose();
   cubes = new CubeRenderer(stand, {
-    maxCount: cap,
+    maxCount: next,
     cellSize: DEFAULTS.cellSize,
     kindHex: sourceId === "count" && countVol ? currentCountLut() : CONWAY_KIND_HEX,
     warmupK: encodingBaseK(),
@@ -3593,6 +3622,12 @@ function instanceLookKey() {
 }
 
 function syncVolume() {
+  if (!world && !countVol) {
+    paths.record("soa", 0);
+    paths.record("inst", 0);
+    lastWork = "rend";
+    return;
+  }
   if (forceFullRebuild) dirtySource = true;
   const shade = inspectShade();
   if (!shade) {
@@ -4191,7 +4226,21 @@ function frame(now, xrFrame) {
       const shown = clock.displayFps;
       if (shown !== lastHudDisplayFps) {
         lastHudDisplayFps = shown;
-        ui.setFps(shown || 1000 / clock.emaMs);
+        const fpsShown = shown || 1000 / clock.emaMs;
+        ui.setFps(fpsShown);
+        const nextHint = stepFpsCapHint(
+          fpsCapHintState,
+          fpsShown,
+          performance.now(),
+          cubes.count,
+          suggestCubeCapPreset,
+          formatCubeCapLabel,
+        );
+        fpsCapHintState = { active: nextHint.active, since: nextHint.since };
+        if (nextHint.text !== lastFpsCapHintText) {
+          lastFpsCapHintText = nextHint.text;
+          ui.setFpsCapHint(nextHint.text);
+        }
       }
       const cardOpen = hudTelemetryOpen();
       const ms = clock.displayMs || clock.emaMs;
@@ -4259,8 +4308,6 @@ function frame(now, xrFrame) {
 }
 
 const start = parseStartSearch(window.location.search);
-ui.setSourceKind(start.source);
-ui.setFaceAvailable(isFaceArSupported({ userAgent: navigator.userAgent || "" }));
 qualityLocked = Boolean(start.qualityExplicit);
 applyViewQuality(start.quality);
 if (start.facePlacement) {
@@ -4270,17 +4317,61 @@ if (start.facePlacement) {
 hideCenter = Boolean(ui.getConfig().hideCenter);
 hideOuter = Boolean(ui.getConfig().hideOuter);
 requestAnimationFrame(resize);
-try {
-  if (start.source === "conway") bootWorld(true);
-  else switchSource(start.source);
-} catch (err) {
-  console.warn("DONNER boot", err);
-}
 ui.setPlaying(playing);
 ui.setLooping(looping);
 ui.setSpinning(spinning);
 renderer.xr.addEventListener("sessionstart", onArSessionStart);
 renderer.xr.addEventListener("sessionend", onArSessionEnd);
 isImmersiveArSupported().then((ok) => ui.setArAvailable(ok));
-if (start.face) void enterFaceAr();
 renderer.setAnimationLoop(frame);
+
+async function detectLocalViewer() {
+  try {
+    const res = await fetch("/local-viewer.json", { cache: "no-store" });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data && data.localViewer);
+  } catch {
+    return false;
+  }
+}
+
+function enterLocalIdle() {
+  ui.setSourceKind("count");
+  sourceId = "count";
+  ui.setCountHint("Load NumPy or Connect to Stream.");
+  syncStartUrl();
+  updateHint();
+}
+
+const faceOk = isFaceArSupported({ userAgent: navigator.userAgent || "" });
+// Show Face as soon as the API exists; Local Viewer clears it after detect.
+ui.setFaceAvailable(faceOk);
+
+void detectLocalViewer().then((local) => {
+  if (local) {
+    ui.setFaceAvailable(false);
+    if (start.source === "conway") {
+      try {
+        bootWorld(true);
+      } catch (err) {
+        console.warn("DONNER boot", err);
+        enterLocalIdle();
+      }
+      ui.setLocalViewer(true);
+      return;
+    }
+    ui.setLocalViewer(true);
+    enterLocalIdle();
+    return;
+  }
+  ui.setFaceAvailable(faceOk);
+  ui.setSourceKind(start.source);
+  try {
+    if (start.source === "conway") bootWorld(true);
+    else switchSource(start.source);
+  } catch (err) {
+    console.warn("DONNER boot", err);
+  }
+  if (start.face) void enterFaceAr();
+});

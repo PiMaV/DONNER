@@ -10,10 +10,10 @@
   <meta name="theme-color" content="#0b0f14" />
   <meta name="apple-mobile-web-app-title" content="DONNER" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <link rel="icon" type="image/png" sizes="96x96" href="https://mess.engineering/favicon/favicon-96x96.png" />
-  <link rel="icon" type="image/svg+xml" href="https://mess.engineering/favicon/favicon.svg" />
-  <link rel="apple-touch-icon" sizes="180x180" href="https://mess.engineering/favicon/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/style.css?v=1.0.1" />
+  <link rel="icon" href="icon/icon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="256x256" href="icon/donner_256.png" />
+  <link rel="apple-touch-icon" href="icon/donner_256.png" />
+  <link rel="stylesheet" href="css/style.css?v=1.1.0" />
   <script type="importmap">
   {
     "imports": {
@@ -23,7 +23,7 @@
   }
   </script>
   <script type="module">
-    import("./src/main.js?v=1.0.1").catch(() => {
+    import("./src/main.js?v=1.1.0").catch(() => {
       const el = document.getElementById("boot-fail");
       if (el) el.hidden = false;
     });
@@ -49,13 +49,14 @@
 
   <div class="brand-cluster">
   <header class="brand">
-    <div class="brand-mark" aria-hidden="true">D</div>
+    <img class="brand-mark" src="icon/donner_256.png" alt="" aria-hidden="true" />
     <div>
       <h1>DONNER</h1>
       <p class="tagline">Xplore Data in 3D &amp; XR</p>
     </div>
   </header>
   <button type="button" id="btn-guide" class="btn brand-guide" aria-expanded="false" aria-controls="guide-overlay">Guide</button>
+  <a id="btn-get-local" class="btn brand-get-local" href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer" title="Download the Local Viewer (Windows / Linux)">Get Local Viewer</a>
   </div>
 
   <div id="xr-overlay" class="xr-overlay">
@@ -256,6 +257,7 @@
     </div>
     <div id="source-body" class="sheet-body">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
+      <div id="source-demo-chrome">
       <label class="field">
         <span>Source</span>
         <select id="source-kind">
@@ -269,6 +271,7 @@
       </label>
       <p id="source-blurb" class="hint source-blurb">Example T1 atlas, 2× mean-binned for a lighter load. All three axes are space. Loop walks a cut.</p>
       <p id="source-cite" class="hint source-cite" hidden></p>
+      </div>
       <div id="source-conway">
       <div class="btn-row source-play">
         <button type="button" id="btn-play" class="btn btn-play" aria-pressed="false"
@@ -304,6 +307,10 @@
         <span>Grid</span>
         <select id="grid"></select>
       </label>
+      <label id="depth-field" class="field">
+        <span>Depth <em id="history-val"></em></span>
+        <input id="history" type="range" min="8" max="128" step="1" />
+      </label>
       <label class="check">
         <input id="wrap" type="checkbox" />
         <span>Wrap edges (torus)</span>
@@ -314,8 +321,14 @@
       </label>
       </div>
       </div>
-      <div id="source-count" hidden>
-        <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt. Stream from the EVT sidecar or WOLKE (Send as counts).</p>
+      <div id="source-work" hidden>
+        <p class="hint">Load a count cube (.npy) or connect to the EVT / WOLKE stream.</p>
+        <div class="btn-row">
+          <button type="button" id="btn-load-npy" class="btn">Load NumPy</button>
+        </div>
+      </div>
+      <div id="source-stream" hidden>
+        <p class="hint">Stream a count cube from the EVT sidecar or WOLKE (Send as counts).</p>
         <label class="field">
           <span>Stream</span>
           <input id="wolke-url" type="url" spellcheck="false" autocomplete="off" />
@@ -328,6 +341,9 @@
           <button type="button" id="btn-wolke-connect" class="btn" aria-pressed="false">Connect</button>
         </div>
         <p id="wolke-status" class="hint"></p>
+      </div>
+      <div id="source-count" hidden>
+        <p id="count-hint" class="hint">EVT count cube (T × H × W). Integer events per pixel per Δt.</p>
         <p id="count-meta" class="hint"></p>
       </div>
     </section>
@@ -363,16 +379,13 @@
           <button type="button" id="quality-high" class="btn btn-shade is-on" aria-pressed="true" title="Headlamp Lambert, ACES, fill light, pixel ratio capped at 1.25. Default.">High</button>
         </div>
       </div>
-      <label id="depth-field" class="field">
-        <span>Depth <em id="history-val"></em></span>
-        <input id="history" type="range" min="8" max="128" step="1" />
-      </label>
       <p id="inspect-depth-note" class="hint inspect-only">Grab a frame · clips crop · hold playhead to peek</p>
       <p id="cache-status" class="hint">Cache 0 gen · 0 cells</p>
-      <label class="field field-inline" title="Instanced-cube envelope. Newest slices are kept if the SoA overflows (HUD trunc). Millions can hitch the GPU. Tape RAM is a separate cap.">
+      <label class="field field-inline" title="How many cubes the GPU may draw. Newest slices are kept if the SoA overflows (HUD trunc). Steps are readable presets — raise only as far as you need.">
         <span>Cube cap</span>
-        <input id="cube-cap" type="number" min="20000" max="20000000" step="10000" value="200000" />
+        <select id="cube-cap" aria-label="Cube cap"></select>
       </label>
+      <p id="fps-cap-hint" class="hint fps-cap-hint" hidden></p>
     </section>
 
     <section class="sheet-block" data-slot="encoding" id="slot-encoding" aria-labelledby="sheet-encoding">
@@ -467,6 +480,7 @@
     <form method="dialog">
       <h2 id="about-title">DONNER</h2>
       <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
+      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, Game of Life is an easter egg: open <code>?src=life</code>.</p>
       <h3>Examples</h3>
       <ul>
         <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. Bottom <strong>AR</strong> hangs it on a camera when one exists.</li>

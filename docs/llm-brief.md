@@ -23,7 +23,8 @@ advantage, not a deployment convenience.
   **source addon** (Game of Life, Lighter Ignition, or Brain MRI Low / High; ids
   `conway` / `ignition` / `mni152-low` / `mni152`; **Load NumPy** in Source or drop
   `.npy` on the volume with a header-first gate; WOLKE-contract Streamer
-  stays hidden — no sidecar on Pages),
+  Connect is **Online Demo**–hidden and shows on **Local Viewer** /
+  `npm start` via `/local-viewer.json`),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
   count fills a windowed Scale, color only).
@@ -35,8 +36,8 @@ advantage, not a deployment convenience.
   `src/count.js`. Drop-path prep is `src/volume-prep.js` (header peek,
   caps, streaming mean/max-bin that skips short axes). A WOLKE-contract viewer (`src/wolke.js`) only fetches
   that cube (Socket.IO notify + same-origin `/stream-npy` GET); it does
-  not add a DONNER backend. Restart `npm start` / `start:lan` so the
-  proxy exists. The cube renderer must stay source-agnostic.
+  not add a DONNER analysis backend. Local Viewer (Go) or `npm start` /
+  `start:lan` provide the proxy. The cube renderer must stay source-agnostic.
   File format is not the runtime contract (SoA is). `.npy` count cubes
   are in; NPZ is still later. Keep `CountVolume` for counts; do not use
   it as the generic scientific volume (CT HU can be negative).
@@ -90,7 +91,7 @@ advantage, not a deployment convenience.
   **Spin** (Look strip, next to Fit) is a live orbit around product Z (~24 s/rev),
   independent of Loop. World AR drives Yaw; Face hides Spin.
   Ortho always pans. Edit stays on the Z playfield (disabled on X/Y slices).
-  Cube cap is a View number (default 200 000). Game of Life Play stays
+  Cube cap is a View dropdown (default **250k**, steps to **10M**). Game of Life Play stays
   at that live envelope; Pause raises it to the tape’s occupied cells
   (no trunc on a 300k brick). A dense count cube raises Cube cap to the
   hull instance count, not occupied voxels (Brain MRI High hull ~140k,
@@ -114,7 +115,7 @@ advantage, not a deployment convenience.
   On a phone there is no viewcube; the FPS chip still opens that card. Guide is hidden. FPS/sparkline use raw frame time; the 100 ms
   clamp is simulation catch-up only. The Z stack is a thin tick rail (bar
   + generation beside the handle), not a HUD card. Chrome is one left
-  rail: **Source** (kind, Conway Pattern first, Random Fill) then **View**.
+  rail: **Source** (kind, Conway Pattern first, Random Fill, Grid, Depth) then **View**.
   Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
   **Fit** and **Spin** sit on the Look strip (Spin = live orbit around product Z;
   World AR drives Yaw; Face hides Spin).
@@ -123,7 +124,7 @@ advantage, not a deployment convenience.
   Hull+Loop grows a potato from the axis origin through the plane (opaque
   in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
   that one plane. The camera tracks the playhead.
-  (Parallax, Align to Z, Quality, Depth, Gap, Color coding, Size by age, Cube cap).
+  (Parallax, Align to Z, Quality, Gap, Color coding, Size by age, Cube cap).
   Gap starts at 0.01 for Brain / loaded cubes and 0.05 for Game of Life and
   Ignition (reset on Source change). Gap 0 packs faces. Gap has a spinner;
   hover-wheel on that field steps it.
@@ -268,7 +269,7 @@ advantage, not a deployment convenience.
   developer wiki. Live host: `https://donner.mess.engineering/`.
   Local serve is in architecture. In-app Look: **Guide** button to the
   right of the brand chip on desktop (arrows: rails, viewcube, inspect, quality);
-  hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid). Copy in
+  hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid/depth). Copy in
   [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
   — Serve, **Tests and visual QA**, layers, XR/Face

@@ -22,6 +22,7 @@ _SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 from stream_proxy import StreamNpyMixin
+import stream_proxy as stream_proxy_mod
 
 
 class Handler(StreamNpyMixin, SimpleHTTPRequestHandler):
@@ -50,9 +51,16 @@ class Server(ThreadingHTTPServer):
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument(
+        "--online-demo",
+        action="store_true",
+        help="Pages parity: do not serve /local-viewer.json (no Stream chrome)",
+    )
     args = parser.parse_args()
+    stream_proxy_mod.LOCAL_VIEWER_JSON = not args.online_demo
     httpd = Server((args.bind, PORT), Handler)
-    print(f"http://{args.bind}:{PORT}/")
+    mode = "Online Demo chrome" if args.online_demo else "Local Viewer chrome"
+    print(f"http://{args.bind}:{PORT}/  ({mode})")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

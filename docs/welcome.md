@@ -91,12 +91,28 @@ bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
 preview of the first output plane. A taller-than-wide plane rotates 90°
 first, then scales to the dialog width. Confirming Load raises Cube cap
 to drawn instances (dense hull, sparse occupied cells) when that is
-higher. Game of Life Play keeps the 200 000 default; Pause
-raises Cube cap to the tape so a long run is not truncated. Streamer / sidecar Connect is not on this static host.
+higher. Game of Life Play keeps the **250k** default; Pause
+raises Cube cap to the next preset that covers the tape so a long run is not truncated.
+
+**Online Demo** (this static host / Pages) does not offer Streamer /
+sidecar Connect. For stream and the fuller product, download the
+**Local Viewer** from GitHub Releases — or use `npm start` while
+developing.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
 Ignition ~3 % occupancy). Dense bricks like Brain MRI High are the expensive
 case; Brain MRI Low is the visitor default.
+
+## Online Demo vs Local Viewer
+
+| | **Online Demo** | **Local Viewer** |
+|---|---|---|
+| Where | [donner.mess.engineering](https://donner.mess.engineering/) | GitHub Releases binary |
+| Job | Try DONNER in the browser | Full viewer on your machine |
+| Stream / Connect | No | Yes (EVT / WOLKE sidecars) |
+| Needs Python | No | No (Go one-binary) |
+
+Get Local Viewer: full features — stream, own data, no Python.
 
 ## Share URL
 

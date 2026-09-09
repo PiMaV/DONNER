@@ -5,4 +5,4 @@ cd "$ROOT"
 if [[ ! -f certs/dev.pem || ! -f certs/dev-key.pem ]]; then
   bash scripts/mkcert-lan.sh
 fi
-exec python3 scripts/serve-https.py
+exec python3 scripts/serve-https.py "$@"

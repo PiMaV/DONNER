@@ -11,6 +11,8 @@ Thumbs.db
 node_modules/
 dist/
 .cache/
+.tools/
+host/web/
 *.prof
 .donner-smoke.png
 certs/
