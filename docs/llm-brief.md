@@ -22,7 +22,11 @@ advantage, not a deployment convenience.
   **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
   **source addon** (Game of Life, Lighter Ignition, or Brain MRI Low / High; ids
   `conway` / `ignition` / `mni152-low` / `mni152`; **Load NumPy** in Source or drop
-  `.npy` on the volume with a header-first gate; WOLKE-contract Streamer
+  `.npy` on the volume with a header-first gate (grid + occupied peek;
+  soft/hard warn stays selectable; Load confirms then tries). Local Viewer
+  Go host: **EXIT** → `POST /quit`; browser close → `/bye` + `/ping` idle quit;
+  busy port reopens browser;
+  WOLKE-contract Streamer
   Connect is **Online Demo**–hidden and shows on **Local Viewer** /
   `npm start` via `/local-viewer.json`),
   **encoding slot**
@@ -76,7 +80,8 @@ advantage, not a deployment convenience.
   the axis color. Hover a frame **edge** to light that ring and grab it
   (playhead inset, clips smaller; coincident clip hidden);
   HUD rails recede. Invisible fills are not grab targets. **Depth**
-  is cube volume height (live wake). The RAM tape keeps the run from gen
+  is cube volume height (live wake), always visible in Conway Setup
+  (Play and Inspect). The RAM tape keeps the run from gen
   0 until cap; **Pause** inspects it (fog off, zoom-out stays lit). **Play** returns to
   live Now. Play is Source transport (Conway and time stacks; hidden for MNI);
   live Conway also steps the generator.
@@ -117,14 +122,14 @@ advantage, not a deployment convenience.
   + generation beside the handle), not a HUD card. Chrome is one left
   rail: **Source** (kind, Conway Pattern first, Random Fill, Grid, Depth) then **View**.
   Loop, Speed, and loop axis X/Y/Z sit under the slice rails.
-  **Fit** and **Spin** sit on the Look strip (Spin = live orbit around product Z;
-  World AR drives Yaw; Face hides Spin).
+  **Fit**, **Spin**, and **Align to Z** sit on the Look strip (Spin = live orbit around product Z;
+  World AR drives Yaw; Face hides Spin; Align is orbit-only, hidden in AR).
   Phone Conway Play sits next to AR (Source Play stays on desktop).
   Loop X/Y/Z (or grab a plane) highlights that playhead: Ghost solids it;
   Hull+Loop grows a potato from the axis origin through the plane (opaque
   in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
   that one plane. The camera tracks the playhead.
-  (Parallax, Align to Z, Quality, Gap, Color coding, Size by age, Cube cap).
+  View sheet: Parallax, Quality, Gap, Color coding, Size by age, Cube cap.
   Gap starts at 0.01 for Brain / loaded cubes and 0.05 for Game of Life and
   Ignition (reset on Source change). Gap 0 packs faces. Gap has a spinner;
   hover-wheel on that field steps it.
@@ -186,7 +191,8 @@ advantage, not a deployment convenience.
   Face does not show Size or Yaw. Exit AR or Face
   runs Fit so the orbit camera frames the volume.
   Bottom **AR** shows only with WebXR; **Face** when a camera exists and
-  Source is Brain MRI. Desktop without WebXR is Face only. Camera start
+  Source is Brain MRI (bottom dock on `body` in orbit so desktop Face is
+  not clipped by the 0×0 XR overlay; phone WebXR parks it in `#xr-overlay`). Desktop without WebXR is Face only. Camera start
   shows Initializing cameras, then the picker. Laptop Face
   keeps Source, View, rails, and Loop (not `is-ar` chrome). Phone Face
   chrome matches the phone fold layout (`max-width: 720px`, or coarse plus
@@ -269,7 +275,7 @@ advantage, not a deployment convenience.
   developer wiki. Live host: `https://donner.mess.engineering/`.
   Local serve is in architecture. In-app Look: **Guide** button to the
   right of the brand chip on desktop (arrows: rails, viewcube, inspect, quality);
-  hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid/depth). Copy in
+  hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid/depth, always visible). Copy in
   [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
   — Serve, **Tests and visual QA**, layers, XR/Face

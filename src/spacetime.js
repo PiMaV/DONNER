@@ -14,6 +14,7 @@
 import { collectLive } from "./conway.js";
 import { inAabb, normalizeSliceAxis, onAnyPlane, onAxisPlane } from "./axes.js";
 import { KIND_MOVING, kindAt, stabilityAge } from "./dynamics.js";
+import { formatGroupedInt } from "./config.js";
 
 export class EventSoA {
   constructor(capacity) {
@@ -370,8 +371,7 @@ export function cacheStatusKey({
 
 /** One-line RAM tape status for the View sheet. */
 export function formatCacheStatus({ gens, events, full, tapeMode, tick = "gen" }) {
-  const n = events | 0;
-  const cells = n >= 10000 ? `${Math.round(n / 1000)}k` : String(n);
+  const cells = formatGroupedInt(events | 0);
   const bits = [`Cache ${gens | 0} ${tick}`, `${cells} cells`];
   if (full) bits.push("full");
   if (tapeMode) bits.push("inspect");

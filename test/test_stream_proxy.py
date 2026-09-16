@@ -98,6 +98,8 @@ class ProxyTests(unittest.TestCase):
                 body = res.read().decode("utf-8")
             self.assertIn("localViewer", body)
             self.assertIn("true", body)
+            self.assertIn("canQuit", body)
+            self.assertIn("false", body)
         finally:
             proxy.shutdown()
             proxy.server_close()

@@ -11,8 +11,8 @@ its own. Hidden on a phone (`pointer: coarse`). **About Data** (Source fold, nex
 **WETTER** links are cyan. Visitor copy:
 [`docs/welcome.md`](welcome.md).
 
-**Look** shortcuts sit top-right on every surface (Hull / Ghost / Cuts, plus **Fit**
-and **Spin** on desktop and phone orbit). **View** is display setup (Quality, Gap, Align to Z,
+**Look** shortcuts sit top-right on every surface (Hull / Ghost / Cuts, plus **Fit**,
+**Spin**, and **Align to Z** on desktop and phone orbit). **View** is display setup (Quality, Gap,
 Parallax, Reset Planes, Color). FPS is a small overlay on the viewcube
 (bottom-right); tap it for the spark / DEV Bench card. That card is independent
 of the left rail so you can keep View open. AR and phone share the Look strip;
@@ -24,6 +24,7 @@ flowchart TB
     shade[Hull Ghost Cuts]
     fitBtn[Fit]
     spinBtn[Spin]
+    align[Align to Z]
   end
   subgraph cube [Viewcube]
     fpsChip[FPS overlay]
@@ -33,7 +34,7 @@ flowchart TB
   subgraph setup [View Setup sheet]
     quality[Low Medium High]
     gap[Gap]
-    extras[Parallax ResetPlanes Align CubeCap Color]
+    extras[Parallax ResetPlanes CubeCap Color]
   end
   subgraph source [Source sheet]
     kind[Kind Play Conway Setup]
@@ -133,7 +134,9 @@ After lock: oval + lips + blue circular retinas and black pupil dots while
 the face is in view; if the mesh drops, the last pose stays and tracking
 resumes when the face returns.
 **AR** sits on the bottom dock only when WebXR `immersive-ar` is available
-(larger on desktop). Desktop without WebXR shows **Face** only. **Face** is
+(larger on desktop). That dock lives on `document.body` in orbit so
+desktop **Face** is not clipped by the 0×0 XR overlay; phone WebXR
+moves it into `#xr-overlay` for the session. Desktop without WebXR shows **Face** only. **Face** is
 the extra Brain button when a camera exists. **Exit** or
 pick another Source to leave (orbit returns). Face camera start shows
 **Initializing cameras…**, then the camera menu. A Face session replaces those
@@ -207,10 +210,10 @@ flowchart LR
 ```
 
 The left chrome is one rail — **Source** on top (kind, one-line blurb,
-Game of Life **Play**; Conway pattern / grid / seed live under **Setup**)
-and **View** below (Parallax, Align to Z, Quality,
-Gap, Depth live-only, cache, Color coding, Size by age, Cube
-cap). Shade (**Hull / Ghost / Cuts**), **Fit**, and **Spin**
+Game of Life **Play**; Conway pattern / grid / seed / **Depth** live under **Setup**)
+and **View** below (Parallax, Quality,
+Gap, cache, Color coding, Size by age, Cube
+cap). Shade (**Hull / Ghost / Cuts**), **Fit**, **Spin**, and **Align to Z**
 live on the top-right Look strip, not in this sheet. FPS is a cube overlay;
 spark and **DEV Bench** open as a card next to it, not inside View. **Loop**, loop **Speed**, and loop axis **X / Y / Z**
 sit under the slice rails. Conway **Play** stays in Source on desktop;
@@ -229,11 +232,11 @@ flowchart TB
     shade[Hull Ghost Cuts]
     fitBtn[Fit]
     spinBtn[Spin]
+    align[Align to Z]
   end
   subgraph view [View setup]
     bird[Parallax]
-    align[Align to Z]
-    win[Depth live Gap Quality Cache]
+    win[Gap Quality Cache]
     color[Color coding]
     stab[Size by age]
     cap[Cube cap]
@@ -361,7 +364,7 @@ rectangle select on the playfield).
 | Color coding | Conway occupancy class colors (still / oscillator / unsettled / base). Off: one occupancy color. Count / MNI: **Colormap**, Min/Max, Trim, Hide below. |
 | Stability | Conway only. **Size by age** (default on): cubes grow with still/osc run length. **Start** is cube fill at age 0 (down to a speck). **Tail** is generations along Z until full. Two sliders — fill vs length. Hidden for MNI and other sources with no stability metric. |
 | Parallax | Default on = perspective. Off = orthographic at the current look (keeps the slab). Key `B`. Viewcube face is a separate 2D cut (`B` in a cut leaves it). |
-| Align to Z | Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Z scrub does not move the orbit height. |
+| Align to Z | Look strip under Fit / Spin (next to the viewcube). Default on = orbit around the time axis (XY pinned). Right-drag still slides along Z. Off = free pan. Off while a viewcube cut is locked. Hidden in AR. Z scrub does not move the orbit height. |
 | Headlamp | Automatic: key follows the view (orbit and AR walk). Fill and ACES on Quality **High** only. Medium is key only. No slider. A visible sun is later. |
 | Yaw | World AR overlay after spawn: turn the brick around the standing axis. Hidden in Face. |
 | Size | World AR overlay after spawn: uniform scale (0.4×–5×), table-footprint fit. Hidden in Face. |
@@ -375,7 +378,7 @@ rectangle select on the playfield).
 | Gap | Visual lattice spacing (0–5 cube-widths, step **0.01**). **Start:** Brain MRI / loaded cubes **0.01**; Game of Life and Ignition **0.05** (resets when Source changes). Gap **0** packs faces with no air. Label sits to the left of a wide spinner; hover-wheel on the Gap field steps 0.01. Higher Gap moves instance centers apart. Frames and picking follow that pitch. Orbit zoom-out is sized for Gap **5**, so you can still frame the brick. AR uses the same local layout (table footprint maps to 40 cm, so a large Gap grows the brick on the table). Size by age still scales cubes inside each cell. |
 | Quality | **Low / Medium / High** in one row (default **High**). Cubes with more than 500k occupied cells drop to Medium. Low is only a manual pick. Low: unlit cubes, pixel ratio 1. Medium: Lambert key, no ACES, no fill, pixel ratio 1. High: Lambert + ACES + fill, pixel ratio ≤ 1.25. `?quality=` on the door. Does not recreate the WebGL context (antialias stays). Auto-pick from Bench metrics is later. |
 | Shade | Look strip (all surfaces). **Start:** Brain MRI Low/High, Lighter Ignition, and own cubes open **Ghost** with center and outer frames; Game of Life opens **Hull** with both frames on. Inspect: **Hull** (outer AABB solid; grab a playhead to peek; **Loop** grows a potato from the axis origin through the playhead — opaque in 3D, glass potato plus the solid slice in a viewcube cut), **Ghost** (glass hull + the highlighted plane; in a cut the silhouette stays the full brick), **Cuts** (three orthogonal slices in 3D, lock-axis plane only in a cut; shade id `triple`). |
-| Depth | Conway live wake only (8–128), under **Source → Setup**. Hidden while Inspect. |
+| Depth | Conway live wake (8–128), under **Source → Setup**. Always visible there (Play and Inspect). Changing it still only sizes the live wake; Pause draws the whole RAM tape. |
 | Cache | Viewer RAM tape status (View sheet). Pause inspects it. Caps 4096 gens / 400 000 cells. |
 | Cube cap | View instance envelope (dropdown **100k / 250k / 500k / 1M / 2M / 5M / 10M / MAX**, default **250k**). **MAX** draws every arrived voxel. Fixed steps auto-raise to the next preset that covers drawn cells. Soft low-FPS tip can suggest a concrete lower step. |
 | FPS | Small overlay on the viewcube (bottom-right). Tap to open the spark / FPS / AVG card with DEV Bench. Independent of the left View rail. Stays on Face and phone AR. Phone: same chip on the Look strip (no cube). Quest has no DOM overlay. |
@@ -460,11 +463,15 @@ are Source options. Low is a 2× mean bin (~3 MB); High is native grid
 (~23 MB). Visitor aliases `brain` / `mri` open Low.
 Load a `(T × H × W)` `.npy` count cube from **Source → Load NumPy** or
 drop it onto the volume. A header-first gate shows shape, dtype, payload,
-and cell count. About **500k** occupied-scale cells is the comfort cap
-(warn; reduce or analyze in BLITZ). Optional 2/4/8 binning skips an axis
+**grid cells** (shape product), and a quick **occupied** (non-zero) count
+when the payload is readable. Soft comfort is about **500k drawn cubes**
+(occupied), not the lattice size — sparse Ignition-scale stacks stay on
+Native. Over soft/hard size: options stay selectable (yellow/red warn);
+**Load** asks to confirm, then tries. Optional 2/4/8 binning skips an axis
 shorter than the factor (one Z plane still bins X/Y), uses **mean**
 (downsample) or **max** (keep peaks), and a **Plasma** preview of the
-first output plane. A taller-than-wide plane rotates 90° first, then
+first output plane. Mean-bin can densify sparse stacks; prefer **Max** for
+peaks. A taller-than-wide plane rotates 90° first, then
 scales to the dialog width. Confirming **Load** raises **Cube cap** to
 drawn instances (dense **hull**, sparse occupied cells) when that is
 above the current setting. Game of Life Play keeps **250k**; Pause fits
@@ -479,9 +486,10 @@ The WOLKE **Stream** / Connect chrome is **Local Viewer** only (and
 flowchart TB
   drop[Drop npy on volume]
   load[Source Load NumPy]
-  peek[Read header only]
-  gate{Cells and RAM OK?}
-  refuse[Refuse or require bin]
+  peek[Read header plus occupied peek]
+  gate{Dims OK?}
+  warn[Yellow or red warn; keep selectable]
+  confirm[Load asks confirm if risky]
   bin[Stream-bin mean or max; skip short axes]
   cap[Cube cap to hull or occupied]
   sparse[countVolumeFromDense]
@@ -489,9 +497,11 @@ flowchart TB
   drop --> peek
   load --> peek
   peek --> gate
-  gate -->|yes| cap
-  gate -->|too big| refuse
-  refuse --> bin --> cap
+  gate -->|no| refuse[Show error]
+  gate -->|yes| warn --> confirm
+  confirm --> bin
+  confirm --> cap
+  bin --> sparse
   cap --> sparse
   sparse --> soa
 ```
@@ -803,8 +813,8 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   Do not start Dataset Contract or a PointRenderer on that host.
 - **Source off the rail:** later, the Source fold leaves the viewer chrome;
   generator is its own surface.
-- **Thin View:** teaching View keeps Parallax / Align to Z / Quality / Gap / Depth (and maybe
-  cache). Dense Encoding can still slim further.
+- **Thin View:** teaching View keeps Parallax / Quality / Gap / Depth (and maybe
+  cache). Align to Z stays on the Look strip. Dense Encoding can still slim further.
 - **Isolation later:** rectangle select on the playfield (not cube double-click). AR poke already isolates the standing plane. Numbered axes with units come back later; the overlay is off.
 - Polarity / occupancy / states encodings (count rungs are in)
 - NPZ, packed WOLKE `__selection__.npy` multi-row, BLITZ widget sync, in-browser EVT3
@@ -812,6 +822,11 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 - **Streamer / Local Viewer:** Connect shows when `/local-viewer.json` is
   served (Go Local Viewer or `npm start`). Online Demo (Pages) keeps it
   hidden and shows **Get Local Viewer** (Releases) next to Guide. Local
+  Viewer (Go) shows compact **EXIT** (`POST /quit`). Closing the browser
+  also stops the host (`/ping` heartbeat, `/bye` on pagehide; reload within
+  a few seconds cancels). A second launch reopens the running instance.
+  `npm start` sets `canQuit: false` (stop the terminal).
+  Local
   Viewer Source chrome is **Load NumPy** + **Connect** only; Game of Life
   easter egg via `?src=life`. Load NumPy / drop `.npy` + header gate is in.
   Stream client: full stack once, then index-only seek.

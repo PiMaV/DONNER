@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, formatGroupedInt, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, qualityLightsOn, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -16,7 +16,16 @@ import { MAX_OSC_PERIOD } from "./dynamics.js";
 import { COUNT_HIDE_DEBOUNCE_MS, countInstanceCap, countVolumeFromDense, countVolumeFromNpy, isDenseCount, PLANE_PREFETCH_RADIUS } from "./count.js";
 import { cachedDemoVolume, rememberDemoVolume } from "./demo-cache.js";
 import { peekNpyBlob } from "./npy.js";
-import { binCountCubeFromBlob, ingestDialogModel, ingestPlan, normalizeBinReduce, previewIngestFromBlob } from "./volume-prep.js";
+import {
+  PREP_MAX_PAYLOAD,
+  binCountCubeFromBlob,
+  countOccupiedFromBlob,
+  ingestConfirmText,
+  ingestDialogModel,
+  ingestPlan,
+  normalizeBinReduce,
+  previewIngestFromBlob,
+} from "./volume-prep.js";
 import { CONWAY_KIND_HEX, CONWAY_BASE_K, COUNT_LUT_RUNGS, countKindHex, DEFAULT_COUNT_TRIM, normalizeCountCmap } from "./encoding.js";
 import { focusGeneration } from "./focus.js";
 import { drawSparkline, FrameClock, formatSourceHud, formatViewHud, hudTelemetryOpen, stepFpsCapHint } from "./hud.js";
@@ -160,6 +169,7 @@ import {
   faceLipsConnections,
   faceMeshConnections,
   faceOvalConnections,
+  isFaceArOffered,
   isFaceArSupported,
   loadFaceLandmarker,
   listFaceCameras,
@@ -615,6 +625,9 @@ const ui = bindUI({
   ingestCancel: () => {
     pendingIngest = null;
     ingestPreviewGen += 1;
+  },
+  stopLocalViewer: () => {
+    void quitLocalViewer();
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -1887,6 +1900,15 @@ function exitAr() {
   if (session) session.end();
 }
 
+function parkTransportForAr(inOverlay) {
+  const transport = document.getElementById("transport");
+  const home = document.getElementById("transport-home");
+  const overlay = document.getElementById("xr-overlay");
+  if (!transport || !home) return;
+  if (inOverlay && overlay) overlay.appendChild(transport);
+  else home.appendChild(transport);
+}
+
 async function onArSessionStart() {
   try {
     setArDocument(true);
@@ -1906,6 +1928,7 @@ async function onArSessionStart() {
     arUseHitTest = false;
     arHitTestResolved = false;
     arPhoneOverlay = !isHeadsetBrowser(navigator.userAgent || "");
+    parkTransportForAr(arPhoneOverlay);
     arSearching = true;
     if (arHitTestSource && typeof arHitTestSource.cancel === "function") {
       arHitTestSource.cancel();
@@ -1955,6 +1978,7 @@ async function onArSessionStart() {
 }
 
 function onArSessionEnd() {
+  parkTransportForAr(false);
   setArDocument(false);
   renderer.setClearAlpha(1);
   controls.enabled = true;
@@ -2538,7 +2562,7 @@ function bootCount(vol) {
   syncStartUrl();
   ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
   ui.setCountMeta(
-    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.dataMax} · ${vol.count} voxels`,
+    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.dataMax} · ${formatGroupedInt(vol.count)} voxels`,
   );
   acc = 0;
   if (isDenseCount(vol)) {
@@ -2679,7 +2703,19 @@ async function offerCountFile(file) {
   if (!file) return;
   try {
     const header = await peekNpyBlob(file);
-    const plan = ingestPlan(header);
+    let occupied = null;
+    // Sparse stacks (Ignition-scale) look huge as a grid product; count
+    // non-zeros so we do not soft-warn / auto-bin by lattice size alone.
+    if (header.payloadBytes <= PREP_MAX_PAYLOAD * 2) {
+      try {
+        occupied = await withLoading("Counting occupied voxels…", () =>
+          countOccupiedFromBlob(file, header),
+        );
+      } catch {
+        occupied = null;
+      }
+    }
+    const plan = ingestPlan(header, { occupied });
     const name = String(file.name || "count").replace(/\.npy$/i, "");
     pendingIngest = { file, header, plan, name };
     ui.openIngest(ingestDialogModel(file.name, header, plan));
@@ -2730,6 +2766,10 @@ async function confirmCountIngest(picks) {
   const reduce = normalizeBinReduce(picks && picks.reduce);
   const opt = pending.plan.options.find((o) => o.factor === f);
   if (!opt || !opt.ok) return;
+  if (opt.needsConfirm) {
+    const ok = window.confirm(ingestConfirmText(opt, pending.plan));
+    if (!ok) return;
+  }
   pendingIngest = null;
   ingestPreviewGen += 1;
   ui.closeIngest();
@@ -3386,7 +3426,7 @@ function updateHint() {
     ui.setHint("Ortho — no parallax · gizmo snaps views · B restores perspective");
   } else if (playing && cubes.count > 20000) {
     ui.setHint(
-      `INST ${cubes.count} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
+      `INST ${formatGroupedInt(cubes.count)} — depth is filling; Pause to see GPU-only (soa now should be 0)`,
     );
   } else if (playing) {
     ui.setHint("Live — Pause to inspect the cache · drag to orbit · scroll zoom");
@@ -4328,11 +4368,75 @@ renderer.setAnimationLoop(frame);
 async function detectLocalViewer() {
   try {
     const res = await fetch("/local-viewer.json", { cache: "no-store" });
-    if (!res.ok) return false;
+    if (!res.ok) return { local: false, canQuit: false };
     const data = await res.json();
-    return Boolean(data && data.localViewer);
+    return {
+      local: Boolean(data && data.localViewer),
+      canQuit: Boolean(data && data.canQuit),
+    };
   } catch {
-    return false;
+    return { local: false, canQuit: false };
+  }
+}
+
+async function quitLocalViewer() {
+  if (!ui.canQuitLocalViewer?.()) return;
+  stopLocalViewerHeartbeat();
+  // Hide EXIT immediately so a slow /quit cannot look like a second press.
+  ui.setLocalViewer(true, { canQuit: false });
+  try {
+    await fetch("/quit", { method: "POST", cache: "no-store" });
+  } catch {
+    // Host may close the socket before the response arrives.
+  }
+  // Leave a clear stopped page — do not keep a half-dead DONNER shell open.
+  const stopped = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>DONNER — stopped</title><style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0f14;color:#f4f7fb;font:16px/1.45 system-ui,sans-serif}
+main{max-width:28rem;padding:1.5rem;text-align:center}
+h1{font:700 1rem/1.2 Orbitron,system-ui,sans-serif;letter-spacing:.12em;margin:0 0 .75rem}
+p{margin:0;color:#98a4b3}
+</style></head><body><main><h1>DONNER</h1><p>Local Viewer stopped. You can close this tab.</p></main></body></html>`;
+  try {
+    document.open();
+    document.write(stopped);
+    document.close();
+  } catch {
+    document.body.textContent = "Local Viewer stopped. You can close this tab.";
+  }
+  try {
+    window.close();
+  } catch {
+    /* browsers block close unless this tab was script-opened */
+  }
+}
+
+let localPingTimer = 0;
+let localByeBound = false;
+
+function stopLocalViewerHeartbeat() {
+  if (localPingTimer) {
+    clearInterval(localPingTimer);
+    localPingTimer = 0;
+  }
+}
+
+function startLocalViewerHeartbeat() {
+  stopLocalViewerHeartbeat();
+  const ping = () => {
+    void fetch("/ping", { method: "POST", cache: "no-store" }).catch(() => {});
+  };
+  ping();
+  localPingTimer = window.setInterval(ping, 4000);
+  if (!localByeBound) {
+    localByeBound = true;
+    window.addEventListener("pagehide", () => {
+      if (!ui.canQuitLocalViewer?.()) return;
+      try {
+        navigator.sendBeacon("/bye");
+      } catch {
+        void fetch("/bye", { method: "POST", cache: "no-store", keepalive: true }).catch(() => {});
+      }
+    });
   }
 }
 
@@ -4344,13 +4448,16 @@ function enterLocalIdle() {
   updateHint();
 }
 
-const faceOk = isFaceArSupported({ userAgent: navigator.userAgent || "" });
-// Show Face as soon as the API exists; Local Viewer clears it after detect.
+const faceOk = isFaceArOffered({ userAgent: navigator.userAgent || "" });
+// Face chip does not wait for getUserMedia; Local Viewer / Quest still hide it.
 ui.setFaceAvailable(faceOk);
 
-void detectLocalViewer().then((local) => {
+void detectLocalViewer().then((info) => {
+  const local = Boolean(info && info.local);
   if (local) {
     ui.setFaceAvailable(false);
+    ui.setLocalViewer(true, { canQuit: Boolean(info.canQuit) });
+    if (info.canQuit) startLocalViewerHeartbeat();
     if (start.source === "conway") {
       try {
         bootWorld(true);
@@ -4358,14 +4465,13 @@ void detectLocalViewer().then((local) => {
         console.warn("DONNER boot", err);
         enterLocalIdle();
       }
-      ui.setLocalViewer(true);
       return;
     }
-    ui.setLocalViewer(true);
     enterLocalIdle();
     return;
   }
   ui.setFaceAvailable(faceOk);
+  ui.setLocalViewer(false);
   ui.setSourceKind(start.source);
   try {
     if (start.source === "conway") bootWorld(true);

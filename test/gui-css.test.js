@@ -99,6 +99,8 @@ describe("phone AR overlay chrome", () => {
     assert.match(css, /body\.is-ar\.is-ar-placed\s+\.look-more/);
     assert.match(css, /body\.is-ar \.look-fit/);
     assert.match(css, /body\.is-ar \.look-orbit/);
+    assert.match(css, /body\.is-ar \.look-align/);
+    assert.match(html, /id="btn-align-z"/);
     assert.match(html, /id="btn-spin"/);
   });
 });
@@ -170,9 +172,16 @@ describe("desktop Source | View sheets", () => {
     assert.doesNotMatch(html, /id="voxel-gap"[^>]*type="range"/);
   });
 
-  it("keeps footer M.E.S.S. and WETTER links", () => {
+  it("keeps Conway Depth visible in Setup during Inspect", () => {
+    assert.doesNotMatch(css, /body\.is-inspect\s+#depth-field/);
+  });
+
+  it("keeps footer M.E.S.S. and WETTER links in Orbitron, version to GitHub", () => {
     assert.match(html, /href="https:\/\/mess\.engineering"[^>]*>M\.E\.S\.S\.</);
     assert.match(html, /href="https:\/\/wetter\.mess\.engineering"[^>]*>WETTER</);
+    assert.match(html, /class="legal-brand"/);
+    assert.match(html, /id="version"[^>]*href="https:\/\/github\.com\/PiMaV\/DONNER"/);
+    assert.match(css, /\.legal a\.legal-brand[\s\S]*Orbitron/);
   });
 
   it("hides Guide on coarse pointers and phone-width chrome", () => {

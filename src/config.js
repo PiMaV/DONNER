@@ -11,7 +11,20 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
+
+/**
+ * Grouped integer for HUD / ingest counts.
+ * Apostrophe thousands (Swiss / scientific): unambiguous next to locale
+ * decimals (Gap `0,01`) and denser than a space in Orbitron/hint text.
+ */
+export function formatGroupedInt(n) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return "0";
+  const neg = v < 0;
+  const s = String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  return neg ? `-${s}` : s;
+}
 
 export const COLOR = {
   bg: 0x0b0f14,

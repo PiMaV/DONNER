@@ -13,6 +13,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.2.0] - 2026-09-16
+
+### Added
+
+- Ingest gate peeks **occupied** (non-zero) voxels so sparse stacks are
+  not soft-warned or auto-binned by grid size alone.
+- Risky **Load** asks for confirmation instead of greying out oversized
+  bin options (yellow soft / red hard warning).
+- Local Viewer: compact **EXIT** in the brand row (`POST /quit`, no confirm).
+  Closing the browser also stops the Go host (pagehide `/bye` + `/ping`
+  heartbeat; reload cancels). After EXIT the tab shows a short stopped
+  page. Double-click / no-TTY no longer implies Ctrl+C. A second launch on
+  a busy port reopens the existing viewer.
+
+### Changed
+
+- **Align to Z** moved from the View sheet to the Look strip (under Fit /
+  Spin, next to the viewcube). Hidden in AR like Fit.
+- Large voxel / cell / INST counts use apostrophe thousands
+  (`681'689`) — visible in hint/FPS type; no clash with Gap `0,01`.
+- Footer **M.E.S.S.** and **WETTER** use Orbitron; version string links to
+  the GitHub repo README (`PiMaV/DONNER`).
+- Ingest copy distinguishes **grid cells** (shape product) from
+  **occupied** cubes; mean-bin note that sparse stacks can densify.
+
+### Fixed
+
+- Online Demo now ships the `icon/` folder, so the favicon and the brand
+  chip mark load (Pages had been staging CSS/JS/data only).
+- Game of Life **Depth** in Setup stays visible while Inspect / Pause,
+  not only during Play.
+- Online Demo desktop **Face** sits on a body-level bottom dock (not
+  inside the 0×0 XR overlay, which clipped `position:fixed` on desktop).
+  The chip no longer waits for `getUserMedia` to appear; Local Viewer and
+  Quest still hide it. Phone WebXR parks the dock in `#xr-overlay`.
+
 ## [1.1.0] - 2026-09-09
 
 ### Added

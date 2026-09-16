@@ -58,6 +58,7 @@ jobs:
             - Linux: `chmod +x DONNER-linux-x86_64 && ./DONNER-linux-x86_64`
             - Windows: run `DONNER.exe`
             - Opens http://127.0.0.1:8765/ — Stream / Connect for EVT or WOLKE sidecars
+            - **EXIT** in the page (or close the browser) shuts down the host
             - Online Demo (showcase only): https://donner.mess.engineering/
 
   build-windows:

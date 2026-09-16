@@ -12,7 +12,7 @@ import {
 import { GizmoCssCache, gizmoCssBox, gizmoOnScreen, gizmoScissor, MARGIN_CSS, viewFromLocalNormal } from "../src/gizmo-layout.js";
 import { frustumFromDistance, offsetLength, pinOrbitHeight, snapPose } from "../src/orbit.js";
 import { gizmoFollowYaw } from "../src/turntable.js";
-import { clampCubeCap, clampCubeCapHard, cubeCapAtLeast, cubeCapForLoadedCells, formatCubeCapLabel, CUBE_CAP_PRESETS, CUBE_CAP_MAX, resolveCubeCap, suggestCubeCapPreset, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
+import { clampCubeCap, clampCubeCapHard, cubeCapAtLeast, cubeCapForLoadedCells, formatCubeCapLabel, formatGroupedInt, CUBE_CAP_PRESETS, CUBE_CAP_MAX, resolveCubeCap, suggestCubeCapPreset, DEFAULTS, AXIS_COLOR, hexCss } from "../src/config.js";
 
 describe("product view directions", () => {
   it("maps product +Z to world +Y (top-down)", () => {
@@ -203,6 +203,9 @@ describe("cube cap", () => {
     assert.equal(clampCubeCap(180_000), 250_000);
     assert.equal(formatCubeCapLabel(250_000), "250k");
     assert.equal(formatCubeCapLabel(2_000_000), "2M");
+    assert.equal(formatGroupedInt(114_000), "114'000");
+    assert.equal(formatGroupedInt(5_400_000), "5'400'000");
+    assert.equal(formatGroupedInt(999), "999");
     assert.equal(resolveCubeCap(CUBE_CAP_MAX, 50_000_000), 50_000_000);
     assert.equal(resolveCubeCap(CUBE_CAP_MAX, 1000), DEFAULTS.maxInstances);
     assert.equal(clampCubeCapHard(200_000_000), DEFAULTS.cubeCapMax);

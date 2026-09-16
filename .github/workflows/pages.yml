@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html .nojekyll LICENSE _site/
-          cp -a css src vendor data _site/
+          cp -a css src vendor data icon _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

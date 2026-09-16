@@ -1,5 +1,7 @@
 /** Rolling frame-time / FPS for the display HUD. */
 
+import { formatGroupedInt } from "./config.js";
+
 export const SPARK_LEN = 96;
 export const SPARK_MS_CAP = 50;
 /** Rolling window for 1% / 0.1% lows (~16 s at 60 fps). Sparkline stays short. */
@@ -213,7 +215,7 @@ export function formatViewHud({
     `1%   ${low1Fps.toFixed(0)}`,
     `0.1% ${low01Fps.toFixed(0)}`,
     `FR   ${ms.toFixed(1)} ms`,
-    `INST ${instances}${trunc}`,
+    `INST ${formatGroupedInt(instances)}${trunc}`,
     `FOC  ${focus}`,
     looping ? "LOOP" : playing ? "PLAY" : "PAUSE",
   ];
@@ -239,10 +241,10 @@ export function formatSourceHud({
     const lines = [
       `T    ${generation}`,
       `LIVE ${live}`,
-      `SUM  ${Math.round(sum)}`,
+      `SUM  ${formatGroupedInt(Math.round(sum))}`,
       `RATE ${gps.toFixed(1)} /s`,
     ];
-    if (ceiling) lines.push(`MAX  ${ceiling}`);
+    if (ceiling) lines.push(`MAX  ${formatGroupedInt(ceiling)}`);
     lines.push("COUNT");
     return lines.join("\n");
   }

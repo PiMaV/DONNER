@@ -116,7 +116,7 @@ describe("HUD copy", () => {
     assert.match(view, /AVG {2}57/);
     assert.match(view, /^1% {3}48/m);
     assert.match(view, /^0\.1% 21/m);
-    assert.match(view, /INST 1200 trunc/);
+    assert.match(view, /INST 1'200 trunc/);
     assert.match(view, /FOC {2}12/);
     assert.match(view, /PLAY/);
     assert.match(view, /ORTHO/);

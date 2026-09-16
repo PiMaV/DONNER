@@ -21,6 +21,11 @@ export function isFaceArSupported({
   return Boolean(mediaDevices && typeof mediaDevices.getUserMedia === "function");
 }
 
+/** Face chip in orbit. Quest off. Camera API is checked when entering, not for visibility. */
+export function isFaceArOffered({ userAgent = "" } = {}) {
+  return !isHeadsetBrowser(userAgent);
+}
+
 /**
  * Phone Face hides Source/View (slim overlay). Match the phone fold
  * layout: max-width 720px, or coarse pointer plus a short viewport

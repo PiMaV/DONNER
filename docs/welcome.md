@@ -85,9 +85,12 @@ flowchart LR
 
 Load a `(T × H × W)` `.npy` count cube from Source → **Load NumPy**, or
 drop the file onto the volume from any source. The gate shows shape,
-dtype, payload, and cell count. About 500k cells is the comfort cap —
-reduce, or analyze in BLITZ. Binning skips a short axis (one Z plane still
-bins X/Y). Mean downsamples; max keeps peaks. The gate shows a Plasma
+dtype, payload, grid size, and occupied (non-zero) voxels when it can
+count them. Soft comfort is about 500k **drawn** cubes — sparse stacks
+are not blocked by a large empty lattice. Oversized options stay
+selectable with a warn; Load asks to confirm, then tries. Binning skips
+a short axis (one Z plane still bins X/Y). Mean downsamples; max keeps
+peaks (better for sparse event clouds). The gate shows a Plasma
 preview of the first output plane. A taller-than-wide plane rotates 90°
 first, then scales to the dialog width. Confirming Load raises Cube cap
 to drawn instances (dense hull, sparse occupied cells) when that is

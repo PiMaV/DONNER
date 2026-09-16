@@ -12,6 +12,7 @@
 
 import { countAxes } from "./count.js";
 import { npyArrayFromBytes } from "./npy.js";
+import { formatGroupedInt } from "./config.js";
 
 /** Cells (T×H×W after channel sum). mni152 (~11.4M) fits RAM; 256³ is the hard cap. */
 export const PREP_MAX_CELLS = 256 * 256 * 256;
@@ -49,12 +50,11 @@ export function formatBytes(n) {
   return `${(v / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Grouped integer for ingest copy (same apostrophe style as HUD). */
 export function formatCells(n) {
-  const v = Number(n);
+  const v = Math.round(Number(n));
   if (!Number.isFinite(v) || v < 0) return "0";
-  if (v < 10_000) return String(Math.round(v));
-  if (v < 1e6) return `${(v / 1e3).toFixed(1)}k`;
-  return `${(v / 1e6).toFixed(1)}M`;
+  return formatGroupedInt(v);
 }
 
 export function dtypeLabel(descr) {
@@ -97,11 +97,19 @@ export function binnedAxes(axes, factor) {
   };
 }
 
-function optionOk(out, factor, asIsOk) {
+/**
+ * Selectable bin option: valid dims, and a reduce factor must actually shrink
+ * an axis. Hard / soft cell caps no longer disable radios — warn + confirm.
+ */
+function optionSelectable(out, factor) {
   if (!dimOk(out.t, out.h, out.w)) return false;
-  if (out.t * out.h * out.w > PREP_MAX_CELLS) return false;
-  if (factor === 1) return asIsOk;
+  if (factor === 1) return true;
   return out.ft > 1 || out.fh > 1 || out.fw > 1;
+}
+
+/** @deprecated alias — kept for call sites that still say "ok" */
+function optionOk(out, factor, _asIsOk) {
+  return optionSelectable(out, factor);
 }
 
 function factorLabel(o) {
@@ -123,15 +131,24 @@ function factorLabel(o) {
  *   fortranOrder?: boolean,
  *   payloadBytes: number,
  * }} header
+ * @param {{ occupied?: number | null }} [extra]
+ *   Optional non-zero voxel count (native). Soft comfort / suggested bin
+ *   use this when present — grid product alone over-warns sparse stacks.
  */
-export function ingestPlan(header) {
+export function ingestPlan(header, extra = {}) {
   const payloadBytes = Number(header.payloadBytes) || 0;
+  const occupiedRaw = extra && extra.occupied;
+  const occupied =
+    occupiedRaw == null || !Number.isFinite(Number(occupiedRaw))
+      ? null
+      : Math.max(0, Math.round(Number(occupiedRaw)));
   if (header.fortranOrder) {
     return {
       ok: false,
       error: "npy fortran_order arrays are not supported",
       axes: null,
       cells: 0,
+      occupied: null,
       payloadBytes,
       asIsOk: false,
       canLoad: false,
@@ -148,6 +165,7 @@ export function ingestPlan(header) {
       error: err && err.message ? err.message : String(err),
       axes: null,
       cells: 0,
+      occupied: null,
       payloadBytes,
       asIsOk: false,
       canLoad: false,
@@ -161,6 +179,7 @@ export function ingestPlan(header) {
   const options = PREP_BIN_FACTORS.map((factor) => {
     const out = binnedAxes(axes, factor);
     const outCells = out.t * out.h * out.w;
+    const selectable = optionSelectable(out, factor);
     return {
       factor,
       t: out.t,
@@ -170,15 +189,23 @@ export function ingestPlan(header) {
       fh: out.fh,
       fw: out.fw,
       cells: outCells,
-      ok: optionOk(out, factor, asIsOk),
+      ok: selectable,
     };
   });
-  const suggested = suggestedBinFactor(options, cells, asIsOk);
+  for (const o of options) {
+    o.needsConfirm = optionNeedsConfirm(o, {
+      asIsOk,
+      payloadBytes,
+      occupied: o.factor === 1 ? occupied : null,
+    });
+  }
+  const suggested = suggestedBinFactor(options, cells, asIsOk, occupied);
   return {
     ok: true,
     error: null,
     axes,
     cells,
+    occupied,
     payloadBytes,
     asIsOk,
     canLoad: options.some((o) => o.ok),
@@ -188,43 +215,103 @@ export function ingestPlan(header) {
 }
 
 /**
- * Smallest allowed factor whose output is in the comfort range.
- * If none, the first reducing factor that still fits the hard cap.
+ * Soft comfort cost for native: occupied cubes when known, else grid cells.
+ * Binned options still use their grid product (post-bin occupancy unknown).
  */
-export function suggestedBinFactor(options, cells, asIsOk) {
-  if (cells <= PREP_SOFT_CELLS && asIsOk) return 1;
-  const under = options.find((o) => o.ok && o.cells <= PREP_SOFT_CELLS);
-  if (under) return under.factor;
-  const reduce = options.find((o) => o.ok && o.factor > 1);
-  if (reduce) return reduce.factor;
-  return asIsOk ? 1 : null;
+export function ingestComfortCost(cells, occupied = null) {
+  if (occupied != null && Number.isFinite(occupied)) return Math.max(0, occupied | 0);
+  return Math.max(0, cells | 0);
 }
 
-export function ingestWarnKind(cells, plan) {
+/**
+ * Confirm before Load when the chosen option may hitch or OOM.
+ * @param {{ cells: number, factor: number }} opt
+ * @param {{ asIsOk?: boolean, payloadBytes?: number, occupied?: number | null }} ctx
+ */
+export function optionNeedsConfirm(opt, ctx = {}) {
+  const cells = opt?.cells | 0;
+  const factor = opt?.factor | 0;
+  if (cells > PREP_MAX_CELLS) return true;
+  if (factor === 1 && ctx.asIsOk === false) return true;
+  if (factor === 1 && (ctx.payloadBytes | 0) > PREP_MAX_PAYLOAD) return true;
+  const cost =
+    factor === 1 ? ingestComfortCost(cells, ctx.occupied ?? null) : cells;
+  return cost > PREP_SOFT_CELLS;
+}
+
+/** @deprecated use optionNeedsConfirm */
+export function ingestNeedsConfirm(cells, factor = 1, payloadBytes = 0, asIsOk = true) {
+  return optionNeedsConfirm(
+    { cells, factor },
+    { asIsOk, payloadBytes, occupied: null },
+  );
+}
+
+/**
+ * Confirm copy for window.confirm before a risky Load.
+ */
+export function ingestConfirmText(opt, plan) {
+  const n = formatCells(opt?.cells ?? plan?.cells ?? 0);
+  const hard = formatCells(PREP_MAX_CELLS);
+  if ((opt?.cells | 0) > PREP_MAX_CELLS) {
+    return `Load ${n} grid cells anyway? That is over the usual hard cap (${hard}). The browser may hitch or run out of memory.`;
+  }
+  if ((opt?.factor | 0) === 1 && plan && !plan.asIsOk) {
+    return `Load native (${n} grid cells, ${formatBytes(plan.payloadBytes)}) anyway? Size or payload is above the usual limits.`;
+  }
+  return `Load ${n} grid cells? About ${formatCells(PREP_SOFT_CELLS)} occupied cubes is the comfort range — this may be slow. Continue?`;
+}
+
+/**
+ * Smallest factor whose comfort cost is in range.
+ * Prefer native when occupied (or grid) is already under the soft cap.
+ */
+export function suggestedBinFactor(options, cells, asIsOk, occupied = null) {
+  const nativeCost = ingestComfortCost(cells, occupied);
+  if (nativeCost <= PREP_SOFT_CELLS) return 1;
+  const under = options.find((o) => o.ok && o.cells <= PREP_SOFT_CELLS);
+  if (under) return under.factor;
+  const reduces = options.filter((o) => o.ok && o.factor > 1);
+  if (reduces.length) return reduces[reduces.length - 1].factor;
+  return options.some((o) => o.ok && o.factor === 1) ? 1 : null;
+}
+
+export function ingestWarnKind(cells, plan, occupied = null) {
   if (!plan.ok) return "hard";
   if (!plan.canLoad) return "hard";
-  if (cells > PREP_SOFT_CELLS) return "soft";
+  if (cells > PREP_MAX_CELLS) return "hard";
+  const cost = ingestComfortCost(cells, occupied);
+  if (cost > PREP_SOFT_CELLS) return "soft";
+  if (cells > PREP_SOFT_CELLS && occupied == null) return "soft";
   return "ok";
 }
 
-export function ingestWarnText(cells, plan, nativeCells = cells) {
+export function ingestWarnText(cells, plan, nativeCells = cells, occupied = null) {
   if (!plan.ok) return plan.error || "Cannot load this file.";
   const n = formatCells(cells);
   const soft = formatCells(PREP_SOFT_CELLS);
   const hard = formatCells(PREP_MAX_CELLS);
+  const occNote =
+    occupied != null
+      ? ` ~${formatCells(occupied)} occupied (non-zero) — only those become cubes.`
+      : " Grid cells are the shape product; only non-zero voxels become cubes after load.";
   if (!plan.canLoad) {
-    return `Even 8× bin is too large (${formatCells(nativeCells)} cells; hard cap ${hard}). Crop or reduce offline. Analyze in BLITZ.`;
+    return `No valid size option (${formatCells(nativeCells)} grid cells). Crop or reduce offline. Analyze in BLITZ.`;
   }
   if (cells > PREP_MAX_CELLS) {
-    return `${n} cells is over the hard cap (${hard}). Bin before load.`;
+    return `${n} grid cells is over the usual hard cap (${hard}). You can still try Load (confirm). Binning may help.${occNote}`;
   }
-  if (cells > PREP_SOFT_CELLS) {
-    return `${n} cells. DONNER draws one cube per occupied voxel; about ${soft} is the comfort cap. Performance can be limited. Reduce, or analyze in BLITZ.`;
+  const cost = ingestComfortCost(cells, occupied);
+  if (cost > PREP_SOFT_CELLS) {
+    return `${n} grid cells.${occNote} Comfort is about ${soft} drawn cubes. Performance can be limited — Load will ask to confirm.`;
   }
-  if (nativeCells > PREP_SOFT_CELLS) {
-    return `Reduced to ${n} cells (comfort cap about ${soft}). Native was ${formatCells(nativeCells)}.`;
+  if (nativeCells > PREP_SOFT_CELLS && occupied == null) {
+    return `Reduced to ${n} grid cells (comfort about ${soft} drawn cubes). Native grid was ${formatCells(nativeCells)}.`;
   }
-  return `${n} cells — in the comfort range (about ${soft}). Load native, or bin to shrink.`;
+  if (occupied != null && occupied <= PREP_SOFT_CELLS && nativeCells > PREP_SOFT_CELLS) {
+    return `${n} grid cells · ~${formatCells(occupied)} occupied — in the comfort range (about ${soft} drawn cubes). Mean-bin can densify sparse stacks; prefer Max if you only need peaks.`;
+  }
+  return `${n} grid cells — in the comfort range (about ${soft} drawn cubes).${occNote}`;
 }
 
 /**
@@ -237,31 +324,40 @@ export function ingestDialogModel(fileName, header, plan) {
   const shapeLine = plan.axes
     ? `${plan.axes.t} × ${plan.axes.h} × ${plan.axes.w}`
     : (header.shape || []).join(" × ");
-  const pick = plan.options.find((o) => o.factor === plan.suggested) || { cells: plan.cells };
-  const warn = ingestWarnText(pick.cells, plan, plan.cells);
-  const warnKind = ingestWarnKind(pick.cells, plan);
+  const pick = plan.options.find((o) => o.factor === plan.suggested) || { cells: plan.cells, factor: 1 };
+  const pickOcc = pick.factor === 1 ? plan.occupied : null;
+  const warn = ingestWarnText(pick.cells, plan, plan.cells, pickOcc);
+  const warnKind = ingestWarnKind(pick.cells, plan, pickOcc);
+  const cellsMeta =
+    plan.occupied != null
+      ? `${formatCells(plan.cells)} grid · ~${formatCells(plan.occupied)} occupied`
+      : `${formatCells(plan.cells)} grid cells`;
   return {
     name,
     shapeLine,
     dtype: dtypeLabel(header.descr),
     payload: formatBytes(header.payloadBytes),
-    cells: formatCells(plan.cells),
-    axesNote: "(T, H, W) — time × height × width",
+    cells: cellsMeta,
+    axesNote: "(T, H, W) — time × height × width; cubes = non-zero only",
     warn,
     warnKind,
     canLoad: Boolean(plan.canLoad),
     suggested: plan.suggested,
-    options: plan.options.map((o) => ({
-      factor: o.factor,
-      ok: o.ok,
-      cells: o.cells,
-      ft: o.ft,
-      fh: o.fh,
-      fw: o.fw,
-      warn: ingestWarnText(o.cells, plan, plan.cells),
-      warnKind: ingestWarnKind(o.cells, plan),
-      label: factorLabel(o),
-    })),
+    options: plan.options.map((o) => {
+      const occ = o.factor === 1 ? plan.occupied : null;
+      return {
+        factor: o.factor,
+        ok: o.ok,
+        cells: o.cells,
+        needsConfirm: Boolean(o.needsConfirm),
+        ft: o.ft,
+        fh: o.fh,
+        fw: o.fw,
+        warn: ingestWarnText(o.cells, plan, plan.cells, occ),
+        warnKind: ingestWarnKind(o.cells, plan, occ),
+        label: factorLabel(o),
+      };
+    }),
   };
 }
 
@@ -328,6 +424,42 @@ function fillBinned(data, t, h, w, c, out, ft, fh, fw, reduce) {
       }
     }
   }
+}
+
+/**
+ * Count non-zero voxels (channel activity > 0) by streaming T-planes.
+ * Used so sparse stacks are not soft-warned / auto-binned by grid size alone.
+ *
+ * @param {Blob} blob
+ * @param {{
+ *   shape: number[],
+ *   descr: string,
+ *   bodyOffset: number,
+ *   itemSize: number,
+ * }} header
+ */
+export async function countOccupiedFromBlob(blob, header) {
+  const { t, h, w, c } = countAxes(header.shape);
+  const itemSize = header.itemSize | 0;
+  if (!itemSize || t < 1 || h < 1 || w < 1) return 0;
+  const planeElems = h * w * c;
+  const planeBytes = planeElems * itemSize;
+  const body = header.bodyOffset | 0;
+  let occupied = 0;
+  for (let ti = 0; ti < t; ti++) {
+    const start = body + ti * planeBytes;
+    const buf = await blob.slice(start, start + planeBytes).arrayBuffer();
+    const src = npyArrayFromBytes(new Uint8Array(buf), header.descr, planeElems);
+    for (let i = 0; i < h * w; i++) {
+      if (voxelActivity(src, i * c, c) > 0) occupied += 1;
+    }
+    if ((ti & 7) === 7) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+  }
+  return occupied;
 }
 
 /**

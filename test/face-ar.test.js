@@ -17,6 +17,7 @@ import {
   faceIrisConnections,
   faceMeshConnections,
   faceOvalConnections,
+  isFaceArOffered,
   isFaceArSupported,
   loadFaceLandmarker,
   parseFaceQuery,
@@ -48,6 +49,11 @@ describe("face AR gate and camera", () => {
     );
     assert.equal(isFaceArSupported({ mediaDevices, userAgent: "Mozilla/5.0" }), true);
     assert.equal(isFaceArSupported({ mediaDevices: {}, userAgent: "Mozilla/5.0" }), false);
+    assert.equal(isFaceArOffered({ userAgent: "Mozilla/5.0" }), true);
+    assert.equal(
+      isFaceArOffered({ userAgent: "Mozilla/5.0 (Linux; Android 12; Quest 3) OculusBrowser/1" }),
+      false,
+    );
   });
 
   it("uses phone Face chrome only on a narrow or short coarse viewport", () => {
@@ -192,6 +198,8 @@ describe("face AR gate and camera", () => {
     assert.match(ui, /arBtn\.hidden = !arSupported \|\| inAr \|\| presenting/);
     assert.doesNotMatch(ui, /arSupported \|\| faceSupported/);
     assert.doesNotMatch(main, /isImmersiveArSupported\(xr\)\) \{\s*await toggleFaceProject/);
+    assert.match(main, /isFaceArOffered/);
+    assert.match(main, /parkTransportForAr/);
     assert.match(main, /applyFacePlaneChrome/);
     assert.match(main, /startPreferredFaceCamera/);
     assert.match(main, /FACE_MAG_DEFAULT/);

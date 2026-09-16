@@ -78,7 +78,10 @@ orbit / AR / Face. It is deliberately not a sidecar client (Chrome
 private-network rules and no laptop proxy on Pages).
 
 **Local Viewer** is the fuller product for third parties: download, run,
-no Python required. Same page opens in the default browser. Stream from
+no Python required. Same page opens in the default browser. **EXIT**
+(brand row) calls `POST /quit`. Closing the last browser tab also stops
+the host (`/ping` heartbeat + `/bye` grace so reload does not kill it).
+A second launch on a busy port reopens the running viewer. Stream from
 EVT/WOLKE, LAN phone against this host, versioned releases. Go — not
 PyInstaller — because the host is only HTTP static + allowlisted cube
 proxy (WOLKE-style Dash would still be Python; this shell is not).
@@ -129,7 +132,9 @@ while serving an older `xr.js` / `orbit.js`. Local Viewer chrome answers
 
 GitHub Pages is the **Online Demo** at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
-Workflow: `.github/workflows/pages.yml`. `.nojekyll` keeps vendor paths.
+Workflow: `.github/workflows/pages.yml` stages `index.html`, `css/`,
+`src/`, `vendor/`, `data/`, and `icon/` (favicon + brand mark).
+`.nojekyll` keeps vendor paths.
 **Local Viewer** binaries ship from GitHub Releases (workflow
 `.github/workflows/release.yml`, tag `v*`). Door: bare URL is Brain MRI Low
 (Ghost, center and outer frames on).
@@ -225,7 +230,7 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit and Spin (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit / Spin / Align to Z (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
 | **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy**. **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
 
@@ -283,10 +288,10 @@ flowchart TB
     shade[Hull Ghost Cuts]
     fitBtn[Fit]
     spinBtn[Spin]
+    align[Align to Z]
   end
   subgraph view [View setup]
     bird[Parallax]
-    align[Align to Z]
     win[Depth live Gap Quality Cache]
     color[Color coding]
     stab[Size by age]
@@ -488,8 +493,9 @@ the RAM tape; **Pause** draws that whole tape.
 
 This split matches the later event-camera design:
 
-- **Depth** — live GPU budget (wake). Hidden while Inspect (count stacks
-  load already-complete, so they open in Inspect).
+- **Depth** — live GPU budget (wake). Always visible in Conway **Setup**
+  (Play and Inspect). Count stacks load already-complete and open in
+  Inspect; they have no Depth control.
 - **Playhead (Z stack)** — Conway Live: locked at Now. Inspect / count:
   position on the tape. Count **Play** auto-scrubs that playhead.
 - **Decay** — later / opt-in Z fade. Off: even brick.
@@ -719,9 +725,9 @@ The cube is omitted on phone / coarse pointer (orbit + the slice
 stack stay) and in AR. The desktop View card heading collapses the
 telemetry (`View ▾` / `View ▸`).
 
-**Align to Z** (default on) pins orbit XY to the playfield origin; Fit
+**Align to Z** (Look strip under Fit / Spin, default on) pins orbit XY to the playfield origin; Fit
 sets the height. Right-drag still translates along Z. Off allows
-screen-space pan. Ortho always pans.
+screen-space pan. Ortho always pans. Hidden in AR.
 
 **Spin** (Look strip, next to Fit) is a live orbit around product Z
 (~24 s/rev). Independent of Loop. Desktop and phone orbit the camera;
@@ -880,11 +886,11 @@ grow the DOM.
 | `src/gizmo.js` | CAD viewcube (desktop rail slot left of View; click-to-snap) |
 | `src/gizmo-layout.js` | Viewcube CSS box and product-axis face mapping |
 | `src/npy.js` | NumPy `.npy` v1/v2 reader; `parseNpyHeader` / `peekNpyBlob` for ingest |
-| `src/volume-prep.js` | Count-cube ingest gate, 500k comfort warn, streaming mean/max-bin (skip short axes), landscape ingest preview |
+| `src/volume-prep.js` | Count-cube ingest gate: occupied peek, soft/hard warn without greying options, confirm on risky Load, streaming mean/max-bin (skip short axes), landscape ingest preview |
 | `src/count.js` | Sparse count volume → `EventSoA` |
 | `src/wolke.js` | WOLKE viewer contract: Socket.IO notify + same-origin `/stream-npy` GET |
 | `scripts/stream_proxy.py` | Allowlisted sidecar fetch mixed into the Python dev HTTP/HTTPS servers |
-| `host/` | Go **Local Viewer** binary: static embed, `/stream-npy`, `/local-viewer.json`, open browser |
+| `host/` | Go **Local Viewer** binary: static embed, `/stream-npy`, `/local-viewer.json` (`canQuit`), `POST /quit` + `/ping`/`/bye` presence, open browser; busy-port reopen |
 | `src/encoding.js` | Color LUT and fill for packed `k` / `s` (Conway and count) |
 | `src/bench.js` | Path timers, GPU/software probe, Conway load presets |
 | `src/renderer.js` | Solid + ghost instanced cubes; focus frame; hover outlines |
@@ -1488,7 +1494,8 @@ Flip L/R still follows that facing internally (no checkbox). Lab
 millimetre Shift / Lift / Inset stay at the defaults (no millimetre
 chrome). Face hides center and outer frames. Face does not show Size or Yaw.
 Bottom **AR** shows only with WebXR; **Face** when a camera exists and Source
-is Brain MRI. Desktop without WebXR is Face only. Camera start shows
+is Brain MRI. The Face/AR dock sits on `document.body` in orbit (phone
+WebXR parks it in `#xr-overlay`). Desktop without WebXR is Face only. Camera start shows
 **Initializing cameras…**, then the picker. Laptop Face keeps rails, Loop,
 Source, and View. Phone Face chrome (hides Source) matches the phone fold
 layout, not every coarse pointer. Phone and Face keep the three plane

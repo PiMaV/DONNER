@@ -13,7 +13,7 @@
   <link rel="icon" href="icon/icon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="256x256" href="icon/donner_256.png" />
   <link rel="apple-touch-icon" href="icon/donner_256.png" />
-  <link rel="stylesheet" href="css/style.css?v=1.1.0" />
+  <link rel="stylesheet" href="css/style.css?v=1.2.0" />
   <script type="importmap">
   {
     "imports": {
@@ -23,7 +23,7 @@
   }
   </script>
   <script type="module">
-    import("./src/main.js?v=1.1.0").catch(() => {
+    import("./src/main.js?v=1.2.0").catch(() => {
       const el = document.getElementById("boot-fail");
       if (el) el.hidden = false;
     });
@@ -57,6 +57,7 @@
   </header>
   <button type="button" id="btn-guide" class="btn brand-guide" aria-expanded="false" aria-controls="guide-overlay">Guide</button>
   <a id="btn-get-local" class="btn brand-get-local" href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer" title="Download the Local Viewer (Windows / Linux)">Get Local Viewer</a>
+  <button type="button" id="btn-stop-local" class="btn brand-stop-local" hidden title="Exit Local Viewer (stop the host)">EXIT</button>
   </div>
 
   <div id="xr-overlay" class="xr-overlay">
@@ -76,6 +77,7 @@
         <div class="look-orbit" role="group" aria-label="Orbit">
           <button type="button" id="btn-fit" class="btn look-fit" title="Frame the camera between the clip cuts (playhead still scrubs)">Fit</button>
           <button type="button" id="btn-spin" class="btn look-spin" aria-pressed="false" title="Spin around Z. Independent of Loop. Drag pauses; release continues. World AR drives Yaw.">Spin</button>
+          <button type="button" id="btn-align-z" class="btn look-align is-on" aria-pressed="true" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">Align to Z</button>
         </div>
       </div>
       <div class="look-more">
@@ -220,22 +222,25 @@
         </label>
       </div>
       </div>
-      <div id="transport" class="transport">
-        <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
-        <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Face</button>
-        <label id="face-cam-pair" class="face-cam-pair" hidden>
-          <select id="face-camera" class="btn btn-face-cam face-camera-select" aria-label="Camera">
-            <option value="user" selected>Selfie camera</option>
-            <option value="environment">Rear camera</option>
-          </select>
-        </label>
-        <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
-          title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
-        <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
-          title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
-        <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
-      </div>
     </div>
+  </div>
+  </div>
+
+  <div id="transport-home" class="transport-home">
+  <div id="transport" class="transport">
+    <button type="button" id="btn-ar" class="btn btn-ar" hidden>AR</button>
+    <button type="button" id="btn-face-ar" class="btn btn-face-ar" hidden>Face</button>
+    <label id="face-cam-pair" class="face-cam-pair" hidden>
+      <select id="face-camera" class="btn btn-face-cam face-camera-select" aria-label="Camera">
+        <option value="user" selected>Selfie camera</option>
+        <option value="environment">Rear camera</option>
+      </select>
+    </label>
+    <button type="button" id="btn-play-dock" class="btn btn-play btn-play-dock" aria-pressed="false"
+      title="Run the Conway generator. Pause to inspect the tape; View Loop then walks the stack.">Play</button>
+    <button type="button" id="btn-ar-reset" class="btn btn-ar-reset" hidden disabled
+      title="Despawn the volume and search for a floor plane again. Does not exit the session.">Reset Anchor</button>
+    <button type="button" id="btn-xr-exit" class="btn btn-xr-exit" hidden>Exit</button>
   </div>
   </div>
 
@@ -362,10 +367,6 @@
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
         <button type="button" id="btn-reset-planes" class="btn" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
       </div>
-      <label class="check" title="Orbit around the time axis at the brick center. Right-drag still slides along Z. Off: free pan (XY translation).">
-        <input id="align-z" type="checkbox" checked />
-        <span>Align to Z</span>
-      </label>
       <label id="voxel-gap-field" class="field field-inline" title="Lattice spacing. 0 packs faces with no air. Brain MRI starts at 0.01; Game of Life and Ignition at 0.05. Wheel the value.">
         <span>Gap</span>
         <input id="voxel-gap-num" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
@@ -467,20 +468,20 @@
   </form>
 
   <footer class="legal">
-    <span id="version"></span>
+    <a id="version" href="https://github.com/PiMaV/DONNER" target="_blank" rel="noopener noreferrer"></a>
     <span aria-hidden="true"> · </span>
     <button type="button" id="btn-about-legal" class="btn-link">About</button>
     <span aria-hidden="true"> · </span>
-    <a href="https://mess.engineering" target="_blank" rel="noopener noreferrer">M.E.S.S.</a>
+    <a class="legal-brand" href="https://mess.engineering" target="_blank" rel="noopener noreferrer">M.E.S.S.</a>
     <span aria-hidden="true"> · </span>
-    <a href="https://wetter.mess.engineering" target="_blank" rel="noopener noreferrer">WETTER</a>
+    <a class="legal-brand" href="https://wetter.mess.engineering" target="_blank" rel="noopener noreferrer">WETTER</a>
   </footer>
 
   <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
     <form method="dialog">
       <h2 id="about-title">DONNER</h2>
       <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
-      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, Game of Life is an easter egg: open <code>?src=life</code>.</p>
+      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, <strong>EXIT</strong> stops the host; closing the browser also stops it after a few seconds. Game of Life is an easter egg: open <code>?src=life</code>.</p>
       <h3>Examples</h3>
       <ul>
         <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. Bottom <strong>AR</strong> hangs it on a camera when one exists.</li>

@@ -8,6 +8,7 @@ import {
   PREP_MAX_CELLS,
   binCountCubeFromBlob,
   binCountDense,
+  countOccupiedFromBlob,
   ingestDialogModel,
   ingestPlan,
   landscapePreview,
@@ -52,15 +53,16 @@ describe("ingest plan", () => {
     const native = plan.options.find((o) => o.factor === 1);
     const bin4 = plan.options.find((o) => o.factor === 4);
     assert.equal(native.ok, true);
+    assert.equal(native.needsConfirm, true);
     assert.ok(bin4.cells < 500_000);
     const model = ingestDialogModel("camera.npy", header, plan);
-    assert.match(model.options[0].warn, /4\.5M cells/i);
-    assert.match(model.options[0].warn, /BLITZ/);
+    assert.match(model.options[0].warn, /4'531'200 grid cells/);
+    assert.match(model.options[0].warn, /confirm/i);
     assert.equal(model.options[0].warnKind, "soft");
     assert.match(model.warn, /Reduced to/);
   });
 
-  it("requires binning when the raster is over the cell cap", () => {
+  it("keeps native selectable over the cell cap, with confirm", () => {
     const header = {
       shape: [400, 400, 400],
       descr: "|u1",
@@ -73,15 +75,17 @@ describe("ingest plan", () => {
     assert.equal(plan.canLoad, true);
     const native = plan.options.find((o) => o.factor === 1);
     const bin2 = plan.options.find((o) => o.factor === 2);
-    assert.equal(native.ok, false);
+    assert.equal(native.ok, true);
+    assert.equal(native.needsConfirm, true);
     assert.equal(bin2.ok, true);
     assert.equal(bin2.t, 200);
     const model = ingestDialogModel("big.npy", header, plan);
     assert.match(model.warn, /Reduced to/);
-    assert.match(model.options[0].warn, /hard cap/);
+    assert.match(model.options[0].warn, /hard cap|confirm/i);
+    assert.equal(model.options[0].warnKind, "hard");
   });
 
-  it("refuses a cube that stays over cap after 8× bin", () => {
+  it("still offers Load when even 8× stays huge (confirm, not grey-out)", () => {
     const header = {
       shape: [3000, 3000, 3000],
       descr: "|u1",
@@ -90,8 +94,40 @@ describe("ingest plan", () => {
     };
     const plan = ingestPlan(header);
     assert.equal(plan.asIsOk, false);
-    assert.equal(plan.canLoad, false);
-    assert.equal(plan.suggested, null);
+    assert.equal(plan.canLoad, true);
+    assert.equal(plan.suggested, 8);
+    const native = plan.options.find((o) => o.factor === 1);
+    assert.equal(native.ok, true);
+    assert.equal(native.needsConfirm, true);
+  });
+
+  it("uses occupied count so sparse grids stay native", () => {
+    const t = 93;
+    const h = 271;
+    const w = 198;
+    const header = {
+      shape: [t, h, w],
+      descr: "<u2",
+      fortranOrder: false,
+      payloadBytes: t * h * w * 2,
+    };
+    const plan = ingestPlan(header, { occupied: 114_000 });
+    assert.equal(plan.cells, t * h * w);
+    assert.equal(plan.suggested, 1);
+    assert.equal(plan.options[0].needsConfirm, false);
+    const model = ingestDialogModel("lighter.npy", header, plan);
+    assert.match(model.cells, /occupied/i);
+    assert.match(model.cells, /114'000/);
+    assert.equal(model.warnKind, "ok");
+    assert.match(model.warn, /114/);
+  });
+
+  it("counts occupied voxels from a blob", async () => {
+    const dense = Uint16Array.from([1, 0, 0, 2, 0, 0, 0, 3]);
+    const raw = serializeNpy(dense, [2, 2, 2], "<u2");
+    const header = parseNpyHeader(raw);
+    const n = await countOccupiedFromBlob(new Blob([raw]), header);
+    assert.equal(n, 3);
   });
 
   it("rejects a non-count shape before load", () => {

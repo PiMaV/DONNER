@@ -92,7 +92,7 @@ class StreamNpyMixin:
 
     def _serve_local_viewer_json(self) -> None:
         assert isinstance(self, SimpleHTTPRequestHandler)
-        body = b'{"localViewer":true}\n'
+        body = b'{"localViewer":true,"canQuit":false}\n'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

@@ -319,7 +319,7 @@ export function bindUI(on) {
   const fitBtn = $("btn-fit");
   const spinBtn = $("btn-spin");
   const resetPlanesBtn = $("btn-reset-planes");
-  const alignZ = $("align-z");
+  const alignZBtn = $("btn-align-z");
   const arYaw = $("ar-yaw");
   const arStandBtns = ["x", "y", "z"].map((axis) => $(`ar-stand-${axis}`));
   const shadeHull = $("shade-hull");
@@ -434,6 +434,8 @@ export function bindUI(on) {
   const wolkeConnect = $("btn-wolke-connect");
   const wolkeStatus = $("wolke-status");
   let localViewer = false;
+  let canQuitLocal = false;
+  const stopLocalBtn = $("btn-stop-local");
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
   const countLegHi = $("count-leg-hi");
@@ -503,7 +505,11 @@ export function bindUI(on) {
     fill.step = String(DEFAULTS.densityStep);
     fill.value = String(DEFAULTS.density);
   }
-  if (alignZ) alignZ.checked = DEFAULTS.alignZ;
+  if (alignZBtn) {
+    const onAlign = Boolean(DEFAULTS.alignZ);
+    alignZBtn.classList.toggle("is-on", onAlign);
+    alignZBtn.setAttribute("aria-pressed", onAlign ? "true" : "false");
+  }
   if (cubeCap) {
     cubeCap.replaceChildren();
     for (const n of CUBE_CAP_PRESETS) {
@@ -613,7 +619,12 @@ export function bindUI(on) {
   window.addEventListener("pointercancel", () => on.spinHold?.(false));
   resetPlanesBtn?.addEventListener("click", () => on.resetPlanes?.());
   lookResetPlanes?.addEventListener("click", () => on.resetPlanes?.());
-  alignZ?.addEventListener("change", () => on.alignZ?.());
+  alignZBtn?.addEventListener("click", () => {
+    const next = alignZBtn.getAttribute("aria-pressed") !== "true";
+    alignZBtn.classList.toggle("is-on", next);
+    alignZBtn.setAttribute("aria-pressed", next ? "true" : "false");
+    on.alignZ?.();
+  });
   arYaw?.addEventListener("input", (e) => {
     if (applying) return;
     on.yaw?.(Number(e.target.value) || 0);
@@ -879,6 +890,9 @@ export function bindUI(on) {
   ingestCancel?.addEventListener("click", () => {
     dismissIngest();
     on.ingestCancel?.();
+  });
+  stopLocalBtn?.addEventListener("click", () => {
+    on.stopLocalViewer?.();
   });
   const ingestPicks = () => {
     const picked = ingestBinList?.querySelector("input[name='ingest-factor']:checked");
@@ -1278,7 +1292,9 @@ export function bindUI(on) {
         countSize: false,
         wolkeUrl: wolkeUrl ? wolkeUrl.value : DEFAULTS.wolkeUrl,
         wolkeToken: wolkeToken ? wolkeToken.value : DEFAULTS.wolkeToken,
-        alignZ: alignZ ? alignZ.checked : DEFAULTS.alignZ,
+        alignZ: alignZBtn
+          ? alignZBtn.getAttribute("aria-pressed") === "true"
+          : DEFAULTS.alignZ,
         maxInstances: cubeCap
           ? resolveCubeCap(cubeCap.value, arrivedCubeCells)
           : DEFAULTS.maxInstances,
@@ -1606,11 +1622,14 @@ export function bindUI(on) {
           input.type = "radio";
           input.name = "ingest-factor";
           input.value = String(opt.factor);
-          input.disabled = !opt.ok;
+          input.disabled = false;
           input.dataset.cells = String(opt.cells || 0);
           if (opt.ok && opt.factor === spec.suggested) input.checked = true;
+          else if (!opt.ok) input.disabled = true;
           const span = document.createElement("span");
           span.textContent = opt.label;
+          if (opt.warnKind === "soft") lab.classList.add("is-soft");
+          if (opt.warnKind === "hard") lab.classList.add("is-hard");
           lab.append(input, span);
           ingestBinList.append(lab);
           input.addEventListener("change", () => {
@@ -1675,9 +1694,12 @@ export function bindUI(on) {
     setWolkeStatus(text) {
       if (wolkeStatus) wolkeStatus.textContent = text || "";
     },
-    setLocalViewer(on) {
+    setLocalViewer(on, opts = {}) {
       localViewer = Boolean(on);
+      canQuitLocal = Boolean(localViewer && opts && opts.canQuit);
       document.body.classList.toggle("is-local-viewer", localViewer);
+      document.body.classList.toggle("can-quit-local", canQuitLocal);
+      if (stopLocalBtn) stopLocalBtn.hidden = !canQuitLocal;
       if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer;
       if (sourceWork) sourceWork.hidden = !localViewer;
       if (sourceStream) sourceStream.hidden = !localViewer;
@@ -1699,6 +1721,9 @@ export function bindUI(on) {
     },
     isLocalViewer() {
       return localViewer;
+    },
+    canQuitLocalViewer() {
+      return canQuitLocal;
     },
     setCountLegend(spec) {
       const dataMin = Math.max(1, (spec && spec.dataMin) != null ? spec.dataMin | 0 : spec | 0 || 1);

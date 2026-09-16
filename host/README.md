@@ -2,10 +2,13 @@
 
 Thin HTTP shell for the same static JS app:
 
-- Serves `index.html` / `css` / `src` / `vendor` / `data`
-- `GET /local-viewer.json` → enables Stream / Connect in the UI
+- Serves `index.html` / `css` / `src` / `vendor` / `data` / `icon`
+- `GET /local-viewer.json` → `{ localViewer, canQuit }` (enables Stream / Connect + EXIT)
+- `POST /quit` → immediate shutdown (loopback; **EXIT** button)
+- `POST /ping` / `POST /bye` → presence: auto-quit after browser close (reload-safe)
 - `GET /stream-npy?u=…` → allowlisted sidecar cube proxy
-- Opens the default browser
+- Opens the default browser; if the port is already a Local Viewer, reopens it and exits
+- Console hint: Ctrl+C only when a real TTY is attached
 
 ## Dev (repo tree, no embed)
 

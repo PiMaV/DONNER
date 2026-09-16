@@ -41,6 +41,14 @@ function hudCards() {
 }
 
 describe("Source | View information architecture", () => {
+  it("points the favicon and brand mark at icon/ and ships that folder on Pages", () => {
+    const pages = readFileSync(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+    assert.match(html, /rel="icon"[^>]*href="icon\/icon\.ico"/);
+    assert.match(html, /rel="icon"[^>]*href="icon\/donner_256\.png"/);
+    assert.match(html, /class="brand-mark"[^>]*src="icon\/donner_256\.png"/);
+    assert.match(pages, /cp -a css src vendor data icon _site/);
+  });
+
   it("has no Bench tab, Config tab, or Neighborhood control", () => {
     assert.doesNotMatch(html, /id="slot-bench"|id="sheet-bench"/);
     assert.doesNotMatch(html, /id="bench-preset"|id="bench-neighborhood"|id="bench-dynamics"/);
@@ -91,6 +99,7 @@ describe("Source | View information architecture", () => {
     assert.match(src, /id="conway-setup"[^>]*\bhidden\b/);
     assert.match(src, /id="depth-field"/);
     assert.match(src, /id="history"/);
+    assert.doesNotMatch(css, /body\.is-inspect\s+#depth-field/);
     assert.doesNotMatch(view, /id="btn-play"/);
     assert.doesNotMatch(view, /id="btn-loop"/);
     assert.doesNotMatch(view, /id="depth-field"/);
@@ -140,12 +149,19 @@ describe("Source | View information architecture", () => {
   });
 
   it("puts Conway Play next to AR on phone and keeps Loop on the overlay", () => {
-    assert.match(html, /id="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-face-ar"[\s\S]*id="face-cam-pair"[\s\S]*id="btn-play-dock"/);
+    assert.match(html, /id="transport-home"/);
+    assert.match(html, /id="transport" class="transport"[\s\S]*id="btn-ar"[\s\S]*id="btn-face-ar"[\s\S]*id="face-cam-pair"[\s\S]*id="btn-play-dock"/);
     assert.doesNotMatch(html, /id="btn-play-ar"/);
     assert.match(html, /id="inspect-transport"[\s\S]*id="btn-loop"/);
     assert.match(html, /class="fold-bar-center"/);
     assert.match(html, /id="boot-fail"/);
     assert.match(html, /import\("\.\/src\/main\.js\?v=/);
+    const overlayEnd = html.indexOf('id="transport-home"');
+    const dock = html.indexOf('id="transport" class="transport"');
+    assert.ok(overlayEnd >= 0 && dock > overlayEnd);
+    assert.doesNotMatch(html.slice(html.indexOf('id="xr-overlay"'), overlayEnd), /id="btn-face-ar"/);
+    assert.match(css, /\.transport\s*\{[^}]*position:\s*fixed/);
+    assert.doesNotMatch(css, /\.transport\s*\{[^}]*transform:\s*translateX/);
   });
 
   it("shows Conway GEN/LIVE/RATE only in a Play overlay, not in Source", () => {
@@ -170,7 +186,7 @@ describe("View sheet vs gizmo chrome", () => {
     assert.doesNotMatch(view, />Hide outer</);
   });
 
-  it("puts Hull Ghost Cuts, Fit, and Spin on the look strip, not in View setup", () => {
+  it("puts Hull Ghost Cuts, Fit, Spin, and Align to Z on the look strip, not in View setup", () => {
     const gizmo = gizmoCol();
     const view = viewPanel();
     assert.match(gizmo, /class="look-strip"/);
@@ -179,12 +195,13 @@ describe("View sheet vs gizmo chrome", () => {
     assert.match(gizmo, /id="shade-triple"/);
     assert.match(gizmo, /id="btn-fit"/);
     assert.match(gizmo, /id="btn-spin"/);
+    assert.match(gizmo, /id="btn-align-z"/);
     assert.match(gizmo, /class="look-orbit"/);
     assert.match(gizmo, /id="btn-look-more"/);
     assert.match(gizmo, /id="look-quality-medium"/);
     assert.match(gizmo, /id="btn-look-reset-planes"/);
     assert.doesNotMatch(view, /id="shade-hull"|id="shade-ghost"|id="shade-triple"/);
-    assert.doesNotMatch(view, /id="btn-fit"|id="btn-spin"/);
+    assert.doesNotMatch(view, /id="btn-fit"|id="btn-spin"|id="btn-align-z"|id="align-z"/);
     assert.doesNotMatch(html, /id="ar-shade-hull"/);
   });
 
@@ -280,6 +297,7 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="source-demo-chrome"/);
     assert.match(html, /id="btn-load-npy"/);
     assert.match(html, /id="btn-get-local"/);
+    assert.match(html, /id="btn-stop-local"/);
     assert.match(html, /href="https:\/\/github\.com\/PiMaV\/DONNER\/releases"/);
     assert.match(css, /#source-stream,\s*#source-work\s*\{[^}]*display:\s*none/s);
     assert.match(css, /body\.is-local-viewer #source-demo-chrome/s);
@@ -287,13 +305,15 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(css, /body\.is-local-viewer #source-work/s);
     assert.match(css, /body\.is-local-viewer #source-stream/s);
     assert.match(css, /body\.is-local-viewer \.brand-get-local/s);
+    assert.match(css, /body\.is-local-viewer\.can-quit-local \.brand-stop-local/s);
     assert.match(css, /body\.source-count #source-count\s*\{[^}]*display:\s*none/s);
     assert.match(css, /body\.is-local-viewer\.source-count #source-count/s);
     assert.match(html, /id="count-file"/);
     assert.match(html, /id="wolke-url"/);
     assert.match(html, /id="btn-wolke-connect"/);
-    assert.match(uiJs, /is-local-conway|sourceWork\.hidden|localViewer \|\| !faceSupported/);
-    assert.match(mainJs, /isLocalViewer|enterLocalIdle|detectLocalViewer|\?src=life|start\.source === "conway"/);
+    assert.match(uiJs, /is-local-conway|sourceWork\.hidden|localViewer \|\| !faceSupported|canQuit|stopLocalViewer/);
+    assert.match(html, /id="btn-stop-local"[^>]*>EXIT</);
+    assert.match(mainJs, /isLocalViewer|enterLocalIdle|detectLocalViewer|\?src=life|start\.source === "conway"|\/quit|\/ping|\/bye|canQuit/);
     assert.match(html, /id="drop-overlay"/);
     assert.match(html, /id="ingest-dialog"/);
     assert.match(html, /id="ingest-reduce"/);
