@@ -1,5 +1,7 @@
 # Local Viewer release binaries on tag v* (Go one-file host).
 # Before tagging: bump package.json / CHANGELOG to match the tag (without "v").
+# Asset names include the tag so Downloads stay recognizable side-by-side
+# (e.g. DONNER-v1.2.0-linux-x86_64, DONNER-v1.2.0-windows-x86_64.exe).
 name: Release
 
 on:
@@ -25,14 +27,18 @@ jobs:
 
       - name: Build Linux binary
         working-directory: host
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o ../dist/DONNER-linux-x86_64 .
-          chmod +x ../dist/DONNER-linux-x86_64
+          mkdir -p ../dist
+          out="../dist/DONNER-${TAG}-linux-x86_64"
+          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o "$out" .
+          chmod +x "$out"
+          echo "BIN=$out" >> "$GITHUB_ENV"
 
       - name: Smoke Local Viewer
         run: |
-          mkdir -p dist
-          dist/DONNER-linux-x86_64 -bind 127.0.0.1 -port 8765 -no-open > /tmp/donner-smoke.out 2>&1 &
+          "$BIN" -bind 127.0.0.1 -port 8765 -no-open > /tmp/donner-smoke.out 2>&1 &
           pid=$!
           cleanup() { kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
           trap cleanup EXIT
@@ -50,13 +56,13 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/DONNER-linux-x86_64
+          files: dist/DONNER-${{ github.ref_name }}-linux-x86_64
           generate_release_notes: true
           body: |
             **Local Viewer** — full DONNER on your machine (no Python).
 
-            - Linux: `chmod +x DONNER-linux-x86_64 && ./DONNER-linux-x86_64`
-            - Windows: run `DONNER.exe`
+            - Linux: `chmod +x DONNER-${{ github.ref_name }}-linux-x86_64 && ./DONNER-${{ github.ref_name }}-linux-x86_64`
+            - Windows: run `DONNER-${{ github.ref_name }}-windows-x86_64.exe`
             - Opens http://127.0.0.1:8765/ — Stream / Connect for EVT or WOLKE sidecars
             - **EXIT** in the page (or close the browser) shuts down the host
             - Online Demo (showcase only): https://donner.mess.engineering/
@@ -77,12 +83,15 @@ jobs:
       - name: Build Windows EXE
         working-directory: host
         shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           mkdir -p ../dist
-          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o ../dist/DONNER.exe .
+          CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" \
+            -o "../dist/DONNER-${TAG}-windows-x86_64.exe" .
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/DONNER.exe
+          files: dist/DONNER-${{ github.ref_name }}-windows-x86_64.exe
           generate_release_notes: true

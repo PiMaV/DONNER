@@ -69,7 +69,7 @@ packaging as every other WETTER tool.
 | Surface | Artifact | Sidecar stream |
 |---|---|---|
 | **Online Demo** | GitHub Pages ([donner.mess.engineering](https://donner.mess.engineering/)) | No — static showcase |
-| **Local Viewer** | Go one-binary (`DONNER.exe` / `DONNER-linux-x86_64`) from GitHub Releases | Yes — host serves static files + `/stream-npy` proxy; Socket.IO stays in the browser client |
+| **Local Viewer** | Go one-binary (`DONNER-vX.Y.Z-windows-x86_64.exe` / `DONNER-vX.Y.Z-linux-x86_64`) from GitHub Releases | Yes — host serves static files + `/stream-npy` proxy; Socket.IO stays in the browser client |
 | **Dev (Local Viewer chrome)** | `npm start` / `start:lan` / `start:https` | Yes — `/local-viewer.json` + `/stream-npy` |
 | **Dev (Online Demo chrome)** | `npm run start:demo` / `start:https:demo` | No — Pages parity; LAN bind for `lab.ole.icu` |
 

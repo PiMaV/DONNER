@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Local Viewer release assets include the tag in the filename
+  (`DONNER-vX.Y.Z-linux-x86_64`, `DONNER-vX.Y.Z-windows-x86_64.exe`) so
+  Downloads stay recognizable side-by-side.
+
 ### Fixed
 
 ## [1.2.0] - 2026-09-16

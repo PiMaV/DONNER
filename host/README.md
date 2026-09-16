@@ -24,7 +24,8 @@ npm run start:viewer
 ```bash
 bash scripts/sync-local-viewer-web.sh
 cd host
-CGO_ENABLED=0 go build -tags release -o ../dist/DONNER-linux-x86_64 .
+TAG=v1.2.0   # match the release tag
+CGO_ENABLED=0 go build -tags release -o ../dist/DONNER-${TAG}-linux-x86_64 .
 ```
 
-CI: `.github/workflows/release.yml` on tag `v*`.
+CI: `.github/workflows/release.yml` on tag `v*` (asset names include the tag).

@@ -11,7 +11,7 @@ A browser tab is the app. Same page on laptop, phone, and headset.
 
 **Online Demo:** [https://donner.mess.engineering/](https://donner.mess.engineering/)
 
-**Local Viewer:** [GitHub Releases](https://github.com/PiMaV/DONNER/releases) — `DONNER.exe` (Windows) or `DONNER-linux-x86_64` (Linux: `chmod +x`, then run). Opens your browser. Full features: stream, own data, no Python.
+**Local Viewer:** [GitHub Releases](https://github.com/PiMaV/DONNER/releases) — `DONNER-vX.Y.Z-windows-x86_64.exe` or `DONNER-vX.Y.Z-linux-x86_64` (Linux: `chmod +x`, then run). Opens your browser. Full features: stream, own data, no Python.
 
 AR and XR tested on **Pixel 11 Pro** and **Quest 3**.
 
