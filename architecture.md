@@ -53,7 +53,8 @@ that showcase UI is not the internal architecture.
 units, spacing, affine, and value semantics are not hardcoded.
 `ScalarVolume` for generic scientific volumes (MRI/CT, including
 negative Hounsfield units). Point renderer for large sparse clouds.
-Packed WOLKE `__selection__.npy` multi-row packages remain later.
+Packed WOLKE `__selection__.npy` as a BLITZ-style RGB package remains later;
+a count cube from that token already streams, and Source meta uses `file_names`.
 Playhead `index` / `viewer_index` on the Viewer Contract is **in** (stream
 client). See [Later: Dataset Contract](#later-dataset-contract) and
 [`../WETTER/docs/interoperability.md`](../WETTER/docs/interoperability.md).
@@ -934,12 +935,13 @@ Size is 0.4×–5× on that fit, so a floor placement can grow larger than a tab
 `EventSoA` is packed typed arrays. Newest slices fill first so the present
 is kept if instance capacity is exceeded (`truncated` flag in the HUD).
 
-No DONNER backend, no EVT3 decode in the browser. Packed WOLKE
-`__selection__.npy` multi-row packages are later. A **Viewer Contract**
+No DONNER backend, no EVT3 decode in the browser. A **Viewer Contract**
 client (`src/wolke.js`) connects to the EVT sidecar or WOLKE: Socket.IO
-announces `send_file_message`, the page GETs `/stream-npy` (allowlisted
+announces `send_file_message` (optional `file_names` for Source meta),
+the page GETs `/stream-npy` (allowlisted
 loopback / RFC1918 only), then the count adapter unpacks EventSoA. Cubes
-do not ride the socket. While connected, Z playhead changes emit
+do not ride the socket. Packed `__selection__.npy` is that cube with
+`T` = selected rows; BLITZ-style RGB packages stay later. While connected, Z playhead changes emit
 `viewer_index`; hub `index` seeks without re-download. Use **Local Viewer**
 (Go) or `npm start` / `start:lan` so the proxy exists; bare
 `python3 -m http.server` will not. Online Demo (Pages) does not offer

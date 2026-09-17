@@ -39,7 +39,8 @@ advantage, not a deployment convenience.
   lives in `src/conway.js`. Count cubes unpack in `src/npy.js` +
   `src/count.js`. Drop-path prep is `src/volume-prep.js` (header peek,
   caps, streaming mean/max-bin that skips short axes). A WOLKE-contract viewer (`src/wolke.js`) only fetches
-  that cube (Socket.IO notify + same-origin `/stream-npy` GET); it does
+  that cube (Socket.IO notify + same-origin `/stream-npy` GET); optional
+  `file_names` label the current T in Source meta. It does
   not add a DONNER analysis backend. Local Viewer (Go) or `npm start` /
   `start:lan` provide the proxy. The cube renderer must stay source-agnostic.
   File format is not the runtime contract (SoA is). `.npy` count cubes
@@ -249,7 +250,7 @@ advantage, not a deployment convenience.
 - Dataset Contract / `ScalarVolume` / PointRenderer on the live host
   without a separate slice (XR-C baseline and thin View are in; see [`backlog.md`](../backlog.md))
 - NPZ loaders; polarity / occupancy / states encodings
-- Packed WOLKE `__selection__.npy` multi-row packages / BLITZ widget sync
+- Packed WOLKE `__selection__.npy` as a BLITZ RGB/widget package (count cubes from that token already stream; Source meta uses `file_names`)
 - Open-in DONNER or space-time ROI handoff (later contract extension via hub; no Viewer↔Viewer peer API)
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A

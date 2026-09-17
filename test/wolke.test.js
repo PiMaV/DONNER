@@ -3,9 +3,12 @@ import { describe, it } from "node:test";
 
 import {
   WolkeViewer,
+  baseFileName,
   cubeFetchUrl,
+  displayFileLabel,
   downloadUrl,
   fileNameFromPayload,
+  fileNamesFromPayload,
   indexFromPayload,
   normalizeBaseUrl,
 } from "../src/wolke.js";
@@ -66,6 +69,35 @@ describe("WOLKE viewer URLs", () => {
     assert.equal(indexFromPayload({ file_name: "stack.npy" }), null);
     assert.equal(indexFromPayload("stack.npy"), null);
     assert.equal(indexFromPayload({ index: 1.5 }), null);
+  });
+
+  it("reads optional file_names in T order", () => {
+    assert.deepEqual(fileNamesFromPayload({ file_names: ["a.npy", "b.png"] }), [
+      "a.npy",
+      "b.png",
+    ]);
+    assert.deepEqual(fileNamesFromPayload({ file_names: ["ok", 3, ""] }), [
+      "ok",
+      "",
+      "",
+    ]);
+    assert.deepEqual(fileNamesFromPayload({ file_name: "x.npy" }), []);
+    assert.deepEqual(fileNamesFromPayload("x.npy"), []);
+  });
+
+  it("labels Source meta from file_names instead of __selection__", () => {
+    assert.equal(baseFileName("images/set_A/scan.npy"), "scan.npy");
+    assert.equal(
+      displayFileLabel("__selection__.npy", ["a.png", "b.png"], 1),
+      "b.png",
+    );
+    assert.equal(
+      displayFileLabel("__selection__.npy", ["a.png", "b.png"], 0),
+      "a.png",
+    );
+    assert.equal(displayFileLabel("__selection__.npy", ["only.png"]), "only.png");
+    assert.equal(displayFileLabel("cubes/stack.npy", [], null), "stack.npy");
+    assert.equal(displayFileLabel("__selection__.npy", [], null), "__selection__.npy");
   });
 
   it("rewrites the cube GET through the same-origin proxy", () => {
@@ -208,10 +240,35 @@ describe("WolkeViewer", () => {
       onIndex: (index, name) => seeks.push([name, index]),
     });
     await viewer._onFile({ file_name: "stack.npy", index: 0 });
-    await viewer._onFile({ file_name: "stack.npy", index: 4 });
+    await viewer._onFile({
+      file_name: "stack.npy",
+      index: 4,
+      file_names: ["a.npy", "b.npy"],
+    });
     assert.equal(fetches, 1);
     assert.deepEqual(got, [["stack.npy", 0]]);
     assert.deepEqual(seeks, [["stack.npy", 4]]);
+  });
+
+  it("passes file_names into onNpy", async () => {
+    const fetch = async () => ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(2),
+    });
+    const io = fakeIo();
+    const viewer = new WolkeViewer({ io, fetch, pageOrigin: "" });
+    const got = [];
+    viewer.connect({
+      baseUrl: "http://127.0.0.1:5055",
+      token: "evt",
+      onNpy: (_buf, name, index, names) => got.push([name, index, names]),
+    });
+    await viewer._onFile({
+      file_name: "__selection__.npy",
+      index: 1,
+      file_names: ["a.png", "b.png"],
+    });
+    assert.deepEqual(got, [["__selection__.npy", 1, ["a.png", "b.png"]]]);
   });
 
   it("emits viewer_index to the hub", () => {

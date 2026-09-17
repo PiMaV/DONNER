@@ -481,6 +481,9 @@ The WOLKE **Stream** / Connect chrome is **Local Viewer** only (and
 `npm start` via `/local-viewer.json`). It stays off the Online Demo
 (Pages). See [`backlog.md`](../backlog.md). Visitor copy:
 [`docs/welcome.md`](welcome.md).
+Packed WOLKE `__selection__.npy` arrives as a count cube (`T` = selected
+rows). Source meta shows the current playhead file from hub `file_names`
+(not the token `__selection__`). Index-only seeks update that name.
 
 ```mermaid
 flowchart TB

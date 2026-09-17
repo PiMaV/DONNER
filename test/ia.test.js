@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DEFAULTS, CUBE_CAP_PRESETS, GRID_PRESETS, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, startLoopAxisFor, startPlaneChromeFor, facePlaneChrome, startShadeFor, startVoxelGapFor } from "../src/config.js";
+import { DEFAULTS, CUBE_CAP_PRESETS, GRID_PRESETS, VERSION, clampDensity, GUIDE_STEPS, guideStepAt, isCountSourceKind, isStaticSourceKind, pageTitle, sourceGuide, startLoopAxisFor, startPlaneChromeFor, facePlaneChrome, startShadeFor, startVoxelGapFor } from "../src/config.js";
 
 // IDs, order, show/hide, and config defaults — not pixel CSS.
 // See architecture.md "Tests and visual QA".
@@ -47,6 +47,12 @@ describe("Source | View information architecture", () => {
     assert.match(html, /rel="icon"[^>]*href="icon\/donner_256\.png"/);
     assert.match(html, /class="brand-mark"[^>]*src="icon\/donner_256\.png"/);
     assert.match(pages, /cp -a css src vendor data icon _site/);
+  });
+
+  it("puts the release version in the browser tab, matching the footer", () => {
+    assert.equal(pageTitle(VERSION), `DONNER v${VERSION}`);
+    assert.match(html, new RegExp(`<title>${pageTitle()}<\\/title>`));
+    assert.match(mainJs, /document\.title\s*=\s*pageTitle\(/);
   });
 
   it("has no Bench tab, Config tab, or Neighborhood control", () => {

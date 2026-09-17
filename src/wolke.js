@@ -40,6 +40,50 @@ export function fileNameFromPayload(payload) {
   return typeof name === "string" ? name : "";
 }
 
+export function fileNamesFromPayload(payload) {
+  if (payload == null || typeof payload !== "object") return [];
+  const list = payload.file_names;
+  if (!Array.isArray(list)) return [];
+  return list.map((s) => (typeof s === "string" ? s : ""));
+}
+
+/** Last path segment; empty if missing. */
+export function baseFileName(path) {
+  const s = String(path || "")
+    .trim()
+    .replace(/\\/g, "/");
+  if (!s) return "";
+  const i = s.lastIndexOf("/");
+  return i >= 0 ? s.slice(i + 1) : s;
+}
+
+function isPackedSelectionName(fileName) {
+  const base = baseFileName(fileName);
+  return base === "__selection__.npy" || base === "__selection__";
+}
+
+/**
+ * Label for Source meta: hub `file_names[index]`, else a real file_name,
+ * never the packed `__selection__.npy` token when names exist.
+ */
+export function displayFileLabel(fileName, fileNames, index) {
+  const names = Array.isArray(fileNames) ? fileNames : [];
+  if (index != null && Number.isInteger(index) && names[index]) {
+    return baseFileName(names[index]);
+  }
+  if (names.length === 1 && names[0]) return baseFileName(names[0]);
+  if (isPackedSelectionName(fileName)) {
+    const i = index != null && Number.isInteger(index) ? index : 0;
+    if (names[i]) return baseFileName(names[i]);
+    const first = names.find(Boolean);
+    if (first) return baseFileName(first);
+  }
+  const raw = baseFileName(fileName);
+  if (raw && !isPackedSelectionName(raw)) return raw;
+  const first = names.find(Boolean);
+  return first ? baseFileName(first) : raw;
+}
+
 export function indexFromPayload(payload) {
   if (payload == null || typeof payload !== "object") return null;
   const idx = payload.index;
@@ -61,6 +105,7 @@ export class WolkeViewer {
     this._socket = null;
     this._gen = 0;
     this._lastFileName = "";
+    this._lastFileNames = [];
     this.connected = false;
     this.baseUrl = "";
     this.token = "";
@@ -118,6 +163,7 @@ export class WolkeViewer {
   disconnect() {
     this._gen += 1;
     this._lastFileName = "";
+    this._lastFileNames = [];
     const socket = this._socket;
     this._socket = null;
     this.connected = false;
@@ -140,8 +186,10 @@ export class WolkeViewer {
     const fileName = fileNameFromPayload(payload);
     if (!fileName) return;
     const index = indexFromPayload(payload);
+    const names = fileNamesFromPayload(payload);
     if (index != null && fileName === this._lastFileName) {
-      this.onIndex?.(index, fileName);
+      if (names.length) this._lastFileNames = names;
+      this.onIndex?.(index, fileName, this._lastFileNames);
       this.onStatus?.("ready");
       return;
     }
@@ -151,7 +199,8 @@ export class WolkeViewer {
       const buf = await this._download(fileName);
       if (gen !== this._gen) return;
       this._lastFileName = fileName;
-      this.onNpy?.(buf, fileName, index);
+      this._lastFileNames = names;
+      this.onNpy?.(buf, fileName, index, names);
       this.onStatus?.("ready");
     } catch (err) {
       if (gen !== this._gen) return;

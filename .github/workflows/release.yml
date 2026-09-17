@@ -1,7 +1,7 @@
 # Local Viewer release binaries on tag v* (Go one-file host).
 # Before tagging: bump package.json / CHANGELOG to match the tag (without "v").
 # Asset names include the tag so Downloads stay recognizable side-by-side
-# (e.g. DONNER-v1.2.0-linux-x86_64, DONNER-v1.2.0-windows-x86_64.exe).
+# (e.g. DONNER-v1.3.0-linux-x86_64, DONNER-v1.3.0-windows-x86_64.exe).
 name: Release
 
 on:

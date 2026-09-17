@@ -24,7 +24,7 @@ npm run start:viewer
 ```bash
 bash scripts/sync-local-viewer-web.sh
 cd host
-TAG=v1.2.0   # match the release tag
+TAG=v1.3.0   # match the release tag
 CGO_ENABLED=0 go build -tags release -o ../dist/DONNER-${TAG}-linux-x86_64 .
 ```
 

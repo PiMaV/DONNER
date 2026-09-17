@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, formatGroupedInt, isCountSourceKind, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, formatGroupedInt, isCountSourceKind, pageTitle, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, qualityLightsOn, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -32,7 +32,7 @@ import { drawSparkline, FrameClock, formatSourceHud, formatViewHud, hudTelemetry
 import { cellFromWorldXZ, voxelFromLocal } from "./observe.js";
 import { mulberry32 } from "./rng.js";
 import { io } from "../vendor/socket.io/socket.io.esm.min.js";
-import { WolkeViewer } from "./wolke.js";
+import { WolkeViewer, displayFileLabel } from "./wolke.js";
 import {
   CubeRenderer,
   FocusFrame,
@@ -211,6 +211,7 @@ const conwayLiveEl = document.getElementById("conway-live");
 const hudSparkEl = document.getElementById("hud-spark");
 const versionEl = document.getElementById("version");
 if (versionEl) versionEl.textContent = `v${VERSION}`;
+document.title = pageTitle();
 
 const coarse = window.matchMedia("(pointer: coarse)").matches;
 const headsetBrowser = isHeadsetBrowser(navigator.userAgent || "");
@@ -411,6 +412,8 @@ let ingestPreviewGen = 0;
 const wolke = new WolkeViewer({ io });
 /** Suppress viewer_index while applying a hub seek (avoid echo loops). */
 let wolkeSuppressEmit = false;
+/** Hub `file_names` for the current stream cube (T order). */
+let streamFileNames = [];
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt.";
 let focusSurfaces = { x: null, y: null, z: null };
@@ -2292,6 +2295,7 @@ function applySlab(axis, next, dragged = "focus") {
   dirtyView = !hullFocus;
   if (arPresenting()) applyArStagePose();
   if (a === "z" && dragged === "focus" && focusChanged) maybeEmitWolkeIndex();
+  if (a === "z" && focusChanged && sourceId === "count") refreshCountMeta();
 }
 
 function enterInspect() {
@@ -2536,9 +2540,20 @@ function stepCountPlayhead() {
   markGps();
 }
 
-function bootCount(vol) {
+function refreshCountMeta() {
+  if (!countVol) return;
+  const idx = streamFileNames.length ? tFocus() : null;
+  const label =
+    displayFileLabel(countVol.name, streamFileNames, idx) || countVol.name || "count";
+  ui.setCountMeta(
+    `${label} · ${countVol.nT} × ${countVol.height} × ${countVol.width} · max ${countVol.dataMax} · ${formatGroupedInt(countVol.count)} voxels`,
+  );
+}
+
+function bootCount(vol, opts = {}) {
   sourceId = "count";
   countVol = vol;
+  streamFileNames = Array.isArray(opts.fileNames) ? opts.fileNames.slice() : [];
   ensureCubeCapForCells(countInstanceCap(vol));
   suggestQualityFromCells(vol.count);
   gensPerSec = ui.getConfig().gensPerSec;
@@ -2561,9 +2576,6 @@ function bootCount(vol) {
   applyStartLook(countKindForVolume(vol));
   syncStartUrl();
   ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
-  ui.setCountMeta(
-    `${vol.name} · ${vol.nT} × ${vol.height} × ${vol.width} · max ${vol.dataMax} · ${formatGroupedInt(vol.count)} voxels`,
-  );
   acc = 0;
   if (isDenseCount(vol)) {
     applyDenseCountWindow();
@@ -2604,6 +2616,7 @@ function bootCount(vol) {
   fillAndUpload();
   syncCacheUi();
   fitVolume();
+  refreshCountMeta();
   updateHint();
 }
 
@@ -2827,10 +2840,11 @@ function connectWolke() {
   wolke.connect({
     baseUrl: cfg.wolkeUrl,
     token: cfg.wolkeToken,
-    onNpy: (buf, fileName, index) => {
+    onNpy: (buf, fileName, index, fileNames) => {
       try {
-        const name = String(fileName || "stack").replace(/\.npy$/i, "");
-        bootCount(countVolumeFromNpy(buf, name));
+        const names = Array.isArray(fileNames) ? fileNames : [];
+        const name = displayFileLabel(fileName, names, index) || "stack";
+        bootCount(countVolumeFromNpy(buf, name), { fileNames: names });
         ui.setCountHint(COUNT_HINT);
         if (index != null) seekWolkeIndex(index);
       } catch (err) {
@@ -2839,8 +2853,10 @@ function connectWolke() {
         updateHint();
       }
     },
-    onIndex: (index) => {
+    onIndex: (index, _fileName, fileNames) => {
+      if (Array.isArray(fileNames) && fileNames.length) streamFileNames = fileNames.slice();
       seekWolkeIndex(index);
+      refreshCountMeta();
     },
     onStatus: (status) => {
       ui.setWolkeStatus(status);
@@ -4390,7 +4406,7 @@ async function quitLocalViewer() {
     // Host may close the socket before the response arrives.
   }
   // Leave a clear stopped page — do not keep a half-dead DONNER shell open.
-  const stopped = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>DONNER — stopped</title><style>
+  const stopped = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${pageTitle()} — stopped</title><style>
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0f14;color:#f4f7fb;font:16px/1.45 system-ui,sans-serif}
 main{max-width:28rem;padding:1.5rem;text-align:center}
 h1{font:700 1rem/1.2 Orbitron,system-ui,sans-serif;letter-spacing:.12em;margin:0 0 .75rem}
