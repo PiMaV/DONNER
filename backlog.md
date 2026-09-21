@@ -33,7 +33,12 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
-3. **Local Viewer polish** — Go host + Release workflow are the ship path.
+3. **Height / DEM source** (not count sparsify) — DGM mosaic streams
+   `(1, H, W)` for the Viewer Contract; BLITZ is the primary client today.
+   DONNER still maps Stream cubes through the EVT **count** path (non-zero →
+   cubes), which is wrong for dense elevation. Needs a dedicated height mode
+   before advertising DGM → DONNER as a product path.
+4. **Local Viewer polish** — Go host + Release workflow are the ship path.
    Source chrome is Load NumPy + Connect only (no dropdown / Conway / Face).
    Dual-scrub via EVT hub (`index` / `viewer_index`) is the intended couple
    with BLITZ — already works when BLITZ seeks any cached cube by filename
@@ -43,17 +48,17 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
    **Later (not this slice):** peer Connect BLITZ↔DONNER without a sidecar
    (each app would need a listen + push path, and a clear who-owns-the-cube
    rule). Hub-and-spoke via EVT/WOLKE stays the supported path until then.
-4. Decay opt-in
-5. Dataset Contract / ScalarVolume
-6. 500k voxel note / volume-texture pass under DATA
-7. Visible sun, isolation, numbered axes, XR-B (incl. physical-head overlay) / XR-C-1
-8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
+5. Decay opt-in
+6. Dataset Contract / ScalarVolume
+7. 500k voxel note / volume-texture pass under DATA
+8. Visible sun, isolation, numbered axes, XR-B (incl. physical-head overlay) / XR-C-1
+9. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
-9. Face AR occlusion mesh, auto skull scale
-10. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
+10. Face AR occlusion mesh, auto skull scale
+11. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
     ~23 MB). Session RAM cache of a decoded demo after first load is in.
-11. Per-axis **Flip** checkboxes (display mirror). Cut: they reverse 3D
+12. Per-axis **Flip** checkboxes (display mirror). Cut: they reverse 3D
     handle / rail motion and do not change Loop order; Flip Z also moved
     the floor AABB. Ignition load remap stays (swap Y/Z, mirror Z). Do
     not ship Flip until Loop, rails, and AABB stay in index space.
