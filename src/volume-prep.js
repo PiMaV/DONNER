@@ -50,6 +50,43 @@ export function formatBytes(n) {
   return `${(v / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Source-meta size line: wire payload vs occupied cubes vs dense grid.
+ * Sparse stacks show the gap; dense ones collapse to one voxel count.
+ *
+ * @param {{
+ *   nT: number,
+ *   height: number,
+ *   width: number,
+ *   count: number,
+ *   dataMax?: number,
+ *   name?: string,
+ * }} vol
+ * @param {{ payloadBytes?: number | null, label?: string }} [opts]
+ */
+export function formatCountSizeMeta(vol, opts = {}) {
+  const nT = Math.max(0, vol.nT | 0);
+  const h = Math.max(0, vol.height | 0);
+  const w = Math.max(0, vol.width | 0);
+  const occ = Math.max(0, vol.count | 0);
+  const grid = nT * h * w;
+  const label = opts.label != null ? String(opts.label) : vol.name || "count";
+  const max =
+    vol.dataMax != null && Number.isFinite(Number(vol.dataMax))
+      ? ` · max ${formatCells(vol.dataMax)}`
+      : "";
+  const shape = `${nT} × ${h} × ${w}`;
+  const wire =
+    opts.payloadBytes != null && Number.isFinite(Number(opts.payloadBytes))
+      ? ` · ${formatBytes(opts.payloadBytes)} wire`
+      : "";
+  const dens =
+    grid > 0 && occ < grid
+      ? ` · ${formatCells(occ)} occupied / ${formatCells(grid)} grid`
+      : ` · ${formatCells(occ)} voxels`;
+  return `${label} · ${shape}${max}${wire}${dens}`;
+}
+
 /** Grouped integer for ingest copy (same apostrophe style as HUD). */
 export function formatCells(n) {
   const v = Math.round(Number(n));

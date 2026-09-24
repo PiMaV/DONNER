@@ -462,7 +462,10 @@ Curated demos **Lighter Ignition**, **Brain MRI Low**, and **Brain MRI High**
 are Source options. Low is a 2× mean bin (~3 MB); High is native grid
 (~23 MB). Visitor aliases `brain` / `mri` open Low.
 Load a `(T × H × W)` `.npy` count cube from **Source → Load NumPy** or
-drop it onto the volume. A header-first gate shows shape, dtype, payload,
+drop it onto the volume.
+Source meta shows **wire** size (download payload) vs **occupied / grid**
+after sparse unpack (Stream status line does the same).
+A header-first gate shows shape, dtype, payload,
 **grid cells** (shape product), and a quick **occupied** (non-zero) count
 when the payload is readable. Soft comfort is about **500k drawn cubes**
 (occupied), not the lattice size — sparse Ignition-scale stacks stay on

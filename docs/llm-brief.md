@@ -64,8 +64,8 @@ advantage, not a deployment convenience.
   only (no size-by-count). Hide is display occupancy, not ingest. Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino; boot runs 12 generations then stays
   paused so the brick has depth. Size by age on.
-  DEM height is **not** a DONNER mesh mode: the streamer should emit a sparse
-  count surface (one layer along Z), then Colormap / rails apply as usual.
+  DEM / DGM terrain is **not** a DONNER path — BLITZ gets the `(1, H, W)`
+  height plane from DGM Stream. DONNER stays on sparse count / event stacks.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation

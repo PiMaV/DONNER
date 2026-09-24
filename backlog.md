@@ -28,18 +28,11 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Phone AR inspect (three rails + Loop, named Hull/Ghost/Cuts, Hide center/outer)
 - Phone AR search on enter (no Search Anchor), no Z-height slider, footprint-fit scale
 - Face AR PoC and Face lab (`face-lab.html`): phone/webcam getUserMedia + MediaPipe, Ghost brain on a tracked head (not WebXR, not Quest). Face button on the **Online Demo** when the camera exists and Source is Brain; `?face=1` enters. **Local Viewer** hides Face and showcase demos (Source = Load NumPy + Connect only).
-
 **Later / next candidates** (keep; do not implement in this slice):
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
-3. **Height / DEM via sparse count** — DGM (or ingest) should emit a thin
-   occupied **surface** along product Z (one voxel layer at elevation,
-   not filled columns). DONNER then uses the normal count path (rails,
-   Colormap). Do not revive a DONNER height-mesh / Treat as Landscape mode.
-   Metres / `pixel_m` / sidecar meta stay later. BLITZ remains the primary
-   DGM Stream client until the sparse shell is ready.
-4. **Local Viewer polish** — Go host + Release workflow are the ship path.
+3. **Local Viewer polish** — Go host + Release workflow are the ship path.
    Source chrome is Load NumPy + Connect only (no dropdown / Conway / Face).
    Dual-scrub via EVT hub (`index` / `viewer_index`) is the intended couple
    with BLITZ — already works when BLITZ seeks any cached cube by filename
@@ -49,23 +42,25 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
    **Later (not this slice):** peer Connect BLITZ↔DONNER without a sidecar
    (each app would need a listen + push path, and a clear who-owns-the-cube
    rule). Hub-and-spoke via EVT/WOLKE stays the supported path until then.
-5. Decay opt-in
-6. Dataset Contract / ScalarVolume
-7. 500k voxel note / volume-texture pass under DATA
-8. Visible sun, isolation, numbered axes, XR-B (incl. physical-head overlay) / XR-C-1
-9. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
+4. Decay opt-in
+5. Dataset Contract / ScalarVolume
+6. 500k voxel note / volume-texture pass under DATA
+7. Visible sun, isolation, numbered axes, XR-B (incl. physical-head overlay) / XR-C-1
+8. Auto View Quality from Bench metrics (`bound GPU fill`, `frm`, software /
    iGPU strings). Manual Low / Medium / High is in. Do not recreate WebGL
    for antialias.
-10. Face AR occlusion mesh, auto skull scale
-11. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
+9. Face AR occlusion mesh, auto skull scale
+10. Persistent Cache Storage / IndexedDB for example cubes (Brain MRI High
     ~23 MB). Session RAM cache of a decoded demo after first load is in.
-12. Per-axis **Flip** checkboxes (display mirror). Cut: they reverse 3D
+11. Per-axis **Flip** checkboxes (display mirror). Cut: they reverse 3D
     handle / rail motion and do not change Loop order; Flip Z also moved
     the floor AABB. Ignition load remap stays (swap Y/Z, mirror Z). Do
     not ship Flip until Loop, rails, and AABB stay in index space.
 12. **Open-in / ROI** — contract extension via hub (not peer socket); see
     suite TODO 2026-09.
 13. **WOLKE packed `__selection__.npy`** multi-row ingest (table sync parity).
+
+Declined: DGM → DONNER voxel elevation surface (dual hub `:5057`, heightSurface ingest). Cool demo, wrong product identity — terrain stays BLITZ `(1, H, W)` plane; DONNER stays sparse count stacks.
 
 Tried after Face lock: Pose Landmarker lite + inflated landmark hull + CAMShift to keep the brain on a turning or occluded head. Cut — tried; not performant and erroneous (hull overlay too large / misplaced; Pose is a full-body model and often fails on a close-up face). Overlay canvas 640 px cap from that WIP stayed. After lock, Face keeps the last Face pose until the face returns (no second WASM, no getImageData).
 

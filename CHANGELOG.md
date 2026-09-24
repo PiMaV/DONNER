@@ -12,12 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - View **Gap** is three spinners **X / Y / Z** with **Link** (default on).
   Linked = one factor for all axes (previous behaviour). Unlinked axes
   stretch pitch independently (Z = time / standing axis).
+- Source meta (and Stream status) shows **wire MB** vs **occupied / grid**
+  so sparse unpack is visible next to the dense download size.
 
 ### Removed
 
-- **Treat as Landscape** height-mesh path. DEM height belongs in a sparse
-  count cube from the streamer (one surface layer along Z, not solid
-  columns), then the normal Colormap / rails path.
+- **Treat as Landscape** height-mesh path and the later DEM/DGM voxel
+  elevation **surface** ingest (`heightSurface`, DGM `:5057`). Terrain stays
+  a BLITZ height plane; DONNER does not offer a terrain path.
 
 ### Changed
 

@@ -9,11 +9,49 @@ import {
   binCountCubeFromBlob,
   binCountDense,
   countOccupiedFromBlob,
+  formatBytes,
+  formatCountSizeMeta,
   ingestDialogModel,
   ingestPlan,
   landscapePreview,
   previewIngestFromBlob,
 } from "../src/volume-prep.js";
+
+describe("formatCountSizeMeta", () => {
+  it("shows wire MB and occupied vs grid for a sparse shell", () => {
+    const line = formatCountSizeMeta(
+      { name: "sparse.npy", nT: 10, height: 4, width: 5, count: 18, dataMax: 10 },
+      { payloadBytes: 10 * 4 * 5 * 2 },
+    );
+    assert.match(line, /sparse\.npy/);
+    assert.match(line, /10 × 4 × 5/);
+    assert.match(line, /0\.4 KB wire|400 B wire/);
+    assert.match(line, /18 occupied \/ 200 grid/);
+  });
+
+  it("collapses to voxels when fully occupied", () => {
+    const line = formatCountSizeMeta(
+      { name: "full", nT: 2, height: 2, width: 2, count: 8, dataMax: 3 },
+      { payloadBytes: 1024 * 1024 },
+    );
+    assert.match(line, /1\.0 MB wire/);
+    assert.match(line, /8 voxels/);
+    assert.doesNotMatch(line, /occupied/);
+  });
+
+  it("omits wire when payload is unknown", () => {
+    const line = formatCountSizeMeta({
+      name: "x",
+      nT: 1,
+      height: 2,
+      width: 2,
+      count: 2,
+      dataMax: 1,
+    });
+    assert.doesNotMatch(line, /wire/);
+    assert.match(line, /2 occupied \/ 4 grid/);
+  });
+});
 
 describe("ingest plan", () => {
   it("lets an mni152-sized cube load native", () => {

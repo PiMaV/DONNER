@@ -20,6 +20,8 @@ import {
   PREP_MAX_PAYLOAD,
   binCountCubeFromBlob,
   countOccupiedFromBlob,
+  formatBytes,
+  formatCountSizeMeta,
   ingestConfirmText,
   ingestDialogModel,
   ingestPlan,
@@ -415,6 +417,8 @@ const wolke = new WolkeViewer({ io });
 let wolkeSuppressEmit = false;
 /** Hub `file_names` for the current stream cube (T order). */
 let streamFileNames = [];
+/** Payload bytes of the last count .npy (wire size before sparse unpack). */
+let countPayloadBytes = null;
 const COUNT_HINT =
   "EVT count cube (T × H × W). Integer events per pixel per Δt.";
 let focusSurfaces = { x: null, y: null, z: null };
@@ -2568,7 +2572,10 @@ function refreshCountMeta() {
   const label =
     displayFileLabel(countVol.name, streamFileNames, idx) || countVol.name || "count";
   ui.setCountMeta(
-    `${label} · ${countVol.nT} × ${countVol.height} × ${countVol.width} · max ${countVol.dataMax} · ${formatGroupedInt(countVol.count)} voxels`,
+    formatCountSizeMeta(countVol, {
+      label,
+      payloadBytes: countPayloadBytes,
+    }),
   );
 }
 
@@ -2576,6 +2583,10 @@ function bootCount(vol, opts = {}) {
   sourceId = "count";
   countVol = vol;
   streamFileNames = Array.isArray(opts.fileNames) ? opts.fileNames.slice() : [];
+  countPayloadBytes =
+    opts.payloadBytes != null && Number.isFinite(Number(opts.payloadBytes))
+      ? Math.max(0, Number(opts.payloadBytes))
+      : null;
   ensureCubeCapForCells(countInstanceCap(vol));
   suggestQualityFromCells(vol.count);
   gensPerSec = ui.getConfig().gensPerSec;
@@ -2683,7 +2694,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
     const buf = await res.arrayBuffer();
     const vol = countVolumeFromNpy(buf, name, countDemoLoadOpts(kind));
     if (COUNT_DEMOS[kind]) rememberDemoVolume(kind, vol);
-    bootCount(vol);
+    bootCount(vol, { payloadBytes: buf.byteLength });
     ui.setCountHint(COUNT_HINT);
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
@@ -2813,7 +2824,9 @@ async function confirmCountIngest(picks) {
     await withLoading(`Loading ${file.name}…`, async () => {
       if (f === 1) {
         const buf = await file.arrayBuffer();
-        bootCount(countVolumeFromNpy(buf, name));
+        bootCount(countVolumeFromNpy(buf, name), {
+          payloadBytes: buf.byteLength,
+        });
       } else {
         const { data, shape } = await binCountCubeFromBlob(
           file,
@@ -2824,7 +2837,11 @@ async function confirmCountIngest(picks) {
             ui.setLoading(true, `Binning ${done} / ${total}…`);
           },
         );
-        bootCount(countVolumeFromDense(data, shape, name));
+        const payloadBytes =
+          data && data.byteLength != null
+            ? data.byteLength
+            : header.payloadBytes;
+        bootCount(countVolumeFromDense(data, shape, name), { payloadBytes });
       }
       ui.setCountHint(COUNT_HINT);
     });
@@ -2866,8 +2883,15 @@ function connectWolke() {
       try {
         const names = Array.isArray(fileNames) ? fileNames : [];
         const name = displayFileLabel(fileName, names, index) || "stack";
-        bootCount(countVolumeFromNpy(buf, name), { fileNames: names });
+        const payloadBytes = buf && buf.byteLength != null ? buf.byteLength : 0;
+        const vol = countVolumeFromNpy(buf, name);
+        bootCount(vol, { fileNames: names, payloadBytes });
         ui.setCountHint(COUNT_HINT);
+        const grid = vol.nT * vol.height * vol.width;
+        ui.setWolkeStatus(
+          `${formatBytes(payloadBytes)} wire → ${formatGroupedInt(vol.count)} occupied` +
+            (grid > vol.count ? ` / ${formatGroupedInt(grid)} grid` : ""),
+        );
         if (index != null) seekWolkeIndex(index);
       } catch (err) {
         const msg = err && err.message ? err.message : String(err);
@@ -2907,6 +2931,8 @@ function bootWorld(resizeGrid) {
   const cfg = ui.getConfig();
   sourceId = "conway";
   countVol = null;
+  countPayloadBytes = null;
+  streamFileNames = [];
   gensPerSec = cfg.gensPerSec;
   loopPerSec = cfg.loopPerSec;
   decay = cfg.decay;
