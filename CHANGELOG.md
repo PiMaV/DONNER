@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- View **Gap** is three spinners **X / Y / Z** with **Link** (default on).
+  Linked = one factor for all axes (previous behaviour). Unlinked axes
+  stretch pitch independently (Z = time / standing axis).
+
+### Removed
+
+- **Treat as Landscape** height-mesh path. DEM height belongs in a sparse
+  count cube from the streamer (one surface layer along Z, not solid
+  columns), then the normal Colormap / rails path.
+
 ### Changed
 
 ### Fixed

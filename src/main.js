@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, formatGroupedInt, isCountSourceKind, pageTitle, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
+import { AXIS_COLOR, COLOR, COUNT_DEMOS, DEFAULTS, VERSION, VOXEL_GAP_MAX, clampCubeCap, clampVoxelGap, clampVoxelGaps, countDemoLoadOpts, cubeCapForLoadedCells, facePlaneChrome, formatCubeCapLabel, formatGroupedInt, isCountSourceKind, pageTitle, startLoopAxisFor, startPlaneChromeFor, startShadeFor, startVoxelGapFor, suggestCubeCapPreset } from "./config.js";
 import { normalizeViewQuality, pixelRatioForQuality, qualityLightsOn, viewQualitySpec, autoViewQuality } from "./quality.js";
 import { parseStartSearch, startSearchFromState } from "./door.js";
 import {
@@ -62,6 +62,7 @@ import {
   inspectPlaneOccupancyKey,
   focusBackFromVoxel,
   normalizeSliceAxis,
+  normalizeVoxelGaps,
   productViewDir,
   lockedFaceAction,
   lockedFacePageStep,
@@ -444,7 +445,7 @@ let gensPerSec = DEFAULTS.gensPerSec;
 let loopPerSec = DEFAULTS.loopPerSec;
 let decay = DEFAULTS.decay;
 let historyLen = DEFAULTS.history;
-let voxelGap = DEFAULTS.voxelGap;
+let voxelGaps = clampVoxelGaps(DEFAULTS.voxelGap);
 let viewQuality = DEFAULTS.viewQuality;
 let qualityLocked = false;
 let stabMode = DEFAULTS.stabSize ? "time" : "none";
@@ -730,16 +731,26 @@ function stackLiveLocked() {
   return playing && !tapeMode;
 }
 
+function layoutCellX() {
+  return voxelPitch(DEFAULTS.cellSize, voxelGaps.x);
+}
+
+function layoutCellY() {
+  return voxelPitch(DEFAULTS.cellSize, voxelGaps.y);
+}
+
+/** Isotropic pitch for chrome that still takes one cell size (mean of X/Y). */
 function layoutCell() {
-  return voxelPitch(DEFAULTS.cellSize, voxelGap);
+  return (layoutCellX() + layoutCellY()) * 0.5;
 }
 
 function layoutTime() {
-  return voxelPitch(DEFAULTS.timeScale, voxelGap);
+  return voxelPitch(DEFAULTS.timeScale, voxelGaps.z);
 }
 
 function applyVoxelGap() {
-  voxelGap = clampVoxelGap(ui.getConfig().voxelGap);
+  const cfg = ui.getConfig();
+  voxelGaps = clampVoxelGaps(cfg.voxelGaps || cfg.voxelGap);
   dirtyView = true;
   rebuildSliceVisuals();
   syncViewRange();
@@ -751,9 +762,8 @@ function spatialCoord(back, axis) {
   const a = normalizeSliceAxis(axis);
   const max = sliceMaxBack(a, world.width, world.height, 0);
   const idx = axisIndexFromBack(back, max);
-  const cs = layoutCell();
-  if (a === "x") return (idx - (world.width - 1) * 0.5) * cs;
-  return (idx - (world.height - 1) * 0.5) * cs;
+  if (a === "x") return (idx - (world.width - 1) * 0.5) * layoutCellX();
+  return (idx - (world.height - 1) * 0.5) * layoutCellY();
 }
 
 function sliceWorldCoord(back, axis = activeAxis) {
@@ -2201,15 +2211,16 @@ function fitVolume({ force = false } = {}) {
   if (!world || (!force && arPresenting())) return;
   const box = cropAabb();
   const { yMin, yMax, yMid } = currentSlabY();
-  const cs = layoutCell();
+  const pitchX = layoutCellX();
+  const pitchZ = layoutCellY();
   const ox = (world.width - 1) * 0.5;
   const oz = (world.height - 1) * 0.5;
   const xLo = box ? box.xLo : 0;
   const xHi = box ? box.xHi : world.width - 1;
   const yLo = box ? box.yLo : 0;
   const yHi = box ? box.yHi : world.height - 1;
-  const hx = Math.max(Math.abs(xLo - ox), Math.abs(xHi - ox)) * cs;
-  const hz = Math.max(Math.abs(yLo - oz), Math.abs(yHi - oz)) * cs;
+  const hx = Math.max(Math.abs(xLo - ox), Math.abs(xHi - ox)) * pitchX;
+  const hz = Math.max(Math.abs(yLo - oz), Math.abs(yHi - oz)) * pitchZ;
   const radius = volumeRadius(hx, hz, yMin, yMax);
   const cam = activeCamera();
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -2382,18 +2393,29 @@ function brickYRange() {
 function rebuildSliceVisuals(width = world?.width, height = world?.height) {
   if (!width || !height) return;
   const { yMin, yMax } = brickYRange();
-  const cs = layoutCell();
+  const csX = layoutCellX();
+  const csY = layoutCellY();
   for (const a of ["x", "y", "z"]) {
     disposeObject3(focusSurfaces[a]);
-    focusSurfaces[a] = createFocusSurface(width, height, cs, a, yMin, yMax, AXIS_COLOR[a], "focus");
+    focusSurfaces[a] = createFocusSurface(
+      width,
+      height,
+      csX,
+      a,
+      yMin,
+      yMax,
+      AXIS_COLOR[a],
+      "focus",
+      csY,
+    );
     stand.add(focusSurfaces[a]);
-    playfields[a].setSize(width, height, cs, a, yMin, yMax);
+    playfields[a].setSize(width, height, csX, a, yMin, yMax, csY);
     for (const handle of ["near", "far"]) {
-      clipFrames[a][handle].setSize(width, height, cs, a, yMin, yMax);
+      clipFrames[a][handle].setSize(width, height, csX, a, yMin, yMax, csY);
     }
   }
   disposeObject3(nowGrid);
-  nowGrid = createSliceGrid(width, height, cs, activeAxis, yMin, yMax);
+  nowGrid = createSliceGrid(width, height, csX, activeAxis, yMin, yMax);
   stand.add(nowGrid);
   syncClipPlanes();
   applyGridLook();
@@ -2884,6 +2906,7 @@ function bootWorld(resizeGrid) {
   resetCubeCapDefault();
   const cfg = ui.getConfig();
   sourceId = "conway";
+  countVol = null;
   gensPerSec = cfg.gensPerSec;
   loopPerSec = cfg.loopPerSec;
   decay = cfg.decay;
@@ -3521,7 +3544,7 @@ function cubeView() {
     stabStart,
     stabTail,
     cellSize: DEFAULTS.cellSize,
-    voxelGap,
+    voxelGap: voxelGaps,
     isolate: null,
     activeAxis,
     aabb: inspectDrawAabb(),
@@ -3674,7 +3697,8 @@ function spanKey() {
 }
 
 function instanceLookKey() {
-  return `${voxelGap}:${encodingMinimal ? 1 : 0}:${stabForFill()}:${stabStart}:${stabTail}:${planeLock ? 1 : 0}:${viewNow()}:${sourceId === "count" && countVol ? `${currentCountCmap()}:${countVol.winLo}:${countVol.winHi}:${countVol.hideBelow}` : "conway"}`;
+  const gapKey = `${voxelGaps.x}:${voxelGaps.y}:${voxelGaps.z}`;
+  return `${gapKey}:${encodingMinimal ? 1 : 0}:${stabForFill()}:${stabStart}:${stabTail}:${planeLock ? 1 : 0}:${viewNow()}:${sourceId === "count" && countVol ? `${currentCountCmap()}:${countVol.winLo}:${countVol.winHi}:${countVol.hideBelow}` : "conway"}`;
 }
 
 function syncVolume() {

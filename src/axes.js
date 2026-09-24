@@ -21,7 +21,7 @@ export function zWorldY(t, tNow, timeScale) {
 
 /**
  * Lattice pitch for instance centers. Cube edge stays `cellSize`;
- * `voxelGap` 0 packs faces. Same pitch is used for X, Y, and time.
+ * `voxelGap` 0 packs faces.
  */
 export function voxelPitch(cellSize = 1, voxelGap = 0) {
   const cs = Number(cellSize);
@@ -29,6 +29,55 @@ export function voxelPitch(cellSize = 1, voxelGap = 0) {
   const g = Number(voxelGap);
   const gap = Number.isFinite(g) && g > 0 ? g : 0;
   return cell * (1 + gap);
+}
+
+/**
+ * Normalize Gap to `{ x, y, z }`. A bare number is the linked factor.
+ * @param {number | { x?: number, y?: number, z?: number } | null | undefined} gaps
+ */
+export function normalizeVoxelGaps(gaps) {
+  if (gaps == null) return { x: 0, y: 0, z: 0 };
+  if (typeof gaps === "number") {
+    const g = Number.isFinite(gaps) && gaps > 0 ? gaps : 0;
+    return { x: g, y: g, z: g };
+  }
+  const x = Number(gaps.x);
+  const y = Number(gaps.y);
+  const z = Number(gaps.z);
+  return {
+    x: Number.isFinite(x) && x > 0 ? x : 0,
+    y: Number.isFinite(y) && y > 0 ? y : 0,
+    z: Number.isFinite(z) && z > 0 ? z : 0,
+  };
+}
+
+/**
+ * Turntable-local center of voxel `(x, y, t)`. Product Y maps to world Z.
+ * Tests and picking use this; the instance hot path inlines the same math.
+ * `voxelGap` may be a number (linked) or `{ x, y, z }` (product axes).
+ */
+export function voxelLocalCenter(
+  x,
+  y,
+  t,
+  width,
+  height,
+  cellSize,
+  tNow,
+  timeScale,
+  voxelGap = 0,
+) {
+  const gaps = normalizeVoxelGaps(voxelGap);
+  const pitchX = voxelPitch(cellSize, gaps.x);
+  const pitchZ = voxelPitch(cellSize, gaps.y);
+  const timePitch = voxelPitch(timeScale, gaps.z);
+  const ox = ((width | 0) - 1) * 0.5;
+  const oz = ((height | 0) - 1) * 0.5;
+  return {
+    x: (x - ox) * pitchX,
+    y: zWorldY(t, tNow, timePitch),
+    z: (y - oz) * pitchZ,
+  };
 }
 
 /** Mirror an index around the axis: `0` trades with `n - 1`. */
@@ -47,31 +96,6 @@ export function flipAxisRange(lo, hi, n, on) {
   const x = flipAxisIndex(a, n, true);
   const y = flipAxisIndex(b, n, true);
   return { lo: Math.min(x, y), hi: Math.max(x, y) };
-}
-
-/**
- * Turntable-local center of voxel `(x, y, t)`. Product Y maps to world Z.
- * Tests and picking use this; the instance hot path inlines the same math.
- */
-export function voxelLocalCenter(
-  x,
-  y,
-  t,
-  width,
-  height,
-  cellSize,
-  tNow,
-  timeScale,
-  voxelGap = 0,
-) {
-  const pitch = voxelPitch(cellSize, voxelGap);
-  const ox = ((width | 0) - 1) * 0.5;
-  const oz = ((height | 0) - 1) * 0.5;
-  return {
-    x: (x - ox) * pitch,
-    y: zWorldY(t, tNow, voxelPitch(timeScale, voxelGap)),
-    z: (y - oz) * pitch,
-  };
 }
 
 /** World Y for a Z-rail back index (0 = Now). */

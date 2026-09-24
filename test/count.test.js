@@ -60,6 +60,15 @@ describe("npy", () => {
 });
 
 describe("count volume", () => {
+  it("keeps a T=1 plane as sparse occupied cubes only", () => {
+    const dense = Float32Array.from([0, 2, 0, 5]);
+    const vol = countVolumeFromDense(dense, [1, 2, 2], "plane");
+    assert.equal(vol.nT, 1);
+    assert.equal(vol.count, 2);
+    assert.equal(vol.dataMin, 2);
+    assert.equal(vol.dataMax, 5);
+  });
+
   it("reads (T, H, W) and drops zeros", () => {
     const dense = Uint16Array.from([
       0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0,

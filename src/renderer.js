@@ -14,13 +14,15 @@
  * upload. `setEvents(soa, view, layer)` with `hull` / `plane` / `solid`
  * avoids rewriting the glass brick on every scrub.
  * `sliceOnly` is the viewcube plane lock (one ortho cut), not ortho+look.
- * View Gap (`voxelGap`) spreads instance centers; cube edge stays `cellSize × fill`.
+ * View Gap (`voxelGap` number or `{ x, y, z }`) spreads instance centers;
+ * cube edge stays `cellSize × fill`.
  */
 
 import * as THREE from "three";
 import { AXIS_COLOR, COLOR, GHOST_FALLOFF, GHOST_OPACITY } from "./config.js";
 import {
   normalizeSliceAxis,
+  normalizeVoxelGaps,
   onAxisPlane,
   voxelPitch,
   voxelShadeClass,
@@ -227,8 +229,10 @@ export class CubeRenderer {
     }
     u.uOx.value = ((view.width | 0) - 1) * 0.5;
     u.uOz.value = ((view.height | 0) - 1) * 0.5;
-    u.uPitch.value = voxelPitch(view.cellSize ?? this.cellSize, view.voxelGap);
-    u.uTimePitch.value = voxelPitch(view.timeScale, view.voxelGap);
+    const gaps = normalizeVoxelGaps(view.voxelGap);
+    u.uPitch.value = voxelPitch(view.cellSize ?? this.cellSize, gaps.x);
+    // Ghost fade distance along product Y uses the Y pitch (world Z).
+    u.uTimePitch.value = voxelPitch(view.timeScale, gaps.z);
     u.uTNow.value = view.tNow ?? view.tFocus;
   }
 
@@ -237,7 +241,8 @@ export class CubeRenderer {
       soa,
       n,
       cell,
-      pitch,
+      pitchX,
+      pitchZ,
       timePitch,
       ox,
       oz,
@@ -260,7 +265,7 @@ export class CubeRenderer {
       const t = soa.t[i];
       const x = soa.x[i];
       const y = soa.y[i];
-      dummy.position.set((x - ox) * pitch, zWorldY(t, tNow, timePitch), (y - oz) * pitch);
+      dummy.position.set((x - ox) * pitchX, zWorldY(t, tNow, timePitch), (y - oz) * pitchZ);
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
       const fill = minimal
@@ -311,8 +316,10 @@ export class CubeRenderer {
   setEvents(soa, view, layer = "both") {
     const cell = view.cellSize ?? this.cellSize;
     const timeScale = view.timeScale;
-    const pitch = voxelPitch(cell, view.voxelGap);
-    const timePitch = voxelPitch(timeScale, view.voxelGap);
+    const gaps = normalizeVoxelGaps(view.voxelGap);
+    const pitchX = voxelPitch(cell, gaps.x);
+    const pitchZ = voxelPitch(cell, gaps.y);
+    const timePitch = voxelPitch(timeScale, gaps.z);
     const ox = (view.width - 1) * 0.5;
     const oz = (view.height - 1) * 0.5;
     const decayOn = Boolean(view.decay);
@@ -345,7 +352,8 @@ export class CubeRenderer {
         soa,
         n,
         cell,
-        pitch,
+        pitchX,
+        pitchZ,
         timePitch,
         ox,
         oz,
@@ -393,9 +401,9 @@ export class CubeRenderer {
       }
 
       dummy.position.set(
-        (x - ox) * pitch,
+        (x - ox) * pitchX,
         zWorldY(t, tNow, timePitch),
-        (y - oz) * pitch,
+        (y - oz) * pitchZ,
       );
       const k = soa.k[i] | 0;
       const kind = minimal ? uniformKind : kinds[k] || kinds[0];
@@ -489,18 +497,20 @@ export function createFocusSurface(
   yMax = 0,
   hex = AXIS_COLOR.z,
   handle = "focus",
+  cellSizeY,
 ) {
   const a = normalizeSliceAxis(axis);
-  const cs = cellSize;
-  const timeH = Math.max(cs, Math.abs(yMax - yMin) || cs);
+  const csX = cellSize;
+  const csY = cellSizeY != null ? cellSizeY : cellSize;
+  const timeH = Math.max(Math.min(csX, csY), Math.abs(yMax - yMin) || Math.min(csX, csY));
   let geo;
-  if (a === "x") geo = new THREE.PlaneGeometry(height * cs, timeH);
-  else if (a === "y") geo = new THREE.PlaneGeometry(width * cs, timeH);
-  else geo = new THREE.PlaneGeometry(width * cs, height * cs);
+  if (a === "x") geo = new THREE.PlaneGeometry(height * csY, timeH);
+  else if (a === "y") geo = new THREE.PlaneGeometry(width * csX, timeH);
+  else geo = new THREE.PlaneGeometry(width * csX, height * csY);
   const mesh = new THREE.Mesh(geo, sliceSurfaceMat(hex ?? AXIS_COLOR[a]));
   mesh.userData.axis = a;
   mesh.userData.handle = handle === "near" || handle === "far" ? handle : "focus";
-  orientSlicePlane(mesh, a, width, height, cs, yMin, yMax, 0);
+  orientSlicePlane(mesh, a, width, height, csX, yMin, yMax, 0);
   return mesh;
 }
 
@@ -627,7 +637,7 @@ export class FocusFrame {
     return out;
   }
 
-  setSize(width, height, cellSize, axis = "z", yMin = 0, yMax = 0) {
+  setSize(width, height, cellSize, axis = "z", yMin = 0, yMax = 0, cellSizeY) {
     for (const p of this._parts) {
       this.group.remove(p);
       p.geometry.dispose();
@@ -635,8 +645,9 @@ export class FocusFrame {
     this._parts.length = 0;
     this._axis = normalizeSliceAxis(axis);
 
+    const csY = cellSizeY != null ? cellSizeY : cellSize;
     const inset = frameHandleInset(cellSize, this._handle, width, height, yMin, yMax);
-    const box = frameRingBox(width, height, cellSize, this._axis, yMin, yMax, inset);
+    const box = frameRingBox(width, height, cellSize, this._axis, yMin, yMax, inset, csY);
     this._box = box;
     const { visual: t } = frameBarThickness(cellSize, this._handle, width, height, yMin, yMax);
     const { hw, hd, yMin: y0, yMax: y1, yMid } = box;

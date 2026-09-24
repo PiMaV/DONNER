@@ -120,8 +120,11 @@ describe("Source | View information architecture", () => {
     assert.deepEqual(CUBE_CAP_PRESETS, [
       100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000,
     ]);
-    assert.match(view, /id="voxel-gap-num"[^>]*type="number"/);
-    assert.match(view, /id="voxel-gap-num"[^>]*step="0.01"/);
+    assert.match(view, /id="voxel-gap-x"[^>]*type="number"/);
+    assert.match(view, /id="voxel-gap-y"[^>]*type="number"/);
+    assert.match(view, /id="voxel-gap-z"[^>]*type="number"/);
+    assert.match(view, /id="voxel-gap-x"[^>]*step="0.01"/);
+    assert.match(view, /id="gap-link"[^>]*type="checkbox"/);
     assert.match(view, /id="voxel-gap-field"/);
     assert.match(view, /id="quality-low"/);
     assert.match(view, /id="quality-medium"/);

@@ -33,11 +33,12 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 
 1. QR print / path `/ignition` / AR-from-QR — query `?src=` / `?quality=` is in
 2. AR floor-plane picker; viewcube face snaps in AR (Hide + Shade are in)
-3. **Height / DEM source** (not count sparsify) — DGM mosaic streams
-   `(1, H, W)` for the Viewer Contract; BLITZ is the primary client today.
-   DONNER still maps Stream cubes through the EVT **count** path (non-zero →
-   cubes), which is wrong for dense elevation. Needs a dedicated height mode
-   before advertising DGM → DONNER as a product path.
+3. **Height / DEM via sparse count** — DGM (or ingest) should emit a thin
+   occupied **surface** along product Z (one voxel layer at elevation,
+   not filled columns). DONNER then uses the normal count path (rails,
+   Colormap). Do not revive a DONNER height-mesh / Treat as Landscape mode.
+   Metres / `pixel_m` / sidecar meta stay later. BLITZ remains the primary
+   DGM Stream client until the sparse shell is ready.
 4. **Local Viewer polish** — Go host + Release workflow are the ship path.
    Source chrome is Load NumPy + Connect only (no dropdown / Conway / Face).
    Dual-scrub via EVT hub (`index` / `viewer_index`) is the intended couple

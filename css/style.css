@@ -1995,6 +1995,59 @@ body.source-count .btn-play-dock {
   min-width: 0;
 }
 
+.gap-axes {
+  gap: 8px;
+}
+
+.gap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.gap-head > span {
+  font-family: Orbitron, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gap-link {
+  margin: 0;
+  gap: 6px;
+}
+
+.gap-spins {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.gap-spin {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.gap-spin > span {
+  flex: 0 0 auto;
+  font-family: Orbitron, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gap-spin > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
 .field em {
   font-style: normal;
   color: var(--text);
@@ -2157,6 +2210,10 @@ body.source-count .encoding-count.hint {
 }
 
 body.source-count .encoding-count.field {
+  display: flex;
+}
+
+body.source-count .encoding-count.check {
   display: flex;
 }
 

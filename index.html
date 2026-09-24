@@ -367,11 +367,32 @@
         <button type="button" id="btn-parallax" class="btn btn-parallax is-on" aria-pressed="true" title="Perspective on. Off is orthographic (no parallax) at the current look.">Parallax</button>
         <button type="button" id="btn-reset-planes" class="btn" title="Open all clips to the full volume and move the three playheads to the center. Does not move the camera.">Reset Planes</button>
       </div>
-      <label id="voxel-gap-field" class="field field-inline" title="Lattice spacing. 0 packs faces with no air. Brain MRI starts at 0.01; Game of Life and Ignition at 0.05. Wheel the value.">
-        <span>Gap</span>
-        <input id="voxel-gap-num" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
-          aria-label="Voxel gap value" />
-      </label>
+      <div id="voxel-gap-field" class="field gap-axes" title="Lattice spacing per product axis. 0 packs faces. Link keeps X/Y/Z equal. Brain MRI starts at 0.01; Game of Life and Ignition at 0.05. Wheel a spinner.">
+        <div class="gap-head">
+          <span>Gap</span>
+          <label class="check gap-link" title="On: one Gap for X, Y, and Z. Off: boost one axis (Z stretches Landscape height).">
+            <input id="gap-link" type="checkbox" checked />
+            <span>Link</span>
+          </label>
+        </div>
+        <div class="gap-spins">
+          <label class="gap-spin">
+            <span>X</span>
+            <input id="voxel-gap-x" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
+              aria-label="Gap X" />
+          </label>
+          <label class="gap-spin">
+            <span>Y</span>
+            <input id="voxel-gap-y" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
+              aria-label="Gap Y" />
+          </label>
+          <label class="gap-spin">
+            <span>Z</span>
+            <input id="voxel-gap-z" class="field-spin" type="number" min="0" max="5" step="0.01" value="0.01"
+              aria-label="Gap Z" />
+          </label>
+        </div>
+      </div>
       <div class="field">
         <span>Quality</span>
         <div class="btn-row btn-row-three shade-modes" role="radiogroup" aria-label="View quality">

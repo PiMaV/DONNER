@@ -54,15 +54,16 @@ export function frameBarThickness(
  * Rectangle for a ring in the slice plane. Playhead matches the AABB face;
  * clips are inset so they do not share a side with another axis.
  */
-export function frameRingBox(width, height, cellSize, axis, yMin, yMax, inset) {
-  const cs = Math.max(1e-6, Number(cellSize) || 1);
+export function frameRingBox(width, height, cellSize, axis, yMin, yMax, inset, cellSizeY) {
+  const csX = Math.max(1e-6, Number(cellSize) || 1);
+  const csY = Math.max(1e-6, Number(cellSizeY != null ? cellSizeY : cellSize) || 1);
   const a = normalizeSliceAxis(axis);
-  const hw0 = (Math.max(1, width) * cs) / 2;
-  const hd0 = (Math.max(1, height) * cs) / 2;
+  const hw0 = (Math.max(1, width) * csX) / 2;
+  const hd0 = (Math.max(1, height) * csY) / 2;
   const y0 = Number(yMin) || 0;
   const y1 = Number(yMax) || 0;
-  const hy0 = Math.max(cs, Math.abs(y1 - y0) / 2);
-  const keep = cs * 0.35;
+  const hy0 = Math.max(Math.min(csX, csY), Math.abs(y1 - y0) / 2);
+  const keep = Math.min(csX, csY) * 0.35;
   const pad = Math.max(0, Number(inset) || 0);
   const px = Math.min(pad, Math.max(0, hw0 - keep));
   const pz = Math.min(pad, Math.max(0, hd0 - keep));

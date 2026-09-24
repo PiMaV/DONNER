@@ -39,10 +39,11 @@ import {
   focusBackFromVoxel,
   voxelPitch,
   voxelLocalCenter,
+  normalizeVoxelGaps,
   flipAxisIndex,
   flipAxisRange,
 } from "../src/axes.js";
-import { clampVoxelGap, stepVoxelGap, VOXEL_GAP_MAX, VOXEL_GAP_STEP } from "../src/config.js";
+import { clampVoxelGap, clampVoxelGaps, stepVoxelGap, VOXEL_GAP_MAX, VOXEL_GAP_STEP } from "../src/config.js";
 
 describe("product vs engine axes", () => {
   it("maps X Y playfield and Z time onto Three.js Y-up", () => {
@@ -488,6 +489,22 @@ describe("voxel gap lattice", () => {
     assert.equal(voxelPitch(1, 1), 2);
     assert.equal(voxelPitch(2, 0.5), 3);
     assert.equal(voxelPitch(1, -4), 1);
+  });
+
+  it("normalizes a linked number or per-axis gaps", () => {
+    assert.deepEqual(normalizeVoxelGaps(1), { x: 1, y: 1, z: 1 });
+    assert.deepEqual(normalizeVoxelGaps({ x: 0, y: 2, z: 1 }), { x: 0, y: 2, z: 1 });
+    assert.deepEqual(clampVoxelGaps({ x: 9, y: -1, z: 0.5 }), { x: 5, y: 0, z: 0.5 });
+  });
+
+  it("places a voxel with independent X/Y/Z gaps", () => {
+    const p = voxelLocalCenter(1, 1, 0, 3, 3, 1, 0, 1, { x: 1, y: 0, z: 0 });
+    assert.equal(p.x, 0);
+    assert.equal(p.z, 0);
+    assert.equal(p.y, 0);
+    const q = voxelLocalCenter(2, 0, 0, 3, 3, 1, 0, 1, { x: 1, y: 0, z: 0 });
+    assert.equal(q.x, 2);
+    assert.equal(q.z, -1);
   });
 
   it("clamps the View slider to 0…5", () => {

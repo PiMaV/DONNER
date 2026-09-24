@@ -231,9 +231,9 @@ flowchart LR
 
 | Layer | Owns | UI now |
 |-------|------|--------|
-| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit / Spin / Align to Z (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
+| **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit / Spin / Align to Z (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Gap X/Y/Z + Link, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
 | **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy**. **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
-| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
+| **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. DEM height arrives as a sparse count surface from the streamer, not a DONNER mesh mode. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
 Conway **Play** stays in Source. After spawn the AR overlay keeps Loop
@@ -919,13 +919,14 @@ Color `k` and fill `s` are encoding fields. The renderer indexes
 `src/encoding.js` (`CONWAY_KIND_HEX` or `countKindHex` with 256 count rungs,
 `encodingFill`) and does not import Conway dynamics.
 
-View **Gap** (`voxelGap`) is display lattice spacing: pitch =
-`cellSize × (1 + gap)`. Cube edge stays `cellSize × fill`. Gap **0**
-packs faces (occupancy fill is 1). Brain MRI (and loaded cubes) start at
-**0.01**; Game of Life and Ignition start at **0.05**. Switching Source
-resets Gap to that default. Max is **5**, step **0.01**. Orbit
-dolly-out (and camera far / ortho min-zoom) is computed at that limit so a
-wide Gap still fits. Frames and picking use the same pitch.
+View **Gap** is per product axis (`voxelGap` as `{ x, y, z }` or a linked
+number). Pitch on each axis is `cellSize × (1 + gap)`. Cube edge stays
+`cellSize × fill`. Gap **0** packs faces (occupancy fill is 1). Brain MRI
+(and loaded cubes) start at **0.01**; Game of Life and Ignition start at
+**0.05**. Switching Source resets Gap to that default. Max is **5**, step
+**0.01**. **Link** (default on) keeps X/Y/Z equal. Orbit dolly-out is
+computed at Gap **5** so a wide Gap still fits. Frames and picking use the
+same pitches.
 
 AR places that same local layout; stage scale fits the table footprint
 (the two axes on the plane) to 40 cm (Conway 32-cell board stays 40 cm;
@@ -1161,7 +1162,7 @@ flowchart TB
 | Dirty | Typical cause | Work |
 |-------|---------------|------|
 | camera | Orbit, damping | `renderer.render` only |
-| instance look | Gap, Size by age / Start / Tail | Re-stamp hull and/or plane meshes from the cached SoAs. Inspect Hull playhead does not. |
+| instance look | Gap X/Y/Z, Size by age / Start / Tail | Re-stamp hull and/or plane meshes from the cached SoAs. Inspect Hull playhead does not. |
 | hull occupancy | Clip, Hull↔Ghost, Hull+Loop potato | `fillHullSoA` + hull InstancedMesh. Not the playhead in Ghost. |
 | plane occupancy | Ghost / Cuts / peek playhead | `fillPlaneSoA` (LRU + prefetch ±2) + solid mesh. Ghost fade is a shader uniform. |
 | source | Conway step, paint, live wake | Live `fillSoA` + full `setEvents`. |

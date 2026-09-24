@@ -1,5 +1,5 @@
 import { PATTERN_NAMES } from "./conway.js";
-import { DEFAULTS, GRID_PRESETS, CUBE_CAP_PRESETS, CUBE_CAP_MAX, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, formatCubeCapLabel, isCubeCapMaxChoice, resolveCubeCap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, stepVoxelGap } from "./config.js";
+import { DEFAULTS, GRID_PRESETS, CUBE_CAP_PRESETS, CUBE_CAP_MAX, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN, VOXEL_GAP_MAX, VOXEL_GAP_MIN, VOXEL_GAP_STEP, clampCubeCap, clampDensity, clampStabStart, clampStabTail, clampVoxelGap, clampVoxelGaps, formatCubeCapLabel, isCubeCapMaxChoice, resolveCubeCap, guideStepAt, isCountSourceKind, isStaticSourceKind, sourceGuide, stepVoxelGap } from "./config.js";
 import { normalizeViewQuality } from "./quality.js";
 import { countCmapCss, DEFAULT_COUNT_CMAP, DEFAULT_COUNT_TRIM, grayToCmapRgba, normalizeCountCmap, normalizeCountTrim } from "./encoding.js";
 import { formatCacheStatus } from "./spacetime.js";
@@ -345,8 +345,11 @@ export function bindUI(on) {
   const fpsCapHint = $("fps-cap-hint");
   const history = $("history");
   const historyVal = $("history-val");
-  const voxelGapNum = $("voxel-gap-num");
+  const voxelGapX = $("voxel-gap-x");
+  const voxelGapY = $("voxel-gap-y");
+  const voxelGapZ = $("voxel-gap-z");
   const voxelGapField = $("voxel-gap-field");
+  const gapLink = $("gap-link");
   const btnHideCenter = $("btn-hide-center");
   const btnHideOuter = $("btn-hide-outer");
   const lookMoreBtn = $("btn-look-more");
@@ -468,17 +471,38 @@ export function bindUI(on) {
     const g = clampVoxelGap(n);
     return g === 0 ? "0" : String(Number(g.toFixed(2)));
   };
-  const paintVoxelGap = (n) => {
+  const gapInputs = { x: voxelGapX, y: voxelGapY, z: voxelGapZ };
+  const readGapAxis = (axis) => {
+    const el = gapInputs[axis];
+    return clampVoxelGap(el ? el.value : DEFAULTS.voxelGap);
+  };
+  const paintGapAxis = (axis, n) => {
     const g = clampVoxelGap(n);
-    if (voxelGapNum) voxelGapNum.value = formatVoxelGap(g);
+    const el = gapInputs[axis];
+    if (el) el.value = formatVoxelGap(g);
     return g;
   };
-  if (voxelGapNum) {
-    voxelGapNum.min = String(VOXEL_GAP_MIN);
-    voxelGapNum.max = String(VOXEL_GAP_MAX);
-    voxelGapNum.step = String(VOXEL_GAP_STEP);
-    voxelGapNum.value = formatVoxelGap(DEFAULTS.voxelGap);
+  const paintVoxelGaps = (spec) => {
+    const gaps = clampVoxelGaps(spec);
+    paintGapAxis("x", gaps.x);
+    paintGapAxis("y", gaps.y);
+    paintGapAxis("z", gaps.z);
+    return gaps;
+  };
+  const gapLinked = () => Boolean(gapLink?.checked);
+  for (const axis of ["x", "y", "z"]) {
+    const el = gapInputs[axis];
+    if (!el) continue;
+    el.min = String(VOXEL_GAP_MIN);
+    el.max = String(VOXEL_GAP_MAX);
+    el.step = String(VOXEL_GAP_STEP);
   }
+  paintVoxelGaps({
+    x: DEFAULTS.voxelGapX ?? DEFAULTS.voxelGap,
+    y: DEFAULTS.voxelGapY ?? DEFAULTS.voxelGap,
+    z: DEFAULTS.voxelGapZ ?? DEFAULTS.voxelGap,
+  });
+  if (gapLink) gapLink.checked = DEFAULTS.gapLink !== false;
   wrap.checked = DEFAULTS.wrap;
   if (stopStable) stopStable.checked = DEFAULTS.stopWhenStable;
   if (stabSize) stabSize.checked = DEFAULTS.stabSize;
@@ -749,25 +773,42 @@ export function bindUI(on) {
     syncLabels();
     on.history();
   });
-  voxelGapNum?.addEventListener("input", () => {
-    const raw = Number(voxelGapNum.value);
+  const onGapAxisInput = (axis) => {
+    const el = gapInputs[axis];
+    if (!el) return;
+    const raw = Number(el.value);
     if (!Number.isFinite(raw)) return;
+    if (gapLinked()) {
+      paintVoxelGaps(raw);
+    } else {
+      paintGapAxis(axis, raw);
+    }
     on.voxelGap?.();
-  });
-  voxelGapNum?.addEventListener("change", () => {
-    paintVoxelGap(voxelGapNum.value);
-    on.voxelGap?.();
-  });
-  voxelGapField?.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      const cur = voxelGapNum ? Number(voxelGapNum.value) : DEFAULTS.voxelGap;
-      paintVoxelGap(stepVoxelGap(cur, e.deltaY));
+  };
+  for (const axis of ["x", "y", "z"]) {
+    const el = gapInputs[axis];
+    if (!el) continue;
+    el.addEventListener("input", () => onGapAxisInput(axis));
+    el.addEventListener("change", () => onGapAxisInput(axis));
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const next = stepVoxelGap(readGapAxis(axis), e.deltaY);
+        if (gapLinked()) paintVoxelGaps(next);
+        else paintGapAxis(axis, next);
+        on.voxelGap?.();
+      },
+      { passive: false },
+    );
+  }
+  gapLink?.addEventListener("change", () => {
+    if (gapLinked()) {
+      paintVoxelGaps(readGapAxis("x"));
       on.voxelGap?.();
-    },
-    { passive: false },
-  );
+    }
+  });
   countCmap?.addEventListener("change", () => {
     if (countCmapBar) countCmapBar.style.background = countCmapCss(countCmap.value);
     on.countCmap?.();
@@ -1254,7 +1295,13 @@ export function bindUI(on) {
         ) || DEFAULTS.loopPerSec,
         decay: DEFAULTS.decay,
         history: Number.parseInt(history.value, 10) || DEFAULTS.history,
-        voxelGap: voxelGapNum ? clampVoxelGap(voxelGapNum.value) : DEFAULTS.voxelGap,
+        voxelGap: readGapAxis("x"),
+        voxelGaps: {
+          x: readGapAxis("x"),
+          y: readGapAxis("y"),
+          z: readGapAxis("z"),
+        },
+        gapLink: gapLinked(),
         hideCenter: hidePressed(btnHideCenter),
         hideOuter: hidePressed(btnHideOuter),
         shadeMode: shadeGhost?.classList.contains("is-on")
@@ -1286,7 +1333,7 @@ export function bindUI(on) {
         countTrim: countTrim ? normalizeCountTrim(countTrim.value) : DEFAULT_COUNT_TRIM,
         countWinLo: countWinLo ? Number(countWinLo.value) : 1,
         countWinHi: countWinHi ? Number(countWinHi.value) : 1,
-        countHide: countHide ? Math.max(0, countHide.value | 0) : 0,
+        countHide: countHide ? Math.max(0, Number(countHide.value) || 0) : 0,
         forceFullRebuild: DEFAULTS.forceFullRebuild,
         sourceKind: sourceKind && sourceKind.value !== "npy" ? sourceKind.value : DEFAULTS.sourceKind,
         countSize: false,
@@ -1468,7 +1515,10 @@ export function bindUI(on) {
       syncQualityButtons(id);
     },
     setVoxelGap(n) {
-      return paintVoxelGap(n);
+      return paintVoxelGaps(n);
+    },
+    setVoxelGaps(spec) {
+      return paintVoxelGaps(spec);
     },
     setActiveAxis(axis) {
       const a = axis === "x" || axis === "y" ? axis : "z";

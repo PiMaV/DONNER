@@ -82,6 +82,11 @@ export const DEFAULTS = {
   timeScale: 1,
   /** Extra lattice spacing as a fraction of cube edge. 0 packs faces. Visitor Brain starts at 0.01. */
   voxelGap: 0.01,
+  /** Per-axis Gap (product X / Y / Z). Link on copies one value to all three. */
+  voxelGapX: 0.01,
+  voxelGapY: 0.01,
+  voxelGapZ: 0.01,
+  gapLink: true,
   maxInstances: 250_000,
   /** CPU path timers + GPU probe. Off the hot path until the View checkbox is on. */
   bench: false,
@@ -317,6 +322,19 @@ export function clampVoxelGap(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return DEFAULTS.voxelGap;
   return Math.min(VOXEL_GAP_MAX, Math.max(VOXEL_GAP_MIN, v));
+}
+
+/** Linked or per-axis Gaps as `{ x, y, z }`. */
+export function clampVoxelGaps(spec) {
+  if (spec == null || typeof spec === "number") {
+    const g = clampVoxelGap(spec);
+    return { x: g, y: g, z: g };
+  }
+  return {
+    x: clampVoxelGap(spec.x),
+    y: clampVoxelGap(spec.y),
+    z: clampVoxelGap(spec.z),
+  };
 }
 
 /** Wheel-up (deltaY < 0) grows Gap. Snaps to `step`. */

@@ -166,10 +166,15 @@ describe("desktop Source | View sheets", () => {
     assert.match(collapsed, /display:\s*none/);
   });
 
-  it("keeps Gap as a wide spinner beside the label, with no range slider", () => {
-    assert.match(html, /id="voxel-gap-num"[^>]*class="[^"]*field-spin/);
-    assert.match(html, /id="voxel-gap-field"[^>]*class="[^"]*field-inline/);
+  it("keeps Gap as three linked spinners with Link, with no range slider", () => {
+    assert.match(html, /id="voxel-gap-x"[^>]*class="[^"]*field-spin/);
+    assert.match(html, /id="voxel-gap-y"[^>]*class="[^"]*field-spin/);
+    assert.match(html, /id="voxel-gap-z"[^>]*class="[^"]*field-spin/);
+    assert.match(html, /id="gap-link"[^>]*type="checkbox"/);
+    assert.match(html, /id="voxel-gap-field"[^>]*class="[^"]*gap-axes/);
     assert.doesNotMatch(html, /id="voxel-gap"[^>]*type="range"/);
+    assert.doesNotMatch(html, /id="voxel-gap-num"/);
+    assert.doesNotMatch(html, /id="treat-landscape"/);
   });
 
   it("keeps Conway Depth visible in Setup during Inspect", () => {

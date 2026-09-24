@@ -19,7 +19,7 @@ advantage, not a deployment convenience.
   generator of `(x, y, t, v)` so the renderer can be built before
   event-camera files exist — seeding, teaching, and a performance
   benchmark. Do not grow a Game-of-Life product identity. Three layers:
-  **display** (DONNER: camera, Depth, Gap, Z-stack playhead, FPS),
+  **display** (DONNER: camera, Depth, Gap X/Y/Z + Link, Z-stack playhead, FPS),
   **source addon** (Game of Life, Lighter Ignition, or Brain MRI Low / High; ids
   `conway` / `ignition` / `mni152-low` / `mni152`; **Load NumPy** in Source or drop
   `.npy` on the volume with a header-first gate (grid + occupied peek;
@@ -64,6 +64,8 @@ advantage, not a deployment convenience.
   only (no size-by-count). Hide is display occupancy, not ingest. Oscillators encode as occupancy along Z, not extra
   hues. Default seed: R-pentomino; boot runs 12 generations then stays
   paused so the brick has depth. Size by age on.
+  DEM height is **not** a DONNER mesh mode: the streamer should emit a sparse
+  count surface (one layer along Z), then Colormap / rails apply as usual.
 - Paint only when Edit is on **and** focus is at the simulation head
   (not while viewing the tape).
 - **Parallax** (`B`) is perspective (default on). Off is orthographic at the **current** look, not a forced top-down. Do not wire cube double-click isolation
@@ -130,10 +132,12 @@ advantage, not a deployment convenience.
   Hull+Loop grows a potato from the axis origin through the plane (opaque
   in 3D; glass potato plus the slice in a viewcube cut). Cuts in a cut is
   that one plane. The camera tracks the playhead.
-  View sheet: Parallax, Quality, Gap, Color coding, Size by age, Cube cap.
+  View sheet: Parallax, Quality, Gap X/Y/Z + Link, Color coding, Size by age,
+  Cube cap.
   Gap starts at 0.01 for Brain / loaded cubes and 0.05 for Game of Life and
-  Ignition (reset on Source change). Gap 0 packs faces. Gap has a spinner;
-  hover-wheel on that field steps it.
+  Ignition (reset on Source change). Gap 0 packs faces. Link on = one factor
+  for all axes; Link off = per-axis spinners. Hover-wheel on a Gap spinner
+  steps it.
   Do not put the generator in the View panel. Desktop is a stacked accordion, not two columns.
   Camera-only frames must not call `fillSoA`. Inspect Hull playhead
   must not either. A viewcube cut still fills the playhead plane under Hull
