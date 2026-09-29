@@ -9,37 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Local Viewer **Examples** (session-only): showcase list is Brain MRI,
-  Ignition, and Game of Life only. **Load NumPy** and **Stream** stay
-  below. Turning Examples off hides Life Play again. Off at next start.
-- Quest AR has a sheet to the left of the view: Play/Loop, Spin, axis,
-  source, shade, and hide center/outer. The thumbstick walks and turns
-  the volume; A/X plays; B/Y spins.
-- On Quest, trigger or grip on a frame slides that plane. Grip the brick
-  to move it, and the floor ring turns it. A grab gives a short haptic
-  pulse.
-- View **Gap** is three spinners **X / Y / Z** with **Link** (default on).
-  Linked = one factor for all axes (previous behaviour). Unlinked axes
-  stretch pitch independently (Z = time / standing axis).
-- Source meta (and Stream status) shows **wire MB** vs **occupied / grid**
-  so sparse unpack is visible next to the dense download size.
-
-### Removed
-
-- **Treat as Landscape** height-mesh path and the later DEM/DGM voxel
-  elevation **surface** ingest (`heightSurface`, DGM `:5057`). Terrain stays
-  a BLITZ height plane; DONNER does not offer a terrain path.
-
 ### Changed
 
 ### Fixed
 
-- Local Viewer **Examples**: turning it on loads the selected showcase
-  (usually Brain MRI Low) immediately. Face stays offered on Local Viewer
-  and shows while Examples is on and Source is Brain (no longer latched off
-  at boot).
-- Opening DONNER as `http://0.0.0.0:…` redirects to `127.0.0.1` so the
-  camera API exists. Face no longer fails silently on a bind-all URL.
+## [1.4.0] - 2026-09-29
+
+### Added
+
+- Local Viewer **Examples** (session-only): showcase list is Brain MRI,
+  Ignition, and Game of Life only. **Load NumPy** and **Stream** stay
+  below. Turning Examples off hides Life Play again. Off at next start.
+- Quest AR controller chrome: **A/B** Play/Spin, **X/Y** Source/Shade,
+  left stick **Plane ↔** / **Axis ↕**, right stick **Yaw ↔** / **Zoom ↕**
+  (zoom after ~0.2 s). **Hold stick · Exit** on the left stick (~0.7 s).
+  Short left-stick tap also cycles Source. Two grips: pinch Size, midpoint
+  shove, twist to yaw. In-world place cue while searching.
+- View **Gap** is three spinners **X / Y / Z** with **Link** (default on).
+- Source meta (and Stream status) shows **wire MB** vs **occupied / grid**.
+
+### Removed
+
+- Quest head-relative inspect sheet and gold floor turntable ring.
+- **Treat as Landscape** / DEM height-surface ingest path.
+
+### Changed
+
+- Quest immersive Source loads skip DOM `withLoading` / double rAF (that
+  froze Quest Browser).
+
+### Fixed
+
+- Quest Exit/zoom hold windows use seconds (not ms-vs-`dt`), left-stick
+  Exit only, 1.2 s grace after place.
+- Source cycle advances a pending target while MRI High loads.
+- Two-grip twist yaw follows the hands; stick and face-button labels sit
+  beside the grips.
+- Local Viewer Examples loads the selected showcase when turned on; Face
+  gate stays correct. `http://0.0.0.0` redirects to `127.0.0.1` for camera.
 
 ## [1.3.0] - 2026-09-17
 

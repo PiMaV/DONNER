@@ -297,16 +297,17 @@ flowchart TB
 3. **XR-C — Quest passthrough (parallel chrome fork).** Same
    `immersive-ar` session and placement as XR-A. Quest Browser must not
    request `dom-overlay` (a fullscreen root covers passthrough). The
-   table-side Play/stand/Exit **plate stays retired**. Inspect lives on a
-   head-relative sheet (Play/Loop, Spin, axis, source, shade, hide
-   center/outer). **Yaw** is the thumbstick X; **Y** walks the active
-   plane; stick press cycles the axis. **A/X** plays, **B/Y** spins.
-   Trigger or grip on a frame slides that plane. Grip the brick to move
-   it. A floor ring turns it. **Size** is both grips. A grab pulses the
-   controller. Poke a cube to isolate the standing plane (Ghost). Phone
-   `screen` overlay is unchanged. Exit on Quest is the headset / browser
-   system gesture. **XR-C-1 later:** hand tracking, wrist attach. XR-A
-   is the window demo.
+   table-side Play/stand/Exit **plate** and the head-relative **sheet**
+   stay retired. **Left** stick X walks the active plane; Y cycles the
+   axis. **Right** stick X yaws immediately; Y zooms Size after a short
+   arm. **Hold left stick click (press in)** ~0.7s Exits AR. **A/B**
+   play/spin; **X/Y** cycle Source/Shade (labels
+   always show the current choice). Near a frame highlights and pulses
+   once; trigger or grip slides that plane. Grip the brick to move it.
+   **Size** is both grips. Poke a cube to isolate the standing plane
+   (Ghost). Phone `screen` overlay is unchanged. System gesture Exit still
+   works. **XR-C-1 later:** hand tracking, wrist attach. XR-A is the
+   window demo.
 
 Out of this ladder: projection mapping, Unreal, Vision Pro as a first
 target. Count-stack `.npy` is in; polarity encodings and EVT3-in-browser
@@ -327,14 +328,15 @@ Confirm on hardware after the session-fix (WWM). In this tree:
    frame grab stays mouse / desktop. (Phone AR overlay sliders are
    unchanged.)
 
-3. **Head-relative sheet.** The old table-side Play / stand / Exit
-   panel stays off. Quest inspect is the sheet left of the view, plus
-   stick, face buttons, frame slide, brick move, and the floor ring.
+3. **No floating sheet.** Quest chrome is sticks, face buttons with
+   always-on Play/Spin/Source/Shade/Exit labels, frame hover+slide, and
+   brick move — not a head panel or floor ring.
 
-4. **Frame grab slides the plane.** Trigger or grip on a bounding-frame
-   edge moves that playhead or clip along its axis (same as the desktop
-   frame). The brick body moves the volume. The gold floor ring yaws.
-   Ray pick rim is ~8 cm. Phone sliders are unchanged.
+4. **Frame grab slides the plane.** Near a frame highlights and pulses;
+   trigger or grip on a bounding-frame edge moves that playhead or clip
+   along its axis (same as the desktop frame). The brick body moves the
+   volume. Right stick yaws; right stick click Exits. Ray pick rim is
+   ~8 cm. Phone sliders are unchanged.
 
 ## AR (later)
 

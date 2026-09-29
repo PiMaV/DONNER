@@ -109,47 +109,54 @@ and **Quality** sit behind **More**. On a **phone** in orbit,
 fingers rotate and pinch-zoom; Conway **Play** sits next to **AR** in the
 fold-bar gap between Source and View. The Look strip is top-right (shade plus Fit and Spin). The stack **sliders** move planes and stop
 short of the right edge (system back-swipe). On a
-**headset**, a sheet floats to the left of the view. Thumbstick up and
-down walks the active plane; left and right yaws; press the stick to
-cycle X / Y / Z. **A / X** is Play (Loop on a count cube). **B / Y** is
-Spin (the volume turns; the stick still yaws). Trigger or grip on a
-frame slides that plane; grip the brick to move it; the gold floor ring
-turns it. Both grips pinch **Size**. A grab starts with a short haptic
-pulse. Point at a **cube** to isolate the standing plane (Ghost). The
-sheet also switches source, shade, and hides center or outer frames.
-**Exit** (or
-Escape) returns to orbit and runs **Fit** so the volume is framed. On a **phone** the WebXR DOM overlay is
+**headset**, there is no floating inspect sheet. The **left** thumbstick
+X walks the active plane; Y cycles X / Y / Z. The **right** thumbstick
+X yaws immediately; Y zooms Size after ~0.2 s of soft deflection.
+**Hold the left stick click (press in)** ~0.7 s to Exit AR.
+Short tap of the left stick (or **X**) cycles Source; **Y** cycles Shade.
+Labels sit beside the grips as **A:** / **B:** and **X:** / **Y:**. While searching, Quest shows
+an in-world place cue. **A** (right) is Loop/Play; **B** is Spin. Zoom arms ~0.2 s
+with no on-screen hold bar. Grip
+the brick to move it in the room; trigger/ray slides frames only. Both
+grips pinch **Size**. Point at a **cube** to isolate the standing plane
+(Ghost). On a **phone** the WebXR DOM overlay is
 `#xr-overlay` (HUD chrome only, not a painted full-screen sheet), not
 `document.body`, so the camera passthrough and the volume stay visible.
 Outside AR the overlay is 0×0 so it does not cover the orbit canvas; it
 expands for the session. Overlay tap-guard applies to buttons and
 sliders, not passthrough taps. On a **headset** (Quest) do **not**
 request that overlay — a fullscreen root covers passthrough. There is
-**no** table-side Play/stand/Exit plate. The inspect sheet is
-head-relative (left of the view), aimed with the ray or grabbed.
+**no** table-side Play/stand/Exit plate and **no** head-relative sheet.
 Quest has no Reset Anchor
-button: Exit AR and enter again to place on another plane. Exit with the headset / browser system gesture. Headset 2D
+button: Exit AR and enter again to place on another plane. Headset 2D
 Browser skips the viewcube scissor; XR uses the native layer scale.
 
 ```mermaid
 flowchart LR
-  stickY[Stick up down]
-  stickX[Stick left right]
-  stickClick[Stick press]
-  faceA[A or X]
-  faceB[B or Y]
+  leftX[LeftStick_X]
+  leftY[LeftStick_Y]
+  stickClick[StickClick_or_Menu]
+  rightX[RightStick_X]
+  rightY[RightStick_Y]
+  faceA[Right_A]
+  faceB[Right_B]
+  faceX[Left_X]
+  faceY[Left_Y]
   grips[Both grips]
-  grab[Trigger or grip]
-  stickY --> layer[Active playhead]
-  stickX --> yaw[Yaw]
-  stickClick --> axis[Cycle axis]
+  near[Near frame]
+  grab[Grip on brick]
+  leftX --> layer[Active playhead]
+  leftY --> axis[Cycle axis]
+  stickClick --> exitAr[Exit_AR]
+  rightX --> yaw[Yaw]
+  rightY --> zoom[Zoom after arm]
   faceA --> play[Play or Loop]
-  faceB --> spin[Spin turntable]
-  grips --> size[Size]
-  grab --> frame[Frame slides that plane]
+  faceB --> spin[Spin]
+  faceX --> source[Cycle_Source]
+  faceY --> shade[Cycle_Shade]
+  grips --> size[Pinch Size]
+  near --> hover[Highlight plus haptic]
   grab --> brick[Brick moves the volume]
-  grab --> ring[Ring yaws]
-  grab --> sheet[Sheet button]
 ```
 
 **Face** is a second placement mode, not WebXR. The **Face** button shows
@@ -371,7 +378,7 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Hidden on phone orbit. Phone AR: Hide lives in **More** (no cube). |
-| **AR** | Bottom dock only when WebXR `immersive-ar` is available (larger on desktop). Desktop without WebXR does not show AR. Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. **Searching for a surface…** shows until a plane appears; when the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Size and Yaw stack; Floor **X / Y / Z** sit beside them. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Phone: Loop **X / Y / Z** sit beside Loop. Quest: sheet on the left (Play/Loop, Spin, axis, source, shade, hide center/outer); stick up/down walks the plane; stick left/right yaws; stick press cycles the axis; A/X plays; B/Y spins; trigger or grip on a frame slides that plane; grip the brick to move it; the floor ring turns it; both grips pinch size; a grab pulses the controller. |
+| **AR** | Bottom dock only when WebXR `immersive-ar` is available (larger on desktop). Desktop without WebXR does not show AR. Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. **Searching for a surface…** shows until a plane appears; when the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Size and Yaw stack; Floor **X / Y / Z** sit beside them. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Phone: Loop **X / Y / Z** sit beside Loop. Quest: no floating sheet; left stick X walks the plane / Y cycles axis; right stick X yaws / Y zooms after arm; hold left stick click Exit; A/B Play/Spin; X/Y cycle Source/Shade (labels always show current); near a frame highlights + haptic; trigger or grip slides that plane; grip the brick to move it; both grips pinch size. |
 | **Face** | Bottom **Face** when a camera exists and Source is Brain MRI Low or High. Not WebXR. Camera start shows **Initializing cameras…**, then one **camera** dropdown (**Selfie camera** / **Rear camera**) + **Exit** (Face toggle gone). Phone and desktop start **Selfie camera**. Ghost overlay locks to the head. After lock: oval + lips + circular blue retinas + black pupil dots; if the mesh drops, keep the last pose until the face returns. Hide center and Hide outer are on. No Size / Yaw. Phone and Face always show the three plane sliders at full brightness. Laptop keeps rails / Loop / Source / View. Switching Source leaves Face and restores orbit. Hidden on Quest. `?face=1` enters. |
 | **Exit** | End the AR or Face session; orbit returns and **Fit** frames the volume. Visible in AR / Face only. |
 | **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Hidden in Face. Does not steal a scene tap. Hidden until a pose is locked. |
@@ -888,9 +895,11 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
   `Permissions-Policy: xr-spatial-tracking=(self), camera=(self)`. LAN HTML/JS/CSS
   are `Cache-Control: no-store`.
 - **XR-C-0 is in:** Quest uses the same session but **without** `dom-overlay`
-  and **without** the in-world Play/stand/Exit plate. Stick yaws; both grips
-  pinch size. Grab a bounding frame to slide the volume in the room.
-  Bounding frames stay on; poke a cube to isolate the
+  and **without** an in-world sheet or floor ring. Left stick X walks the
+  plane; Y cycles axis. Right stick X yaws; Y zooms after a short arm.
+  Hold left stick click Exits. A/B Play/Spin; X/Y cycle Source/Shade
+  (labels always on). Near a frame highlights and pulses; grip slides it.
+  Both grips pinch size. Bounding frames stay on; poke a cube to isolate the
   standing plane. **URL door query is in** (`?src=` / `?quality=`). QR
   print, path `/ignition`, and AR-from-QR stay later. Do not start a points renderer
   in the same slice as further XR work.

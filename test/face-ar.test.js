@@ -209,7 +209,7 @@ describe("face AR gate and camera", () => {
     assert.doesNotMatch(main, /drawGazeCones/);
     assert.match(main, /createFaceTracker/);
     assert.match(main, /Initializing cameras/);
-    assert.match(main, /Searching for a surface/);
+    assert.match(main, /Look at the floor|select a surface|Tap to place on the floor/);
     assert.match(main, /faceCamerasReady/);
     const ui = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
     assert.match(ui, /arBtn\.hidden = !arSupported \|\| inAr \|\| presenting/);

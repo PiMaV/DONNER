@@ -1,6 +1,6 @@
 /**
- * Headset input math: stick yaw and layer scrub, grip pinch, face buttons,
- * the head-relative palette, plane-slide, and the floor ring.
+ * Headset input math: stick yaw (right) and layer scrub (left), grip pinch,
+ * face buttons, plane-slide hover, and haptics.
  * The old table-side Play/stand/Exit plate stays as layout data for tests.
  */
 
@@ -211,6 +211,35 @@ export function magFromPinch(startMag, startDist, dist) {
   return clampArMag((Number(startMag) || XR_MAG_DEFAULT) * (d / d0));
 }
 
+/** Midpoint of two hands (for two-grip translate). */
+export function midpoint3(a, b) {
+  return {
+    x: ((Number(a?.x) || 0) + (Number(b?.x) || 0)) * 0.5,
+    y: ((Number(a?.y) || 0) + (Number(b?.y) || 0)) * 0.5,
+    z: ((Number(a?.z) || 0) + (Number(b?.z) || 0)) * 0.5,
+  };
+}
+
+/**
+ * Yaw delta from twisting two hands in the floor plane (XZ).
+ * Positive = counterclockwise when looking down +Y.
+ */
+export function yawDeltaFromPinchHands(a, b, prevA, prevB) {
+  if (!a || !b || !prevA || !prevB) return 0;
+  const a0 = Math.atan2(
+    (Number(prevB.z) || 0) - (Number(prevA.z) || 0),
+    (Number(prevB.x) || 0) - (Number(prevA.x) || 0),
+  );
+  const a1 = Math.atan2(
+    (Number(b.z) || 0) - (Number(a.z) || 0),
+    (Number(b.x) || 0) - (Number(a.x) || 0),
+  );
+  let d = a1 - a0;
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return Number.isFinite(d) ? d : 0;
+}
+
 export function distance3(a, b) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -259,56 +288,65 @@ export function trackedInputSources(session) {
 export const XR_BTN_STICK = 3;
 export const XR_BTN_PRIMARY = 4;
 export const XR_BTN_SECONDARY = 5;
+/** Quest menu / Meta when the runtime exposes it (not always present). */
+export const XR_BTN_MENU = 6;
 
 /** Full-deflection layer steps per second (stick Y). */
 export const XR_LAYER_STEPS_PER_S = 10;
 
-/** Palette sits left of the view, in front of the head. Meters, camera space. */
-export const XR_PALETTE_LEFT_M = 0.34;
-export const XR_PALETTE_DROP_M = 0.06;
-export const XR_PALETTE_DISTANCE_M = 0.72;
-
-/** Floor ring grab rim, meters. */
+/** Floor ring grab rim, meters (geometry helper; Quest no longer shows a ring). */
 export const XR_RING_PICK_M = 0.05;
 
-const PALETTE_Z0 = -0.008;
-const PALETTE_Z1 = 0.014;
-
-function paletteButton(id, x0, y0, x1, y1) {
-  return {
-    id,
-    kind: "button",
-    min: { x: x0, y: y0, z: PALETTE_Z0 },
-    max: { x: x1, y: y1, z: PALETTE_Z1 },
-  };
-}
-
-function paletteRow(y, ids, x0 = -0.125, x1 = 0.125, gap = 0.008, h = 0.04) {
-  const n = ids.length;
-  const span = (x1 - x0 - gap * (n - 1)) / n;
-  return ids.map((id, i) => {
-    const a = x0 + i * (span + gap);
-    return paletteButton(id, a, y, a + span, y + h);
-  });
-}
-
-/** Head-relative inspect sheet. Origin at panel center, +Z toward the viewer. */
-export const PALETTE_WIDGETS = [
-  ...paletteRow(0.168, ["play"]),
-  ...paletteRow(0.12, ["spin"]),
-  ...paletteRow(0.072, ["axis-x", "axis-y", "axis-z"]),
-  ...paletteRow(0.024, ["src-mni152-low", "src-mni152"]),
-  ...paletteRow(-0.024, ["src-ignition", "src-conway"]),
-  ...paletteRow(-0.072, ["shade-hull", "shade-ghost", "shade-triple"]),
-  ...paletteRow(-0.12, ["hide-center", "hide-outer"]),
-];
-
-export function paletteWidgetById(id) {
-  return PALETTE_WIDGETS.find((w) => w.id === id) || null;
-}
-
 export function buttonPressed(gamepad, index) {
+  const b = gamepad?.buttons?.[index];
+  if (!b) return false;
+  if (b.pressed) return true;
+  // Quest sometimes reports analog value without `pressed`.
+  const v = Number(b.value);
+  return Number.isFinite(v) && v >= 0.5;
+}
+
+/** Face A/X B/Y — digital `pressed` only (analog noise sticks forever). */
+export function faceButtonPressed(gamepad, index) {
   return Boolean(gamepad?.buttons?.[index]?.pressed);
+}
+
+/**
+ * Thumbstick pressed in (click). Uses `pressed` or a high analog `value`.
+ * This is the physical stick button — not tilting the stick.
+ */
+export function stickClickHeld(gamepad) {
+  const b = gamepad?.buttons?.[XR_BTN_STICK];
+  if (!b) return false;
+  if (b.pressed === true) return true;
+  const v = Number(b.value);
+  // Idle Quest sticks can sit around 0.3–0.4 without a click.
+  return Number.isFinite(v) && v >= 0.85;
+}
+
+/** Left stick click only — menu/Meta is not on the Touch gamepad in WebXR. */
+export function exitHoldPressed(gamepad) {
+  if (!gamepad) return false;
+  return stickClickHeld(gamepad);
+}
+
+function inputSourceHand(src) {
+  return String(src?.handedness || "").toLowerCase();
+}
+
+/**
+ * True when the left Touch stick is clicked in (Exit hold).
+ * One tracked source with no handedness → treat as left (solo controller).
+ */
+export function leftExitHoldPressed(sources) {
+  const list = Array.isArray(sources) ? sources.filter(Boolean) : [];
+  if (list.length === 1 && !inputSourceHand(list[0])) {
+    return exitHoldPressed(list[0]?.gamepad);
+  }
+  for (const s of list) {
+    if (inputSourceHand(s) === "left" && exitHoldPressed(s?.gamepad)) return true;
+  }
+  return false;
 }
 
 /** True on the frame a button goes down. */
@@ -356,66 +394,210 @@ export function nextSliceAxis(axis) {
   return "x";
 }
 
-export function paletteOffsetLocal() {
+/** Showcase sources cycled on Quest left X (Examples / Online Demo). */
+export const AR_SHOWCASE_KINDS = ["mni152-low", "mni152", "ignition", "conway"];
+
+/** Hull → Ghost → Cuts → Hull. */
+export function nextShadeMode(mode) {
+  if (mode === "hull") return "ghost";
+  if (mode === "ghost") return "triple";
+  return "hull";
+}
+
+/**
+ * Next showcase source. Returns null when cycling is not allowed
+ * (Local Viewer with Examples off).
+ */
+export function nextArSourceKind(kind, { allowCycle = true } = {}) {
+  if (!allowCycle) return null;
+  const list = AR_SHOWCASE_KINDS;
+  const i = list.indexOf(String(kind || ""));
+  return list[i < 0 ? 0 : (i + 1) % list.length];
+}
+
+/** Short controller label for a source kind. */
+export function arSourceLabel(kind) {
+  if (kind === "mni152-low") return "MRI Low";
+  if (kind === "mni152") return "MRI High";
+  if (kind === "ignition") return "Ignition";
+  if (kind === "conway") return "Life";
+  if (kind === "count") return "Own";
+  return "Source";
+}
+
+/** Short controller label for shade mode. */
+export function arShadeLabel(mode) {
+  if (mode === "hull") return "Hull";
+  if (mode === "ghost") return "Ghost";
+  if (mode === "triple") return "Cuts";
+  return "Shade";
+}
+
+function emptyFacePad() {
+  return { primary: false, secondary: false, stick: false };
+}
+
+function readFacePad(src) {
+  const pad = src?.gamepad;
   return {
-    x: -XR_PALETTE_LEFT_M,
-    y: -XR_PALETTE_DROP_M,
-    z: -XR_PALETTE_DISTANCE_M,
+    primary: faceButtonPressed(pad, XR_BTN_PRIMARY),
+    secondary: faceButtonPressed(pad, XR_BTN_SECONDARY),
+    stick: stickClickHeld(pad),
   };
 }
 
-/** Panel position in front-left of the head. `look*` is the camera, for billboard. */
-export function paletteHeadPose(camPos, camQuat, offset = paletteOffsetLocal()) {
-  const delta = rotateVecByQuat(offset, camQuat);
+/**
+ * Face pads split by hand. One tracked source → `solo` only.
+ * Two without handedness → index 0 left, index 1 right.
+ */
+export function facePadsByHand(sources) {
+  const list = Array.isArray(sources) ? sources.filter(Boolean) : [];
+  const out = { left: emptyFacePad(), right: emptyFacePad(), solo: null };
+  if (list.length === 0) return out;
+  if (list.length === 1) {
+    out.solo = readFacePad(list[0]);
+    return out;
+  }
+  let right = null;
+  let left = null;
+  const unknown = [];
+  for (const s of list) {
+    const hand = sourceHandedness(s);
+    if (hand === "right") right = s;
+    else if (hand === "left") left = s;
+    else unknown.push(s);
+  }
+  if (!right && !left) {
+    left = unknown[0] || null;
+    right = unknown[1] || null;
+  } else {
+    if (!left) left = unknown[0] || null;
+    if (!right) right = unknown[left === unknown[0] ? 1 : 0] || null;
+  }
+  if (left) out.left = readFacePad(left);
+  if (right) out.right = readFacePad(right);
+  return out;
+}
+
+/**
+ * True when hover should fire a one-shot haptic: entering a frame key
+ * (including switching frames). Clearing hover never pulses.
+ */
+export function hoverEnterPulse(prevKey = "", nextKey = "") {
+  const prev = String(prevKey || "");
+  const next = String(nextKey || "");
+  if (!next) return false;
+  return prev !== next;
+}
+
+function sourceHandedness(src) {
+  return String(src?.handedness || "").toLowerCase();
+}
+
+/**
+ * Split Quest sticks by hand:
+ * right X = yaw, right Y = zoom;
+ * left X = layer scrub, left Y = axis cycle (accumulated steps).
+ * One tracked source: X = yaw, Y = zoom.
+ */
+export function stickAxesForHeadset(sources) {
+  const list = Array.isArray(sources) ? sources.filter(Boolean) : [];
+  const empty = { yawX: 0, zoomY: 0, layerX: 0, axisY: 0 };
+  if (list.length === 0) return empty;
+  if (list.length === 1) {
+    const axes = list[0].gamepad?.axes;
+    return {
+      yawX: thumbstickXFromAxes(axes),
+      zoomY: thumbstickYFromAxes(axes),
+      layerX: 0,
+      axisY: 0,
+    };
+  }
+  let right = null;
+  let left = null;
+  const unknown = [];
+  for (const s of list) {
+    const hand = sourceHandedness(s);
+    if (hand === "right") right = s;
+    else if (hand === "left") left = s;
+    else unknown.push(s);
+  }
+  if (!right && !left) {
+    left = unknown[0] || null;
+    right = unknown[1] || null;
+  } else {
+    if (!left) left = unknown[0] || null;
+    if (!right) right = unknown[left === unknown[0] ? 1 : 0] || null;
+  }
   return {
-    x: (Number(camPos?.x) || 0) + delta.x,
-    y: (Number(camPos?.y) || 0) + delta.y,
-    z: (Number(camPos?.z) || 0) + delta.z,
-    lookX: Number(camPos?.x) || 0,
-    lookY: Number(camPos?.y) || 0,
-    lookZ: Number(camPos?.z) || 0,
+    yawX: thumbstickXFromAxes(right?.gamepad?.axes),
+    zoomY: thumbstickYFromAxes(right?.gamepad?.axes),
+    layerX: thumbstickXFromAxes(left?.gamepad?.axes),
+    axisY: thumbstickYFromAxes(left?.gamepad?.axes),
   };
 }
 
-export function pickPaletteWidget(localOrigin, localDir) {
-  let best = null;
-  for (const w of PALETTE_WIDGETS) {
-    const t = rayAabb(localOrigin, localDir, w.min, w.max);
-    if (t == null) continue;
-    if (best && t >= best.t) continue;
-    best = { id: w.id, kind: w.kind, t };
-  }
-  return best;
+/** Hold duration in seconds before Exit fires. */
+export const XR_EXIT_HOLD_S = 0.7;
+
+/** Right-stick Y must stay deflected this long (seconds) before zoom applies. */
+export const XR_ZOOM_ARM_S = 0.2;
+
+/** Right-stick Y → multiplicative size rate at full deflection (per second). */
+export const XR_ZOOM_STICK_PER_S = 0.9;
+
+/** Left-stick Y → axis steps per second at full deflection. */
+export const XR_AXIS_STEPS_PER_S = 2.2;
+
+/** Hold fraction 0…1 for progress bars (`heldS` / `needS`). */
+export function holdProgress(heldS, needS) {
+  const need = Number(needS);
+  if (!(need > 0)) return 0;
+  const h = Number(heldS) || 0;
+  if (h <= 0) return 0;
+  return Math.min(1, h / need);
 }
 
-/** Grip point in panel space. `padZ` thickens the thin plates. */
-export function pickPalettePoint(p, padZ = 0.05) {
-  if (!p) return null;
-  const z0 = PALETTE_Z0 - padZ;
-  const z1 = PALETTE_Z1 + padZ;
-  for (const w of PALETTE_WIDGETS) {
-    if (p.x < w.min.x || p.x > w.max.x || p.y < w.min.y || p.y > w.max.y) continue;
-    if (p.z < z0 || p.z > z1) continue;
-    return { id: w.id, kind: w.kind, t: 0 };
+/**
+ * Accumulate a hold. Fires once when `held` stays true for `holdS` seconds.
+ * `dt` is frame delta in seconds. `state` is `{ ms, armed }` (`ms` = seconds held).
+ */
+export function tickStickLongPress(held, dt, state, holdS = XR_EXIT_HOLD_S) {
+  const step = Number(dt) || 0;
+  let ms = Number(state?.ms) || 0;
+  let armed = Boolean(state?.armed);
+  let fired = false;
+  if (held) {
+    ms += step;
+    if (!armed && ms >= holdS) {
+      armed = true;
+      fired = true;
+    }
+  } else {
+    ms = 0;
+    armed = false;
   }
-  return null;
+  return { ms, armed, fired };
 }
 
-export function paletteActionFromHit(hit) {
-  if (!hit) return null;
-  const id = hit.id;
-  if (id === "play") return { type: "play" };
-  if (id === "spin") return { type: "spin" };
-  if (id === "axis-x" || id === "axis-y" || id === "axis-z") {
-    return { type: "axis", axis: id.slice(5) };
-  }
-  if (id === "hide-center") return { type: "hide-center" };
-  if (id === "hide-outer") return { type: "hide-outer" };
-  if (id === "shade-hull" || id === "shade-ghost" || id === "shade-triple") {
-    return { type: "shade", mode: id.slice(6) };
-  }
-  if (id.startsWith("src-")) return { type: "source", kind: id.slice(4) };
-  return null;
+/** Mag multiplier delta from right stick Y (zoom). */
+export function magDeltaFromStick(axisY, dt, rate = XR_ZOOM_STICK_PER_S) {
+  const y = Number(axisY);
+  const step = Number(dt);
+  if (!Number.isFinite(y) || !Number.isFinite(step) || step <= 0) return 0;
+  const abs = Math.abs(y);
+  if (abs < XR_YAW_STICK_DEADZONE) return 0;
+  const mag = (abs - XR_YAW_STICK_DEADZONE) / (1 - XR_YAW_STICK_DEADZONE);
+  // Up (negative Y in xr-standard often) → larger; flip so up zooms in.
+  return -Math.sign(y) * mag * rate * step;
+}
+
+/**
+ * Axis cycle steps from left stick Y (same accumulator pattern as layers).
+ * Positive Y → next axis.
+ */
+export function axisStepsFromStick(axisY, dt, acc = 0, rate = XR_AXIS_STEPS_PER_S) {
+  return layerStepsFromStick(axisY, dt, acc, rate);
 }
 
 export function pointOnRay(origin, dir, t) {

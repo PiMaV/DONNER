@@ -3,39 +3,49 @@ import { describe, it } from "node:test";
 
 import {
   HUD_WIDGETS,
-  PALETTE_WIDGETS,
   XR_BTN_PRIMARY,
   XR_BTN_SECONDARY,
   XR_BTN_STICK,
-  XR_PALETTE_DISTANCE_M,
-  XR_PALETTE_LEFT_M,
   XR_PINCH_MIN_M,
   XR_RING_PICK_M,
   XR_YAW_STICK_DEADZONE,
+  arShadeLabel,
+  arSourceLabel,
   axisDragBack,
   buttonPressed,
   distance3,
   distPointToSegment3,
+  facePadsByHand,
   gripPressed,
+  hoverEnterPulse,
   hudActionFromHit,
   hudWidgetById,
   inverseQuat,
   isHeadsetArSession,
   layerStepsFromStick,
   magFromPinch,
+  midpoint3,
+  yawDeltaFromPinchHands,
+  magDeltaFromStick,
+  nextArSourceKind,
+  nextShadeMode,
   nextSliceAxis,
-  paletteActionFromHit,
-  paletteHeadPose,
+  axisStepsFromStick,
+  XR_EXIT_HOLD_S,
+  holdProgress,
   parkHudPose,
   pickHudWidget,
-  pickPalettePoint,
-  pickPaletteWidget,
   pointCircleDist,
   pulseHaptic,
   rayAabb,
   rayCircleHit,
   rayFromPose,
   risingEdge,
+  stickAxesForHeadset,
+  stickClickHeld,
+  exitHoldPressed,
+  leftExitHoldPressed,
+  tickStickLongPress,
   strongestStickX,
   thumbstickXFromAxes,
   thumbstickYFromAxes,
@@ -221,62 +231,199 @@ describe("HUD_WIDGETS", () => {
   });
 });
 
-describe("headset palette", () => {
-  it("lists play, spin, axes, sources, shade, and hide", () => {
-    assert.deepEqual(
-      PALETTE_WIDGETS.map((w) => w.id),
-      [
-        "play",
-        "spin",
-        "axis-x",
-        "axis-y",
-        "axis-z",
-        "src-mni152-low",
-        "src-mni152",
-        "src-ignition",
-        "src-conway",
-        "shade-hull",
-        "shade-ghost",
-        "shade-triple",
-        "hide-center",
-        "hide-outer",
-      ],
-    );
+describe("hover enter pulse", () => {
+  it("pulses only when entering or switching a frame key", () => {
+    assert.equal(hoverEnterPulse("", "x:focus"), true);
+    assert.equal(hoverEnterPulse("x:focus", "x:focus"), false);
+    assert.equal(hoverEnterPulse("x:focus", "y:focus"), true);
+    assert.equal(hoverEnterPulse("x:focus", ""), false);
+    assert.equal(hoverEnterPulse("", ""), false);
+  });
+});
+
+describe("stick by handedness", () => {
+  it("keeps yaw and zoom on a single tracked source", () => {
+    const axes = stickAxesForHeadset([
+      { handedness: "right", gamepad: { axes: [0, 0, 0.7, -0.5] } },
+    ]);
+    assert.equal(axes.yawX, 0.7);
+    assert.equal(axes.zoomY, -0.5);
+    assert.equal(axes.layerX, 0);
   });
 
-  it("parks left of a forward-looking head", () => {
-    const pose = paletteHeadPose(
-      { x: 0, y: 1.6, z: 0 },
-      { x: 0, y: 0, z: 0, w: 1 },
-    );
-    assert.ok(pose.x < -XR_PALETTE_LEFT_M * 0.5);
-    assert.ok(pose.z < -XR_PALETTE_DISTANCE_M * 0.5);
-    assert.equal(pose.lookY, 1.6);
+  it("maps right yaw/zoom and left layer/axis", () => {
+    const axes = stickAxesForHeadset([
+      { handedness: "left", gamepad: { axes: [0, 0, 0.9, 0.4] } },
+      { handedness: "right", gamepad: { axes: [0, 0, -0.6, 0.8] } },
+    ]);
+    assert.equal(axes.yawX, -0.6);
+    assert.equal(axes.zoomY, 0.8);
+    assert.equal(axes.layerX, 0.9);
+    assert.equal(axes.axisY, 0.4);
   });
 
-  it("picks Play from a ray into the sheet", () => {
-    const play = PALETTE_WIDGETS[0];
-    const origin = { x: 0, y: (play.min.y + play.max.y) * 0.5, z: 0.2 };
-    const hit = pickPaletteWidget(origin, { x: 0, y: 0, z: -1 });
-    assert.equal(hit.id, "play");
-    assert.deepEqual(paletteActionFromHit(hit), { type: "play" });
+  it("falls back to index order when handedness is missing", () => {
+    const axes = stickAxesForHeadset([
+      { gamepad: { axes: [0, 0, 0.1, 0.3] } },
+      { gamepad: { axes: [0, 0, 0.5, -0.2] } },
+    ]);
+    assert.equal(axes.yawX, 0.5);
+    assert.equal(axes.zoomY, -0.2);
+    assert.equal(axes.layerX, 0.1);
+    assert.equal(axes.axisY, 0.3);
+  });
+});
+
+describe("shade and source cycle", () => {
+  it("cycles Hull → Ghost → Cuts", () => {
+    assert.equal(nextShadeMode("hull"), "ghost");
+    assert.equal(nextShadeMode("ghost"), "triple");
+    assert.equal(nextShadeMode("triple"), "hull");
+    assert.equal(nextShadeMode("other"), "hull");
   });
 
-  it("picks a source and a hide flag from a grip point", () => {
-    const src = PALETTE_WIDGETS.find((w) => w.id === "src-conway");
-    const hit = pickPalettePoint({
-      x: (src.min.x + src.max.x) * 0.5,
-      y: (src.min.y + src.max.y) * 0.5,
-      z: 0,
+  it("cycles showcase sources and respects allowCycle", () => {
+    assert.equal(nextArSourceKind("mni152-low"), "mni152");
+    assert.equal(nextArSourceKind("conway"), "mni152-low");
+    assert.equal(nextArSourceKind("count"), "mni152-low");
+    assert.equal(nextArSourceKind("mni152", { allowCycle: false }), null);
+  });
+
+  it("labels sources and shades for controllers", () => {
+    assert.equal(arSourceLabel("mni152-low"), "MRI Low");
+    assert.equal(arSourceLabel("conway"), "Life");
+    assert.equal(arShadeLabel("triple"), "Cuts");
+    assert.equal(arShadeLabel("ghost"), "Ghost");
+  });
+});
+
+describe("two-grip pinch helpers", () => {
+  it("midpoints two hands", () => {
+    assert.deepEqual(midpoint3({ x: 0, y: 0, z: 0 }, { x: 2, y: 4, z: 6 }), {
+      x: 1,
+      y: 2,
+      z: 3,
     });
-    assert.deepEqual(paletteActionFromHit(hit), { type: "source", kind: "conway" });
-    const hide = PALETTE_WIDGETS.find((w) => w.id === "hide-center");
-    const hideHit = pickPalettePoint({
-      x: (hide.min.x + hide.max.x) * 0.5,
-      y: (hide.min.y + hide.max.y) * 0.5,
-      z: 0.04,
-    });
-    assert.deepEqual(paletteActionFromHit(hideHit), { type: "hide-center" });
+  });
+
+  it("yaws when hands twist in the floor plane", () => {
+    const prevA = { x: -0.2, y: 1, z: 0 };
+    const prevB = { x: 0.2, y: 1, z: 0 };
+    // Rotate 90° CCW around Y: (−0.2,0)→(0,−0.2), (0.2,0)→(0,0.2) in XZ? 
+    // atan2(z,x): was atan2(0,0.4)-atan2(0,-0.4) = 0 - π = weird.
+    // Simpler: prev along +X, next along +Z → +π/2.
+    const a0 = { x: 0, y: 1, z: 0 };
+    const b0 = { x: 1, y: 1, z: 0 };
+    const a1 = { x: 0, y: 1, z: 0 };
+    const b1 = { x: 0, y: 1, z: 1 };
+    const d = yawDeltaFromPinchHands(a1, b1, a0, b0);
+    assert.ok(Math.abs(d - Math.PI / 2) < 1e-6);
+    assert.equal(yawDeltaFromPinchHands(a0, b0, a0, b0), 0);
+  });
+});
+
+describe("zoom and axis stick helpers", () => {
+  it("zooms from stick Y and ignores the deadzone", () => {
+    assert.equal(magDeltaFromStick(0.05, 1), 0);
+    const d = magDeltaFromStick(-1, 0.5);
+    assert.ok(d > 0);
+  });
+
+  it("accumulates axis steps like layers", () => {
+    const a = axisStepsFromStick(1, 0.3, 0);
+    assert.ok(a.steps >= 0);
+    assert.ok(XR_EXIT_HOLD_S >= 0.5);
+    assert.ok(XR_EXIT_HOLD_S < 2);
+  });
+
+  it("detects stick-click / menu hold and resets on release", () => {
+    let s = { ms: 0, armed: false };
+    s = tickStickLongPress(true, 0.4, s, 0.7);
+    assert.equal(s.fired, false);
+    s = tickStickLongPress(true, 0.4, s, 0.7);
+    assert.equal(s.fired, true);
+    assert.equal(s.armed, true);
+    s = tickStickLongPress(false, 0.1, s, 0.7);
+    assert.equal(s.armed, false);
+    assert.equal(s.ms, 0);
+  });
+
+  it("arms Exit in about 0.7s of real frame time", () => {
+    let s = { ms: 0, armed: false };
+    // 43 × 16ms = 0.688s; 44th frame crosses 0.7s
+    for (let i = 0; i < 43; i += 1) {
+      s = tickStickLongPress(true, 0.016, s, XR_EXIT_HOLD_S);
+      assert.equal(s.fired, false);
+    }
+    s = tickStickLongPress(true, 0.016, s, XR_EXIT_HOLD_S);
+    assert.equal(s.fired, true);
+  });
+
+  it("treats stick click as Exit hold and ignores idle analog noise", () => {
+    const clickPad = { buttons: [{}, {}, {}, { pressed: true, value: 1 }] };
+    const noisyPad = { buttons: [{}, {}, {}, { pressed: false, value: 0.4 }] };
+    assert.equal(stickClickHeld(clickPad), true);
+    assert.equal(stickClickHeld(noisyPad), false);
+    assert.equal(exitHoldPressed(clickPad), true);
+    assert.equal(exitHoldPressed({ buttons: [] }), false);
+  });
+
+  it("arms Exit from the left stick only", () => {
+    const click = { buttons: [{}, {}, {}, { pressed: true, value: 1 }] };
+    const idle = { buttons: [{}, {}, {}, { pressed: false, value: 0 }] };
+    assert.equal(
+      leftExitHoldPressed([
+        { handedness: "right", gamepad: click },
+        { handedness: "left", gamepad: idle },
+      ]),
+      false,
+    );
+    assert.equal(
+      leftExitHoldPressed([
+        { handedness: "right", gamepad: idle },
+        { handedness: "left", gamepad: click },
+      ]),
+      true,
+    );
+    assert.equal(leftExitHoldPressed([{ gamepad: click }]), true);
+  });
+  it("computes hold progress for fill bars", () => {
+    assert.equal(holdProgress(0, 0.7), 0);
+    assert.equal(holdProgress(0.35, 0.7), 0.5);
+    assert.equal(holdProgress(1, 0.7), 1);
+  });
+});
+
+describe("face pads by hand", () => {
+  function pad(primary, secondary, stick) {
+    const buttons = [];
+    for (let i = 0; i < 6; i += 1) buttons.push({ pressed: false });
+    buttons[XR_BTN_PRIMARY] = { pressed: primary };
+    buttons[XR_BTN_SECONDARY] = { pressed: secondary };
+    buttons[XR_BTN_STICK] = { pressed: stick };
+    return { buttons };
+  }
+
+  it("puts a single source in solo", () => {
+    const pads = facePadsByHand([
+      { handedness: "right", gamepad: pad(true, false, true) },
+    ]);
+    assert.equal(pads.solo.primary, true);
+    assert.equal(pads.solo.stick, true);
+    assert.equal(pads.left.primary, false);
+  });
+
+  it("splits left X/Y and right A/B", () => {
+    const pads = facePadsByHand([
+      { handedness: "left", gamepad: pad(true, true, false) },
+      { handedness: "right", gamepad: pad(false, true, true) },
+    ]);
+    assert.equal(pads.solo, null);
+    assert.equal(pads.left.primary, true);
+    assert.equal(pads.left.secondary, true);
+    assert.equal(pads.right.secondary, true);
+    assert.equal(pads.right.stick, true);
+    assert.equal(pads.right.primary, false);
   });
 });
 

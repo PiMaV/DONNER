@@ -195,42 +195,42 @@ import {
   fitOverlayCanvas,
 } from "./face-draw.js";
 import {
-  PALETTE_WIDGETS,
   XR_BTN_PRIMARY,
   XR_BTN_SECONDARY,
-  XR_BTN_STICK,
+  XR_EXIT_HOLD_S,
   XR_PINCH_MIN_M,
-  XR_RING_PICK_M,
+  XR_ZOOM_ARM_S,
+  arShadeLabel,
+  arSourceLabel,
   axisDragBack,
-  buttonPressed,
+  axisStepsFromStick,
   distance3,
   distPointToSegment3,
+  exitHoldPressed,
+  faceButtonPressed,
+  facePadsByHand,
   gripPressed,
+  hoverEnterPulse,
   isHeadsetArSession,
   layerStepsFromStick,
+  leftExitHoldPressed,
+  magDeltaFromStick,
   magFromPinch,
+  midpoint3,
+  nextArSourceKind,
+  nextShadeMode,
   nextSliceAxis,
-  paletteActionFromHit,
-  paletteHeadPose,
-  pickPalettePoint,
-  pickPaletteWidget,
-  pointCircleDist,
   pointOnRay,
   pulseHaptic,
   rayAabb,
-  rayCircleHit,
   rayFromPose,
   risingEdge,
-  strongestStickX,
-  strongestStickY,
-  thumbstickXFromAxes,
-  thumbstickYFromAxes,
+  stickAxesForHeadset,
+  stickClickHeld,
+  tickStickLongPress,
   trackedInputSources,
-  widgetCenter,
-  widgetSize,
-  worldRayToLocal,
+  yawDeltaFromPinchHands,
   yawDeltaFromStick,
-  yawGrabDelta,
 } from "./xr-hud.js";
 
 const canvas = document.getElementById("view");
@@ -289,6 +289,7 @@ scene.fog = fog;
 const stage = new THREE.Group();
 stage.name = "stage";
 scene.add(stage);
+const LABEL_TEXT = "#e8eef2";
 /** Yaw around the floor normal (stage +Y). Parent of stand so spin stays table-flat. */
 const turntable = new THREE.Group();
 turntable.name = "turntable";
@@ -296,24 +297,10 @@ stage.add(turntable);
 const stand = new THREE.Group();
 stand.name = "stand";
 turntable.add(stand);
-const PALETTE_IDLE = 0x1c2630;
-const PALETTE_TEXT = "#e8eef2";
-const PALETTE_TEXT_ON = "#1a1408";
-
 const reticle = createArReticle();
 scene.add(reticle);
-const arRing = createArTurntableRing();
-stage.add(arRing);
-let xrHud;
-try {
-  xrHud = createXrHud();
-} catch (err) {
-  console.warn("XR HUD init failed", err);
-  xrHud = new THREE.Group();
-  xrHud.name = "xr-hud";
-  xrHud.visible = false;
-}
-scene.add(xrHud);
+const xrPlaceHint = createXrPlaceHint();
+scene.add(xrPlaceHint);
 const xrControllers = [0, 1].map((i) => {
   const ctrl = renderer.xr.getController(i);
   ctrl.addEventListener("select", onArSelect);
@@ -326,6 +313,7 @@ const xrControllers = [0, 1].map((i) => {
 const xrGrips = [0, 1].map((i) => {
   const grip = renderer.xr.getControllerGrip(i);
   scene.add(grip);
+  attachControllerLabels(grip);
   return grip;
 });
 for (const obj of [...xrControllers, ...xrGrips]) bindXrInput(obj);
@@ -334,7 +322,6 @@ const _xrQuat = new THREE.Quaternion();
 const _xrScale = new THREE.Vector3();
 const _xrUp = new THREE.Vector3();
 const _xrDir = new THREE.Vector3();
-const _hudWorldPos = new THREE.Vector3();
 const _gripB = new THREE.Vector3();
 const _axisA = new THREE.Vector3();
 const _axisB = new THREE.Vector3();
@@ -537,9 +524,23 @@ let arMag = XR_MAG_DEFAULT;
 let arStandAxis = "z";
 let arFrameDrag = null;
 let arLayerAcc = 0;
-let arFaceBtn = { primary: false, secondary: false, stick: false };
-let arPaletteSig = "";
-let arRingRadius = 0;
+let arAxisAcc = 0;
+let arExitHold = { ms: 0, armed: false };
+let arLockedAt = 0;
+let arZoomArmS = 0;
+/** Left stick click: short tap → Source, long hold → Exit. */
+let arLeftStickTapS = 0;
+let arLeftStickWas = false;
+/** Showcase kind we are loading toward (X advances this even while MRI High fetches). */
+let arSourcePending = null;
+let arKeepShadeOnSource = null;
+let arFaceBtn = {
+  left: { primary: false, secondary: false, stick: false },
+  right: { primary: false, secondary: false, stick: false },
+  solo: { primary: false, secondary: false, stick: false },
+};
+let arHoverKey = "";
+let arLabelSig = "";
 let arGripPinch = false;
 let arPlanePoke = false;
 let turntableYaw = 0;
@@ -702,7 +703,7 @@ const ui = bindUI({
       // Re-assert after chrome sync so Face is not left latched off.
       ui.setFaceAvailable(faceOkNow);
     }
-    arPaletteSig = "";
+    arLabelSig = "";
     updateHint();
   },
   wolkeConnect: () => {
@@ -949,6 +950,75 @@ function createArReticle() {
   return group;
 }
 
+/** Head-relative place cue for Quest (no DOM overlay). */
+function createXrPlaceHint() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 768;
+  canvas.height = 160;
+  const ctx = canvas.getContext("2d");
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const spr = new THREE.Sprite(mat);
+  spr.name = "xr-place-hint";
+  spr.scale.set(0.55, 0.12, 1);
+  spr.renderOrder = 40;
+  spr.visible = false;
+  spr.userData.tex = tex;
+  spr.userData.canvas = canvas;
+  spr.userData.ctx = ctx;
+  spr.userData.text = "";
+  return spr;
+}
+
+function paintXrPlaceHint(text) {
+  const spr = xrPlaceHint;
+  if (!spr) return;
+  if (spr.userData.text === text) return;
+  spr.userData.text = text;
+  const canvas = spr.userData.canvas;
+  const ctx = spr.userData.ctx;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(8, 14, 20, 0.72)";
+  ctx.fillRect(24, 24, canvas.width - 48, canvas.height - 48);
+  ctx.font = "700 44px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = LABEL_TEXT;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  spr.userData.tex.needsUpdate = true;
+}
+
+function syncXrPlaceHint() {
+  refreshHeadsetHud();
+  const show =
+    xrPresenting() && !arLocked && arHeadsetHud && !facePresenting();
+  if (!show) {
+    xrPlaceHint.visible = false;
+    return;
+  }
+  const text = reticle.visible
+    ? "Tap trigger · place on floor"
+    : "Look at the floor · select a surface";
+  paintXrPlaceHint(text);
+  xrPlaceHint.visible = true;
+  const cam = renderer.xr.getCamera();
+  cam.updateMatrixWorld(true);
+  cam.getWorldPosition(_xrPos);
+  cam.getWorldQuaternion(_xrQuat);
+  _xrDir.set(0, 0, -1).applyQuaternion(_xrQuat);
+  xrPlaceHint.position.set(
+    _xrPos.x + _xrDir.x * 1.1,
+    _xrPos.y + _xrDir.y * 1.1 - 0.12,
+    _xrPos.z + _xrDir.z * 1.1,
+  );
+}
+
 function createXrRay() {
   const geom = new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(0, 0, 0),
@@ -1006,40 +1076,37 @@ function palettePlayText() {
   return playing ? "Pause" : "Play";
 }
 
-function paletteLabel(id, playText) {
-  if (id === "play") return playText;
-  if (id === "spin") return "Spin";
-  if (id === "axis-x") return "X";
-  if (id === "axis-y") return "Y";
-  if (id === "axis-z") return "Z";
-  if (id === "src-mni152-low") return "MRI Low";
-  if (id === "src-mni152") return "MRI High";
-  if (id === "src-ignition") return "Ignition";
-  if (id === "src-conway") return "Life";
-  if (id === "shade-hull") return "Hull";
-  if (id === "shade-ghost") return "Ghost";
-  if (id === "shade-triple") return "Cuts";
-  if (id === "hide-center") return "Center";
-  if (id === "hide-outer") return "Outer";
-  return id;
+function paintCtrlLabel(spr, text, { fontPx = 44 } = {}) {
+  const canvas = spr.userData.canvas;
+  const ctx = spr.userData.ctx;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `700 ${fontPx}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = LABEL_TEXT;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  spr.userData.tex.needsUpdate = true;
 }
 
-function paletteActive(id) {
-  if (id === "play") return sourceId === "count" ? looping : playing;
-  if (id === "spin") return spinning;
-  if (id === "axis-x" || id === "axis-y" || id === "axis-z") return activeAxis === id.slice(5);
-  if (id.startsWith("src-")) return ui.getConfig().sourceKind === id.slice(4);
-  if (id === "shade-hull") return shadeMode === "hull";
-  if (id === "shade-ghost") return shadeMode === "ghost";
-  if (id === "shade-triple") return shadeMode === "triple";
-  if (id === "hide-center") return hideCenter;
-  if (id === "hide-outer") return hideOuter;
-  return false;
+/**
+ * Labels sit beside the controller (+X = out the back of the hand in grip
+ * space), not floating on the face buttons.
+ */
+function attachControllerLabels(grip) {
+  grip.add(makeCtrlLabelSprite("xr-label-play", "A: Loop", 0.058, -0.016, -0.022, 0.055, 0.014));
+  grip.add(makeCtrlLabelSprite("xr-label-spin", "B: Spin", 0.058, 0.002, -0.034, 0.055, 0.014));
+  // Stick is near grip origin toward −Z (thumb); keep Exit on the stick, not beside A/B.
+  grip.add(makeCtrlLabelSprite("xr-label-exit", "Hold stick · Exit", 0.0, 0.014, -0.012, 0.085, 0.018));
+  grip.add(makeCtrlLabelSprite("xr-label-source", "X: MRI Low", 0.058, -0.016, -0.022, 0.06, 0.014));
+  grip.add(makeCtrlLabelSprite("xr-label-shade", "Y: Hull", 0.058, 0.002, -0.034, 0.055, 0.014));
+  // Stick axis hints (LR / UD) sit outside the stick, toward +X.
+  grip.add(makeCtrlLabelSprite("xr-label-stick-lr", "Yaw ↔", 0.042, -0.028, -0.008, 0.05, 0.012));
+  grip.add(makeCtrlLabelSprite("xr-label-stick-ud", "Zoom ↕", 0.042, 0.022, -0.02, 0.05, 0.012));
 }
 
-function makePaletteSprite(text, css, width, height) {
+function makeCtrlLabelSprite(name, text, x, y, z, sx = 0.06, sy = 0.022) {
   const canvas = document.createElement("canvas");
-  canvas.width = 256;
+  canvas.width = 320;
   canvas.height = 96;
   const ctx = canvas.getContext("2d");
   const tex = new THREE.CanvasTexture(canvas);
@@ -1051,165 +1118,125 @@ function makePaletteSprite(text, css, width, height) {
     depthWrite: false,
   });
   const spr = new THREE.Sprite(mat);
-  spr.scale.set(width, height, 1);
-  spr.position.z = 0.02;
-  spr.renderOrder = 22;
+  spr.name = name;
+  spr.scale.set(sx, sy, 1);
+  spr.position.set(x, y, z);
+  spr.renderOrder = 30;
+  spr.visible = false;
   spr.userData.tex = tex;
   spr.userData.canvas = canvas;
   spr.userData.ctx = ctx;
-  paintPaletteSprite(spr, text, css);
+  paintCtrlLabel(spr, text, { fontPx: name === "xr-label-exit" ? 28 : 40 });
   return spr;
 }
 
-function paintPaletteSprite(spr, text, css) {
-  const canvas = spr.userData.canvas;
-  const ctx = spr.userData.ctx;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = "600 40px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = css;
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  spr.userData.tex.needsUpdate = true;
+function controllerHandedness(ctrl) {
+  return String(ctrl?.userData?.inputSource?.handedness || "").toLowerCase();
 }
 
-function makePaletteLegend() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 640;
-  canvas.height = 160;
-  const ctx = canvas.getContext("2d");
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({
-    map: tex,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const spr = new THREE.Sprite(mat);
-  spr.name = "xr-palette-legend";
-  spr.scale.set(0.24, 0.06, 1);
-  spr.position.set(0, -0.185, 0.02);
-  spr.renderOrder = 22;
-  ctx.font = "600 28px system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#c5d0d8";
-  ctx.fillText("Stick up/down: layer     left/right: yaw", canvas.width / 2, 48);
-  ctx.fillText("Grip frame slides, brick moves, ring turns", canvas.width / 2, 108);
-  spr.userData.tex = tex;
-  return spr;
-}
-
-function createXrHud() {
-  const group = new THREE.Group();
-  group.name = "xr-hud";
-  group.visible = false;
-  for (const w of PALETTE_WIDGETS) {
-    const size = widgetSize(w);
-    const center = widgetCenter(w);
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(size.x, size.y, Math.max(0.006, size.z)),
-      new THREE.MeshBasicMaterial({ color: PALETTE_IDLE }),
-    );
-    mesh.name = `palette-${w.id}`;
-    mesh.position.set(center.x, center.y, center.z);
-    mesh.renderOrder = 20;
-    const label = makePaletteSprite(paletteLabel(w.id, "Play"), PALETTE_TEXT, size.x * 0.9, size.y * 0.7);
-    mesh.add(label);
-    mesh.userData.label = label;
-    group.add(mesh);
+function currentArSourceKind() {
+  // While a showcase fetch is in flight, X advances from the pending target
+  // (otherwise MRI High keeps reporting the previous volume and re-queues).
+  if (arSourcePending) return arSourcePending;
+  if (sourceId === "conway") return "conway";
+  if (sourceId === "count" && countVol) {
+    const k = countKindForVolume(countVol);
+    if (k) return k;
   }
-  group.add(makePaletteLegend());
-  return group;
+  return ui.getConfig().sourceKind || sourceId;
 }
 
-function syncPaletteVisual() {
+function arSourceCycleAllowed() {
+  // Headset AR always cycles the showcase list (Examples gate is orbit-only).
+  if (xrPresenting() && arHeadsetHud) return true;
+  if (ui.isLocalViewer?.() && !ui.isLocalExamples?.()) return false;
+  return true;
+}
+
+function cycleArSource() {
+  const cur = currentArSourceKind();
+  const next = nextArSourceKind(cur, { allowCycle: arSourceCycleAllowed() });
+  if (!next) return;
+  if (next === arSourcePending) return;
+  arSourcePending = next;
+  arKeepShadeOnSource = shadeMode;
+  arLabelSig = "";
+  switchSource(next);
+  for (const grip of xrGrips) {
+    if (controllerHandedness(grip) === "left") pulseController(grip);
+  }
+}
+
+function cycleArShade() {
+  setShadeMode(nextShadeMode(shadeMode));
+  arLabelSig = "";
+  for (const grip of xrGrips) {
+    if (controllerHandedness(grip) === "left") pulseController(grip);
+  }
+}
+
+function syncControllerLabels() {
+  const show = xrPresenting() && arLocked && arHeadsetHud;
   const playText = palettePlayText();
-  const kind = ui.getConfig().sourceKind;
-  const sig = [
-    playText,
-    spinning ? 1 : 0,
-    activeAxis,
-    kind,
-    shadeMode,
-    hideCenter ? 1 : 0,
-    hideOuter ? 1 : 0,
-  ].join("|");
-  if (sig === arPaletteSig) return;
-  arPaletteSig = sig;
-  for (const w of PALETTE_WIDGETS) {
-    const mesh = xrHud.getObjectByName(`palette-${w.id}`);
-    if (!mesh) continue;
-    const on = paletteActive(w.id);
-    mesh.material.color.setHex(on ? COLOR.gold : PALETTE_IDLE);
-    paintPaletteSprite(mesh.userData.label, paletteLabel(w.id, playText), on ? PALETTE_TEXT_ON : PALETTE_TEXT);
-  }
-}
+  const shadeText = arShadeLabel(shadeMode);
+  const srcText = arSourceLabel(currentArSourceKind());
+  const sig = `${show ? 1 : 0}|${playText}|${srcText}|${shadeText}`;
+  if (sig === arLabelSig) return;
+  arLabelSig = sig;
 
-function createArTurntableRing() {
-  const group = new THREE.Group();
-  group.name = "ar-turntable";
-  group.visible = false;
-  const positions = new Float32Array(64 * 3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const line = new THREE.LineLoop(
-    geo,
-    new THREE.LineBasicMaterial({
-      color: COLOR.gold,
-      depthWrite: false,
-      transparent: true,
-      opacity: 0.95,
-    }),
-  );
-  line.name = "ar-turntable-line";
-  line.frustumCulled = false;
-  line.renderOrder = 11;
-  group.add(line);
-  return group;
-}
+  const hands = xrGrips.map((g) => controllerHandedness(g));
+  const hasLeft = hands.includes("left");
+  const hasRight = hands.includes("right");
 
-function writeArRing(radius) {
-  const line = arRing.getObjectByName("ar-turntable-line");
-  const attr = line.geometry.getAttribute("position");
-  const n = attr.count;
-  for (let i = 0; i < n; i += 1) {
-    const a = (i / n) * Math.PI * 2;
-    attr.setXYZ(i, Math.cos(a) * radius, 0, Math.sin(a) * radius);
-  }
-  attr.needsUpdate = true;
-  line.geometry.computeBoundingSphere();
-}
-
-function syncArRing() {
-  const show = xrPresenting() && arLocked && arHeadsetHud && Boolean(world);
-  arRing.visible = show;
-  if (!show) return;
-  const box = arVolumeBox();
-  _xrQuat.copy(stand.quaternion).premultiply(turntable.quaternion);
-  const xs = [box.min.x, box.max.x];
-  const ys = [box.min.y, box.max.y];
-  const zs = [box.min.z, box.max.z];
-  let radius = 0.25;
-  let floorY = 0;
-  let first = true;
-  for (const x of xs) {
-    for (const y of ys) {
-      for (const z of zs) {
-        _axisA.set(x, y, z).applyQuaternion(_xrQuat);
-        radius = Math.max(radius, Math.hypot(_axisA.x, _axisA.z));
-        if (first || _axisA.y < floorY) floorY = _axisA.y;
-        first = false;
+  xrGrips.forEach((grip, i) => {
+    let hand = hands[i];
+    if (!hand || hand === "none") {
+      if (!hasLeft && !hasRight) hand = i === 0 ? "left" : "right";
+      else hand = i === 0 ? "left" : "right";
+    }
+    const isRight = hand === "right";
+    const isLeft = hand === "left";
+    const play = grip.getObjectByName("xr-label-play");
+    const spin = grip.getObjectByName("xr-label-spin");
+    const exit = grip.getObjectByName("xr-label-exit");
+    const source = grip.getObjectByName("xr-label-source");
+    const shade = grip.getObjectByName("xr-label-shade");
+    const stickLr = grip.getObjectByName("xr-label-stick-lr");
+    const stickUd = grip.getObjectByName("xr-label-stick-ud");
+    if (play) {
+      play.visible = show && isRight;
+      if (play.visible) paintCtrlLabel(play, `A: ${playText}`);
+    }
+    if (spin) {
+      spin.visible = show && isRight;
+      if (spin.visible) paintCtrlLabel(spin, "B: Spin");
+    }
+    if (exit) {
+      // Exit cue on the left stick (press in) — also shown if only one grip.
+      exit.visible = show && (isLeft || (!hasLeft && isRight));
+      if (exit.visible) paintCtrlLabel(exit, "Hold stick · Exit", { fontPx: 28 });
+    }
+    if (source) {
+      source.visible = show && isLeft;
+      if (source.visible) paintCtrlLabel(source, `X: ${srcText}`);
+    }
+    if (shade) {
+      shade.visible = show && isLeft;
+      if (shade.visible) paintCtrlLabel(shade, `Y: ${shadeText}`);
+    }
+    if (stickLr) {
+      stickLr.visible = show && (isLeft || isRight);
+      if (stickLr.visible) {
+        paintCtrlLabel(stickLr, isRight ? "Yaw ↔" : "Plane ↔", { fontPx: 30 });
       }
     }
-  }
-  radius *= 1.15;
-  if (Math.abs(radius - arRingRadius) > 0.02) {
-    arRingRadius = radius;
-    writeArRing(radius);
-  }
-  arRing.position.y = floorY;
+    if (stickUd) {
+      stickUd.visible = show && (isLeft || isRight);
+      if (stickUd.visible) {
+        paintCtrlLabel(stickUd, isRight ? "Zoom ↕" : "Axis ↕", { fontPx: 30 });
+      }
+    }
+  });
 }
 
 function syncArVolumeVisible() {
@@ -1813,6 +1840,8 @@ function lockArPlacement() {
   if (arLocked) return;
   if (!arAnchored) captureViewerAnchor();
   arLocked = true;
+  arLockedAt = performance.now();
+  arExitHold = { ms: 0, armed: false };
   arPlaced = true;
   arSearching = false;
   if (!playing) enterInspect();
@@ -1984,7 +2013,7 @@ function hitArFramePoint(p) {
     }
   }
   if (!best.axis) return null;
-  return { axis: best.axis, handle: best.handle };
+  return { axis: best.axis, handle: best.handle, dist: best.dist };
 }
 
 function axisDragBasis(axis) {
@@ -2038,32 +2067,6 @@ function pointInAabb(p, min, max) {
   return p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y && p.z >= min.z && p.z <= max.z;
 }
 
-function ringWorldCircle() {
-  arRing.updateMatrixWorld(true);
-  arRing.getWorldPosition(_hudWorldPos);
-  _xrUp.set(0, 1, 0).applyQuaternion(stage.quaternion);
-  if (_xrUp.lengthSq() < 1e-8) _xrUp.set(0, 1, 0);
-  else _xrUp.normalize();
-  return {
-    center: { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
-    normal: { x: _xrUp.x, y: _xrUp.y, z: _xrUp.z },
-    radius: arRingRadius * Math.abs(stage.scale.x || 1),
-  };
-}
-
-function paletteLocalFromWorld(origin, dir) {
-  if (!xrHud.visible) return null;
-  xrHud.updateMatrixWorld(true);
-  xrHud.getWorldPosition(_hudWorldPos);
-  xrHud.getWorldQuaternion(_xrQuat);
-  return worldRayToLocal(
-    origin,
-    dir,
-    { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
-    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
-  );
-}
-
 function dragHand(drag) {
   if (drag.input === "ray") {
     const ray = controllerWorldRay(drag.ctrl);
@@ -2093,22 +2096,7 @@ function beginArPlaneDrag(ctrl, hit, hand, input, rayT) {
     hand0: hand,
   };
   setFrameHover({ axis: hit.axis, handle: key });
-  pulseController(ctrl);
-  return true;
-}
-
-function beginArYawDrag(ctrl, hand, input, rayT) {
-  const circle = ringWorldCircle();
-  arFrameDrag = {
-    kind: "yaw",
-    ctrl,
-    input,
-    rayT: rayT || 0,
-    hand0: hand,
-    yaw0: turntableYaw,
-    anchor: circle.center,
-    up: circle.normal,
-  };
+  arHoverKey = `${hit.axis}:${key}`;
   pulseController(ctrl);
   return true;
 }
@@ -2122,30 +2110,6 @@ function beginHeadsetSpaceDrag(ctrl, hand, input, rayT) {
     offset: spaceDragOffset(arAnchorPos, hand),
   };
   pulseController(ctrl);
-}
-
-function runPaletteAction(action) {
-  if (!action) return;
-  if (action.type === "play") togglePlay();
-  else if (action.type === "spin") toggleSpin();
-  else if (action.type === "axis") setActiveAxis(action.axis);
-  else if (action.type === "shade") setShadeMode(action.mode);
-  else if (action.type === "source") {
-    if (ui.isLocalViewer?.() && !ui.isLocalExamples?.()) return;
-    switchSource(action.kind);
-  } else if (action.type === "hide-center" || action.type === "hide-outer") {
-    if (action.type === "hide-center") hideCenter = !hideCenter;
-    else hideOuter = !hideOuter;
-    ui.setPlaneChrome({ hideCenter, hideOuter });
-    if (arFrameDrag?.kind === "plane") {
-      const focus = arFrameDrag.handle === "focus";
-      if ((focus && hideCenter) || (!focus && hideOuter)) endArFrameDrag();
-    }
-    if (hideCenter && hideOuter) setFrameHover(null);
-    syncClipPlanes();
-    dirtyView = true;
-  }
-  arPaletteSig = "";
 }
 
 function beginArSpaceDrag(ctrl, hit) {
@@ -2181,12 +2145,6 @@ function updateArFrameDrag() {
     }
     return;
   }
-  if (arFrameDrag.kind === "yaw") {
-    const hand = dragHand(arFrameDrag);
-    const d = yawGrabDelta(arFrameDrag.anchor, arFrameDrag.up, arFrameDrag.hand0, hand);
-    setTurntableYaw(arFrameDrag.yaw0 + d);
-    return;
-  }
   if (arFrameDrag.kind !== "space") return;
   let hand;
   if (arFrameDrag.input === "ray") hand = dragHand(arFrameDrag);
@@ -2206,6 +2164,7 @@ function endArFrameDrag(ctrl) {
   arFrameDrag = null;
   setShadeHeld(false);
   setFrameHover(null);
+  arHoverKey = "";
 }
 
 function pokeArVoxel(origin, dir) {
@@ -2266,20 +2225,11 @@ function onArSelectStart(event) {
 }
 
 function headsetRayGrab(ctrl) {
+  const i = xrControllers.indexOf(ctrl);
+  const grip = i >= 0 ? xrGrips[i] : null;
+  // Prefer grip when the hand is already on a frame — ray would steal focus.
+  if (grip && hitArFramePoint(gripHand(grip))) return;
   const ray = controllerWorldRay(ctrl);
-  const local = paletteLocalFromWorld(ray.origin, ray.dir);
-  const menu = local && pickPaletteWidget(local.origin, local.dir);
-  if (menu) {
-    runPaletteAction(paletteActionFromHit(menu));
-    pulseController(ctrl);
-    return;
-  }
-  const circle = ringWorldCircle();
-  const ringHit = rayCircleHit(ray.origin, ray.dir, circle.center, circle.normal, circle.radius);
-  if (ringHit) {
-    beginArYawDrag(ctrl, pointOnRay(ray.origin, ray.dir, ringHit.t), "ray", ringHit.t);
-    return;
-  }
   const frameHit = hitArFrame(ray.origin, ray.dir);
   if (frameHit) {
     const t = Number.isFinite(frameHit.t) ? frameHit.t : 0.4;
@@ -2290,9 +2240,7 @@ function headsetRayGrab(ctrl) {
     pulseController(ctrl);
     return;
   }
-  const box = volumeWorldAabb(0.02);
-  const tBody = rayAabb(ray.origin, ray.dir, box.min, box.max);
-  if (tBody != null) beginHeadsetSpaceDrag(ctrl, pointOnRay(ray.origin, ray.dir, tBody), "ray", tBody);
+  // Body move is grip-only so ray/point and grab stay distinct.
 }
 
 function gripHand(grip) {
@@ -2303,20 +2251,6 @@ function gripHand(grip) {
 
 function tryGripGrab(grip) {
   const hand = gripHand(grip);
-  const local = paletteLocalFromWorld(hand, { x: 0, y: 0, z: 0 });
-  const menu = local && pickPalettePoint(local.origin, 0.08);
-  if (menu) {
-    runPaletteAction(paletteActionFromHit(menu));
-    pulseController(grip);
-    grip.userData.hold = "menu";
-    return;
-  }
-  const circle = ringWorldCircle();
-  if (pointCircleDist(hand, circle.center, circle.normal, circle.radius) <= XR_RING_PICK_M) {
-    beginArYawDrag(grip, hand, "grip", 0);
-    grip.userData.hold = "drag";
-    return;
-  }
   const frameHit = hitArFramePoint(hand);
   if (frameHit) {
     beginArPlaneDrag(grip, frameHit, hand, "grip", 0);
@@ -2337,17 +2271,41 @@ function pollGrips() {
     for (const g of xrGrips) g.userData.hold = "";
     xrGrips[0].updateMatrixWorld(true);
     xrGrips[1].updateMatrixWorld(true);
-    xrGrips[0].getWorldPosition(_hudWorldPos);
+    xrGrips[0].getWorldPosition(_gripB);
+    const a = { x: _gripB.x, y: _gripB.y, z: _gripB.z };
     xrGrips[1].getWorldPosition(_gripB);
-    const dist = distance3(
-      { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
-      { x: _gripB.x, y: _gripB.y, z: _gripB.z },
-    );
+    const b = { x: _gripB.x, y: _gripB.y, z: _gripB.z };
+    const dist = distance3(a, b);
     arGripPinch = true;
     if (!(dist >= XR_PINCH_MIN_M)) return;
     spinStickHeld = true;
-    if (!arPinch) arPinch = { dist, mag: arMag };
-    else setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
+    const mid = midpoint3(a, b);
+    if (!arPinch) {
+      arPinch = {
+        dist,
+        mag: arMag,
+        mid,
+        yaw: turntableYaw,
+        handA: a,
+        handB: b,
+      };
+      return;
+    }
+    setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
+    const dYaw = yawDeltaFromPinchHands(a, b, arPinch.handA, arPinch.handB);
+    if (dYaw) setTurntableYaw(arPinch.yaw - dYaw);
+    // Midpoint shove moves the brick with both hands.
+    arAnchorPos.x += mid.x - arPinch.mid.x;
+    arAnchorPos.y += mid.y - arPinch.mid.y;
+    arAnchorPos.z += mid.z - arPinch.mid.z;
+    arAnchored = true;
+    applyArStagePose();
+    // Keep the gesture baseline on the first squeeze so scale stays stable;
+    // refresh mid/hands/yaw each frame for continuous twist + translate.
+    arPinch.mid = mid;
+    arPinch.handA = a;
+    arPinch.handB = b;
+    arPinch.yaw = turntableYaw;
     return;
   }
   arGripPinch = false;
@@ -2366,38 +2324,168 @@ function pollGrips() {
 }
 
 function pollFaceButtons(sources) {
-  let primary = false;
-  let secondary = false;
-  let stick = false;
-  for (const s of sources) {
-    const pad = s.gamepad;
-    primary = primary || buttonPressed(pad, XR_BTN_PRIMARY);
-    secondary = secondary || buttonPressed(pad, XR_BTN_SECONDARY);
-    stick = stick || buttonPressed(pad, XR_BTN_STICK);
+  const pads = facePadsByHand(sources);
+  // Prefer grip gamepads — Quest exposes face buttons more reliably there.
+  for (const grip of xrGrips) {
+    const hand = controllerHandedness(grip);
+    const gp = controllerGamepad(grip);
+    if (!gp) continue;
+    const extra = {
+      primary: faceButtonPressed(gp, XR_BTN_PRIMARY),
+      secondary: faceButtonPressed(gp, XR_BTN_SECONDARY),
+      stick: stickClickHeld(gp),
+    };
+    if (hand === "right") {
+      pads.right.primary = pads.right.primary || extra.primary;
+      pads.right.secondary = pads.right.secondary || extra.secondary;
+      pads.right.stick = pads.right.stick || extra.stick;
+      pads.solo = null;
+    } else if (hand === "left") {
+      pads.left.primary = pads.left.primary || extra.primary;
+      pads.left.secondary = pads.left.secondary || extra.secondary;
+      pads.left.stick = pads.left.stick || extra.stick;
+      pads.solo = null;
+    } else if (pads.solo) {
+      pads.solo.primary = pads.solo.primary || extra.primary;
+      pads.solo.secondary = pads.solo.secondary || extra.secondary;
+      pads.solo.stick = pads.solo.stick || extra.stick;
+    }
   }
-  if (risingEdge(primary, arFaceBtn.primary)) {
+  const was = arFaceBtn;
+
+  // Solo with known hand from the single session source.
+  if (pads.solo) {
+    const soloSrc = (sources || []).find(Boolean);
+    const soloHand = String(soloSrc?.handedness || "").toLowerCase();
+    if (soloHand === "left") {
+      if (risingEdge(pads.solo.primary, was.solo.primary || was.left.primary)) {
+        cycleArSource();
+      }
+      if (risingEdge(pads.solo.secondary, was.solo.secondary || was.left.secondary)) {
+        cycleArShade();
+      }
+    } else {
+      // Right or unknown solo → Play / Spin (right-hand defaults).
+      if (risingEdge(pads.solo.primary, was.solo.primary || was.right.primary)) {
+        togglePlay();
+        arLabelSig = "";
+      }
+      if (risingEdge(pads.solo.secondary, was.solo.secondary || was.right.secondary)) {
+        toggleSpin();
+        arLabelSig = "";
+      }
+    }
+    arFaceBtn = {
+      left: soloHand === "left" ? { ...pads.solo } : emptyArFacePad(),
+      right: soloHand === "left" ? emptyArFacePad() : { ...pads.solo },
+      solo: { ...pads.solo },
+    };
+    return;
+  }
+
+  if (risingEdge(pads.right.primary, was.right.primary)) {
     togglePlay();
-    arPaletteSig = "";
+    arLabelSig = "";
   }
-  if (risingEdge(secondary, arFaceBtn.secondary)) {
+  if (risingEdge(pads.right.secondary, was.right.secondary)) {
     toggleSpin();
-    arPaletteSig = "";
+    arLabelSig = "";
   }
-  if (risingEdge(stick, arFaceBtn.stick)) {
-    setActiveAxis(nextSliceAxis(activeAxis));
-    arPaletteSig = "";
+  if (risingEdge(pads.left.primary, was.left.primary)) {
+    cycleArSource();
   }
-  arFaceBtn = { primary, secondary, stick };
+  if (risingEdge(pads.left.secondary, was.left.secondary)) {
+    cycleArShade();
+  }
+
+  arFaceBtn = {
+    left: { ...pads.left },
+    right: { ...pads.right },
+    solo: emptyArFacePad(),
+  };
 }
 
-function pollStickLayers(sources, dt) {
-  const y = strongestStickY(sources.map((s) => thumbstickYFromAxes(s.gamepad?.axes)));
-  const stepped = layerStepsFromStick(y, dt, arLayerAcc);
+function emptyArFacePad() {
+  return { primary: false, secondary: false, stick: false };
+}
+
+function pollStickLayers(layerX, dt) {
+  const stepped = layerStepsFromStick(layerX, dt, arLayerAcc);
   arLayerAcc = stepped.acc;
   if (!stepped.steps) return;
   spinStickHeld = true;
   const a = activeAxis;
   applySlab(a, { ...slabs[a], focus: slabs[a].focus - stepped.steps }, "focus");
+}
+
+function pollStickAxis(axisY, dt) {
+  const stepped = axisStepsFromStick(axisY, dt, arAxisAcc);
+  arAxisAcc = stepped.acc;
+  if (!stepped.steps) return;
+  spinStickHeld = true;
+  let axis = activeAxis;
+  const n = Math.abs(stepped.steps);
+  for (let i = 0; i < n; i += 1) {
+    axis = stepped.steps > 0 ? nextSliceAxis(axis) : axis === "x" ? "z" : axis === "y" ? "x" : "y";
+  }
+  setActiveAxis(axis);
+}
+
+/** Highlight a frame under grip first; ray only when the hand is not gripping near. */
+function pollArFrameHover() {
+  if (arFrameDrag) return;
+  let best = null;
+  let pulseCtrl = null;
+  let fromGrip = false;
+  for (let i = 0; i < xrGrips.length; i += 1) {
+    const grip = xrGrips[i];
+    const pointHit = hitArFramePoint(gripHand(grip));
+    if (pointHit && (!best || (pointHit.dist ?? 99) < (best.dist ?? 99))) {
+      best = pointHit;
+      pulseCtrl = grip;
+      fromGrip = true;
+    }
+  }
+  if (!best) {
+    for (let i = 0; i < xrControllers.length; i += 1) {
+      const ctrl = xrControllers[i];
+      const grip = xrGrips[i];
+      if (grip && gripPressed(controllerGamepad(grip))) continue;
+      const ray = controllerWorldRay(ctrl);
+      const rayHit = hitArFrame(ray.origin, ray.dir);
+      if (rayHit) {
+        best = rayHit;
+        pulseCtrl = ctrl;
+        fromGrip = false;
+        break;
+      }
+    }
+  }
+  const handle = best
+    ? best.handle === "near" || best.handle === "far"
+      ? best.handle
+      : "focus"
+    : "";
+  const nextKey = best ? `${best.axis}:${handle}` : "";
+  if (hoverEnterPulse(arHoverKey, nextKey) && pulseCtrl) pulseController(pulseCtrl);
+  arHoverKey = nextKey;
+  if (best) setFrameHover({ axis: best.axis, handle });
+  else clearFrameHover();
+  return fromGrip;
+}
+
+function syncXrRays() {
+  const show = xrPresenting() && arLocked && arHeadsetHud;
+  const gripDrag = arFrameDrag?.input === "grip";
+  for (let i = 0; i < xrControllers.length; i += 1) {
+    const ctrl = xrControllers[i];
+    const ray = ctrl.getObjectByName("xr-ray");
+    if (!ray) continue;
+    const grip = xrGrips[i];
+    const held = grip && gripPressed(controllerGamepad(grip));
+    const near = grip && hitArFramePoint(gripHand(grip));
+    ray.visible = Boolean(show && !gripDrag && !held && !near);
+  }
 }
 
 function onArSelectEnd(event) {
@@ -2411,16 +2499,101 @@ function setArMag(next) {
   applyArStagePose();
 }
 
+/** Left stick click only — right-controller noise was auto-exiting AR. */
+function questExitHoldPressed(sources) {
+  if (leftExitHoldPressed(sources)) return true;
+  for (let i = 0; i < xrGrips.length; i += 1) {
+    if (controllerHandedness(xrGrips[i]) !== "left") continue;
+    if (exitHoldPressed(controllerGamepad(xrGrips[i]))) return true;
+  }
+  return false;
+}
+
 function updateXrControllerPose(dt) {
   spinStickHeld = false;
   arGripPinch = false;
   if (!xrPresenting() || !arLocked) {
     arPinch = null;
     arLayerAcc = 0;
+    arAxisAcc = 0;
+    arExitHold = { ms: 0, armed: false };
+    arZoomArmS = 0;
+    arLeftStickTapS = 0;
+    arLeftStickWas = false;
     if (arFrameDrag) updateArFrameDrag();
     return;
   }
-  if (arHeadsetHud) pollGrips();
+  if (arHeadsetHud) {
+    pollGrips();
+    pollArFrameHover();
+    syncXrRays();
+    const sources = trackedInputSources(renderer.xr.getSession());
+    pollFaceButtons(sources);
+
+    // Left stick click: short tap → Source; long hold → Exit.
+    const exitGraceMs = 1200;
+    const exitReady = performance.now() - arLockedAt >= exitGraceMs;
+    const leftStick = questExitHoldPressed(sources);
+    if (leftStick) {
+      arLeftStickTapS += Number(dt) || 0;
+      arLeftStickWas = true;
+    } else if (arLeftStickWas) {
+      // Released: short tap cycles Source (Exit only fires while held).
+      if (arLeftStickTapS >= 0.04 && arLeftStickTapS < XR_EXIT_HOLD_S * 0.85) {
+        cycleArSource();
+      }
+      arLeftStickTapS = 0;
+      arLeftStickWas = false;
+    }
+    if (exitReady) {
+      arExitHold = tickStickLongPress(
+        leftStick,
+        dt,
+        arExitHold,
+        XR_EXIT_HOLD_S,
+      );
+      if (arExitHold.fired) exitAr();
+    } else {
+      arExitHold = { ms: 0, armed: false };
+    }
+
+    if (arGripPinch) return;
+    if (arFrameDrag) {
+      if (arFrameDrag.input === "grip" && !gripPressed(controllerGamepad(arFrameDrag.ctrl))) {
+        endArFrameDrag(arFrameDrag.ctrl);
+      } else {
+        spinStickHeld = true;
+        updateArFrameDrag();
+        syncXrRays();
+        return;
+      }
+    }
+
+    const sticks = stickAxesForHeadset(sources);
+    // Left: X walks the plane; Y cycles axis. Right: X yaws; Y zooms after short arm.
+    // No on-screen hold bar — canvas texture uploads every frame froze Quest.
+    pollStickLayers(sticks.layerX, dt);
+    pollStickAxis(sticks.axisY, dt);
+    const dYaw = yawDeltaFromStick(sticks.yawX, dt);
+    if (dYaw) {
+      spinStickHeld = true;
+      setTurntableYaw(turntableYaw + dYaw);
+    }
+    const zoomAbs = Math.abs(Number(sticks.zoomY) || 0);
+    if (zoomAbs >= 0.18) {
+      arZoomArmS += Number(dt) || 0;
+      if (arZoomArmS >= XR_ZOOM_ARM_S) {
+        const dMag = magDeltaFromStick(sticks.zoomY, dt);
+        if (dMag) {
+          spinStickHeld = true;
+          setArMag(arMag * (1 + dMag));
+        }
+      }
+    } else {
+      arZoomArmS = 0;
+    }
+    return;
+  }
   if (arGripPinch) return;
   if (arFrameDrag) {
     if (arFrameDrag.input === "grip" && !gripPressed(controllerGamepad(arFrameDrag.ctrl))) {
@@ -2428,47 +2601,23 @@ function updateXrControllerPose(dt) {
     } else {
       spinStickHeld = true;
       updateArFrameDrag();
-      return;
     }
-  }
-  if (!arHeadsetHud) {
-    arPinch = null;
-    return;
-  }
-  const sources = trackedInputSources(renderer.xr.getSession());
-  pollFaceButtons(sources);
-  pollStickLayers(sources, dt);
-  const x = strongestStickX(sources.map((s) => thumbstickXFromAxes(s.gamepad?.axes)));
-  const dYaw = yawDeltaFromStick(x, dt);
-  if (dYaw) {
-    spinStickHeld = true;
-    setTurntableYaw(turntableYaw + dYaw);
   }
 }
 
 function updateXrHud() {
   refreshHeadsetHud();
   const show = xrPresenting() && arLocked && arHeadsetHud;
-  xrHud.visible = show;
-  if (show) {
-    const cam = renderer.xr.getCamera();
-    const eye = cam.cameras?.[0] || cam;
-    eye.updateMatrixWorld();
-    eye.matrixWorld.decompose(_headPos, _headQuat, _headScale);
-    const pose = paletteHeadPose(
-      { x: _headPos.x, y: _headPos.y, z: _headPos.z },
-      { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w },
-    );
-    xrHud.position.set(pose.x, pose.y, pose.z);
-    xrHud.up.set(0, 1, 0);
-    xrHud.lookAt(pose.lookX, pose.lookY, pose.lookZ);
-    xrHud.rotateY(Math.PI);
-    syncPaletteVisual();
-    syncArRing();
+  syncControllerLabels();
+  if (!show) {
+    if (arHoverKey) {
+      arHoverKey = "";
+      clearFrameHover();
+    }
+    setXrRaysVisible(false);
   } else {
-    arRing.visible = false;
+    syncXrRays();
   }
-  setXrRaysVisible(show);
 }
 
 function updateReticle(xrFrame) {
@@ -2521,13 +2670,20 @@ function updateReticle(xrFrame) {
 function syncPlaceBanner() {
   if (facePresenting()) {
     ui.setArPlaceBanner?.(!faceCamerasReady, "Initializing cameras…");
+    syncXrPlaceHint();
     return;
   }
   if (xrPresenting() && !arLocked) {
-    ui.setArPlaceBanner?.(true, reticle.visible ? "Tap to place" : "Searching for a surface…");
+    const msg = reticle.visible
+      ? "Tap to place on the floor"
+      : "Look at the floor · select a surface";
+    // Phone DOM overlay; Quest uses the in-world sprite instead.
+    ui.setArPlaceBanner?.(Boolean(arPhoneOverlay), msg);
+    syncXrPlaceHint();
     return;
   }
   ui.setArPlaceBanner?.(false);
+  syncXrPlaceHint();
 }
 
 function setArDocument(on) {
@@ -2624,9 +2780,21 @@ async function onArSessionStart() {
     arPinch = null;
     arFrameDrag = null;
     arLayerAcc = 0;
-    arFaceBtn = { primary: false, secondary: false, stick: false };
-    arPaletteSig = "";
-    arRingRadius = 0;
+    arAxisAcc = 0;
+    arExitHold = { ms: 0, armed: false };
+    arLockedAt = 0;
+    arZoomArmS = 0;
+    arLeftStickTapS = 0;
+    arLeftStickWas = false;
+    arSourcePending = null;
+    arKeepShadeOnSource = null;
+    arFaceBtn = {
+      left: emptyArFacePad(),
+      right: emptyArFacePad(),
+      solo: emptyArFacePad(),
+    };
+    arHoverKey = "";
+    arLabelSig = "";
     arGripPinch = false;
     arPlanePoke = false;
     arStandAxis = "z";
@@ -2650,7 +2818,6 @@ async function onArSessionStart() {
       updateHint();
     });
     syncTurntableVisual();
-    xrHud.visible = false;
     setXrRaysVisible(false);
     dirtySource = true;
     dirtyView = true;
@@ -2679,15 +2846,24 @@ function onArSessionEnd() {
   arPinch = null;
   arFrameDrag = null;
   arLayerAcc = 0;
-  arFaceBtn = { primary: false, secondary: false, stick: false };
-  arPaletteSig = "";
-  arRingRadius = 0;
+  arAxisAcc = 0;
+  arExitHold = { ms: 0, armed: false };
+  arZoomArmS = 0;
+  arLeftStickTapS = 0;
+  arLeftStickWas = false;
+  arSourcePending = null;
+  arKeepShadeOnSource = null;
+  arFaceBtn = {
+    left: emptyArFacePad(),
+    right: emptyArFacePad(),
+    solo: emptyArFacePad(),
+  };
+  arHoverKey = "";
+  arLabelSig = "";
   arGripPinch = false;
   arPlanePoke = false;
   arStandAxis = "z";
   ui.setArStandAxis?.("z");
-  xrHud.visible = false;
-  arRing.visible = false;
   setXrRaysVisible(false);
   stopHitTest();
   resetStageOrbit();
@@ -2737,6 +2913,15 @@ function syncFog() {
 }
 
 function applyStartShade(kind) {
+  if (arKeepShadeOnSource) {
+    const keep = arKeepShadeOnSource;
+    arKeepShadeOnSource = null;
+    shadeMode = keep === "ghost" || keep === "triple" ? keep : "hull";
+    ui.setShade(shadeMode);
+    if (inspectMode()) dirtySource = true;
+    dirtyView = true;
+    return;
+  }
   const next = startShadeFor(kind);
   shadeMode = next === "ghost" || next === "triple" ? next : "hull";
   ui.setShade(shadeMode);
@@ -3349,20 +3534,32 @@ function yieldPaint() {
 async function withLoading(label, fn) {
   loadSeq += 1;
   const mine = loadSeq;
-  ui.setLoading(true, label || "Loading…");
-  await yieldPaint();
+  // Quest immersive-ar: DOM loading + double rAF can freeze the browser.
+  // Run the load on the XR frame path without the orbit loading chrome.
+  const xrQuiet = Boolean(xrPresenting() && arHeadsetHud);
+  if (!xrQuiet) {
+    ui.setLoading(true, label || "Loading…");
+    await yieldPaint();
+  }
   try {
     await fn();
   } finally {
-    if (mine === loadSeq) ui.setLoading(false);
+    if (mine === loadSeq && !xrQuiet) ui.setLoading(false);
   }
 }
 
 async function loadCountFromUrl(url, name, kind = "count") {
   ui.setSourceKind(kind);
   const cached = COUNT_DEMOS[kind] ? cachedDemoVolume(kind) : null;
+  const apply = (vol, extra) => {
+    // A newer X press already moved the pending target past this load.
+    if (arSourcePending && arSourcePending !== kind) return false;
+    bootCount(vol, extra);
+    if (arSourcePending === kind) arSourcePending = null;
+    return true;
+  };
   if (cached) {
-    bootCount(cached);
+    apply(cached);
     ui.setCountHint(COUNT_HINT);
     return;
   }
@@ -3371,11 +3568,13 @@ async function loadCountFromUrl(url, name, kind = "count") {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     const buf = await res.arrayBuffer();
+    if (arSourcePending && arSourcePending !== kind) return;
     const vol = countVolumeFromNpy(buf, name, countDemoLoadOpts(kind));
     if (COUNT_DEMOS[kind]) rememberDemoVolume(kind, vol);
-    bootCount(vol, { payloadBytes: buf.byteLength });
+    apply(vol, { payloadBytes: buf.byteLength });
     ui.setCountHint(COUNT_HINT);
   } catch (err) {
+    if (arSourcePending && arSourcePending !== kind) return;
     const msg = err && err.message ? err.message : String(err);
     ui.setCountHint(`Could not load ${name} (${msg}).`);
     if (!countVol) {
@@ -3383,6 +3582,7 @@ async function loadCountFromUrl(url, name, kind = "count") {
       sourceId = "conway";
       applyStartLook("conway");
     }
+    if (arSourcePending === kind) arSourcePending = null;
     updateHint();
   }
 }
@@ -3399,9 +3599,11 @@ function switchSource(kind) {
   const cached = Boolean(demo && cachedDemoVolume(next));
   const run = async () => {
     if (leaveFace) await exitFaceAr();
+    if (arSourcePending && arSourcePending !== next) return;
     if (next === "conway") {
       disconnectWolke();
       bootWorld(true);
+      if (arSourcePending === "conway") arSourcePending = null;
       return;
     }
     if (demo) {
@@ -3411,13 +3613,15 @@ function switchSource(kind) {
     if (countVol) {
       ui.setSourceKind("count");
       bootCount(countVol);
+      arSourcePending = null;
       return;
     }
     ui.setSourceKind("count");
+    arSourcePending = null;
     ui.setCountHint("Pick Load NumPy, drop a .npy on the volume, or choose Lighter Ignition or Brain MRI Low / High.");
     updateHint();
   };
-  if (cached && !leaveFace) {
+  if ((cached && !leaveFace) || (xrPresenting() && arHeadsetHud)) {
     void run();
     return;
   }
@@ -4961,11 +5165,7 @@ function frame(now, xrFrame) {
     } else if (facePresenting()) {
       tickFaceAr(now);
     } else {
-      if (xrHud.visible || arRing.visible) {
-        xrHud.visible = false;
-        arRing.visible = false;
-        setXrRaysVisible(false);
-      }
+      setXrRaysVisible(false);
       syncSpinControls();
       controls.update(dt);
       if (!planeLock) pinOrbitPivot();

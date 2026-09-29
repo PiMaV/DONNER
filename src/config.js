@@ -11,7 +11,7 @@ import {
 
 export { MAX_STAB_GENS, STAB_START_MAX, STAB_START_MIN, STAB_START_STEP, STAB_TAIL_MAX, STAB_TAIL_MIN };
 
-export const VERSION = "1.3.0";
+export const VERSION = "1.4.0";
 
 /** Browser tab and similar chrome — same digits as the footer (`vX.Y.Z`). */
 export function pageTitle(version = VERSION) {

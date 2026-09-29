@@ -225,13 +225,22 @@ advantage, not a deployment convenience.
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
   the AR session. On a headset,
   do not request `dom-overlay` (fullscreen overlay covers passthrough).
-  There is no table-side Play/stand/Exit plate. A sheet sits left of the
-  view: Play/Loop, Spin, axis, source, shade, hide center/outer.
-  Thumbstick Y walks the active plane; X yaws; stick press cycles the
-  axis; A/X plays; B/Y spins. Trigger or grip on a frame slides that
-  plane; grip the brick to move it; a floor ring turns it; both grips
-  pinch Size. A grab pulses the controller. Poke a cube to isolate the
-  standing plane. Quest: Exit AR and enter
+  There is no table-side Play/stand/Exit plate and no head-relative sheet.
+  Left thumbstick X walks the active plane; Y cycles axis. Right thumbstick
+  X yaws immediately; Y zooms Size after ~0.2 s arm. Hold left stick click
+  (press in) ~0.7s to Exit AR (left controller only). Short left-stick tap
+  or left **X** cycles Source (pending advances even while MRI High loads);
+  **Y** cycles Shade. Right A/B play/spin (labels **A:** / **B:** beside
+  the grip; left **X:** / **Y:**).
+  Near a frame highlights it and pulses once; trigger or grip slides that
+  plane; grip the brick to move it; both grips pinch Size, shove via the
+  midpoint, and twist to yaw (hand-matched direction). Stick hints on the
+  grips: right Yaw/Zoom, left Plane/Axis. Exit label: **Hold stick · Exit**
+  on the left stick. While searching,
+  Quest shows an in-world place cue. No on-screen hold bar (per-frame canvas
+  uploads froze Quest). Local Viewer Source
+  cycling needs Examples
+  on. Quest: Exit AR and enter
   again to place on another plane. Phone orbit: fingers rotate
   and pinch-zoom; stack sliders move planes. XR-B marker, hand tracking, and wrist
   attach are later. Phone HTTPS is
@@ -266,10 +275,10 @@ advantage, not a deployment convenience.
 - Open-in DONNER or space-time ROI handoff (later contract extension via hub; no Viewer↔Viewer peer API)
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
-  hit-test, phone inspect rails / named shade / More, Quest sheet, stick
-  yaw and layer scrub, grip-pinch size, frame slide, brick move, floor
-  ring, and standing-plane poke are
-  in; the old table-side plate stays retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
+  hit-test, phone inspect rails / named shade / More, Quest stick split /
+  hover haptic / face-button labels, grip-pinch size, frame slide, brick
+  move, and standing-plane poke are
+  in; the old table-side plate and sheet stay retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
   do not start a points renderer in the same slice)
 - Face-mesh depth occluder, Face AR on Quest, or folding Face AR into the WebXR world-anchor path
