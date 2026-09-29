@@ -3,24 +3,46 @@ import { describe, it } from "node:test";
 
 import {
   HUD_WIDGETS,
+  PALETTE_WIDGETS,
+  XR_BTN_PRIMARY,
+  XR_BTN_SECONDARY,
+  XR_BTN_STICK,
+  XR_PALETTE_DISTANCE_M,
+  XR_PALETTE_LEFT_M,
   XR_PINCH_MIN_M,
+  XR_RING_PICK_M,
   XR_YAW_STICK_DEADZONE,
+  axisDragBack,
+  buttonPressed,
   distance3,
+  distPointToSegment3,
   gripPressed,
   hudActionFromHit,
   hudWidgetById,
   inverseQuat,
   isHeadsetArSession,
+  layerStepsFromStick,
   magFromPinch,
+  nextSliceAxis,
+  paletteActionFromHit,
+  paletteHeadPose,
   parkHudPose,
   pickHudWidget,
+  pickPalettePoint,
+  pickPaletteWidget,
+  pointCircleDist,
+  pulseHaptic,
   rayAabb,
+  rayCircleHit,
   rayFromPose,
+  risingEdge,
   strongestStickX,
   thumbstickXFromAxes,
+  thumbstickYFromAxes,
   widgetCenter,
   worldRayToLocal,
   yawDeltaFromStick,
+  yawGrabDelta,
 } from "../src/xr-hud.js";
 import { XR_MAG_MAX, XR_MAG_MIN } from "../src/xr.js";
 
@@ -196,5 +218,159 @@ describe("HUD_WIDGETS", () => {
       HUD_WIDGETS.map((w) => w.id),
       ["play", "stand-x", "stand-y", "stand-z", "exit"],
     );
+  });
+});
+
+describe("headset palette", () => {
+  it("lists play, spin, axes, sources, shade, and hide", () => {
+    assert.deepEqual(
+      PALETTE_WIDGETS.map((w) => w.id),
+      [
+        "play",
+        "spin",
+        "axis-x",
+        "axis-y",
+        "axis-z",
+        "src-mni152-low",
+        "src-mni152",
+        "src-ignition",
+        "src-conway",
+        "shade-hull",
+        "shade-ghost",
+        "shade-triple",
+        "hide-center",
+        "hide-outer",
+      ],
+    );
+  });
+
+  it("parks left of a forward-looking head", () => {
+    const pose = paletteHeadPose(
+      { x: 0, y: 1.6, z: 0 },
+      { x: 0, y: 0, z: 0, w: 1 },
+    );
+    assert.ok(pose.x < -XR_PALETTE_LEFT_M * 0.5);
+    assert.ok(pose.z < -XR_PALETTE_DISTANCE_M * 0.5);
+    assert.equal(pose.lookY, 1.6);
+  });
+
+  it("picks Play from a ray into the sheet", () => {
+    const play = PALETTE_WIDGETS[0];
+    const origin = { x: 0, y: (play.min.y + play.max.y) * 0.5, z: 0.2 };
+    const hit = pickPaletteWidget(origin, { x: 0, y: 0, z: -1 });
+    assert.equal(hit.id, "play");
+    assert.deepEqual(paletteActionFromHit(hit), { type: "play" });
+  });
+
+  it("picks a source and a hide flag from a grip point", () => {
+    const src = PALETTE_WIDGETS.find((w) => w.id === "src-conway");
+    const hit = pickPalettePoint({
+      x: (src.min.x + src.max.x) * 0.5,
+      y: (src.min.y + src.max.y) * 0.5,
+      z: 0,
+    });
+    assert.deepEqual(paletteActionFromHit(hit), { type: "source", kind: "conway" });
+    const hide = PALETTE_WIDGETS.find((w) => w.id === "hide-center");
+    const hideHit = pickPalettePoint({
+      x: (hide.min.x + hide.max.x) * 0.5,
+      y: (hide.min.y + hide.max.y) * 0.5,
+      z: 0.04,
+    });
+    assert.deepEqual(paletteActionFromHit(hideHit), { type: "hide-center" });
+  });
+});
+
+describe("stick layers and face buttons", () => {
+  it("reads thumbstick Y from axes[3]", () => {
+    assert.equal(thumbstickYFromAxes([0, 0.2, 0.1, -0.6]), -0.6);
+    assert.equal(thumbstickYFromAxes([0.1, 0.4]), 0.4);
+  });
+
+  it("accumulates steps and drops them inside the deadzone", () => {
+    const nudged = layerStepsFromStick(1, 0.05, 0);
+    assert.equal(nudged.steps, 0);
+    assert.ok(nudged.acc > 0);
+    const held = layerStepsFromStick(1, 0.2, nudged.acc);
+    assert.ok(held.steps >= 1);
+    assert.deepEqual(layerStepsFromStick(0.05, 1, 3), { steps: 0, acc: 0 });
+    assert.ok(XR_YAW_STICK_DEADZONE > 0.05);
+  });
+
+  it("cycles X, Y, Z", () => {
+    assert.equal(nextSliceAxis("x"), "y");
+    assert.equal(nextSliceAxis("y"), "z");
+    assert.equal(nextSliceAxis("z"), "x");
+  });
+
+  it("maps A/X, B/Y, and the stick click", () => {
+    const buttons = [
+      { pressed: false },
+      { pressed: false },
+      { pressed: false },
+      { pressed: true },
+      { pressed: true },
+      { pressed: false },
+    ];
+    assert.equal(buttonPressed({ buttons }, XR_BTN_STICK), true);
+    assert.equal(buttonPressed({ buttons }, XR_BTN_PRIMARY), true);
+    assert.equal(buttonPressed({ buttons }, XR_BTN_SECONDARY), false);
+    assert.equal(risingEdge(true, false), true);
+    assert.equal(risingEdge(true, true), false);
+  });
+});
+
+describe("plane slide, ring, and haptics", () => {
+  it("moves the plane with the hand along the axis", () => {
+    const back = axisDragBack(
+      { x: 0, y: 0.3, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 1, z: 0 },
+      0.1,
+      8,
+    );
+    assert.equal(back, 5);
+  });
+
+  it("measures a point against a segment", () => {
+    assert.ok(distPointToSegment3(0, 0.02, 0.5, 0, 0, 0, 0, 0, 1) < 0.03);
+  });
+
+  it("yaws when the hand swings around the anchor", () => {
+    const d = yawGrabDelta(
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 1, z: 0 },
+      { x: 1, y: 0, z: 0 },
+      { x: 0, y: 0, z: 1 },
+    );
+    assert.ok(Math.abs(d - Math.PI / 2) < 1e-6 || Math.abs(d + Math.PI / 2) < 1e-6);
+  });
+
+  it("hits the floor ring from above and misses the middle", () => {
+    const center = { x: 0, y: 0, z: 0 };
+    const up = { x: 0, y: 1, z: 0 };
+    const hit = rayCircleHit({ x: 0.2, y: 1, z: 0 }, { x: 0, y: -1, z: 0 }, center, up, 0.2);
+    assert.ok(hit && hit.t > 0);
+    assert.equal(
+      rayCircleHit({ x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 }, center, up, 0.2),
+      null,
+    );
+    assert.ok(pointCircleDist({ x: 0.2, y: 0, z: 0 }, center, up, 0.2) < 1e-6);
+    assert.ok(pointCircleDist({ x: 0.2, y: 0.1, z: 0 }, center, up, 0.2) > XR_RING_PICK_M);
+  });
+
+  it("pulses a haptic actuator and ignores a bare gamepad", () => {
+    let seen = null;
+    const pad = {
+      hapticActuators: [
+        {
+          pulse(value, ms) {
+            seen = { value, ms };
+          },
+        },
+      ],
+    };
+    assert.equal(pulseHaptic(pad, 0.4, 20), true);
+    assert.deepEqual(seen, { value: 0.4, ms: 20 });
+    assert.equal(pulseHaptic({ buttons: [] }), false);
   });
 });

@@ -33,7 +33,7 @@ Examples in Source, on the left.
   generations (Hull, outer box on).
 
 Drag to orbit. Scroll to zoom. Drop a `.npy` count cube onto the volume.
-On a phone, pinch. On Quest, grab the volume in the room.
+On a phone, pinch. On Quest, the sheet sits to the left: sticks walk and turn the volume, a frame slides that plane.
 
 Sidecar **Stream / Connect** is not on the Online Demo. Use the Local Viewer
 (or `npm start` while developing) to push cubes from EVT / WOLKE.

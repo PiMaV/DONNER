@@ -113,9 +113,12 @@ case; Brain MRI Low is the visitor default.
 | Where | [donner.mess.engineering](https://donner.mess.engineering/) | GitHub Releases binary |
 | Job | Try DONNER in the browser | Full viewer on your machine |
 | Stream / Connect | No | Yes (EVT / WOLKE sidecars) |
+| Showcase sources | Brain MRI, Ignition, Game of Life | Off at start; **Examples** shows those three for this session (Load NumPy + Stream stay) |
 | Needs Python | No | No (Go one-binary) |
 
-Get Local Viewer: full features — stream, own data, no Python.
+Get Local Viewer: full features — stream, own data, no Python. Turn on
+**Examples** under Source when you want the Online Demo cubes without
+leaving the local host.
 
 ## Share URL
 

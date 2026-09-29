@@ -109,8 +109,15 @@ and **Quality** sit behind **More**. On a **phone** in orbit,
 fingers rotate and pinch-zoom; Conway **Play** sits next to **AR** in the
 fold-bar gap between Source and View. The Look strip is top-right (shade plus Fit and Spin). The stack **sliders** move planes and stop
 short of the right edge (system back-swipe). On a
-**headset**, grab a frame edge to slide the whole volume in the room.
-Point at a **cube** to isolate the standing plane (Ghost). **Exit** (or
+**headset**, a sheet floats to the left of the view. Thumbstick up and
+down walks the active plane; left and right yaws; press the stick to
+cycle X / Y / Z. **A / X** is Play (Loop on a count cube). **B / Y** is
+Spin (the volume turns; the stick still yaws). Trigger or grip on a
+frame slides that plane; grip the brick to move it; the gold floor ring
+turns it. Both grips pinch **Size**. A grab starts with a short haptic
+pulse. Point at a **cube** to isolate the standing plane (Ghost). The
+sheet also switches source, shade, and hides center or outer frames.
+**Exit** (or
 Escape) returns to orbit and runs **Fit** so the volume is framed. On a **phone** the WebXR DOM overlay is
 `#xr-overlay` (HUD chrome only, not a painted full-screen sheet), not
 `document.body`, so the camera passthrough and the volume stay visible.
@@ -118,11 +125,32 @@ Outside AR the overlay is 0×0 so it does not cover the orbit canvas; it
 expands for the session. Overlay tap-guard applies to buttons and
 sliders, not passthrough taps. On a **headset** (Quest) do **not**
 request that overlay — a fullscreen root covers passthrough. There is
-**no** in-world Play/stand/Exit plate, so Quest has no Reset Anchor
-button: Exit AR and enter again to place on another plane. Thumbstick
-yaws; squeeze both grips and move the hands apart or together to
-**Size**. Exit with the headset / browser system gesture. Headset 2D
+**no** table-side Play/stand/Exit plate. The inspect sheet is
+head-relative (left of the view), aimed with the ray or grabbed.
+Quest has no Reset Anchor
+button: Exit AR and enter again to place on another plane. Exit with the headset / browser system gesture. Headset 2D
 Browser skips the viewcube scissor; XR uses the native layer scale.
+
+```mermaid
+flowchart LR
+  stickY[Stick up down]
+  stickX[Stick left right]
+  stickClick[Stick press]
+  faceA[A or X]
+  faceB[B or Y]
+  grips[Both grips]
+  grab[Trigger or grip]
+  stickY --> layer[Active playhead]
+  stickX --> yaw[Yaw]
+  stickClick --> axis[Cycle axis]
+  faceA --> play[Play or Loop]
+  faceB --> spin[Spin turntable]
+  grips --> size[Size]
+  grab --> frame[Frame slides that plane]
+  grab --> brick[Brick moves the volume]
+  grab --> ring[Ring yaws]
+  grab --> sheet[Sheet button]
+```
 
 **Face** is a second placement mode, not WebXR. The **Face** button shows
 when a camera exists **and** Source is Brain MRI Low or High. `?face=1`
@@ -343,7 +371,7 @@ rectangle select on the playfield).
 | `F` | **Fit** — frame the camera to the drawn slab |
 | Escape | Restore parallax; in AR, end the session |
 | Viewcube | Desktop: click a product-axis **face**. Enters a fitted 2D ortho cut. Hull = glass potato + solid slice; Ghost = full silhouette + slice; Cuts = that plane only. Wheel zooms, right-drag pans, Shift+wheel pages and the camera tracks the playhead. Clicking the **same face** pages the stack (no refit, no jump to 3D). **Left-drag** orbits out to 3D. **B** also leaves (that is not Parallax off in 3D). **Hide center** / **Hide outer** under the cube hide playhead+grid vs clip frames; a cut still shows the current plane. Hidden on phone orbit. Phone AR: Hide lives in **More** (no cube). |
-| **AR** | Bottom dock only when WebXR `immersive-ar` is available (larger on desktop). Desktop without WebXR does not show AR. Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. **Searching for a surface…** shows until a plane appears; when the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Size and Yaw stack; Floor **X / Y / Z** sit beside them. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Phone: Loop **X / Y / Z** sit beside Loop. Quest: grab a frame to slide the volume; stick yaws; both grips pinch size; no in-world menu (Exit AR to place again). |
+| **AR** | Bottom dock only when WebXR `immersive-ar` is available (larger on desktop). Desktop without WebXR does not show AR. Phone: passthrough first (no brick). Hit-test starts on enter; look at the **floor**. **Searching for a surface…** shows until a plane appears; when the gold square is visible, **Tap to place** appears; tap to spawn. The first plane is not auto-locked. **Reset Anchor** despawns and returns to search. Brick sits on the plane; **Size** scales; **Yaw** turns around the standing axis. Size and Yaw stack; Floor **X / Y / Z** sit beside them. Table footprint maps to 40 cm; Play grows up from the floor. **Floor** X / Y / Z picks which product axis grows out of the plane. Phone: Loop **X / Y / Z** sit beside Loop. Quest: sheet on the left (Play/Loop, Spin, axis, source, shade, hide center/outer); stick up/down walks the plane; stick left/right yaws; stick press cycles the axis; A/X plays; B/Y spins; trigger or grip on a frame slides that plane; grip the brick to move it; the floor ring turns it; both grips pinch size; a grab pulses the controller. |
 | **Face** | Bottom **Face** when a camera exists and Source is Brain MRI Low or High. Not WebXR. Camera start shows **Initializing cameras…**, then one **camera** dropdown (**Selfie camera** / **Rear camera**) + **Exit** (Face toggle gone). Phone and desktop start **Selfie camera**. Ghost overlay locks to the head. After lock: oval + lips + circular blue retinas + black pupil dots; if the mesh drops, keep the last pose until the face returns. Hide center and Hide outer are on. No Size / Yaw. Phone and Face always show the three plane sliders at full brightness. Laptop keeps rails / Loop / Source / View. Switching Source leaves Face and restores orbit. Hidden on Quest. `?face=1` enters. |
 | **Exit** | End the AR or Face session; orbit returns and **Fit** frames the volume. Visible in AR / Face only. |
 | **Reset Anchor** | AR overlay only (phone): despawn the brick and return to search. Hidden in Face. Does not steal a scene tap. Hidden until a pose is locked. |

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Local Viewer **Examples** (session-only): showcase list is Brain MRI,
+  Ignition, and Game of Life only. **Load NumPy** and **Stream** stay
+  below. Turning Examples off hides Life Play again. Off at next start.
+- Quest AR has a sheet to the left of the view: Play/Loop, Spin, axis,
+  source, shade, and hide center/outer. The thumbstick walks and turns
+  the volume; A/X plays; B/Y spins.
+- On Quest, trigger or grip on a frame slides that plane. Grip the brick
+  to move it, and the floor ring turns it. A grab gives a short haptic
+  pulse.
 - View **Gap** is three spinners **X / Y / Z** with **Link** (default on).
   Linked = one factor for all axes (previous behaviour). Unlinked axes
   stretch pitch independently (Z = time / standing axis).
@@ -24,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+
+- Local Viewer **Examples**: turning it on loads the selected showcase
+  (usually Brain MRI Low) immediately. Face stays offered on Local Viewer
+  and shows while Examples is on and Source is Brain (no longer latched off
+  at boot).
+- Opening DONNER as `http://0.0.0.0:…` redirects to `127.0.0.1` so the
+  camera API exists. Face no longer fails silently on a bind-all URL.
 
 ## [1.3.0] - 2026-09-17
 

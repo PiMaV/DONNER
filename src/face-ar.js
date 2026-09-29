@@ -27,6 +27,40 @@ export function isFaceArOffered({ userAgent = "" } = {}) {
 }
 
 /**
+ * Hostnames that look like a bind-all listen address. Opening these in a
+ * browser is not a secure context — getUserMedia is missing and Face
+ * clicks appear dead. Rewrite to loopback.
+ */
+export function isBindAllHostname(hostname = "") {
+  const h = String(hostname || "").toLowerCase();
+  return h === "0.0.0.0" || h === "[::]" || h === "::";
+}
+
+/** Same-origin URL with loopback host when the page was opened on 0.0.0.0. */
+export function loopbackPageHref(href = "", hostname = "") {
+  const raw = String(href || "");
+  if (!isBindAllHostname(hostname)) return raw;
+  try {
+    const u = new URL(raw);
+    u.hostname = "127.0.0.1";
+    return u.href;
+  } catch {
+    return raw
+      .replace("://0.0.0.0", "://127.0.0.1")
+      .replace("://[::]", "://127.0.0.1")
+      .replace("://::", "://127.0.0.1");
+  }
+}
+
+/** Hint when Face is clicked but the camera API is missing (e.g. http://0.0.0.0). */
+export function faceCameraUnavailableHint(hostname = "") {
+  if (isBindAllHostname(hostname)) {
+    return "Camera needs http://127.0.0.1:8765/ (not 0.0.0.0) or HTTPS.";
+  }
+  return "Camera API unavailable here. Use http://127.0.0.1:8765/ or HTTPS.";
+}
+
+/**
  * Phone Face hides Source/View (slim overlay). Match the phone fold
  * layout: max-width 720px, or coarse pointer plus a short viewport
  * (landscape phone). A wide desktop with a touchscreen stays laptop Face

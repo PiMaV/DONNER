@@ -2169,15 +2169,27 @@ body.source-count .btn-play-dock {
   display: none;
 }
 
+#source-local-examples {
+  display: none;
+}
+
+body.is-local-viewer #source-local-examples {
+  display: block;
+}
+
 body.is-local-viewer #source-demo-chrome {
   display: none;
+}
+
+body.is-local-viewer.is-local-examples #source-demo-chrome {
+  display: block;
 }
 
 body.is-local-viewer #source-conway {
   display: none;
 }
 
-body.is-local-viewer.is-local-conway #source-conway {
+body.is-local-viewer.is-local-examples.is-local-conway #source-conway {
   display: block;
 }
 

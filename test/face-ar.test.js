@@ -19,6 +19,9 @@ import {
   faceOvalConnections,
   isFaceArOffered,
   isFaceArSupported,
+  faceCameraUnavailableHint,
+  isBindAllHostname,
+  loopbackPageHref,
   loadFaceLandmarker,
   parseFaceQuery,
   preferEnvironmentCamera,
@@ -54,6 +57,20 @@ describe("face AR gate and camera", () => {
       isFaceArOffered({ userAgent: "Mozilla/5.0 (Linux; Android 12; Quest 3) OculusBrowser/1" }),
       false,
     );
+  });
+
+  it("rewrites bind-all hosts to loopback for the camera", () => {
+    assert.equal(isBindAllHostname("0.0.0.0"), true);
+    assert.equal(isBindAllHostname("127.0.0.1"), false);
+    assert.equal(
+      loopbackPageHref("http://0.0.0.0:8765/?src=mni152-low", "0.0.0.0"),
+      "http://127.0.0.1:8765/?src=mni152-low",
+    );
+    assert.equal(
+      loopbackPageHref("http://127.0.0.1:8765/", "127.0.0.1"),
+      "http://127.0.0.1:8765/",
+    );
+    assert.match(faceCameraUnavailableHint("0.0.0.0"), /127\.0\.0\.1/);
   });
 
   it("uses phone Face chrome only on a narrow or short coarse viewport", () => {

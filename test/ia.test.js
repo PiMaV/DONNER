@@ -304,13 +304,17 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="source-stream"[^>]*\bhidden\b/);
     assert.match(html, /id="source-work"[^>]*\bhidden\b/);
     assert.match(html, /id="source-demo-chrome"/);
+    assert.match(html, /id="btn-local-examples"/);
+    assert.match(html, /id="source-local-examples"/);
     assert.match(html, /id="btn-load-npy"/);
     assert.match(html, /id="btn-get-local"/);
     assert.match(html, /id="btn-stop-local"/);
     assert.match(html, /href="https:\/\/github\.com\/PiMaV\/DONNER\/releases"/);
     assert.match(css, /#source-stream,\s*#source-work\s*\{[^}]*display:\s*none/s);
+    assert.match(css, /body\.is-local-viewer #source-local-examples/s);
     assert.match(css, /body\.is-local-viewer #source-demo-chrome/s);
-    assert.match(css, /body\.is-local-viewer\.is-local-conway #source-conway/s);
+    assert.match(css, /body\.is-local-viewer\.is-local-examples #source-demo-chrome/s);
+    assert.match(css, /body\.is-local-viewer\.is-local-examples\.is-local-conway #source-conway/s);
     assert.match(css, /body\.is-local-viewer #source-work/s);
     assert.match(css, /body\.is-local-viewer #source-stream/s);
     assert.match(css, /body\.is-local-viewer \.brand-get-local/s);

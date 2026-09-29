@@ -297,14 +297,16 @@ flowchart TB
 3. **XR-C — Quest passthrough (parallel chrome fork).** Same
    `immersive-ar` session and placement as XR-A. Quest Browser must not
    request `dom-overlay` (a fullscreen root covers passthrough). The
-   parked Play/stand/Exit **plate is retired** — it was unreadable and
-   out of reach. **Yaw** is the thumbstick. **Size** is both grips, then
-   hands apart/together. **Grab a bounding frame** and drag: the whole
-   volume follows the hand (this is not a clip/playhead scrub). Poke a
-   cube to isolate the standing plane (Ghost). Phone `screen` overlay
-   (Play / Stand / Size / Yaw / Exit) is unchanged. Exit on Quest is the
-   headset / browser system gesture. **XR-C-1 later:** hand tracking,
-   grip or wrist attach. XR-A is the window demo.
+   table-side Play/stand/Exit **plate stays retired**. Inspect lives on a
+   head-relative sheet (Play/Loop, Spin, axis, source, shade, hide
+   center/outer). **Yaw** is the thumbstick X; **Y** walks the active
+   plane; stick press cycles the axis. **A/X** plays, **B/Y** spins.
+   Trigger or grip on a frame slides that plane. Grip the brick to move
+   it. A floor ring turns it. **Size** is both grips. A grab pulses the
+   controller. Poke a cube to isolate the standing plane (Ghost). Phone
+   `screen` overlay is unchanged. Exit on Quest is the headset / browser
+   system gesture. **XR-C-1 later:** hand tracking, wrist attach. XR-A
+   is the window demo.
 
 Out of this ladder: projection mapping, Unreal, Vision Pro as a first
 target. Count-stack `.npy` is in; polarity encodings and EVT3-in-browser
@@ -325,15 +327,14 @@ Confirm on hardware after the session-fix (WWM). In this tree:
    frame grab stays mouse / desktop. (Phone AR overlay sliders are
    unchanged.)
 
-3. **No world HUD plate.** The XR-C-0 Play / stand X·Y·Z / Exit panel
-   stays off. Do not bring it back without a readable, reachable layout
-   (XR-C-1 wrist / hand). Stick yaw and grip-pinch size stay.
+3. **Head-relative sheet.** The old table-side Play / stand / Exit
+   panel stays off. Quest inspect is the sheet left of the view, plus
+   stick, face buttons, frame slide, brick move, and the floor ring.
 
-4. **XR frame grab moves the room.** Select a bounding-frame edge; the
-   stage translates with the controller (1:1 with the hand). Ray pick
-   rim is ~8 cm, not a 3 cm thread. Clip/playhead in XR is not this
-   grab — phone sliders still crop; Quest crop-by-frame is later if
-   needed.
+4. **Frame grab slides the plane.** Trigger or grip on a bounding-frame
+   edge moves that playhead or clip along its axis (same as the desktop
+   frame). The brick body moves the volume. The gold floor ring yaws.
+   Ray pick rim is ~8 cm. Phone sliders are unchanged.
 
 ## AR (later)
 

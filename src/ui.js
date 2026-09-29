@@ -410,6 +410,8 @@ export function bindUI(on) {
   const btnLoadNpy = $("btn-load-npy");
   const sourceWork = $("source-work");
   const sourceDemoChrome = $("source-demo-chrome");
+  const sourceLocalExamples = $("source-local-examples");
+  const btnLocalExamples = $("btn-local-examples");
   const dropOverlay = $("drop-overlay");
   const ingestDialog = $("ingest-dialog");
   const ingestFileName = $("ingest-file");
@@ -437,7 +439,59 @@ export function bindUI(on) {
   const wolkeConnect = $("btn-wolke-connect");
   const wolkeStatus = $("wolke-status");
   let localViewer = false;
+  let localExamples = false;
   let canQuitLocal = false;
+  const LOCAL_EXAMPLE_KINDS = new Set(["mni152-low", "mni152", "ignition", "conway"]);
+  const syncLocalExampleOptions = () => {
+    if (!sourceKind) return;
+    for (const opt of sourceKind.options) {
+      const v = opt.value;
+      if (v === "npy") {
+        // Local Viewer uses the Load NumPy button, not this row.
+        opt.hidden = localViewer;
+        continue;
+      }
+      if (v === "count") {
+        // Own cube is status text, not a picker — never in Local Viewer.
+        if (localViewer) opt.hidden = true;
+        continue;
+      }
+      if (localViewer && localExamples) {
+        opt.hidden = !LOCAL_EXAMPLE_KINDS.has(v);
+      } else {
+        opt.hidden = false;
+      }
+    }
+    if (localViewer && localExamples) {
+      const cur = sourceKind.value;
+      if (!LOCAL_EXAMPLE_KINDS.has(cur)) {
+        applying = true;
+        sourceKind.value = "mni152-low";
+        applying = false;
+      }
+    }
+  };
+  const syncLocalConwayChrome = () => {
+    const on =
+      localViewer &&
+      localExamples &&
+      Boolean(sourceKind && sourceKind.value === "conway");
+    document.body.classList.toggle("is-local-conway", on);
+  };
+  const syncLocalSourceChrome = () => {
+    document.body.classList.toggle("is-local-examples", localViewer && localExamples);
+    if (sourceLocalExamples) sourceLocalExamples.hidden = !localViewer;
+    if (btnLocalExamples) {
+      btnLocalExamples.setAttribute("aria-pressed", localExamples ? "true" : "false");
+      btnLocalExamples.classList.toggle("is-on", localExamples);
+    }
+    if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer && !localExamples;
+    // Load NumPy stays in work chrome whenever Local Viewer is on.
+    if (sourceWork) sourceWork.hidden = !localViewer;
+    if (sourceStream) sourceStream.hidden = !localViewer;
+    syncLocalExampleOptions();
+    syncLocalConwayChrome();
+  };
   const stopLocalBtn = $("btn-stop-local");
   const countLegLo = $("count-leg-lo");
   const countLegMid = $("count-leg-mid");
@@ -935,6 +989,9 @@ export function bindUI(on) {
   stopLocalBtn?.addEventListener("click", () => {
     on.stopLocalViewer?.();
   });
+  btnLocalExamples?.addEventListener("click", () => {
+    on.localExamples?.(!localExamples);
+  });
   const ingestPicks = () => {
     const picked = ingestBinList?.querySelector("input[name='ingest-factor']:checked");
     const factor = Number.parseInt(picked && picked.value, 10);
@@ -1062,13 +1119,19 @@ export function bindUI(on) {
       document.body.classList.contains("is-ar") && !presenting;
     const inAr = document.body.classList.contains("is-ar");
     const brain = isFaceProjectSource(sourceKind?.value);
+    // Local Viewer: Face only while Examples is on and Source is Brain.
+    // faceSupported stays the camera/headset offer (same as Online Demo).
     if (arBtn) {
       arBtn.hidden = !arSupported || inAr || presenting;
       arBtn.title = "Place this volume on a floor plane.";
     }
     if (faceBtn) {
       faceBtn.hidden =
-        localViewer || !faceSupported || !brain || worldAr || presenting;
+        (localViewer && !localExamples) ||
+        !faceSupported ||
+        !brain ||
+        worldAr ||
+        presenting;
       faceBtn.textContent = "Face";
       faceBtn.setAttribute("aria-pressed", presenting ? "true" : "false");
       faceBtn.classList.toggle("is-on", presenting);
@@ -1596,11 +1659,19 @@ export function bindUI(on) {
     setSourceKind(kind) {
       const k = isCountSourceKind(kind) ? kind : "conway";
       const countOpt = sourceKind?.querySelector('option[value="count"]');
-      if (countOpt && k === "count") countOpt.hidden = false;
-      if (sourceKind) sourceKind.value = k;
+      if (countOpt && k === "count" && !localViewer) countOpt.hidden = false;
+      if (sourceKind) {
+        applying = true;
+        if (localViewer && localExamples && LOCAL_EXAMPLE_KINDS.has(k)) {
+          sourceKind.value = k;
+        } else if (!(localViewer && localExamples)) {
+          sourceKind.value = k;
+        }
+        applying = false;
+      }
       lastSourceKind = k;
       document.body.classList.toggle("source-count", isCountSourceKind(k));
-      document.body.classList.toggle("is-local-conway", localViewer && k === "conway");
+      syncLocalConwayChrome();
       if (sourceCount) sourceCount.hidden = !(localViewer && isCountSourceKind(k));
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
       if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
@@ -1747,30 +1818,35 @@ export function bindUI(on) {
     setLocalViewer(on, opts = {}) {
       localViewer = Boolean(on);
       canQuitLocal = Boolean(localViewer && opts && opts.canQuit);
+      if (!localViewer) localExamples = false;
       document.body.classList.toggle("is-local-viewer", localViewer);
       document.body.classList.toggle("can-quit-local", canQuitLocal);
       if (stopLocalBtn) stopLocalBtn.hidden = !canQuitLocal;
-      if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer;
-      if (sourceWork) sourceWork.hidden = !localViewer;
-      if (sourceStream) sourceStream.hidden = !localViewer;
-      if (sourceCount) {
-        sourceCount.hidden = !(localViewer && document.body.classList.contains("source-count"));
-      }
-      // Work tool chrome. Conway only via ?src=life (is-local-conway); no Source dropdown.
+      syncLocalSourceChrome();
       if (localViewer) {
-        faceSupported = false;
-        document.body.classList.toggle(
-          "is-local-conway",
-          Boolean(sourceKind && sourceKind.value === "conway"),
-        );
         syncSourceCopy();
       } else {
         document.body.classList.remove("is-local-conway");
       }
       syncFaceProject();
     },
+    setLocalExamples(on, { faceOk = false } = {}) {
+      if (!localViewer) return false;
+      localExamples = Boolean(on);
+      // Keep the camera offer latched; Examples only gates visibility in syncFaceProject.
+      if (faceOk) this.setFaceAvailable(true);
+      if (!localExamples && document.body.classList.contains("is-face-ar")) {
+        on.exitAr?.();
+      }
+      syncLocalSourceChrome();
+      syncFaceProject();
+      return localExamples;
+    },
     isLocalViewer() {
       return localViewer;
+    },
+    isLocalExamples() {
+      return Boolean(localViewer && localExamples);
     },
     canQuitLocalViewer() {
       return canQuitLocal;

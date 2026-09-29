@@ -25,7 +25,11 @@ advantage, not a deployment convenience.
   `.npy` on the volume with a header-first gate (grid + occupied peek;
   soft/hard warn stays selectable; Load confirms then tries). Local Viewer
   Go host: **EXIT** → `POST /quit`; browser close → `/bye` + `/ping` idle quit;
-  busy port reopens browser;
+  busy port reopens browser; boots to Load NumPy + Stream (no showcase
+  dropdown). **Examples** (session-only) shows Brain / Ignition / Life
+  only; Load NumPy and Stream stay below; Face follows the web rule while
+  Examples is on; Life Play chrome only while Examples is on. Quest source
+  buttons respect the same gate.
   WOLKE-contract Streamer
   Connect is **Online Demo**–hidden and shows on **Local Viewer** /
   `npm start` via `/local-viewer.json`),
@@ -221,9 +225,13 @@ advantage, not a deployment convenience.
   0×0 in orbit so it does not cover the canvas; it goes fullscreen only in
   the AR session. On a headset,
   do not request `dom-overlay` (fullscreen overlay covers passthrough).
-  There is no in-world Play/stand/Exit plate. Thumbstick yaws; both
-  grips pinch Size. Grab a bounding frame to slide the volume in the room;
-  poke a cube to isolate the standing plane. Quest: Exit AR and enter
+  There is no table-side Play/stand/Exit plate. A sheet sits left of the
+  view: Play/Loop, Spin, axis, source, shade, hide center/outer.
+  Thumbstick Y walks the active plane; X yaws; stick press cycles the
+  axis; A/X plays; B/Y spins. Trigger or grip on a frame slides that
+  plane; grip the brick to move it; a floor ring turns it; both grips
+  pinch Size. A grab pulses the controller. Poke a cube to isolate the
+  standing plane. Quest: Exit AR and enter
   again to place on another plane. Phone orbit: fingers rotate
   and pinch-zoom; stack sliders move planes. XR-B marker, hand tracking, and wrist
   attach are later. Phone HTTPS is
@@ -258,9 +266,10 @@ advantage, not a deployment convenience.
 - Open-in DONNER or space-time ROI handoff (later contract extension via hub; no Viewer↔Viewer peer API)
 - DONNER backend; EVT3 decode in the browser
 - WebXR marker origin / hand-attach / wrist HUD / QR spawn (XR-A
-  hit-test, phone inspect rails / named shade / More, stick yaw, grip-pinch size, grab-frame room slide, and
-  standing-plane poke are
-  in; the XR-C-0 world plate is retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
+  hit-test, phone inspect rails / named shade / More, Quest sheet, stick
+  yaw and layer scrub, grip-pinch size, frame slide, brick move, floor
+  ring, and standing-plane poke are
+  in; the old table-side plate stays retired; XR-B marker, XR-C-1 hands, and a lab QR with `?src=` are later in
   [`backlog.md`](../backlog.md) and [`architecture.md`](../architecture.md);
   do not start a points renderer in the same slice)
 - Face-mesh depth occluder, Face AR on Quest, or folding Face AR into the WebXR world-anchor path

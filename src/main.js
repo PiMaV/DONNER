@@ -174,6 +174,8 @@ import {
   faceOvalConnections,
   isFaceArOffered,
   isFaceArSupported,
+  faceCameraUnavailableHint,
+  loopbackPageHref,
   loadFaceLandmarker,
   listFaceCameras,
   mirrorFromCamera,
@@ -193,19 +195,52 @@ import {
   fitOverlayCanvas,
 } from "./face-draw.js";
 import {
+  PALETTE_WIDGETS,
+  XR_BTN_PRIMARY,
+  XR_BTN_SECONDARY,
+  XR_BTN_STICK,
   XR_PINCH_MIN_M,
+  XR_RING_PICK_M,
+  axisDragBack,
+  buttonPressed,
   distance3,
+  distPointToSegment3,
   gripPressed,
   isHeadsetArSession,
+  layerStepsFromStick,
   magFromPinch,
+  nextSliceAxis,
+  paletteActionFromHit,
+  paletteHeadPose,
+  pickPalettePoint,
+  pickPaletteWidget,
+  pointCircleDist,
+  pointOnRay,
+  pulseHaptic,
+  rayAabb,
+  rayCircleHit,
   rayFromPose,
+  risingEdge,
   strongestStickX,
+  strongestStickY,
   thumbstickXFromAxes,
+  thumbstickYFromAxes,
   trackedInputSources,
+  widgetCenter,
+  widgetSize,
+  worldRayToLocal,
   yawDeltaFromStick,
+  yawGrabDelta,
 } from "./xr-hud.js";
 
 const canvas = document.getElementById("view");
+{
+  const here = globalThis.location;
+  const next = loopbackPageHref(here?.href || "", here?.hostname || "");
+  if (next && here && next !== here.href) {
+    here.replace(next);
+  }
+}
 const faceVideo = document.getElementById("face-video");
 const faceOverlay = document.getElementById("face-overlay");
 const faceOverlayCtx = faceOverlay && faceOverlay.getContext ? faceOverlay.getContext("2d") : null;
@@ -261,8 +296,14 @@ stage.add(turntable);
 const stand = new THREE.Group();
 stand.name = "stand";
 turntable.add(stand);
+const PALETTE_IDLE = 0x1c2630;
+const PALETTE_TEXT = "#e8eef2";
+const PALETTE_TEXT_ON = "#1a1408";
+
 const reticle = createArReticle();
 scene.add(reticle);
+const arRing = createArTurntableRing();
+stage.add(arRing);
 let xrHud;
 try {
   xrHud = createXrHud();
@@ -287,6 +328,7 @@ const xrGrips = [0, 1].map((i) => {
   scene.add(grip);
   return grip;
 });
+for (const obj of [...xrControllers, ...xrGrips]) bindXrInput(obj);
 const _xrPos = new THREE.Vector3();
 const _xrQuat = new THREE.Quaternion();
 const _xrScale = new THREE.Vector3();
@@ -294,6 +336,8 @@ const _xrUp = new THREE.Vector3();
 const _xrDir = new THREE.Vector3();
 const _hudWorldPos = new THREE.Vector3();
 const _gripB = new THREE.Vector3();
+const _axisA = new THREE.Vector3();
+const _axisB = new THREE.Vector3();
 const arAnchorPos = new THREE.Vector3();
 const arAnchorQuat = new THREE.Quaternion();
 const _hitLocal = new THREE.Vector3();
@@ -492,6 +536,11 @@ let arPinch = null;
 let arMag = XR_MAG_DEFAULT;
 let arStandAxis = "z";
 let arFrameDrag = null;
+let arLayerAcc = 0;
+let arFaceBtn = { primary: false, secondary: false, stick: false };
+let arPaletteSig = "";
+let arRingRadius = 0;
+let arGripPinch = false;
 let arPlanePoke = false;
 let turntableYaw = 0;
 let yawDrag = null;
@@ -636,6 +685,25 @@ const ui = bindUI({
   },
   stopLocalViewer: () => {
     void quitLocalViewer();
+  },
+  localExamples: (on) => {
+    const next = Boolean(on);
+    const faceOkNow = isFaceArOffered({ userAgent: navigator.userAgent || "" });
+    const wasOn = ui.isLocalExamples?.();
+    ui.setLocalExamples(next, { faceOk: faceOkNow });
+    // Leaving Examples with Life running would hide Play with no way to pause.
+    if (wasOn && !next && sourceId === "conway" && playing) togglePlay();
+    // Entering Examples: load the selected showcase (often MRI Low) immediately.
+    if (!wasOn && next) {
+      const kind = ui.getConfig().sourceKind;
+      if (isLocalExampleKind(kind) && !localExampleVolumeReady(kind)) {
+        switchSource(kind);
+      }
+      // Re-assert after chrome sync so Face is not left latched off.
+      ui.setFaceAvailable(faceOkNow);
+    }
+    arPaletteSig = "";
+    updateHint();
   },
   wolkeConnect: () => {
     if (wolke.listening) disconnectWolke();
@@ -902,13 +970,6 @@ function createXrRay() {
   return line;
 }
 
-function createXrHud() {
-  const group = new THREE.Group();
-  group.name = "xr-hud";
-  group.visible = false;
-  return group;
-}
-
 function xrPresenting() {
   return renderer.xr.isPresenting;
 }
@@ -919,6 +980,236 @@ function facePresenting() {
 
 function arPresenting() {
   return xrPresenting() || facePresenting();
+}
+
+function bindXrInput(obj) {
+  obj.addEventListener("connected", (event) => {
+    obj.userData.inputSource = event.data || null;
+  });
+  obj.addEventListener("disconnected", () => {
+    obj.userData.inputSource = null;
+    obj.userData.gripWas = false;
+    obj.userData.hold = "";
+  });
+}
+
+function controllerGamepad(ctrl) {
+  return ctrl?.userData?.inputSource?.gamepad || null;
+}
+
+function pulseController(ctrl) {
+  pulseHaptic(controllerGamepad(ctrl));
+}
+
+function palettePlayText() {
+  if (sourceId === "count") return looping ? "Pause" : "Loop";
+  return playing ? "Pause" : "Play";
+}
+
+function paletteLabel(id, playText) {
+  if (id === "play") return playText;
+  if (id === "spin") return "Spin";
+  if (id === "axis-x") return "X";
+  if (id === "axis-y") return "Y";
+  if (id === "axis-z") return "Z";
+  if (id === "src-mni152-low") return "MRI Low";
+  if (id === "src-mni152") return "MRI High";
+  if (id === "src-ignition") return "Ignition";
+  if (id === "src-conway") return "Life";
+  if (id === "shade-hull") return "Hull";
+  if (id === "shade-ghost") return "Ghost";
+  if (id === "shade-triple") return "Cuts";
+  if (id === "hide-center") return "Center";
+  if (id === "hide-outer") return "Outer";
+  return id;
+}
+
+function paletteActive(id) {
+  if (id === "play") return sourceId === "count" ? looping : playing;
+  if (id === "spin") return spinning;
+  if (id === "axis-x" || id === "axis-y" || id === "axis-z") return activeAxis === id.slice(5);
+  if (id.startsWith("src-")) return ui.getConfig().sourceKind === id.slice(4);
+  if (id === "shade-hull") return shadeMode === "hull";
+  if (id === "shade-ghost") return shadeMode === "ghost";
+  if (id === "shade-triple") return shadeMode === "triple";
+  if (id === "hide-center") return hideCenter;
+  if (id === "hide-outer") return hideOuter;
+  return false;
+}
+
+function makePaletteSprite(text, css, width, height) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d");
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const spr = new THREE.Sprite(mat);
+  spr.scale.set(width, height, 1);
+  spr.position.z = 0.02;
+  spr.renderOrder = 22;
+  spr.userData.tex = tex;
+  spr.userData.canvas = canvas;
+  spr.userData.ctx = ctx;
+  paintPaletteSprite(spr, text, css);
+  return spr;
+}
+
+function paintPaletteSprite(spr, text, css) {
+  const canvas = spr.userData.canvas;
+  const ctx = spr.userData.ctx;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "600 40px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = css;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  spr.userData.tex.needsUpdate = true;
+}
+
+function makePaletteLegend() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 160;
+  const ctx = canvas.getContext("2d");
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const spr = new THREE.Sprite(mat);
+  spr.name = "xr-palette-legend";
+  spr.scale.set(0.24, 0.06, 1);
+  spr.position.set(0, -0.185, 0.02);
+  spr.renderOrder = 22;
+  ctx.font = "600 28px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#c5d0d8";
+  ctx.fillText("Stick up/down: layer     left/right: yaw", canvas.width / 2, 48);
+  ctx.fillText("Grip frame slides, brick moves, ring turns", canvas.width / 2, 108);
+  spr.userData.tex = tex;
+  return spr;
+}
+
+function createXrHud() {
+  const group = new THREE.Group();
+  group.name = "xr-hud";
+  group.visible = false;
+  for (const w of PALETTE_WIDGETS) {
+    const size = widgetSize(w);
+    const center = widgetCenter(w);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(size.x, size.y, Math.max(0.006, size.z)),
+      new THREE.MeshBasicMaterial({ color: PALETTE_IDLE }),
+    );
+    mesh.name = `palette-${w.id}`;
+    mesh.position.set(center.x, center.y, center.z);
+    mesh.renderOrder = 20;
+    const label = makePaletteSprite(paletteLabel(w.id, "Play"), PALETTE_TEXT, size.x * 0.9, size.y * 0.7);
+    mesh.add(label);
+    mesh.userData.label = label;
+    group.add(mesh);
+  }
+  group.add(makePaletteLegend());
+  return group;
+}
+
+function syncPaletteVisual() {
+  const playText = palettePlayText();
+  const kind = ui.getConfig().sourceKind;
+  const sig = [
+    playText,
+    spinning ? 1 : 0,
+    activeAxis,
+    kind,
+    shadeMode,
+    hideCenter ? 1 : 0,
+    hideOuter ? 1 : 0,
+  ].join("|");
+  if (sig === arPaletteSig) return;
+  arPaletteSig = sig;
+  for (const w of PALETTE_WIDGETS) {
+    const mesh = xrHud.getObjectByName(`palette-${w.id}`);
+    if (!mesh) continue;
+    const on = paletteActive(w.id);
+    mesh.material.color.setHex(on ? COLOR.gold : PALETTE_IDLE);
+    paintPaletteSprite(mesh.userData.label, paletteLabel(w.id, playText), on ? PALETTE_TEXT_ON : PALETTE_TEXT);
+  }
+}
+
+function createArTurntableRing() {
+  const group = new THREE.Group();
+  group.name = "ar-turntable";
+  group.visible = false;
+  const positions = new Float32Array(64 * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const line = new THREE.LineLoop(
+    geo,
+    new THREE.LineBasicMaterial({
+      color: COLOR.gold,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.95,
+    }),
+  );
+  line.name = "ar-turntable-line";
+  line.frustumCulled = false;
+  line.renderOrder = 11;
+  group.add(line);
+  return group;
+}
+
+function writeArRing(radius) {
+  const line = arRing.getObjectByName("ar-turntable-line");
+  const attr = line.geometry.getAttribute("position");
+  const n = attr.count;
+  for (let i = 0; i < n; i += 1) {
+    const a = (i / n) * Math.PI * 2;
+    attr.setXYZ(i, Math.cos(a) * radius, 0, Math.sin(a) * radius);
+  }
+  attr.needsUpdate = true;
+  line.geometry.computeBoundingSphere();
+}
+
+function syncArRing() {
+  const show = xrPresenting() && arLocked && arHeadsetHud && Boolean(world);
+  arRing.visible = show;
+  if (!show) return;
+  const box = arVolumeBox();
+  _xrQuat.copy(stand.quaternion).premultiply(turntable.quaternion);
+  const xs = [box.min.x, box.max.x];
+  const ys = [box.min.y, box.max.y];
+  const zs = [box.min.z, box.max.z];
+  let radius = 0.25;
+  let floorY = 0;
+  let first = true;
+  for (const x of xs) {
+    for (const y of ys) {
+      for (const z of zs) {
+        _axisA.set(x, y, z).applyQuaternion(_xrQuat);
+        radius = Math.max(radius, Math.hypot(_axisA.x, _axisA.z));
+        if (first || _axisA.y < floorY) floorY = _axisA.y;
+        first = false;
+      }
+    }
+  }
+  radius *= 1.15;
+  if (Math.abs(radius - arRingRadius) > 0.02) {
+    arRingRadius = radius;
+    writeArRing(radius);
+  }
+  arRing.position.y = floorY;
 }
 
 function syncArVolumeVisible() {
@@ -1218,16 +1509,13 @@ function recaptureFace() {
 }
 
 function faceBrainReady() {
-  const kind = ui.getConfig().sourceKind;
-  return Boolean(
-    countVol &&
-      (kind === FACE_AR_SOURCE || kind === FACE_AR_SOURCE_FALLBACK || kind === "count"),
-  );
+  if (!countVol) return false;
+  const loaded = countKindForVolume(countVol);
+  return loaded === FACE_AR_SOURCE || loaded === FACE_AR_SOURCE_FALLBACK;
 }
 
 async function ensureFaceBrainSource() {
-  const kind = ui.getConfig().sourceKind;
-  if (kind === FACE_AR_SOURCE || kind === FACE_AR_SOURCE_FALLBACK || kind === "count") return;
+  if (faceBrainReady()) return;
   const prefer = faceArSourceId(COUNT_DEMOS);
   const demo = COUNT_DEMOS[prefer] || COUNT_DEMOS[FACE_AR_SOURCE_FALLBACK];
   if (!demo) return;
@@ -1240,7 +1528,10 @@ async function ensureFaceBrainSource() {
 
 async function enterFaceAr() {
   if (arPresenting()) return;
-  if (!isFaceArSupported({ userAgent: navigator.userAgent || "" })) return;
+  if (!isFaceArSupported({ userAgent: navigator.userAgent || "" })) {
+    ui.setHint(faceCameraUnavailableHint(globalThis.location?.hostname || ""));
+    return;
+  }
   if (planeLock) {
     planeLock = false;
     dirtyView = true;
@@ -1661,7 +1952,200 @@ function hitArFrame(origin, dir) {
     }
   }
   if (!best.axis) return null;
+  return { axis: best.axis, handle: best.handle, t: best.t };
+}
+
+function collectArFramePoint(frame, p, into) {
+  if (!frame.group.visible) return;
+  const { axis, handle } = frame.pickMeta();
+  for (const seg of frame.edgeWorldSegments()) {
+    const dist = distPointToSegment3(p.x, p.y, p.z, seg.ax, seg.ay, seg.az, seg.bx, seg.by, seg.bz);
+    if (dist > FRAME_PICK_M) continue;
+    if (into.dist != null && dist >= into.dist) continue;
+    into.axis = axis;
+    into.handle = handle;
+    into.dist = dist;
+  }
+}
+
+function hitArFramePoint(p) {
+  if (
+    !arLockedChrome() ||
+    !anyFrameChromeVisible(hideCenter, hideOuter, { inspect: true })
+  ) {
+    return null;
+  }
+  const best = {};
+  for (const a of ["x", "y", "z"]) {
+    if (centerChromeVisible(hideCenter)) collectArFramePoint(playfields[a], p, best);
+    if (outerChromeVisible(hideOuter, { inspect: true })) {
+      collectArFramePoint(clipFrames[a].near, p, best);
+      collectArFramePoint(clipFrames[a].far, p, best);
+    }
+  }
+  if (!best.axis) return null;
   return { axis: best.axis, handle: best.handle };
+}
+
+function axisDragBasis(axis) {
+  const local = worldAxisDir(axis);
+  stand.updateMatrixWorld(true);
+  _axisA.set(0, 0, 0);
+  _axisB.copy(local);
+  stand.localToWorld(_axisA);
+  stand.localToWorld(_axisB);
+  _axisB.sub(_axisA);
+  const metersPerLocal = _axisB.length();
+  if (!(metersPerLocal > 1e-8)) return null;
+  _axisB.multiplyScalar(1 / metersPerLocal);
+  const cell = axis === "z" ? layoutTime() : axis === "x" ? layoutCellX() : layoutCellY();
+  return {
+    dir: { x: _axisB.x, y: _axisB.y, z: _axisB.z },
+    meters: metersPerLocal * cell,
+  };
+}
+
+function volumeWorldAabb(pad = 0) {
+  const box = arVolumeBox();
+  stand.updateMatrixWorld(true);
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        _axisA.set(x, y, z);
+        stand.localToWorld(_axisA);
+        if (_axisA.x < minX) minX = _axisA.x;
+        if (_axisA.y < minY) minY = _axisA.y;
+        if (_axisA.z < minZ) minZ = _axisA.z;
+        if (_axisA.x > maxX) maxX = _axisA.x;
+        if (_axisA.y > maxY) maxY = _axisA.y;
+        if (_axisA.z > maxZ) maxZ = _axisA.z;
+      }
+    }
+  }
+  return {
+    min: { x: minX - pad, y: minY - pad, z: minZ - pad },
+    max: { x: maxX + pad, y: maxY + pad, z: maxZ + pad },
+  };
+}
+
+function pointInAabb(p, min, max) {
+  return p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y && p.z >= min.z && p.z <= max.z;
+}
+
+function ringWorldCircle() {
+  arRing.updateMatrixWorld(true);
+  arRing.getWorldPosition(_hudWorldPos);
+  _xrUp.set(0, 1, 0).applyQuaternion(stage.quaternion);
+  if (_xrUp.lengthSq() < 1e-8) _xrUp.set(0, 1, 0);
+  else _xrUp.normalize();
+  return {
+    center: { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
+    normal: { x: _xrUp.x, y: _xrUp.y, z: _xrUp.z },
+    radius: arRingRadius * Math.abs(stage.scale.x || 1),
+  };
+}
+
+function paletteLocalFromWorld(origin, dir) {
+  if (!xrHud.visible) return null;
+  xrHud.updateMatrixWorld(true);
+  xrHud.getWorldPosition(_hudWorldPos);
+  xrHud.getWorldQuaternion(_xrQuat);
+  return worldRayToLocal(
+    origin,
+    dir,
+    { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
+    { x: _xrQuat.x, y: _xrQuat.y, z: _xrQuat.z, w: _xrQuat.w },
+  );
+}
+
+function dragHand(drag) {
+  if (drag.input === "ray") {
+    const ray = controllerWorldRay(drag.ctrl);
+    return pointOnRay(ray.origin, ray.dir, drag.rayT);
+  }
+  drag.ctrl.updateMatrixWorld(true);
+  drag.ctrl.getWorldPosition(_xrPos);
+  return { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z };
+}
+
+function beginArPlaneDrag(ctrl, hit, hand, input, rayT) {
+  const basis = axisDragBasis(hit.axis);
+  if (!basis) return false;
+  const key = hit.handle === "near" || hit.handle === "far" ? hit.handle : "focus";
+  setActiveAxis(hit.axis);
+  if (inspectMode() && key === "focus") setShadeHeld(true);
+  arFrameDrag = {
+    kind: "plane",
+    ctrl,
+    input,
+    rayT: rayT || 0,
+    axis: hit.axis,
+    handle: key,
+    axisDir: basis.dir,
+    meters: basis.meters,
+    back0: slabs[hit.axis][key],
+    hand0: hand,
+  };
+  setFrameHover({ axis: hit.axis, handle: key });
+  pulseController(ctrl);
+  return true;
+}
+
+function beginArYawDrag(ctrl, hand, input, rayT) {
+  const circle = ringWorldCircle();
+  arFrameDrag = {
+    kind: "yaw",
+    ctrl,
+    input,
+    rayT: rayT || 0,
+    hand0: hand,
+    yaw0: turntableYaw,
+    anchor: circle.center,
+    up: circle.normal,
+  };
+  pulseController(ctrl);
+  return true;
+}
+
+function beginHeadsetSpaceDrag(ctrl, hand, input, rayT) {
+  arFrameDrag = {
+    kind: "space",
+    ctrl,
+    input,
+    rayT: rayT || 0,
+    offset: spaceDragOffset(arAnchorPos, hand),
+  };
+  pulseController(ctrl);
+}
+
+function runPaletteAction(action) {
+  if (!action) return;
+  if (action.type === "play") togglePlay();
+  else if (action.type === "spin") toggleSpin();
+  else if (action.type === "axis") setActiveAxis(action.axis);
+  else if (action.type === "shade") setShadeMode(action.mode);
+  else if (action.type === "source") {
+    if (ui.isLocalViewer?.() && !ui.isLocalExamples?.()) return;
+    switchSource(action.kind);
+  } else if (action.type === "hide-center" || action.type === "hide-outer") {
+    if (action.type === "hide-center") hideCenter = !hideCenter;
+    else hideOuter = !hideOuter;
+    ui.setPlaneChrome({ hideCenter, hideOuter });
+    if (arFrameDrag?.kind === "plane") {
+      const focus = arFrameDrag.handle === "focus";
+      if ((focus && hideCenter) || (!focus && hideOuter)) endArFrameDrag();
+    }
+    if (hideCenter && hideOuter) setFrameHover(null);
+    syncClipPlanes();
+    dirtyView = true;
+  }
+  arPaletteSig = "";
 }
 
 function beginArSpaceDrag(ctrl, hit) {
@@ -1670,16 +2154,48 @@ function beginArSpaceDrag(ctrl, hit) {
   arFrameDrag = {
     kind: "space",
     ctrl,
+    input: "controller",
     offset: spaceDragOffset(arAnchorPos, _xrPos),
   };
-  setFrameHover({ axis: hit.axis, handle: hit.handle });
+  if (hit) setFrameHover({ axis: hit.axis, handle: hit.handle });
 }
 
 function updateArFrameDrag() {
-  if (!arFrameDrag || arFrameDrag.kind !== "space") return;
-  arFrameDrag.ctrl.updateMatrixWorld(true);
-  arFrameDrag.ctrl.getWorldPosition(_xrPos);
-  const next = spaceDragAnchor(_xrPos, arFrameDrag.offset);
+  if (!arFrameDrag) return;
+  if (arFrameDrag.kind === "plane") {
+    const hand = dragHand(arFrameDrag);
+    const next = axisDragBack(
+      hand,
+      arFrameDrag.hand0,
+      arFrameDrag.axisDir,
+      arFrameDrag.meters,
+      arFrameDrag.back0,
+    );
+    const cur = slabs[arFrameDrag.axis][arFrameDrag.handle];
+    if (next !== cur) {
+      applySlab(
+        arFrameDrag.axis,
+        { ...slabs[arFrameDrag.axis], [arFrameDrag.handle]: next },
+        arFrameDrag.handle,
+      );
+    }
+    return;
+  }
+  if (arFrameDrag.kind === "yaw") {
+    const hand = dragHand(arFrameDrag);
+    const d = yawGrabDelta(arFrameDrag.anchor, arFrameDrag.up, arFrameDrag.hand0, hand);
+    setTurntableYaw(arFrameDrag.yaw0 + d);
+    return;
+  }
+  if (arFrameDrag.kind !== "space") return;
+  let hand;
+  if (arFrameDrag.input === "ray") hand = dragHand(arFrameDrag);
+  else {
+    arFrameDrag.ctrl.updateMatrixWorld(true);
+    arFrameDrag.ctrl.getWorldPosition(_xrPos);
+    hand = { x: _xrPos.x, y: _xrPos.y, z: _xrPos.z };
+  }
+  const next = spaceDragAnchor(hand, arFrameDrag.offset);
   arAnchorPos.set(next.x, next.y, next.z);
   applyArStagePose();
 }
@@ -1688,6 +2204,7 @@ function endArFrameDrag(ctrl) {
   if (!arFrameDrag) return;
   if (ctrl && arFrameDrag.ctrl !== ctrl) return;
   arFrameDrag = null;
+  setShadeHeld(false);
   setFrameHover(null);
 }
 
@@ -1735,6 +2252,10 @@ function onArSelectStart(event) {
   if (!xrPresenting() || !arLocked) return;
   if (arSelectIsOverlayEcho(performance.now(), arIgnoreSelectUntil)) return;
   const ctrl = event.target;
+  if (arHeadsetHud) {
+    if (!arFrameDrag) headsetRayGrab(ctrl);
+    return;
+  }
   const ray = controllerWorldRay(ctrl);
   const frameHit = hitArFrame(ray.origin, ray.dir);
   if (frameHit) {
@@ -1742,6 +2263,141 @@ function onArSelectStart(event) {
     return;
   }
   pokeArVoxel(ray.origin, ray.dir);
+}
+
+function headsetRayGrab(ctrl) {
+  const ray = controllerWorldRay(ctrl);
+  const local = paletteLocalFromWorld(ray.origin, ray.dir);
+  const menu = local && pickPaletteWidget(local.origin, local.dir);
+  if (menu) {
+    runPaletteAction(paletteActionFromHit(menu));
+    pulseController(ctrl);
+    return;
+  }
+  const circle = ringWorldCircle();
+  const ringHit = rayCircleHit(ray.origin, ray.dir, circle.center, circle.normal, circle.radius);
+  if (ringHit) {
+    beginArYawDrag(ctrl, pointOnRay(ray.origin, ray.dir, ringHit.t), "ray", ringHit.t);
+    return;
+  }
+  const frameHit = hitArFrame(ray.origin, ray.dir);
+  if (frameHit) {
+    const t = Number.isFinite(frameHit.t) ? frameHit.t : 0.4;
+    beginArPlaneDrag(ctrl, frameHit, pointOnRay(ray.origin, ray.dir, t), "ray", t);
+    return;
+  }
+  if (pokeArVoxel(ray.origin, ray.dir)) {
+    pulseController(ctrl);
+    return;
+  }
+  const box = volumeWorldAabb(0.02);
+  const tBody = rayAabb(ray.origin, ray.dir, box.min, box.max);
+  if (tBody != null) beginHeadsetSpaceDrag(ctrl, pointOnRay(ray.origin, ray.dir, tBody), "ray", tBody);
+}
+
+function gripHand(grip) {
+  grip.updateMatrixWorld(true);
+  grip.getWorldPosition(_gripB);
+  return { x: _gripB.x, y: _gripB.y, z: _gripB.z };
+}
+
+function tryGripGrab(grip) {
+  const hand = gripHand(grip);
+  const local = paletteLocalFromWorld(hand, { x: 0, y: 0, z: 0 });
+  const menu = local && pickPalettePoint(local.origin, 0.08);
+  if (menu) {
+    runPaletteAction(paletteActionFromHit(menu));
+    pulseController(grip);
+    grip.userData.hold = "menu";
+    return;
+  }
+  const circle = ringWorldCircle();
+  if (pointCircleDist(hand, circle.center, circle.normal, circle.radius) <= XR_RING_PICK_M) {
+    beginArYawDrag(grip, hand, "grip", 0);
+    grip.userData.hold = "drag";
+    return;
+  }
+  const frameHit = hitArFramePoint(hand);
+  if (frameHit) {
+    beginArPlaneDrag(grip, frameHit, hand, "grip", 0);
+    grip.userData.hold = "drag";
+    return;
+  }
+  const box = volumeWorldAabb(0.04);
+  if (pointInAabb(hand, box.min, box.max)) {
+    beginHeadsetSpaceDrag(grip, hand, "grip", 0);
+    grip.userData.hold = "drag";
+  }
+}
+
+function pollGrips() {
+  const down = xrGrips.map((g) => gripPressed(controllerGamepad(g)));
+  if (down.filter(Boolean).length >= 2) {
+    if (arFrameDrag) endArFrameDrag();
+    for (const g of xrGrips) g.userData.hold = "";
+    xrGrips[0].updateMatrixWorld(true);
+    xrGrips[1].updateMatrixWorld(true);
+    xrGrips[0].getWorldPosition(_hudWorldPos);
+    xrGrips[1].getWorldPosition(_gripB);
+    const dist = distance3(
+      { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
+      { x: _gripB.x, y: _gripB.y, z: _gripB.z },
+    );
+    arGripPinch = true;
+    if (!(dist >= XR_PINCH_MIN_M)) return;
+    spinStickHeld = true;
+    if (!arPinch) arPinch = { dist, mag: arMag };
+    else setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
+    return;
+  }
+  arGripPinch = false;
+  arPinch = null;
+  xrGrips.forEach((grip, i) => {
+    const was = Boolean(grip.userData.gripWas);
+    const pressed = down[i];
+    grip.userData.gripWas = pressed;
+    if (!pressed) {
+      if (grip.userData.hold === "drag" && arFrameDrag?.ctrl === grip) endArFrameDrag(grip);
+      grip.userData.hold = "";
+      return;
+    }
+    if (!was && !arFrameDrag) tryGripGrab(grip);
+  });
+}
+
+function pollFaceButtons(sources) {
+  let primary = false;
+  let secondary = false;
+  let stick = false;
+  for (const s of sources) {
+    const pad = s.gamepad;
+    primary = primary || buttonPressed(pad, XR_BTN_PRIMARY);
+    secondary = secondary || buttonPressed(pad, XR_BTN_SECONDARY);
+    stick = stick || buttonPressed(pad, XR_BTN_STICK);
+  }
+  if (risingEdge(primary, arFaceBtn.primary)) {
+    togglePlay();
+    arPaletteSig = "";
+  }
+  if (risingEdge(secondary, arFaceBtn.secondary)) {
+    toggleSpin();
+    arPaletteSig = "";
+  }
+  if (risingEdge(stick, arFaceBtn.stick)) {
+    setActiveAxis(nextSliceAxis(activeAxis));
+    arPaletteSig = "";
+  }
+  arFaceBtn = { primary, secondary, stick };
+}
+
+function pollStickLayers(sources, dt) {
+  const y = strongestStickY(sources.map((s) => thumbstickYFromAxes(s.gamepad?.axes)));
+  const stepped = layerStepsFromStick(y, dt, arLayerAcc);
+  arLayerAcc = stepped.acc;
+  if (!stepped.steps) return;
+  spinStickHeld = true;
+  const a = activeAxis;
+  applySlab(a, { ...slabs[a], focus: slabs[a].focus - stepped.steps }, "focus");
 }
 
 function onArSelectEnd(event) {
@@ -1757,38 +2413,31 @@ function setArMag(next) {
 
 function updateXrControllerPose(dt) {
   spinStickHeld = false;
+  arGripPinch = false;
   if (!xrPresenting() || !arLocked) {
     arPinch = null;
+    arLayerAcc = 0;
     if (arFrameDrag) updateArFrameDrag();
     return;
   }
+  if (arHeadsetHud) pollGrips();
+  if (arGripPinch) return;
   if (arFrameDrag) {
-    spinStickHeld = true;
-    updateArFrameDrag();
-    return;
+    if (arFrameDrag.input === "grip" && !gripPressed(controllerGamepad(arFrameDrag.ctrl))) {
+      endArFrameDrag(arFrameDrag.ctrl);
+    } else {
+      spinStickHeld = true;
+      updateArFrameDrag();
+      return;
+    }
   }
   if (!arHeadsetHud) {
     arPinch = null;
     return;
   }
   const sources = trackedInputSources(renderer.xr.getSession());
-  const gripping = sources.filter((s) => gripPressed(s.gamepad));
-  if (gripping.length >= 2) {
-    xrGrips[0].updateMatrixWorld(true);
-    xrGrips[1].updateMatrixWorld(true);
-    xrGrips[0].getWorldPosition(_hudWorldPos);
-    xrGrips[1].getWorldPosition(_gripB);
-    const dist = distance3(
-      { x: _hudWorldPos.x, y: _hudWorldPos.y, z: _hudWorldPos.z },
-      { x: _gripB.x, y: _gripB.y, z: _gripB.z },
-    );
-    if (!(dist >= XR_PINCH_MIN_M)) return;
-    spinStickHeld = true;
-    if (!arPinch) arPinch = { dist, mag: arMag };
-    else setArMag(magFromPinch(arPinch.mag, arPinch.dist, dist));
-    return;
-  }
-  arPinch = null;
+  pollFaceButtons(sources);
+  pollStickLayers(sources, dt);
   const x = strongestStickX(sources.map((s) => thumbstickXFromAxes(s.gamepad?.axes)));
   const dYaw = yawDeltaFromStick(x, dt);
   if (dYaw) {
@@ -1799,8 +2448,27 @@ function updateXrControllerPose(dt) {
 
 function updateXrHud() {
   refreshHeadsetHud();
-  xrHud.visible = false;
-  setXrRaysVisible(xrPresenting() && arLocked && arHeadsetHud);
+  const show = xrPresenting() && arLocked && arHeadsetHud;
+  xrHud.visible = show;
+  if (show) {
+    const cam = renderer.xr.getCamera();
+    const eye = cam.cameras?.[0] || cam;
+    eye.updateMatrixWorld();
+    eye.matrixWorld.decompose(_headPos, _headQuat, _headScale);
+    const pose = paletteHeadPose(
+      { x: _headPos.x, y: _headPos.y, z: _headPos.z },
+      { x: _headQuat.x, y: _headQuat.y, z: _headQuat.z, w: _headQuat.w },
+    );
+    xrHud.position.set(pose.x, pose.y, pose.z);
+    xrHud.up.set(0, 1, 0);
+    xrHud.lookAt(pose.lookX, pose.lookY, pose.lookZ);
+    xrHud.rotateY(Math.PI);
+    syncPaletteVisual();
+    syncArRing();
+  } else {
+    arRing.visible = false;
+  }
+  setXrRaysVisible(show);
 }
 
 function updateReticle(xrFrame) {
@@ -1955,6 +2623,11 @@ async function onArSessionStart() {
     arHeadsetHud = false;
     arPinch = null;
     arFrameDrag = null;
+    arLayerAcc = 0;
+    arFaceBtn = { primary: false, secondary: false, stick: false };
+    arPaletteSig = "";
+    arRingRadius = 0;
+    arGripPinch = false;
     arPlanePoke = false;
     arStandAxis = "z";
     stand.quaternion.identity();
@@ -2005,10 +2678,16 @@ function onArSessionEnd() {
   arSearching = false;
   arPinch = null;
   arFrameDrag = null;
+  arLayerAcc = 0;
+  arFaceBtn = { primary: false, secondary: false, stick: false };
+  arPaletteSig = "";
+  arRingRadius = 0;
+  arGripPinch = false;
   arPlanePoke = false;
   arStandAxis = "z";
   ui.setArStandAxis?.("z");
   xrHud.visible = false;
+  arRing.visible = false;
   setXrRaysVisible(false);
   stopHitTest();
   resetStageOrbit();
@@ -3453,7 +4132,7 @@ function updateHint() {
     } else if (arUseHitTest) {
       ui.setHint(
         arHeadsetHud
-          ? "AR — grab a frame to slide the volume · poke a cube to isolate the standing plane · stick yaws · both grips pinch size · Exit AR to place again"
+          ? "AR — stick up/down walks a layer · left/right yaws · A plays · B spins · grip or trigger a frame to slide it · grip the brick to move it · the ring turns it · both grips resize"
           : "AR — rails crop the brick · Loop walks the plane · Size scales · yaw · Reset Anchor to search again · Exit to orbit",
       );
     } else {
@@ -4282,8 +4961,9 @@ function frame(now, xrFrame) {
     } else if (facePresenting()) {
       tickFaceAr(now);
     } else {
-      if (xrHud.visible) {
+      if (xrHud.visible || arRing.visible) {
         xrHud.visible = false;
+        arRing.visible = false;
         setXrRaysVisible(false);
       }
       syncSpinControls();
@@ -4514,14 +5194,29 @@ function enterLocalIdle() {
   updateHint();
 }
 
+const LOCAL_EXAMPLE_KINDS = new Set(["mni152-low", "mni152", "ignition", "conway"]);
+
+function isLocalExampleKind(kind) {
+  return LOCAL_EXAMPLE_KINDS.has(kind);
+}
+
+/** True when the live volume already matches the Examples picker row. */
+function localExampleVolumeReady(kind) {
+  if (kind === "conway") return sourceId === "conway";
+  if (!COUNT_DEMOS[kind]) return false;
+  return sourceId === "count" && Boolean(countVol) && countKindForVolume(countVol) === kind;
+}
+
 const faceOk = isFaceArOffered({ userAgent: navigator.userAgent || "" });
 // Face chip does not wait for getUserMedia; Local Viewer / Quest still hide it.
 ui.setFaceAvailable(faceOk);
 
 void detectLocalViewer().then((info) => {
   const local = Boolean(info && info.local);
+  // Face offer stays on (camera exists). Local Viewer only shows the chip
+  // while Examples is on and Source is Brain — see syncFaceProject.
+  ui.setFaceAvailable(faceOk);
   if (local) {
-    ui.setFaceAvailable(false);
     ui.setLocalViewer(true, { canQuit: Boolean(info.canQuit) });
     if (info.canQuit) startLocalViewerHeartbeat();
     if (start.source === "conway") {
@@ -4536,7 +5231,6 @@ void detectLocalViewer().then((info) => {
     enterLocalIdle();
     return;
   }
-  ui.setFaceAvailable(faceOk);
   ui.setLocalViewer(false);
   ui.setSourceKind(start.source);
   try {

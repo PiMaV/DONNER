@@ -60,7 +60,10 @@ def main() -> None:
     stream_proxy_mod.LOCAL_VIEWER_JSON = not args.online_demo
     httpd = Server((args.bind, PORT), Handler)
     mode = "Online Demo chrome" if args.online_demo else "Local Viewer chrome"
-    print(f"http://{args.bind}:{PORT}/  ({mode})")
+    listen = args.bind
+    open_host = "127.0.0.1" if listen in {"0.0.0.0", "::"} else listen
+    print(f"listening on http://{listen}:{PORT}/  ({mode})")
+    print(f"open http://{open_host}:{PORT}/")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

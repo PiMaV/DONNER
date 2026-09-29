@@ -1403,9 +1403,14 @@ flowchart LR
    **Quest must not request `dom-overlay`:** a fullscreen overlay root
    covers passthrough even when CSS is transparent. Three.js is told
    `local` if `local-floor` is missing, and `XRWebGLLayer` instead of
-   projection layers. **XR-C-0:** no in-world Play/stand/Exit plate
-   (unreadable). Thumbstick yaws; both grips pinch size; grab a bounding
-   frame to slide the volume in the room. Headset-only — phone `screen`
+   projection layers. **XR-C-0:** no table-side Play/stand/Exit plate.
+   A head-relative sheet (left of the view) carries Play/Loop, Spin,
+   axis, source, shade, and hide center/outer. Thumbstick Y walks the
+   active plane; thumbstick X yaws; stick press cycles the axis; A/X
+   plays; B/Y spins. Trigger or grip on a frame slides that plane; grip
+   or a ray on the brick moves the volume; a gold floor ring turns it.
+   Both grips pinch size. A grab pulses the controller haptic. Poke a
+   cube to isolate the standing plane. Headset-only — phone `screen`
    overlay is unchanged. Quest has no Reset Anchor button; Exit
    AR and enter again to place on another plane. XR-B marker, hand
    tracking, and wrist attach are later and do not gate C0. Detail in
@@ -1454,7 +1459,7 @@ flowchart TB
   reset[Reset Anchor]
   inspect[Inspect on the plane]
   overlay[XR-A DOM overlay screen]
-  frames[Quest grab frame to slide volume]
+  frames[Quest sheet grips ring]
   hands[XR-C-1 hand or grip later]
   marker[XR-B marker origin later]
   enter --> idle --> search --> look --> place --> inspect
@@ -1470,9 +1475,30 @@ flowchart TB
 |-------|-----------|--------|
 | **XR-A** | Passthrough only on enter (no brick); hit-test armed immediately; tap gold reticle to spawn; **Reset Anchor** despawns back to search; no auto-lock / timeout / viewer-front; sit-on-plane (no Z height); Size and Yaw stacked with Floor X/Y/Z beside; footprint-fit scale (Size 0.4×–5×); Play grows up from the plane; three inspect rails + Loop with X/Y/Z beside Loop; Conway Play next to AR; Hull/Ghost/Cuts and Hide center/outer top-right (no viewcube). Phone ceiling: IMU window + DOM overlay. | Android Chrome; iPhone only if WebXR AR exists |
 | **XR-B** | AprilTag or printed playfield (optional Conway seed). Teaching: one or two tags on a physical head so Brain MRI overlays the model | Later; same phone AR; marker reused on Quest. Not a gate for C0. See backlog XR-B. |
-| **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: no world HUD and no Reset Anchor; Exit AR to place again; stick yaw; grip-pinch size; grab frame slides the volume; poke |
+| **XR-C-0** | Headset still uses viewer-front until tap; phone overlay does not apply | Quest: head-relative sheet; stick Y walks the plane; stick X yaws; stick press cycles axis; A/X play; B/Y spin; trigger or grip slides a frame; grip the brick to move; floor ring yaws; both grips pinch size; haptic on grab; no Reset Anchor |
 | **XR-C-1** | Same | Later: hands, wrist attach |
 | **Face AR** | Not WebXR. Bottom **Face** when a camera exists and Source is Brain MRI Low or High. **AR** only if WebXR exists. Desktop without WebXR has no AR chip. `?face=1` enters. Camera start shows **Initializing cameras…**, then Selfie / Rear picker + Exit. Phone and desktop start **Selfie camera**. MediaPipe writes `stage`. Laptop keeps inspect chrome. Phone and Face keep the three plane sliders at full brightness. Hide center and Hide outer are on. Switching Source leaves Face. After lock, keep last pose if the mesh drops. Overlay caps at 640 px. Ghost Brain (~16 cm, Size 1.2). Circular blue retinas, black pupil dots. No Size / Yaw. Under-fill lights the Z plane. No Floor / Flip / millimetre sliders. Exit runs Fit. Occlusion later. | Pixel / flagship Chrome; laptop webcam. Not Quest |
+
+```mermaid
+flowchart LR
+  stickY[Stick up down]
+  stickX[Stick left right]
+  stickClick[Stick press]
+  faceA[A or X]
+  faceB[B or Y]
+  grips[Both grips]
+  grab[Trigger or grip]
+  stickY --> layer[Active playhead]
+  stickX --> yaw[Yaw]
+  stickClick --> axis[Cycle axis]
+  faceA --> play[Play or Loop]
+  faceB --> spin[Spin turntable]
+  grips --> size[Size]
+  grab --> frame[Frame slides that plane]
+  grab --> brick[Brick moves the volume]
+  grab --> ring[Ring yaws]
+  grab --> sheet[Sheet button]
+```
 
 ## Face AR (phone camera, not WebXR)
 

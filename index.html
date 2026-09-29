@@ -262,6 +262,11 @@
     </div>
     <div id="source-body" class="sheet-body">
     <section class="sheet-block" data-slot="source" id="slot-source" aria-labelledby="btn-rail-source">
+      <div id="source-local-examples" class="source-local-examples" hidden>
+        <button type="button" id="btn-local-examples" class="btn" aria-pressed="false"
+          title="Show Brain MRI, Ignition, and Game of Life. Load NumPy and Stream stay below. Off at next start.">Examples</button>
+        <p class="hint source-examples-hint">Showcase cubes only. Load NumPy and Stream stay below.</p>
+      </div>
       <div id="source-demo-chrome">
       <label class="field">
         <span>Source</span>
@@ -502,7 +507,7 @@
     <form method="dialog">
       <h2 id="about-title">DONNER</h2>
       <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
-      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, <strong>EXIT</strong> stops the host; closing the browser also stops it after a few seconds. Game of Life is an easter egg: open <code>?src=life</code>.</p>
+      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, <strong>EXIT</strong> stops the host; closing the browser also stops it after a few seconds. Use Source <strong>Examples</strong> for Brain MRI, Ignition, and Game of Life in that session (or open <code>?src=life</code>).</p>
       <h3>Examples</h3>
       <ul>
         <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. Bottom <strong>AR</strong> hangs it on a camera when one exists.</li>

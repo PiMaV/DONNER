@@ -1,7 +1,7 @@
 /**
- * XR-C-0 headset input math (stick yaw, grip pinch, optional HUD layout).
- * The in-world Play/stand/Exit plate is retired; keep the layout helpers
- * for a later readable wrist/hand chrome (XR-C-1).
+ * Headset input math: stick yaw and layer scrub, grip pinch, face buttons,
+ * the head-relative palette, plane-slide, and the floor ring.
+ * The old table-side Play/stand/Exit plate stays as layout data for tests.
  */
 
 import { AXIS_COLOR, COLOR } from "./config.js";
@@ -253,4 +253,319 @@ export function trackedInputSources(session) {
     if (src && src.targetRayMode === "tracked-pointer") out.push(src);
   }
   return out;
+}
+
+/** xr-standard: thumbstick click, A/X, B/Y. */
+export const XR_BTN_STICK = 3;
+export const XR_BTN_PRIMARY = 4;
+export const XR_BTN_SECONDARY = 5;
+
+/** Full-deflection layer steps per second (stick Y). */
+export const XR_LAYER_STEPS_PER_S = 10;
+
+/** Palette sits left of the view, in front of the head. Meters, camera space. */
+export const XR_PALETTE_LEFT_M = 0.34;
+export const XR_PALETTE_DROP_M = 0.06;
+export const XR_PALETTE_DISTANCE_M = 0.72;
+
+/** Floor ring grab rim, meters. */
+export const XR_RING_PICK_M = 0.05;
+
+const PALETTE_Z0 = -0.008;
+const PALETTE_Z1 = 0.014;
+
+function paletteButton(id, x0, y0, x1, y1) {
+  return {
+    id,
+    kind: "button",
+    min: { x: x0, y: y0, z: PALETTE_Z0 },
+    max: { x: x1, y: y1, z: PALETTE_Z1 },
+  };
+}
+
+function paletteRow(y, ids, x0 = -0.125, x1 = 0.125, gap = 0.008, h = 0.04) {
+  const n = ids.length;
+  const span = (x1 - x0 - gap * (n - 1)) / n;
+  return ids.map((id, i) => {
+    const a = x0 + i * (span + gap);
+    return paletteButton(id, a, y, a + span, y + h);
+  });
+}
+
+/** Head-relative inspect sheet. Origin at panel center, +Z toward the viewer. */
+export const PALETTE_WIDGETS = [
+  ...paletteRow(0.168, ["play"]),
+  ...paletteRow(0.12, ["spin"]),
+  ...paletteRow(0.072, ["axis-x", "axis-y", "axis-z"]),
+  ...paletteRow(0.024, ["src-mni152-low", "src-mni152"]),
+  ...paletteRow(-0.024, ["src-ignition", "src-conway"]),
+  ...paletteRow(-0.072, ["shade-hull", "shade-ghost", "shade-triple"]),
+  ...paletteRow(-0.12, ["hide-center", "hide-outer"]),
+];
+
+export function paletteWidgetById(id) {
+  return PALETTE_WIDGETS.find((w) => w.id === id) || null;
+}
+
+export function buttonPressed(gamepad, index) {
+  return Boolean(gamepad?.buttons?.[index]?.pressed);
+}
+
+/** True on the frame a button goes down. */
+export function risingEdge(pressed, wasPressed) {
+  return Boolean(pressed) && !wasPressed;
+}
+
+/** xr-standard: axes[3] is thumbstick Y; fallback to axes[1]. */
+export function thumbstickYFromAxes(axes) {
+  if (!axes || typeof axes.length !== "number" || axes.length < 1) return 0;
+  const y = axes.length >= 4 ? Number(axes[3]) : Number(axes[1]);
+  return Number.isFinite(y) ? y : 0;
+}
+
+export function strongestStickY(ys) {
+  let best = 0;
+  for (const y of ys || []) {
+    const n = Number(y) || 0;
+    if (Math.abs(n) > Math.abs(best)) best = n;
+  }
+  return best;
+}
+
+/**
+ * Signed playhead steps from stick Y. Positive Y steps toward the high
+ * end of the rail (back decreases). `acc` carries the fraction.
+ */
+export function layerStepsFromStick(axisY, dt, acc = 0, rate = XR_LAYER_STEPS_PER_S) {
+  const y = Number(axisY);
+  const step = Number(dt);
+  let a = Number(acc);
+  if (!Number.isFinite(a)) a = 0;
+  if (!Number.isFinite(y) || !Number.isFinite(step) || step <= 0) return { steps: 0, acc: a };
+  const abs = Math.abs(y);
+  if (abs < XR_YAW_STICK_DEADZONE) return { steps: 0, acc: 0 };
+  const mag = (abs - XR_YAW_STICK_DEADZONE) / (1 - XR_YAW_STICK_DEADZONE);
+  a += Math.sign(y) * mag * rate * step;
+  const steps = Math.trunc(a);
+  return { steps, acc: a - steps };
+}
+
+export function nextSliceAxis(axis) {
+  if (axis === "x") return "y";
+  if (axis === "y") return "z";
+  return "x";
+}
+
+export function paletteOffsetLocal() {
+  return {
+    x: -XR_PALETTE_LEFT_M,
+    y: -XR_PALETTE_DROP_M,
+    z: -XR_PALETTE_DISTANCE_M,
+  };
+}
+
+/** Panel position in front-left of the head. `look*` is the camera, for billboard. */
+export function paletteHeadPose(camPos, camQuat, offset = paletteOffsetLocal()) {
+  const delta = rotateVecByQuat(offset, camQuat);
+  return {
+    x: (Number(camPos?.x) || 0) + delta.x,
+    y: (Number(camPos?.y) || 0) + delta.y,
+    z: (Number(camPos?.z) || 0) + delta.z,
+    lookX: Number(camPos?.x) || 0,
+    lookY: Number(camPos?.y) || 0,
+    lookZ: Number(camPos?.z) || 0,
+  };
+}
+
+export function pickPaletteWidget(localOrigin, localDir) {
+  let best = null;
+  for (const w of PALETTE_WIDGETS) {
+    const t = rayAabb(localOrigin, localDir, w.min, w.max);
+    if (t == null) continue;
+    if (best && t >= best.t) continue;
+    best = { id: w.id, kind: w.kind, t };
+  }
+  return best;
+}
+
+/** Grip point in panel space. `padZ` thickens the thin plates. */
+export function pickPalettePoint(p, padZ = 0.05) {
+  if (!p) return null;
+  const z0 = PALETTE_Z0 - padZ;
+  const z1 = PALETTE_Z1 + padZ;
+  for (const w of PALETTE_WIDGETS) {
+    if (p.x < w.min.x || p.x > w.max.x || p.y < w.min.y || p.y > w.max.y) continue;
+    if (p.z < z0 || p.z > z1) continue;
+    return { id: w.id, kind: w.kind, t: 0 };
+  }
+  return null;
+}
+
+export function paletteActionFromHit(hit) {
+  if (!hit) return null;
+  const id = hit.id;
+  if (id === "play") return { type: "play" };
+  if (id === "spin") return { type: "spin" };
+  if (id === "axis-x" || id === "axis-y" || id === "axis-z") {
+    return { type: "axis", axis: id.slice(5) };
+  }
+  if (id === "hide-center") return { type: "hide-center" };
+  if (id === "hide-outer") return { type: "hide-outer" };
+  if (id === "shade-hull" || id === "shade-ghost" || id === "shade-triple") {
+    return { type: "shade", mode: id.slice(6) };
+  }
+  if (id.startsWith("src-")) return { type: "source", kind: id.slice(4) };
+  return null;
+}
+
+export function pointOnRay(origin, dir, t) {
+  const s = Number(t) || 0;
+  return {
+    x: origin.x + dir.x * s,
+    y: origin.y + dir.y * s,
+    z: origin.z + dir.z * s,
+  };
+}
+
+/**
+ * Slab back index so the plane follows the hand.
+ * `axisDir` is the world direction of decreasing back (the plane's +coord).
+ * `metersPerStep` is world meters per back index along that direction.
+ */
+export function axisDragBack(hand, hand0, axisDir, metersPerStep, back0) {
+  const m = Number(metersPerStep);
+  if (!(Math.abs(m) > 1e-8) || !hand || !hand0 || !axisDir) return back0 | 0;
+  const along =
+    (hand.x - hand0.x) * axisDir.x +
+    (hand.y - hand0.y) * axisDir.y +
+    (hand.z - hand0.z) * axisDir.z;
+  const step = Math.round(along / Math.abs(m));
+  const sign = m < 0 ? -1 : 1;
+  return (back0 | 0) - sign * step;
+}
+
+export function distPointToSegment3(px, py, pz, ax, ay, az, bx, by, bz) {
+  const ux = bx - ax;
+  const uy = by - ay;
+  const uz = bz - az;
+  const uu = ux * ux + uy * uy + uz * uz;
+  let s = 0;
+  if (uu > 1e-12) {
+    s = ((px - ax) * ux + (py - ay) * uy + (pz - az) * uz) / uu;
+    s = Math.min(1, Math.max(0, s));
+  }
+  const qx = ax + s * ux;
+  const qy = ay + s * uy;
+  const qz = az + s * uz;
+  return Math.hypot(px - qx, py - qy, pz - qz);
+}
+
+function vecDot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function vecLen(a) {
+  return Math.hypot(a.x, a.y, a.z);
+}
+
+function vecNorm(a) {
+  const n = vecLen(a);
+  if (!(n > 1e-8)) return null;
+  return { x: a.x / n, y: a.y / n, z: a.z / n };
+}
+
+function vecCross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+function wrapPi(d) {
+  let x = d;
+  while (x > Math.PI) x -= Math.PI * 2;
+  while (x < -Math.PI) x += Math.PI * 2;
+  return x;
+}
+
+/** Yaw delta (radians) as the hand swings around `up` through `anchor`. */
+export function yawGrabDelta(anchor, up, hand0, hand) {
+  const n = vecNorm(up || { x: 0, y: 1, z: 0 });
+  if (!n || !anchor || !hand0 || !hand) return 0;
+  const ref = Math.abs(n.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+  const tx = vecNorm(vecCross(ref, n));
+  if (!tx) return 0;
+  const tz = vecCross(n, tx);
+  const coords = (p) => {
+    const dx = p.x - anchor.x;
+    const dy = p.y - anchor.y;
+    const dz = p.z - anchor.z;
+    return {
+      x: dx * tx.x + dy * tx.y + dz * tx.z,
+      z: dx * tz.x + dy * tz.y + dz * tz.z,
+    };
+  };
+  const a = coords(hand0);
+  const b = coords(hand);
+  if (a.x * a.x + a.z * a.z < 1e-8 || b.x * b.x + b.z * b.z < 1e-8) return 0;
+  return wrapPi(Math.atan2(b.x, b.z) - Math.atan2(a.x, a.z));
+}
+
+/**
+ * Ray vs a world circle (the floor ring). Returns `{ t, dist }` when the
+ * plane hit lands within `rim` of the radius, else null.
+ */
+export function rayCircleHit(origin, dir, center, normal, radius, rim = XR_RING_PICK_M) {
+  const n = vecNorm(normal);
+  const r = Number(radius);
+  if (!n || !origin || !dir || !center || !(r > 0)) return null;
+  const denom = vecDot(dir, n);
+  if (Math.abs(denom) < 1e-6) return null;
+  const rel = { x: center.x - origin.x, y: center.y - origin.y, z: center.z - origin.z };
+  const t = vecDot(rel, n) / denom;
+  if (!(t >= 0)) return null;
+  const p = pointOnRay(origin, dir, t);
+  const dx = p.x - center.x;
+  const dy = p.y - center.y;
+  const dz = p.z - center.z;
+  const radial = Math.hypot(dx, dy, dz);
+  const err = Math.abs(radial - r);
+  if (err > rim) return null;
+  return { t, dist: err };
+}
+
+/** Distance from a point to the ring curve. */
+export function pointCircleDist(point, center, normal, radius) {
+  const n = vecNorm(normal);
+  const r = Number(radius);
+  if (!n || !point || !center || !(r > 0)) return Infinity;
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const dz = point.z - center.z;
+  const h = dx * n.x + dy * n.y + dz * n.z;
+  const px = dx - n.x * h;
+  const py = dy - n.y * h;
+  const pz = dz - n.z * h;
+  const radial = Math.abs(Math.hypot(px, py, pz) - r);
+  return Math.hypot(radial, h);
+}
+
+/**
+ * Short click via the WebXR haptic actuator. Returns false when the
+ * device has no pulse. Swallows a rejected promise.
+ */
+export function pulseHaptic(gamepad, intensity = 0.45, durationMs = 32) {
+  const list = gamepad?.hapticActuators;
+  const actuator = (list && list[0]) || gamepad?.vibrationActuator;
+  if (!actuator || typeof actuator.pulse !== "function") return false;
+  const value = Math.min(1, Math.max(0, Number(intensity) || 0));
+  const ms = Math.max(0, Number(durationMs) || 0);
+  try {
+    const result = actuator.pulse(value, ms);
+    if (result && typeof result.catch === "function") result.catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
 }
