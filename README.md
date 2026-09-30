@@ -7,7 +7,7 @@ A browser tab is the app. Same page on laptop, phone, and headset.
 | Surface | What you get |
 |---|---|
 | **Online Demo** | Try it in the browser — curated cubes, AR / Face, Load or drop `.npy` |
-| **Local Viewer** | Full product download — stream from sidecars, own data, no Python |
+| **Local Viewer** | Full product download — stream from sidecars, bring your own data, Syncs with BLITZ and WOLKE |
 
 **Online Demo:** [https://donner.mess.engineering/](https://donner.mess.engineering/)
 
