@@ -2,12 +2,22 @@
 # Before tagging: bump package.json / CHANGELOG to match the tag (without "v").
 # Asset names include the tag so Downloads stay recognizable side-by-side
 # (e.g. DONNER-v1.3.0-linux-x86_64, DONNER-v1.3.0-windows-x86_64.exe).
+#
+# Rebuild an existing tag remotely (workflow YAML from the branch you run;
+# source checkout is the tag):
+#   gh workflow run Release -f tag=v1.4.0
 name: Release
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to rebuild (e.g. v1.4.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,8 +25,12 @@ permissions:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -27,8 +41,6 @@ jobs:
 
       - name: Build Linux binary
         working-directory: host
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           mkdir -p "$GITHUB_WORKSPACE/dist"
           out="$GITHUB_WORKSPACE/dist/DONNER-${TAG}-linux-x86_64"
@@ -58,21 +70,27 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/DONNER-${{ github.ref_name }}-linux-x86_64
+          tag_name: ${{ env.TAG }}
+          files: dist/DONNER-${{ env.TAG }}-linux-x86_64
+          overwrite_files: true
           generate_release_notes: true
           body: |
             **Local Viewer** — full DONNER on your machine (no Python).
 
-            - Linux: `chmod +x DONNER-${{ github.ref_name }}-linux-x86_64 && ./DONNER-${{ github.ref_name }}-linux-x86_64`
-            - Windows: run `DONNER-${{ github.ref_name }}-windows-x86_64.exe`
+            - Linux: `chmod +x DONNER-${{ env.TAG }}-linux-x86_64 && ./DONNER-${{ env.TAG }}-linux-x86_64`
+            - Windows: run `DONNER-${{ env.TAG }}-windows-x86_64.exe`
             - Opens http://127.0.0.1:8765/ — Stream / Connect for EVT or WOLKE sidecars
             - **EXIT** in the page (or close the browser) shuts down the host
             - Online Demo (showcase only): https://donner.mess.engineering/
 
   build-windows:
     runs-on: windows-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -85,15 +103,15 @@ jobs:
       - name: Build Windows EXE
         working-directory: host
         shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p ../dist
+          mkdir -p "$GITHUB_WORKSPACE/dist"
           CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" \
-            -o "../dist/DONNER-${TAG}-windows-x86_64.exe" .
+            -o "$GITHUB_WORKSPACE/dist/DONNER-${TAG}-windows-x86_64.exe" .
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/DONNER-${{ github.ref_name }}-windows-x86_64.exe
+          tag_name: ${{ env.TAG }}
+          files: dist/DONNER-${{ env.TAG }}-windows-x86_64.exe
+          overwrite_files: true
           generate_release_notes: true
