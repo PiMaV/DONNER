@@ -30,14 +30,16 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p ../dist
-          out="../dist/DONNER-${TAG}-linux-x86_64"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          out="$GITHUB_WORKSPACE/dist/DONNER-${TAG}-linux-x86_64"
           CGO_ENABLED=0 go build -tags release -trimpath -ldflags="-s -w" -o "$out" .
           chmod +x "$out"
+          # Absolute path — smoke runs from the repo root, not host/.
           echo "BIN=$out" >> "$GITHUB_ENV"
 
       - name: Smoke Local Viewer
         run: |
+          test -x "$BIN"
           "$BIN" -bind 127.0.0.1 -port 8765 -no-open > /tmp/donner-smoke.out 2>&1 &
           pid=$!
           cleanup() { kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
@@ -50,7 +52,7 @@ jobs:
             sleep 0.5
           done
           cat /tmp/donner-smoke.out
-          echo "Local Viewer did not become ready"
+          echo "Local Viewer did not become ready (BIN=$BIN)"
           exit 1
 
       - name: Upload release asset
