@@ -2,7 +2,7 @@
 
 Thin HTTP shell for the same static JS app:
 
-- Serves `index.html` / `css` / `src` / `vendor` / `data` / `icon`
+- Serves `index.html` / `docs/about.md` / `css` / `src` / `vendor` / `data` / `icon`
 - `GET /local-viewer.json` → `{ localViewer, canQuit }` (enables Stream / Connect + EXIT)
 - `POST /quit` → immediate shutdown (loopback; **EXIT** button)
 - `POST /ping` / `POST /bye` → presence: auto-quit after browser close (reload-safe)

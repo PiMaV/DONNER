@@ -6,12 +6,12 @@ A browser tab is the app. Same page on laptop, phone, and headset.
 
 | Surface | What you get |
 |---|---|
-| **Online Demo** | Try it in the browser — curated cubes, AR / Face, Load or drop `.npy` |
-| **Local Viewer** | Full product download — stream from sidecars, bring your own data, Syncs with BLITZ and WOLKE |
+| **Online Demo** | The app in the browser — curated cubes, AR / Face, Load or drop `.npy`, Source → Stream |
+| **Offline** | Same app, for use without internet |
 
 **Online Demo:** [https://donner.mess.engineering/](https://donner.mess.engineering/)
 
-**Local Viewer:** [GitHub Releases](https://github.com/PiMaV/DONNER/releases) — `DONNER-vX.Y.Z-windows-x86_64.exe` or `DONNER-vX.Y.Z-linux-x86_64` (Linux: `chmod +x`, then run). Opens your browser. Full features: stream, own data, no Python.
+**Offline:** [GitHub Releases](https://github.com/PiMaV/DONNER/releases) — `DONNER-vX.Y.Z-windows-x86_64.exe` or `DONNER-vX.Y.Z-linux-x86_64` (Linux: `chmod +x`, then run). Same app, for use without internet.
 
 AR and XR tested on **Pixel 11 Pro** and **Quest 3**.
 
@@ -35,8 +35,7 @@ Examples in Source, on the left.
 Drag to orbit. Scroll to zoom. Drop a `.npy` count cube onto the volume.
 On a phone, pinch. On Quest, left stick walks the plane / cycles axis, right stick yaws / zooms; hold left stick click to Exit; X/Y cycle Source/Shade.
 
-Sidecar **Stream / Connect** is not on the Online Demo. Use the Local Viewer
-(or `npm start` while developing) to push cubes from EVT / WOLKE.
+**Source → Stream** connects a sidecar on this computer. **Offline** is the same app from GitHub Releases, for use without internet.
 
 ## Develop
 

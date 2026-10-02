@@ -56,7 +56,7 @@
     </div>
   </header>
   <button type="button" id="btn-guide" class="btn brand-guide" aria-expanded="false" aria-controls="guide-overlay">Guide</button>
-  <a id="btn-get-local" class="btn brand-get-local" href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer" title="Download the Local Viewer (Windows / Linux)">Get Local Viewer</a>
+  <a id="btn-get-local" class="btn brand-get-local" href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer" title="Same DONNER, for use without internet. Windows .exe or Linux binary.">Offline</a>
   <button type="button" id="btn-stop-local" class="btn brand-stop-local" hidden title="Exit Local Viewer (stop the host)">EXIT</button>
   </div>
 
@@ -340,7 +340,7 @@
       </div>
       <div id="source-stream" hidden>
         <p class="hint">Stream a count cube from the EVT sidecar or WOLKE (Send as counts).</p>
-        <p id="wolke-permission-hint" class="hint wolke-permission-hint" hidden>Your browser will ask to allow this site to reach a program on this computer (loopback). Use the Local Viewer if you prefer not to grant that.</p>
+        <p id="wolke-permission-hint" class="hint wolke-permission-hint" hidden>Your browser will ask to allow this site to reach a program on this computer (loopback). Use Offline if you prefer not to grant that.</p>
         <label class="field">
           <span>Stream</span>
           <input id="wolke-url" type="url" spellcheck="false" autocomplete="off" />
@@ -507,20 +507,7 @@
 
   <dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title">
     <form method="dialog">
-      <h2 id="about-title">DONNER</h2>
-      <p>Browser-native 3D/XR explorer for structured data (WETTER). Not a medical device. Not a Game of Life product — Life is the generator example.</p>
-      <p><strong>Online Demo</strong> (this page) is the showcase. <a href="https://github.com/PiMaV/DONNER/releases" target="_blank" rel="noopener noreferrer">Get Local Viewer</a> for stream / own data (no Python). On Local Viewer, <strong>EXIT</strong> stops the host; closing the browser also stops it after a few seconds. Use Source <strong>Examples</strong> for Brain MRI, Ignition, and Game of Life in that session (or open <code>?src=life</code>).</p>
-      <h3>Examples</h3>
-      <ul>
-        <li><strong>Brain MRI Low</strong> — example T1 atlas (ICBM 152), 2× mean-binned. All three axes are space. Loop walks a cut. Visitor default (bare URL or <code>?src=brain</code>). Starts in Ghost. Bottom <strong>AR</strong> hangs it on a camera when one exists.</li>
-        <li><strong>Brain MRI High</strong> — the same atlas at native grid. Larger download. <code>?src=mni152</code>.</li>
-        <li><strong>Lighter Ignition</strong> — event-camera counts of a lighter strike. X is sensor width; Y is time; Z is sensor height. Loop Y scrubs the recording. <code>?src=ignition</code>. Starts in Ghost.</li>
-        <li><strong>Game of Life</strong> — generator. Each cube is a cell; Z is generations. Play grows the stack. Loop walks a cut of that tape. <code>?src=life</code>. Starts in Hull.</li>
-      </ul>
-      <h3>Share</h3>
-      <p>The address bar follows the example. Bare URL is Brain MRI Low. <code>?src=life</code> (or <code>conway</code>) is Game of Life. <code>?src=ignition</code> is Lighter Ignition. <code>?src=mni152</code> is Brain MRI High. <code>?face=1</code> opens Face. Add <code>&amp;quality=medium</code> or <code>low</code>. Unknown <code>src</code> values are ignored. No arbitrary file URLs.</p>
-      <h3>Credit</h3>
-      <p>App: GPL-3.0. Brain MRI derived from ICBM 152 Nonlinear 2009 (McGill) via NiiVue demo images (BSD-2-Clause). Lighter Ignition is an author recording. Details in <a href="data/NOTICE.md">data/NOTICE.md</a>.</p>
+      <div id="about-body"><h2 id="about-title">DONNER</h2></div>
       <button type="submit" class="btn" value="close">Close</button>
     </form>
   </dialog>

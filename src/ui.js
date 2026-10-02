@@ -8,6 +8,7 @@ import { landscapePreview } from "./volume-prep.js";
 import { arOverlaySelectShouldGuard } from "./xr.js";
 import { FACE_FRONT_INSET_M, FACE_FRONT_LIFT_M, isFaceProjectSource, offsetFromFaceFront } from "./face-calib.js";
 import { cameraFacingKind, friendlyCameraLabels } from "./face-ar.js";
+import { renderAboutMarkdown } from "./about-md.js";
 
 const PATTERN_HINT = {
   Blinker:
@@ -943,11 +944,35 @@ export function bindUI(on) {
     syncSourceCopy();
     on.sourceKind?.();
   });
+  let aboutPromise = null;
   const openAbout = () => {
     guideOverlay?.dismiss?.();
     dismissIngest();
     on.ingestCancel?.();
-    if (typeof aboutDialog?.showModal === "function") aboutDialog.showModal();
+    const body = $("about-body");
+    if (body && !aboutPromise) {
+      aboutPromise = fetch("docs/about.md")
+        .then((res) => {
+          if (!res.ok) throw new Error(String(res.status));
+          return res.text();
+        })
+        .then((md) => {
+          body.innerHTML = renderAboutMarkdown(md);
+        })
+        .catch(() => {
+          aboutPromise = null;
+          body.replaceChildren();
+          const title = document.createElement("h2");
+          title.id = "about-title";
+          title.textContent = "DONNER";
+          const note = document.createElement("p");
+          note.textContent = "About text could not be loaded.";
+          body.append(title, note);
+        });
+    }
+    Promise.resolve(aboutPromise).finally(() => {
+      if (typeof aboutDialog?.showModal === "function" && !aboutDialog.open) aboutDialog.showModal();
+    });
   };
   for (const btn of aboutBtns) {
     btn?.addEventListener("click", openAbout);

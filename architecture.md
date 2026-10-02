@@ -136,8 +136,9 @@ while serving an older `xr.js` / `orbit.js`. Local Viewer chrome answers
 
 GitHub Pages is the **Online Demo** at
 [https://donner.mess.engineering/](https://donner.mess.engineering/).
-Workflow: `.github/workflows/pages.yml` stages `index.html`, `css/`,
-`src/`, `vendor/`, `data/`, and `icon/` (favicon + brand mark).
+Workflow: `.github/workflows/pages.yml` stages `index.html`, `docs/about.md`,
+`css/`, `src/`, `vendor/`, `data/`, and `icon/` (favicon + brand mark).
+About dialog copy is [`docs/about.md`](docs/about.md).
 `.nojekyll` keeps vendor paths.
 **Local Viewer** binaries ship from GitHub Releases (workflow
 `.github/workflows/release.yml`, tag `v*`). Door: bare URL is Brain MRI Low
@@ -235,7 +236,7 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit / Spin / Align to Z (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Gap X/Y/Z + Link, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
-| **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy** and **Stream** (`stream`; `?stream=1` selects it). **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
+| **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy** and **Stream** (`stream`; `?stream=1` selects it). **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Offline** (Releases; same app, without internet) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. DEM/DGM terrain is BLITZ-only (height plane), not a DONNER voxel surface. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).

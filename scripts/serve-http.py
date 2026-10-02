@@ -35,7 +35,7 @@ class Handler(StreamNpyMixin, SimpleHTTPRequestHandler):
             "xr-spatial-tracking=(self), camera=(self)",
         )
         path = (self.path or "").split("?", 1)[0].lower()
-        if path.endswith(("/", ".html", ".js", ".mjs", ".css", ".json", ".map")):
+        if path.endswith(("/", ".html", ".js", ".mjs", ".css", ".json", ".map", ".md")):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 

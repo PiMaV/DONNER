@@ -99,10 +99,8 @@ raises Cube cap to the next preset that covers the tape so a long run is not tru
 
 **Online Demo** (this static host / Pages) lists **Source → Stream** for a
 loopback EVT / WOLKE sidecar on the same machine (the browser asks for
-loopback access). `?stream=1` opens that row. For LAN / phone / Quest
-stream, or if you prefer not to grant that permission, download the
-**Local Viewer** from GitHub Releases — or use `npm start` while
-developing.
+loopback access). `?stream=1` opens that row. **Offline** (GitHub Releases)
+is the same app, for use without internet.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
 Ignition ~3 % occupancy). Dense bricks like Brain MRI High are the expensive
@@ -110,15 +108,15 @@ case; Brain MRI Low is the visitor default.
 
 ## Online Demo vs Local Viewer
 
-| | **Online Demo** | **Local Viewer** |
+| | **Online Demo** | **Offline** |
 |---|---|---|
 | Where | [donner.mess.engineering](https://donner.mess.engineering/) | GitHub Releases binary |
-| Job | Try DONNER in the browser | Full viewer on your machine |
+| Job | DONNER in the browser | Same app, without internet |
 | Stream / Connect | Source → Stream (`?stream=1`) | Yes (EVT / WOLKE; `/stream-npy`) |
 | Showcase sources | Brain MRI, Ignition, Game of Life | Off at start; **Examples** shows those three for this session (Load NumPy + Stream stay) |
 | Needs Python | No | No (Go one-binary) |
 
-Get Local Viewer: full features — stream, own data, no Python. Turn on
+**Offline** is the same app from GitHub Releases, for use without internet. Turn on
 **Examples** under Source when you want the Online Demo cubes without
 leaving the local host.
 

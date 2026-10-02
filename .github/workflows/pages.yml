@@ -28,8 +28,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Stage site
         run: |
-          mkdir _site
+          mkdir -p _site/docs
           cp index.html .nojekyll LICENSE _site/
+          cp docs/about.md _site/docs/about.md
           cp -a css src vendor data icon _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

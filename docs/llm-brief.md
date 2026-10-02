@@ -303,11 +303,12 @@ advantage, not a deployment convenience.
   Local serve is in architecture. In-app Look: **Guide** button to the
   right of the brand chip on desktop (arrows: rails, viewcube, inspect, quality);
   hidden on a phone. Hull / Ghost / Cuts / Fit sit top-right. Game of Life Source is slim (Play; Setup holds pattern/grid/depth, always visible). Copy in
-  [`docs/welcome.md`](welcome.md). **About Data** is on the Source fold.
+  [`docs/welcome.md`](welcome.md). **About** dialog copy is
+  [`docs/about.md`](about.md). **About Data** is on the Source fold.
 - Architecture: [`architecture.md`](../architecture.md)
   — Serve, **Tests and visual QA**, layers, XR/Face
 - FPS notes (Kleinvieh + later fill-rate ideas): [`docs/fps_opti.md`](fps_opti.md)
-- Later / XR ladder: [`backlog.md`](../backlog.md)
+- Open work: [`TODO.md`](../TODO.md). Later / XR ladder: [`backlog.md`](../backlog.md)
   — Dataset Contract after the public host; MRI stays a dense count `.npy`
   until `ScalarVolume` (no NIfTI parser / NiiVue)
 - Phone HTTPS: `https://lab.ole.icu/` after `npm run start:lan`; mkcert

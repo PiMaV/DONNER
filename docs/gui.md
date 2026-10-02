@@ -7,7 +7,8 @@ layout. **Guide** is a button to the right of the brand chip (desktop): an opt-i
 Look walkthrough (Orbit, Source, Play vs Loop, Rails, Viewcube, Inspect,
 Look) with arrows on the controls. Source and View unfold while it runs. It does not open on
 its own. Hidden on a phone (`pointer: coarse`). **About Data** (Source fold, next to the heading) and footer
-**About** are identity (examples, share URL, credit). Footer **M.E.S.S.** and
+**About** are identity (examples, share URL, credit), loaded from
+[`docs/about.md`](about.md). Footer **M.E.S.S.** and
 **WETTER** links are cyan. Visitor copy:
 [`docs/welcome.md`](welcome.md).
 
@@ -864,8 +865,8 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 - Open-in / ROI handoff via Viewer Contract hub (later; no peer mesh)
 - **Streamer / Local Viewer:** Connect shows when `/local-viewer.json` is
   served (Go Local Viewer or `npm start`) or on the Online Demo as
-  **Source → Stream** / `?stream=1`. Other Online Demo Source rows keep it
-  hidden and show **Get Local Viewer** (Releases) next to Guide. Local
+  **Source → Stream** / `?stream=1`. Other Online Demo Source rows keep Connect
+  hidden. **Offline** (Releases) sits next to Guide: same app, without internet. Local
   Viewer (Go) shows compact **EXIT** (`POST /quit`). Closing the browser
   also stops the host (`/ping` heartbeat, `/bye` on pagehide; reload within
   a few seconds cancels). A second launch reopens the running instance.

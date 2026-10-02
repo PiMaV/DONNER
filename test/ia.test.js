@@ -410,7 +410,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, />Load NumPy</);
     assert.match(html, />About Data</);
     assert.match(html, /id="about-dialog"/);
-    assert.match(html, /\?src=ignition/);
+    assert.match(html, /id="about-body"/);
+    assert.doesNotMatch(html, /Not a medical device/);
     assert.match(css, /\.about-dialog/);
   });
 

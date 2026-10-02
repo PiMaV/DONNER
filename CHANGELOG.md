@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-### Fixed
+- Brand link **Offline** (was **Get Local Viewer**): same app, for use without internet. Tooltip says so. Stream stays on the page.
+- About text lives in `docs/about.md`. The dialog loads it when opened.
 
 ## [1.4.0] - 2026-09-29
 
