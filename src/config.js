@@ -155,6 +155,11 @@ export const SOURCE_GUIDE = {
     blurb: "Dropped .npy count cube (T × H × W). Loop scrubs the stack.",
     cite: "",
   },
+  stream: {
+    label: "Stream",
+    blurb: "Connect to an EVT sidecar or WOLKE on this computer (Send as counts). Loopback only on the Online Demo.",
+    cite: "",
+  },
 };
 
 export function sourceGuide(kind) {
@@ -206,7 +211,7 @@ export const GUIDE_STEPS = [
   },
   {
     title: "Source",
-    body: "Pick Source on the left (phone: the Source fold): Game of Life, Lighter Ignition, Brain MRI Low or High, or Load NumPy. Drag-and-drop onto the volume always works. Game of Life keeps Play here; Pattern and grid sit under Setup.",
+    body: "Pick Source on the left (phone: the Source fold): Game of Life, Lighter Ignition, Brain MRI Low or High, Load NumPy, or Stream. Drag-and-drop onto the volume always works. Game of Life keeps Play here; Pattern and grid sit under Setup.",
     targets: ["source-kind"],
     fold: "source",
   },

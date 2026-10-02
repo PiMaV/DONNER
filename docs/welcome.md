@@ -97,12 +97,12 @@ to drawn instances (dense hull, sparse occupied cells) when that is
 higher. Game of Life Play keeps the **250k** default; Pause
 raises Cube cap to the next preset that covers the tape so a long run is not truncated.
 
-**Online Demo** (this static host / Pages) hides Streamer Connect on the
-bare URL. Open **`?stream=1`** to Connect a loopback EVT / WOLKE sidecar
-on the same machine (the browser asks for loopback access). For LAN /
-phone / Quest stream, or if you prefer not to grant that permission,
-download the **Local Viewer** from GitHub Releases — or use `npm start`
-while developing.
+**Online Demo** (this static host / Pages) lists **Source → Stream** for a
+loopback EVT / WOLKE sidecar on the same machine (the browser asks for
+loopback access). `?stream=1` opens that row. For LAN / phone / Quest
+stream, or if you prefer not to grant that permission, download the
+**Local Viewer** from GitHub Releases — or use `npm start` while
+developing.
 
 Further example cubes should stay **sparse** (lots of zeros, like Lighter
 Ignition ~3 % occupancy). Dense bricks like Brain MRI High are the expensive
@@ -114,7 +114,7 @@ case; Brain MRI Low is the visitor default.
 |---|---|---|
 | Where | [donner.mess.engineering](https://donner.mess.engineering/) | GitHub Releases binary |
 | Job | Try DONNER in the browser | Full viewer on your machine |
-| Stream / Connect | `?stream=1` door (loopback only) | Yes (EVT / WOLKE; `/stream-npy`) |
+| Stream / Connect | Source → Stream (`?stream=1`) | Yes (EVT / WOLKE; `/stream-npy`) |
 | Showcase sources | Brain MRI, Ignition, Game of Life | Off at start; **Examples** shows those three for this session (Load NumPy + Stream stay) |
 | Needs Python | No | No (Go one-binary) |
 
@@ -160,7 +160,7 @@ flowchart LR
 
 - Bare URL or `?src=brain` / `?src=mri` — Brain MRI Low (visitor default)
 - `?src=life` or `?src=conway` / `?src=gol` — Game of Life
-- `?stream=1` — show Stream / Connect for a loopback sidecar (same machine)
+- `?stream=1` — Source → Stream (loopback sidecar on the same machine)
 - `?src=ignition` or `?src=lighter` — Lighter Ignition
 - `?src=mni152` or `?src=mri-high` — Brain MRI High
 - `?face=1` — enter Face (Brain Ghost on the camera). Lab millimetre

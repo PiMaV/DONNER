@@ -440,7 +440,6 @@ export function bindUI(on) {
   const wolkeStatus = $("wolke-status");
   const wolkePermissionHint = $("wolke-permission-hint");
   let localViewer = false;
-  let streamDoor = false;
   let localExamples = false;
   let canQuitLocal = false;
   const LOCAL_EXAMPLE_KINDS = new Set(["mni152-low", "mni152", "ignition", "conway"]);
@@ -450,6 +449,11 @@ export function bindUI(on) {
       const v = opt.value;
       if (v === "npy") {
         // Local Viewer uses the Load NumPy button, not this row.
+        opt.hidden = localViewer;
+        continue;
+      }
+      if (v === "stream") {
+        // Stream is an Online Demo list row; Local Viewer keeps its own panel.
         opt.hidden = localViewer;
         continue;
       }
@@ -480,6 +484,7 @@ export function bindUI(on) {
       Boolean(sourceKind && sourceKind.value === "conway");
     document.body.classList.toggle("is-local-conway", on);
   };
+  const streamRowSelected = () => Boolean(sourceKind && sourceKind.value === "stream");
   const syncLocalSourceChrome = () => {
     document.body.classList.toggle("is-local-examples", localViewer && localExamples);
     if (sourceLocalExamples) sourceLocalExamples.hidden = !localViewer;
@@ -490,8 +495,10 @@ export function bindUI(on) {
     if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer && !localExamples;
     // Load NumPy stays in work chrome whenever Local Viewer is on.
     if (sourceWork) sourceWork.hidden = !localViewer;
-    if (sourceStream) sourceStream.hidden = !(localViewer || streamDoor);
-    if (wolkePermissionHint) wolkePermissionHint.hidden = !(streamDoor && !localViewer);
+    if (sourceStream) sourceStream.hidden = !(localViewer || streamRowSelected());
+    if (wolkePermissionHint) {
+      wolkePermissionHint.hidden = !(streamRowSelected() && !localViewer);
+    }
     syncLocalExampleOptions();
     syncLocalConwayChrome();
   };
@@ -1660,7 +1667,12 @@ export function bindUI(on) {
       document.body.classList.toggle("is-inspect", Boolean(inspect));
     },
     setSourceKind(kind) {
-      const k = isCountSourceKind(kind) ? kind : "conway";
+      const k =
+        kind === "stream"
+          ? "stream"
+          : isCountSourceKind(kind)
+            ? kind
+            : "conway";
       const countOpt = sourceKind?.querySelector('option[value="count"]');
       if (countOpt && k === "count" && !localViewer) countOpt.hidden = false;
       if (sourceKind) {
@@ -1672,18 +1684,26 @@ export function bindUI(on) {
         }
         applying = false;
       }
-      lastSourceKind = k;
-      document.body.classList.toggle("source-count", isCountSourceKind(k));
+      lastSourceKind = k === "stream" ? k : k;
+      const countLike = k === "stream" || isCountSourceKind(k);
+      document.body.classList.toggle("source-count", countLike);
+      document.body.classList.toggle("source-stream", k === "stream");
       syncLocalConwayChrome();
-      if (sourceCount) sourceCount.hidden = !(localViewer && isCountSourceKind(k));
+      if (sourceCount) {
+        sourceCount.hidden = !(
+          (localViewer && isCountSourceKind(k)) ||
+          k === "stream"
+        );
+      }
       document.body.classList.toggle("source-static", isStaticSourceKind(k));
-      if (conwayLive && isCountSourceKind(k)) conwayLive.hidden = true;
+      if (conwayLive && countLike) conwayLive.hidden = true;
       for (const btn of [playBtn, playDock]) {
         if (btn && !btn.classList.contains("is-live")) btn.textContent = "Play";
       }
       if (loopBtn) loopBtn.disabled = false;
       syncFillVisibility();
       syncSourceCopy();
+      syncLocalSourceChrome();
       syncFaceProject();
     },
     setCountMeta(text) {
@@ -1819,12 +1839,11 @@ export function bindUI(on) {
       if (wolkeStatus) wolkeStatus.textContent = text || "";
     },
     setStreamDoor(on) {
-      streamDoor = Boolean(on);
-      document.body.classList.toggle("is-stream-door", streamDoor);
-      syncLocalSourceChrome();
+      if (on) this.setSourceKind("stream");
+      else if (streamRowSelected()) this.setSourceKind(DEFAULTS.sourceKind);
     },
     isStreamDoor() {
-      return streamDoor;
+      return streamRowSelected();
     },
     setLocalViewer(on, opts = {}) {
       localViewer = Boolean(on);

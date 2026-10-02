@@ -75,11 +75,11 @@ packaging as every other WETTER tool.
 | **Dev (Online Demo chrome)** | `npm run start:demo` / `start:https:demo` | No — Pages parity; LAN bind for `lab.ole.icu` |
 
 **Online Demo** is the tech/tag demo: curated cubes, Load/Drop `.npy`,
-orbit / AR / Face. Bare URL hides **Connect**. The **`?stream=1` door**
-shows Stream for a loopback sidecar on the same machine: Socket.IO in the
-browser, `.npy` GET direct to `127.0.0.1` / `localhost` after the user
-grants loopback access. No GitHub proxy. LAN phone, Quest, and users who
-will not grant loopback still use **Local Viewer** (`/stream-npy`).
+orbit / AR / Face. **Source → Stream** (or `?stream=1`) shows Connect for a
+loopback sidecar on the same machine: Socket.IO in the browser, `.npy` GET
+direct to `127.0.0.1` / `localhost` after the user grants loopback access.
+No GitHub proxy. LAN phone, Quest, and users who will not grant loopback
+still use **Local Viewer** (`/stream-npy`).
 
 **Local Viewer** is the fuller product for third parties: download, run,
 no Python required. Same page opens in the default browser. **EXIT**
@@ -235,7 +235,7 @@ flowchart LR
 | Layer | Owns | UI now |
 |-------|------|--------|
 | **Display** | Orbit, Parallax, Align to Z, Quality (Low/Medium/High), headlamp (view-locked on Medium/High), CAD gizmo, Hide center / Hide outer (viewcube; AR More), three slice rails (X/Y/Z), loop axis under the rails, Play/Loop + Speed under the rails (also after AR place), shade (Hull/Ghost/Cuts Look strip), Fit / Spin / Align to Z (Look strip; Fit also on Exit AR / Face), cache tape, FPS/INST, Color coding, Conway Size by age, Gap X/Y/Z + Link, Cube cap | Sheet **View** (setup) + Look strip + rails. FPS overlay on the viewcube; **DEV Bench** on the FPS card. |
-| **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy**; **Connect** only on the `?stream=1` door (loopback sidecar, showcase chrome stays). **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
+| **Source** | Kind switch. **Online Demo:** Game of Life / Lighter Ignition / Brain MRI Low / Brain MRI High (ids `conway` / `ignition` / `mni152-low` / `mni152`) plus **Load NumPy** and **Stream** (`stream`; `?stream=1` selects it). **Local Viewer** / `npm start` (`/local-viewer.json`): no Source dropdown — **Load NumPy** + **Connect** only; idle until a cube arrives. Game of Life easter egg: `?src=life` (Play/Setup chrome, no dropdown). Showcase Brain / Ignition / Face stay Online Demo–only. Conway slim chrome: blurb + Play; Pattern, Random Fill, Seed, **Grid (16…512)**, **Depth** (live wake), Wrap, Step, Reset, Edit under **Setup**. Drop `.npy` on the volume (header gate, mean/max-bin, skip short axes). Loading spinner on source/cube switch. Visitor blurb + About. **Guide** and compact **Get Local Viewer** (Releases) sit right of the brand chip on the Online Demo. | Sheet **Source** (config, top of the left rail) |
 | **Encoding** | Color LUT (`k`) and fill (`s`). Conway: still/osc/unsettled/base + Size by age (Start fill, Tail gens). Count: 256 display rungs via **Colormap**, **Min/Max**, **Trim** (default 1%), and **Hide below** (drop cubes below a value; dense hull rebuilds). Color only, no size-by-count. Polarity later. DEM/DGM terrain is BLITZ-only (height plane), not a DONNER voxel surface. | Color coding + Colormap / window / Hide below in the **View** sheet. LUT in `src/encoding.js` |
 
 **Loop** and loop **Speed** sit under the slice rails (above the footer).
@@ -358,7 +358,7 @@ flowchart TB
 A **WOLKE-contract viewer** is another way to get that cube. Socket.IO
 only announces `send_file_message`. **Local Viewer** (and `npm start`)
 then GETs same-origin `/stream-npy?u=…` so the laptop proxy pulls the
-`.npy`. The Online Demo **`?stream=1` door** skips the proxy and GETs the
+`.npy`. The Online Demo **`?stream=1` door** / **Source → Stream** skips the proxy and GETs the
 sidecar on loopback directly (browser loopback permission). The EVT
 sidecar already speaks this protocol (`http://127.0.0.1:5055`, token
 `evt`). Packed selection and `viewer_index` are not this slice.
@@ -953,8 +953,8 @@ do not ride the socket. Packed `__selection__.npy` is that cube with
 `T` = selected rows; BLITZ-style RGB packages stay later. While connected, Z playhead changes emit
 `viewer_index`; hub `index` seeks without re-download. Use **Local Viewer**
 (Go) or `npm start` / `start:lan` for the proxy; bare
-`python3 -m http.server` will not. Online Demo Connect is the
-`?stream=1` door only.
+`python3 -m http.server` will not. Online Demo Connect is **Source → Stream**
+(or the `?stream=1` door).
 
 ```text
 Event camera → sidecar → count cube .npy

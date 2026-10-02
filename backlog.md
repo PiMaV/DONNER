@@ -16,10 +16,10 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Hull / Ghost universal (same peek for MRI and Ignition)
 - Mid-volume playhead catch
 - Loading spinner
-- Streamer Connect on the Online Demo only via **`?stream=1`** (loopback
-  sidecar, direct fetch). Bare Pages URL stays showcase. **Local Viewer**
-  (Go binary) and `npm start` expose Connect via `/local-viewer.json`.
-  Drop `.npy` on the volume is in.
+- Streamer Connect on the Online Demo via **Source → Stream** (and
+  `?stream=1`; loopback sidecar, direct fetch). Other Source rows stay
+  showcase. **Local Viewer** (Go binary) and `npm start` expose Connect via
+  `/local-viewer.json`. Drop `.npy` on the volume is in.
 - Neighborhood gone
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
@@ -362,15 +362,15 @@ desktop. Remaining:
   NumPy; drop on the volume still works). Header peek, ~500k comfort warn,
   256³ hard cap, optional 2/4/8 mean/max-bin that skips short axes, first-plane
   preview.
-- **Hosting policy.** Bare Online Demo (Pages) hides Stream / Connect.
-  **`?stream=1`** shows Connect for a loopback sidecar (direct `.npy` GET;
-  browser loopback permission). Local Viewer (Go binary) and `npm start`
-  use `/local-viewer.json` + `/stream-npy`. End users who need LAN /
-  Quest / no loopback grant still use the one-binary Local Viewer.
+- **Hosting policy.** Online Demo **Source → Stream** / `?stream=1` connects
+  a loopback sidecar (direct `.npy` GET; browser loopback permission).
+  Local Viewer (Go binary) and `npm start` use `/local-viewer.json` +
+  `/stream-npy`. End users who need LAN / Quest / no loopback grant still
+  use the one-binary Local Viewer.
 - Streamer Connect chrome shows under Source on Local Viewer / `npm start`
-  (`/local-viewer.json`) and on Online Demo `?stream=1`. Client `index` /
-  `viewer_index` path is in. The Source **Loading…** spinner is the seed for
-  “something is arriving.”
+  (`/local-viewer.json`) and on Online Demo **Source → Stream** /
+  `?stream=1`. Client `index` / `viewer_index` path is in. The Source
+  **Loading…** spinner is the seed for “something is arriving.”
 
 ## QR door (later)
 

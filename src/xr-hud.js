@@ -395,7 +395,13 @@ export function nextSliceAxis(axis) {
 }
 
 /** Showcase sources cycled on Quest left X (Examples / Online Demo). */
-export const AR_SHOWCASE_KINDS = ["mni152-low", "mni152", "ignition", "conway"];
+export const AR_SHOWCASE_KINDS = [
+  "mni152-low",
+  "mni152",
+  "ignition",
+  "conway",
+  "stream",
+];
 
 /** Hull → Ghost → Cuts → Hull. */
 export function nextShadeMode(mode) {
@@ -422,6 +428,7 @@ export function arSourceLabel(kind) {
   if (kind === "ignition") return "Ignition";
   if (kind === "conway") return "Life";
   if (kind === "count") return "Own";
+  if (kind === "stream") return "Stream";
   return "Source";
 }
 

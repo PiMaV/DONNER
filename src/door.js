@@ -3,10 +3,10 @@
  * `?src=` picks an example; `?quality=` is Low / Medium / High.
  * Bare URL is Brain MRI Low. `?src=life` / `conway` is Game of Life.
  * `?src=ignition` is Lighter Ignition. `?face=1` enters Face AR
- * (webcam / phone camera overlay, not WebXR). `?stream=1` shows Connect
- * on the Online Demo (loopback sidecar only; no auto-connect). Lab
- * millimetre fit is still parsed; it is not written back. Path `/ignition`
- * and QR stay later.
+ * (webcam / phone camera overlay, not WebXR). `?stream=1` selects
+ * Source → Stream on the Online Demo (loopback sidecar only; no
+ * auto-connect). Lab millimetre fit is still parsed; it is not written
+ * back. Path `/ignition` and QR stay later.
  */
 
 import { COUNT_DEMOS } from "./config.js";
@@ -52,10 +52,10 @@ function canonKey(raw) {
     .replace(/[\s_]+/g, "-");
 }
 
-/** `count` (hidden ingest) is not a public door. New COUNT_DEMOS ids work as `?src=<id>`. */
+/** `count` / `stream` are not public `?src=` values. New COUNT_DEMOS ids work as `?src=<id>`. */
 export function normalizeStartSource(raw, demos = COUNT_DEMOS) {
   const k = canonKey(raw);
-  if (!k || k === "count") return null;
+  if (!k || k === "count" || k === "stream") return null;
   if (SOURCE_ALIASES[k]) return SOURCE_ALIASES[k];
   if (k === "conway") return "conway";
   if (demos && demos[k]) return k;
@@ -72,8 +72,10 @@ export function parseStartSearch(
 ) {
   const raw = String(search || "");
   const q = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
-  const source =
-    normalizeStartSource(q.get("src") || q.get("source"), demos) || defaultSource;
+  const stream = parseStreamDoor(q.get("stream"));
+  const source = stream
+    ? "stream"
+    : normalizeStartSource(q.get("src") || q.get("source"), demos) || defaultSource;
   const qualityRaw = q.get("quality") || q.get("q");
   const qualityExplicit = Boolean(qualityRaw);
   const quality = qualityExplicit
@@ -81,7 +83,6 @@ export function parseStartSearch(
     : defaultQuality;
   const face = parseFaceQuery(raw);
   const facePlacement = readFacePlacementParams(q);
-  const stream = parseStreamDoor(q.get("stream"));
   return { source, quality, face, facePlacement, qualityExplicit, stream };
 }
 
@@ -94,12 +95,16 @@ export function startSearchFromState(
   } = {},
 ) {
   const params = new URLSearchParams();
-  const src = normalizeStartSource(source, demos);
-  if (src && src !== defaultSource) params.set("src", src);
+  const wantStream = Boolean(stream) || source === "stream";
+  if (wantStream) {
+    params.set("stream", "1");
+  } else {
+    const src = normalizeStartSource(source, demos);
+    if (src && src !== defaultSource) params.set("src", src);
+  }
   const q = normalizeViewQuality(quality);
   if (q !== defaultQuality) params.set("quality", q);
   if (face) params.set("face", "1");
-  if (stream) params.set("stream", "1");
   const s = params.toString();
   return s ? `?${s}` : "";
 }

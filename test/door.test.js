@@ -55,15 +55,21 @@ describe("public door query", () => {
     assert.equal(parseStreamDoor("yes"), true);
     assert.equal(parseStreamDoor("0"), false);
     assert.equal(parseStreamDoor("http://127.0.0.1:5055"), false);
+    assert.equal(normalizeStartSource("stream"), null);
     assert.equal(parseStartSearch("?stream=1").stream, true);
-    assert.equal(parseStartSearch("?stream=1&src=brain").source, "mni152-low");
+    assert.equal(parseStartSearch("?stream=1").source, "stream");
+    assert.equal(parseStartSearch("?stream=1&src=brain").source, "stream");
+    assert.equal(
+      startSearchFromState({ source: "stream", quality: "high" }),
+      "?stream=1",
+    );
     assert.equal(
       startSearchFromState({ source: "mni152-low", quality: "high", stream: true }),
       "?stream=1",
     );
     assert.equal(
       startSearchFromState({ source: "conway", quality: "high", stream: true }),
-      "?src=conway&stream=1",
+      "?stream=1",
     );
   });
 

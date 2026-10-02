@@ -298,9 +298,9 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.doesNotMatch(html, /id="loop-axis-x"[^>]*aria-pressed="true"/);
   });
 
-  it("puts Load NumPy in the Source list and keeps Streamer hidden on Online Demo", () => {
+  it("puts Load NumPy and Stream in the Source list; Stream panel stays hidden until chosen", () => {
     assert.match(html, /<option value="count" hidden>/);
-    assert.match(html, /id="source-count"[^>]*\bhidden\b/);
+    assert.match(html, /<option value="stream">Stream</);
     assert.match(html, /id="source-stream"[^>]*\bhidden\b/);
     assert.match(html, /id="source-work"[^>]*\bhidden\b/);
     assert.match(html, /id="source-demo-chrome"/);
@@ -317,8 +317,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(css, /body\.is-local-viewer\.is-local-examples\.is-local-conway #source-conway/s);
     assert.match(css, /body\.is-local-viewer #source-work/s);
     assert.match(css, /body\.is-local-viewer #source-stream/s);
-    assert.match(css, /body\.is-stream-door #source-stream/s);
-    assert.match(css, /body\.is-stream-door\.source-count #source-count/s);
+    assert.match(css, /body\.source-stream #source-stream/s);
+    assert.match(css, /body\.source-stream #source-count/s);
     assert.match(css, /body\.is-local-viewer \.brand-get-local/s);
     assert.match(css, /body\.is-local-viewer\.can-quit-local \.brand-stop-local/s);
     assert.match(css, /body\.source-count #source-count\s*\{[^}]*display:\s*none/s);
@@ -327,8 +327,8 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(html, /id="wolke-url"/);
     assert.match(html, /id="wolke-permission-hint"/);
     assert.match(html, /id="btn-wolke-connect"/);
-    assert.match(uiJs, /is-stream-door|streamDoor|setStreamDoor|is-local-conway|sourceWork\.hidden|localViewer \|\| streamDoor|canQuit|stopLocalViewer/);
-    assert.match(mainJs, /setStreamDoor|isStreamDoor|setFetchMode|start\.stream/);
+    assert.match(uiJs, /source-stream|streamRowSelected|setStreamDoor|is-local-conway|sourceWork\.hidden|localViewer \|\| streamRowSelected|canQuit|stopLocalViewer/);
+    assert.match(mainJs, /kind === "stream"|switchSource\("stream"\)|setFetchMode|start\.source === "stream"/);
     assert.match(html, /id="btn-stop-local"[^>]*>EXIT</);
     assert.match(mainJs, /isLocalViewer|enterLocalIdle|detectLocalViewer|\?src=life|start\.source === "conway"|\/quit|\/ping|\/bye|canQuit/);
     assert.match(html, /id="drop-overlay"/);
@@ -347,6 +347,7 @@ describe("desktop loop, load, and live-ingest chrome", () => {
     assert.match(src, /<option value="ignition">Lighter Ignition</);
     assert.match(src, /<option value="conway">Game of Life</);
     assert.match(src, /<option value="npy">Load NumPy</);
+    assert.match(src, /<option value="stream">Stream</);
     assert.doesNotMatch(src, /id="source-welcome"/);
     assert.match(src, /id="source-blurb"/);
     assert.match(html, /id="btn-rail-source"[\s\S]*id="btn-about"/);

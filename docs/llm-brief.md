@@ -31,9 +31,9 @@ advantage, not a deployment convenience.
   Examples is on; Life Play chrome only while Examples is on. Quest source
   buttons respect the same gate.
   WOLKE-contract Streamer
-  Connect is hidden on the bare Online Demo. **`?stream=1`** shows Stream
-  for a loopback sidecar (direct `.npy` GET; loopback literal only). It
-  also shows on **Local Viewer** / `npm start` via `/local-viewer.json`
+  Connect is a **Source → Stream** row on the Online Demo (and `?stream=1`).
+  Loopback sidecar only; leaving Stream disconnects. It also shows on
+  **Local Viewer** / `npm start` via `/local-viewer.json`
   (same-origin `/stream-npy` proxy),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;

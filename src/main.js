@@ -1138,6 +1138,7 @@ function currentArSourceKind() {
   // While a showcase fetch is in flight, X advances from the pending target
   // (otherwise MRI High keeps reporting the previous volume and re-queues).
   if (arSourcePending) return arSourcePending;
+  if (ui.getConfig().sourceKind === "stream") return "stream";
   if (sourceId === "conway") return "conway";
   if (sourceId === "count" && countVol) {
     const k = countKindForVolume(countVol);
@@ -2990,12 +2991,18 @@ function syncStartUrl() {
     return;
   }
   const kind = ui.getConfig().sourceKind;
-  const source = isCountSourceKind(kind) && kind !== "count" ? kind : "conway";
+  const stream = kind === "stream";
+  const source =
+    stream
+      ? "stream"
+      : isCountSourceKind(kind) && kind !== "count"
+        ? kind
+        : "conway";
   const next = startSearchFromState({
     source,
     quality: viewQuality,
     face: facePresenting(),
-    stream: Boolean(ui.isStreamDoor?.()),
+    stream,
   });
   const url = new URL(window.location.href);
   if (url.search === next) return;
@@ -3470,8 +3477,9 @@ function bootCount(vol, opts = {}) {
   vol.setHideBelow(0);
   vol.applyTrim(DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM);
   cubes.setKindHex(currentCountLut(), -1);
-  ui.setSourceKind(countKindForVolume(vol));
-  applyStartLook(countKindForVolume(vol));
+  const keepStream = ui.getConfig().sourceKind === "stream" || wolke.listening;
+  ui.setSourceKind(keepStream ? "stream" : countKindForVolume(vol));
+  applyStartLook(keepStream ? "count" : countKindForVolume(vol));
   syncStartUrl();
   ui.setCountScale(countScaleSpec(vol, { trim: DEFAULTS.countTrim ?? DEFAULT_COUNT_TRIM, hideBelow: 0 }));
   acc = 0;
@@ -3589,9 +3597,49 @@ async function loadCountFromUrl(url, name, kind = "count") {
 }
 
 function switchSource(kind) {
+  if (kind === "stream") {
+    const leaveFace = facePresenting();
+    const run = async () => {
+      if (leaveFace) await exitFaceAr();
+      if (arSourcePending && arSourcePending !== "stream") return;
+      disconnectWolke();
+      playing = false;
+      looping = false;
+      editing = false;
+      ui.setPlaying(false);
+      ui.setLooping(false);
+      ui.setSourceKind("stream");
+      applyStartLook("count");
+      sourceId = "count";
+      countVol = null;
+      streamFileNames = [];
+      countPayloadBytes = null;
+      world = null;
+      ring = null;
+      tape = null;
+      if (cubes) {
+        cubes.solid.count = 0;
+        cubes.ghost.count = 0;
+        cubes.count = 0;
+      }
+      ui.setCountHint("Connect to the EVT / WOLKE stream (Send as counts).");
+      ui.setCountMeta("");
+      ui.setWolkeStatus("");
+      syncStartUrl();
+      updateHint();
+      if (arSourcePending === "stream") arSourcePending = null;
+    };
+    if (xrPresenting() && arHeadsetHud) {
+      void run();
+      return;
+    }
+    void withLoading("Loading…", run);
+    return;
+  }
   const next =
     kind === "conway" || COUNT_DEMOS[kind] ? kind : "conway";
   const leaveFace = facePresenting() && !isFaceProjectSource(next);
+  if (wolke.listening || ui.getConfig().sourceKind === "stream") disconnectWolke();
   ui.setSourceKind(next);
   applyStartLook(next);
   syncStartUrl();
@@ -3602,7 +3650,6 @@ function switchSource(kind) {
     if (leaveFace) await exitFaceAr();
     if (arSourcePending && arSourcePending !== next) return;
     if (next === "conway") {
-      disconnectWolke();
       bootWorld(true);
       if (arSourcePending === "conway") arSourcePending = null;
       return;
@@ -3759,10 +3806,10 @@ function maybeEmitWolkeIndex() {
 function connectWolke() {
   const cfg = ui.getConfig();
   const local = Boolean(ui.isLocalViewer?.());
-  const streamDoor = Boolean(ui.isStreamDoor?.());
+  const streamMode = cfg.sourceKind === "stream" || Boolean(ui.isStreamDoor?.());
   wolke.setFetchMode({
     useStreamProxy: local,
-    requireLoopback: streamDoor && !local,
+    requireLoopback: streamMode && !local,
   });
   ui.setWolkeStatus("connecting");
   ui.setWolkeConnected(true);
@@ -5303,7 +5350,6 @@ function frame(now, xrFrame) {
 const start = parseStartSearch(window.location.search);
 qualityLocked = Boolean(start.qualityExplicit);
 applyViewQuality(start.quality);
-if (start.stream) ui.setStreamDoor(true);
 if (start.facePlacement) {
   ui.setFacePlacement?.(start.facePlacement);
   setArMag(start.facePlacement.mag);
@@ -5440,6 +5486,15 @@ void detectLocalViewer().then((info) => {
     return;
   }
   ui.setLocalViewer(false);
+  if (start.source === "stream") {
+    ui.setSourceKind("stream");
+    try {
+      switchSource("stream");
+    } catch (err) {
+      console.warn("DONNER boot", err);
+    }
+    return;
+  }
   ui.setSourceKind(start.source);
   try {
     if (start.source === "conway") bootWorld(true);

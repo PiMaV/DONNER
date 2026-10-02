@@ -284,7 +284,8 @@ describe("shade and source cycle", () => {
 
   it("cycles showcase sources and respects allowCycle", () => {
     assert.equal(nextArSourceKind("mni152-low"), "mni152");
-    assert.equal(nextArSourceKind("conway"), "mni152-low");
+    assert.equal(nextArSourceKind("conway"), "stream");
+    assert.equal(nextArSourceKind("stream"), "mni152-low");
     assert.equal(nextArSourceKind("count"), "mni152-low");
     assert.equal(nextArSourceKind("mni152", { allowCycle: false }), null);
   });
@@ -292,6 +293,7 @@ describe("shade and source cycle", () => {
   it("labels sources and shades for controllers", () => {
     assert.equal(arSourceLabel("mni152-low"), "MRI Low");
     assert.equal(arSourceLabel("conway"), "Life");
+    assert.equal(arSourceLabel("stream"), "Stream");
     assert.equal(arShadeLabel("triple"), "Cuts");
     assert.equal(arShadeLabel("ghost"), "Ghost");
   });
