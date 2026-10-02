@@ -10,7 +10,9 @@ import {
   fileNameFromPayload,
   fileNamesFromPayload,
   indexFromPayload,
+  isLoopbackHost,
   normalizeBaseUrl,
+  validateStreamBaseUrl,
 } from "../src/wolke.js";
 
 function fakeIo() {
@@ -100,7 +102,7 @@ describe("WOLKE viewer URLs", () => {
     assert.equal(displayFileLabel("__selection__.npy", [], null), "__selection__.npy");
   });
 
-  it("rewrites the cube GET through the same-origin proxy", () => {
+  it("rewrites the cube GET through the same-origin proxy when enabled", () => {
     const direct = "http://127.0.0.1:5055/evt?filename=stack.npy";
     assert.equal(cubeFetchUrl(direct, ""), direct);
     assert.equal(cubeFetchUrl(direct, "file://"), direct);
@@ -112,6 +114,24 @@ describe("WOLKE viewer URLs", () => {
       cubeFetchUrl(direct, "https://lab.ole.icu"),
       "https://lab.ole.icu/stream-npy?u=" + encodeURIComponent(direct),
     );
+    assert.equal(
+      cubeFetchUrl(direct, "https://donner.mess.engineering", { useProxy: false }),
+      direct,
+    );
+  });
+
+  it("accepts loopback stream URLs only on the Online Demo door", () => {
+    assert.equal(isLoopbackHost("127.0.0.1"), true);
+    assert.equal(isLoopbackHost("localhost"), true);
+    assert.equal(isLoopbackHost("::1"), true);
+    assert.equal(isLoopbackHost("192.168.1.2"), false);
+    assert.equal(isLoopbackHost("router.local"), false);
+    assert.deepEqual(validateStreamBaseUrl("http://127.0.0.1:5055"), {
+      ok: true,
+      url: "http://127.0.0.1:5055",
+    });
+    assert.equal(validateStreamBaseUrl("http://192.168.1.2:5055").ok, false);
+    assert.equal(validateStreamBaseUrl("http://user:pass@127.0.0.1:5055").ok, false);
   });
 });
 
@@ -149,6 +169,53 @@ describe("WolkeViewer", () => {
     await first;
     assert.deepEqual(got, [["stack.npy", 4]]);
     assert.equal(pending[1].url, "http://127.0.0.1:5055/evt?filename=stack.npy");
+  });
+
+  it("GETs the cube directly from loopback when the proxy is off", async () => {
+    let url;
+    let init;
+    const fetch = async (href, opts) => {
+      url = href;
+      init = opts;
+      return { ok: true, arrayBuffer: async () => new ArrayBuffer(2) };
+    };
+    const io = fakeIo();
+    const viewer = new WolkeViewer({
+      io,
+      fetch,
+      pageOrigin: "https://donner.mess.engineering",
+      useStreamProxy: false,
+      requireLoopback: true,
+    });
+    const got = [];
+    viewer.connect({
+      baseUrl: "http://127.0.0.1:5055",
+      token: "evt",
+      onNpy: (_buf, name) => got.push(name),
+    });
+    await viewer._onFile({ file_name: "stack.npy" });
+    assert.deepEqual(got, ["stack.npy"]);
+    assert.equal(url, "http://127.0.0.1:5055/evt?filename=stack.npy");
+    assert.equal(init.redirect, "error");
+    assert.equal(init.credentials, "omit");
+  });
+
+  it("rejects non-loopback stream URLs when loopback is required", () => {
+    const io = fakeIo();
+    const viewer = new WolkeViewer({
+      io,
+      fetch: async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) }),
+      useStreamProxy: false,
+      requireLoopback: true,
+    });
+    const errors = [];
+    viewer.connect({
+      baseUrl: "http://192.168.1.2:5055",
+      token: "evt",
+      onError: (err) => errors.push(err.message),
+    });
+    assert.equal(viewer.listening, false);
+    assert.match(errors[0], /loopback only/i);
   });
 
   it("GETs the cube via /stream-npy when the page has an origin", async () => {
@@ -204,7 +271,30 @@ describe("WolkeViewer", () => {
     await viewer._onFile({ file_name: "stack.npy" });
     assert.equal(init.credentials, "omit");
     assert.equal(init.mode, "cors");
+    assert.equal(init.redirect, "error");
     assert.equal(io.opts.withCredentials, false);
+  });
+
+  it("hints loopback permission when direct fetch fails on the public door", async () => {
+    const fetch = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    const io = fakeIo();
+    const viewer = new WolkeViewer({
+      io,
+      fetch,
+      pageOrigin: "https://donner.mess.engineering",
+      useStreamProxy: false,
+      requireLoopback: true,
+    });
+    const errors = [];
+    viewer.connect({
+      baseUrl: "http://127.0.0.1:5055",
+      token: "evt",
+      onError: (err) => errors.push(err.message),
+    });
+    await viewer._onFile({ file_name: "stack.npy" });
+    assert.match(errors[0], /Allow loopback access/i);
   });
 
   it("disconnect drops the socket", async () => {

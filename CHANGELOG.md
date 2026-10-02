@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Online Demo **Stream door** (`?stream=1`): shows **Connect** for a loopback
+  EVT / WOLKE sidecar on the same machine. The browser fetches the `.npy`
+  directly (no `/stream-npy` proxy). Loopback only; no auto-connect. Bare URL
+  stays showcase-only.
+
 ### Changed
 
 ### Fixed

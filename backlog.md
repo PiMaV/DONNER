@@ -16,7 +16,10 @@ stages live under **Later** in [`architecture.md`](architecture.md) and
 - Hull / Ghost universal (same peek for MRI and Ignition)
 - Mid-volume playhead catch
 - Loading spinner
-- Streamer Connect hidden on the **Online Demo** (Pages). Drop `.npy` on the volume is in. **Local Viewer** (Go binary) and `npm start` expose Connect via `/local-viewer.json`.
+- Streamer Connect on the Online Demo only via **`?stream=1`** (loopback
+  sidecar, direct fetch). Bare Pages URL stays showcase. **Local Viewer**
+  (Go binary) and `npm start` expose Connect via `/local-viewer.json`.
+  Drop `.npy` on the volume is in.
 - Neighborhood gone
 - Decay UI gone
 - Opt-in **DEV Bench** on the right View HUD (path timers off until checked)
@@ -81,7 +84,7 @@ opt-in on the right View HUD, not a tab). Curated Conway + EVT + volume demos.
 (GitHub Pages + custom domain). Still open: add DONNER to the WETTER
 landing page (sibling repo `WETTER/`). Retire the
 old M.E.S.S. Java/browser point-cloud showcase from the active site
-(archive OK). Connected / sidecar mode stays off the Online Demo.
+(archive OK). Bare Online Demo hides Connect; `?stream=1` is the Pages door.
 
 **Phase 2b — Local Viewer (shipping).** Go one-binary on GitHub Releases
 (no Python for end users). Same JS app + `/stream-npy` + Connect chrome.
@@ -359,14 +362,15 @@ desktop. Remaining:
   NumPy; drop on the volume still works). Header peek, ~500k comfort warn,
   256³ hard cap, optional 2/4/8 mean/max-bin that skips short axes, first-plane
   preview.
-- **Hosting policy (locked).** Online Demo (Pages) never offers Stream /
-  Connect. Local Viewer (Go binary) and `npm start` do, via
-  `/local-viewer.json`. Pages → laptop sidecar is declined (fragile).
-  End users get a one-binary Local Viewer — not a Python zip.
-- Streamer Connect chrome shows under Source when Local Viewer / dev
-  server answers `/local-viewer.json`. Client `index` / `viewer_index`
-  path is in. The Source **Loading…** spinner is the seed for “something
-  is arriving.”
+- **Hosting policy.** Bare Online Demo (Pages) hides Stream / Connect.
+  **`?stream=1`** shows Connect for a loopback sidecar (direct `.npy` GET;
+  browser loopback permission). Local Viewer (Go binary) and `npm start`
+  use `/local-viewer.json` + `/stream-npy`. End users who need LAN /
+  Quest / no loopback grant still use the one-binary Local Viewer.
+- Streamer Connect chrome shows under Source on Local Viewer / `npm start`
+  (`/local-viewer.json`) and on Online Demo `?stream=1`. Client `index` /
+  `viewer_index` path is in. The Source **Loading…** spinner is the seed for
+  “something is arriving.”
 
 ## QR door (later)
 

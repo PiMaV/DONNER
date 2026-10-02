@@ -2995,6 +2995,7 @@ function syncStartUrl() {
     source,
     quality: viewQuality,
     face: facePresenting(),
+    stream: Boolean(ui.isStreamDoor?.()),
   });
   const url = new URL(window.location.href);
   if (url.search === next) return;
@@ -3757,6 +3758,12 @@ function maybeEmitWolkeIndex() {
 
 function connectWolke() {
   const cfg = ui.getConfig();
+  const local = Boolean(ui.isLocalViewer?.());
+  const streamDoor = Boolean(ui.isStreamDoor?.());
+  wolke.setFetchMode({
+    useStreamProxy: local,
+    requireLoopback: streamDoor && !local,
+  });
   ui.setWolkeStatus("connecting");
   ui.setWolkeConnected(true);
   wolke.connect({
@@ -5296,6 +5303,7 @@ function frame(now, xrFrame) {
 const start = parseStartSearch(window.location.search);
 qualityLocked = Boolean(start.qualityExplicit);
 applyViewQuality(start.quality);
+if (start.stream) ui.setStreamDoor(true);
 if (start.facePlacement) {
   ui.setFacePlacement?.(start.facePlacement);
   setArMag(start.facePlacement.mag);

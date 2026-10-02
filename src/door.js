@@ -3,8 +3,10 @@
  * `?src=` picks an example; `?quality=` is Low / Medium / High.
  * Bare URL is Brain MRI Low. `?src=life` / `conway` is Game of Life.
  * `?src=ignition` is Lighter Ignition. `?face=1` enters Face AR
- * (webcam / phone camera overlay, not WebXR). Lab millimetre fit is
- * still parsed; it is not written back. Path `/ignition` and QR stay later.
+ * (webcam / phone camera overlay, not WebXR). `?stream=1` shows Connect
+ * on the Online Demo (loopback sidecar only; no auto-connect). Lab
+ * millimetre fit is still parsed; it is not written back. Path `/ignition`
+ * and QR stay later.
  */
 
 import { COUNT_DEMOS } from "./config.js";
@@ -34,6 +36,14 @@ const SOURCE_ALIASES = {
 };
 
 export const DEFAULT_START_SOURCE = "mni152-low";
+
+/** Online Demo stream door — allow-list only; never carries sidecar URL or token. */
+export function parseStreamDoor(raw) {
+  const k = String(raw || "")
+    .trim()
+    .toLowerCase();
+  return k === "1" || k === "true" || k === "yes";
+}
 
 function canonKey(raw) {
   return String(raw || "")
@@ -71,11 +81,12 @@ export function parseStartSearch(
     : defaultQuality;
   const face = parseFaceQuery(raw);
   const facePlacement = readFacePlacementParams(q);
-  return { source, quality, face, facePlacement, qualityExplicit };
+  const stream = parseStreamDoor(q.get("stream"));
+  return { source, quality, face, facePlacement, qualityExplicit, stream };
 }
 
 export function startSearchFromState(
-  { source, quality, face = false },
+  { source, quality, face = false, stream = false },
   {
     demos = COUNT_DEMOS,
     defaultSource = DEFAULT_START_SOURCE,
@@ -88,6 +99,7 @@ export function startSearchFromState(
   const q = normalizeViewQuality(quality);
   if (q !== defaultQuality) params.set("quality", q);
   if (face) params.set("face", "1");
+  if (stream) params.set("stream", "1");
   const s = params.toString();
   return s ? `?${s}` : "";
 }

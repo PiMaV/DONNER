@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   DEFAULT_START_SOURCE,
   normalizeStartSource,
+  parseStreamDoor,
   parseStartSearch,
   startSearchFromState,
 } from "../src/door.js";
@@ -19,6 +20,7 @@ describe("public door query", () => {
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
       qualityExplicit: false,
+      stream: false,
     });
     assert.deepEqual(parseStartSearch("?foo=bar"), {
       source: "mni152-low",
@@ -26,6 +28,7 @@ describe("public door query", () => {
       face: false,
       facePlacement: { shift: 0, lift: 141, inset: 50, mag: 1.2 },
       qualityExplicit: false,
+      stream: false,
     });
     assert.equal(parseStartSearch("?quality=medium").qualityExplicit, true);
   });
@@ -44,6 +47,24 @@ describe("public door query", () => {
     assert.equal(parseStartSearch("?src=mni152&quality=high").source, "mni152");
     assert.equal(parseStartSearch("?source=lighter&q=low").quality, "low");
     assert.equal(parseStartSearch("?src=nope").source, "mni152-low");
+  });
+
+  it("allow-lists the stream door without sidecar URL or token in the query", () => {
+    assert.equal(parseStreamDoor("1"), true);
+    assert.equal(parseStreamDoor("true"), true);
+    assert.equal(parseStreamDoor("yes"), true);
+    assert.equal(parseStreamDoor("0"), false);
+    assert.equal(parseStreamDoor("http://127.0.0.1:5055"), false);
+    assert.equal(parseStartSearch("?stream=1").stream, true);
+    assert.equal(parseStartSearch("?stream=1&src=brain").source, "mni152-low");
+    assert.equal(
+      startSearchFromState({ source: "mni152-low", quality: "high", stream: true }),
+      "?stream=1",
+    );
+    assert.equal(
+      startSearchFromState({ source: "conway", quality: "high", stream: true }),
+      "?src=conway&stream=1",
+    );
   });
 
   it("writes only non-default query keys and Face without millimetre fit", () => {

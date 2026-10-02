@@ -454,7 +454,7 @@ flowchart LR
 
 | Control | Meaning |
 |---------|---------|
-| Source | **Online Demo:** **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). **Local Viewer** / `npm start`: no Source dropdown — **Load NumPy** + **Connect** only (Brain / Ignition / Conway / **Face** stay Online Demo). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (desktop button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`). Quality Low/Medium/High is the renderer, not the MRI grid. |
+| Source | **Online Demo:** **Game of Life**, **Lighter Ignition**, **Brain MRI Low**, **Brain MRI High**, **Load NumPy** (ids `conway` / `ignition` / `mni152-low` / `mni152`; `npy` is a picker action, not a lasting kind). **Connect** only on the **`?stream=1`** door (loopback sidecar; showcase list stays). **Local Viewer** / `npm start`: no Source dropdown — **Load NumPy** + **Connect** only (Brain / Ignition / Conway / **Face** stay Online Demo). Game of Life shows kind, blurb, and **Play**. Pattern, Speed, seed, grid, and Edit live under **Setup**. After a successful load, **Own cube** appears in the list. Drag-and-drop onto the volume always works. Each example has a one-line blurb. **About Data** sits on the Source fold. **Guide** (desktop button right of the brand chip) is Look; arrows point at the step. Door: `?src=ignition` / `?src=mni152-low` (`brain`) / `?src=mni152` (High) / `?src=conway` (allow-list; aliases `lighter`, `brain`); **`?stream=1`** shows Connect for a loopback sidecar. Quality Low/Medium/High is the renderer, not the MRI grid. |
 | Play / Speed | Conway **Play** in the slim Source chrome. Generator **Speed** is under Setup. Not the View loop. |
 | Loading | Short spinner on the Source fold and a canvas overlay while a source, pattern, grid, or cube is switching. |
 
@@ -515,8 +515,9 @@ drawn instances (dense **hull**, sparse occupied cells) when that is
 above the current setting. Game of Life Play keeps **250k**; Pause fits
 the tape.
 Curated demos skip the gate.
-The WOLKE **Stream** / Connect chrome is **Local Viewer** only (and
-`npm start` via `/local-viewer.json`). It stays off the Online Demo
+The WOLKE **Stream** / Connect chrome shows on **Local Viewer** (and
+`npm start` via `/local-viewer.json`) and on the Online Demo **`?stream=1`**
+door. It stays off the bare Online Demo
 (Pages). See [`backlog.md`](../backlog.md). Visitor copy:
 [`docs/welcome.md`](welcome.md).
 Packed WOLKE `__selection__.npy` arrives as a count cube (`T` = selected
@@ -861,7 +862,8 @@ The gold **frame** is the playfield edge. The cell lattice sits on the
 - NPZ, packed WOLKE `__selection__.npy` multi-row, BLITZ widget sync, in-browser EVT3
 - Open-in / ROI handoff via Viewer Contract hub (later; no peer mesh)
 - **Streamer / Local Viewer:** Connect shows when `/local-viewer.json` is
-  served (Go Local Viewer or `npm start`). Online Demo (Pages) keeps it
+  served (Go Local Viewer or `npm start`) or on the Online Demo `?stream=1`
+  door. Bare Online Demo (Pages) keeps it
   hidden and shows **Get Local Viewer** (Releases) next to Guide. Local
   Viewer (Go) shows compact **EXIT** (`POST /quit`). Closing the browser
   also stops the host (`/ping` heartbeat, `/bye` on pagehide; reload within

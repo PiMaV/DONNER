@@ -2194,7 +2194,8 @@ body.is-local-viewer.is-local-examples.is-local-conway #source-conway {
 }
 
 body.is-local-viewer #source-work,
-body.is-local-viewer #source-stream {
+body.is-local-viewer #source-stream,
+body.is-stream-door #source-stream {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2205,7 +2206,8 @@ body.source-count #source-count {
   display: none;
 }
 
-body.is-local-viewer.source-count #source-count {
+body.is-local-viewer.source-count #source-count,
+body.is-stream-door.source-count #source-count {
   display: block;
 }
 

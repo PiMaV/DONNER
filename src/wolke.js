@@ -7,11 +7,46 @@
  * `viewer_index` (hub-and-spoke; no Viewer↔Viewer peer link).
  */
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+
 export function normalizeBaseUrl(url) {
   let s = String(url || "").trim();
   if (s.startsWith("ws://")) s = `http://${s.slice(5)}`;
   else if (s.startsWith("wss://")) s = `https://${s.slice(6)}`;
   return s.replace(/\/+$/, "");
+}
+
+export function isLoopbackHost(host) {
+  const h = String(host || "").trim().toLowerCase();
+  return Boolean(h && LOOPBACK_HOSTS.has(h));
+}
+
+/**
+ * Gate Stream URL on the Online Demo stream door: loopback literal only.
+ * @returns {{ ok: true, url: string } | { ok: false, reason: string }}
+ */
+export function validateStreamBaseUrl(raw) {
+  const url = normalizeBaseUrl(raw);
+  if (!url) return { ok: false, reason: "Stream URL and token are required" };
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, reason: "Invalid stream URL" };
+  }
+  if (parsed.username || parsed.password) {
+    return { ok: false, reason: "Stream URL must not include credentials" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, reason: "Stream URL must be http or https" };
+  }
+  if (!isLoopbackHost(parsed.hostname)) {
+    return {
+      ok: false,
+      reason: "Online Demo accepts loopback only (127.0.0.1 or localhost)",
+    };
+  }
+  return { ok: true, url };
 }
 
 export function downloadUrl(baseUrl, token, fileName) {
@@ -21,7 +56,8 @@ export function downloadUrl(baseUrl, token, fileName) {
   return `${base}/${tok}?filename=${name}`;
 }
 
-export function cubeFetchUrl(directUrl, pageOrigin) {
+export function cubeFetchUrl(directUrl, pageOrigin, { useProxy = true } = {}) {
+  if (!useProxy) return directUrl;
   const origin = String(pageOrigin || "");
   if (!origin || origin === "null" || origin.startsWith("file:")) return directUrl;
   try {
@@ -90,18 +126,39 @@ export function indexFromPayload(payload) {
   return typeof idx === "number" && Number.isInteger(idx) ? idx : null;
 }
 
+function formatDirectFetchError(why, url) {
+  const msg = String(why || "fetch failed");
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("failed to fetch") ||
+    lower.includes("networkerror") ||
+    lower.includes("network error") ||
+    lower.includes("load failed")
+  ) {
+    return (
+      `${msg} at ${url}. Allow loopback access for this site in the browser, ` +
+      "confirm the sidecar is running, or use the Local Viewer binary."
+    );
+  }
+  return `${msg} at ${url}`;
+}
+
 export class WolkeViewer {
   /**
    * @param {{
    *   io: (url: string, opts?: object) => { on: Function, emit?: Function, disconnect: Function },
    *   fetch?: typeof fetch,
    *   pageOrigin?: string,
+   *   useStreamProxy?: boolean,
+   *   requireLoopback?: boolean,
    * }} deps
    */
   constructor(deps) {
     this._io = deps.io;
     this._fetch = deps.fetch || ((...args) => globalThis.fetch(...args));
     this._pageOrigin = deps.pageOrigin;
+    this._useStreamProxy = deps.useStreamProxy !== false;
+    this._requireLoopback = Boolean(deps.requireLoopback);
     this._socket = null;
     this._gen = 0;
     this._lastFileName = "";
@@ -113,6 +170,11 @@ export class WolkeViewer {
     this.onIndex = null;
     this.onStatus = null;
     this.onError = null;
+  }
+
+  setFetchMode({ useStreamProxy, requireLoopback } = {}) {
+    if (useStreamProxy != null) this._useStreamProxy = Boolean(useStreamProxy);
+    if (requireLoopback != null) this._requireLoopback = Boolean(requireLoopback);
   }
 
   get listening() {
@@ -134,6 +196,14 @@ export class WolkeViewer {
     if (!this.baseUrl || !this.token) {
       this._fail(new Error("Stream URL and token are required"));
       return;
+    }
+    if (this._requireLoopback) {
+      const gate = validateStreamBaseUrl(this.baseUrl);
+      if (!gate.ok) {
+        this._fail(new Error(gate.reason));
+        return;
+      }
+      this.baseUrl = gate.url;
     }
     this.onStatus?.("connecting");
     const socket = this._io(this.baseUrl, {
@@ -214,7 +284,7 @@ export class WolkeViewer {
       this._pageOrigin !== undefined
         ? this._pageOrigin
         : globalThis.location && globalThis.location.origin;
-    const url = cubeFetchUrl(direct, origin);
+    const url = cubeFetchUrl(direct, origin, { useProxy: this._useStreamProxy });
     let res;
     try {
       res = await this._fetch(url, {
@@ -222,12 +292,16 @@ export class WolkeViewer {
         mode: "cors",
         credentials: "omit",
         cache: "no-store",
+        redirect: "error",
       });
     } catch (err) {
       const why = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `${why} at ${url}. Restart DONNER (npm start) so /stream-npy can fetch the sidecar.`,
-      );
+      if (this._useStreamProxy) {
+        throw new Error(
+          `${why} at ${url}. Restart DONNER (npm start) so /stream-npy can fetch the sidecar.`,
+        );
+      }
+      throw new Error(formatDirectFetchError(why, url));
     }
     if (!res.ok) throw new Error(`${res.status} ${url}`);
     return res.arrayBuffer();

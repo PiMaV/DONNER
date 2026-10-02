@@ -438,7 +438,9 @@ export function bindUI(on) {
   const wolkeToken = $("wolke-token");
   const wolkeConnect = $("btn-wolke-connect");
   const wolkeStatus = $("wolke-status");
+  const wolkePermissionHint = $("wolke-permission-hint");
   let localViewer = false;
+  let streamDoor = false;
   let localExamples = false;
   let canQuitLocal = false;
   const LOCAL_EXAMPLE_KINDS = new Set(["mni152-low", "mni152", "ignition", "conway"]);
@@ -488,7 +490,8 @@ export function bindUI(on) {
     if (sourceDemoChrome) sourceDemoChrome.hidden = localViewer && !localExamples;
     // Load NumPy stays in work chrome whenever Local Viewer is on.
     if (sourceWork) sourceWork.hidden = !localViewer;
-    if (sourceStream) sourceStream.hidden = !localViewer;
+    if (sourceStream) sourceStream.hidden = !(localViewer || streamDoor);
+    if (wolkePermissionHint) wolkePermissionHint.hidden = !(streamDoor && !localViewer);
     syncLocalExampleOptions();
     syncLocalConwayChrome();
   };
@@ -1814,6 +1817,14 @@ export function bindUI(on) {
     },
     setWolkeStatus(text) {
       if (wolkeStatus) wolkeStatus.textContent = text || "";
+    },
+    setStreamDoor(on) {
+      streamDoor = Boolean(on);
+      document.body.classList.toggle("is-stream-door", streamDoor);
+      syncLocalSourceChrome();
+    },
+    isStreamDoor() {
+      return streamDoor;
     },
     setLocalViewer(on, opts = {}) {
       localViewer = Boolean(on);

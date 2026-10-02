@@ -31,8 +31,10 @@ advantage, not a deployment convenience.
   Examples is on; Life Play chrome only while Examples is on. Quest source
   buttons respect the same gate.
   WOLKE-contract Streamer
-  Connect is **Online Demo**–hidden and shows on **Local Viewer** /
-  `npm start` via `/local-viewer.json`),
+  Connect is hidden on the bare Online Demo. **`?stream=1`** shows Stream
+  for a loopback sidecar (direct `.npy` GET; loopback literal only). It
+  also shows on **Local Viewer** / `npm start` via `/local-viewer.json`
+  (same-origin `/stream-npy` proxy),
   **encoding slot**
   (color `k` + fill `s`; Conway fills still/osc/unsettled + Stability;
   count fills a windowed Scale, color only).
@@ -43,7 +45,9 @@ advantage, not a deployment convenience.
   lives in `src/conway.js`. Count cubes unpack in `src/npy.js` +
   `src/count.js`. Drop-path prep is `src/volume-prep.js` (header peek,
   caps, streaming mean/max-bin that skips short axes). A WOLKE-contract viewer (`src/wolke.js`) only fetches
-  that cube (Socket.IO notify + same-origin `/stream-npy` GET); optional
+  that cube (Socket.IO notify + HTTP GET `.npy`; Local Viewer uses
+  same-origin `/stream-npy`, Online Demo stream door fetches loopback
+  directly); optional
   `file_names` label the current T in Source meta. It does
   not add a DONNER analysis backend. Local Viewer (Go) or `npm start` /
   `start:lan` provide the proxy. The cube renderer must stay source-agnostic.
