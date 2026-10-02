@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.0] - 2026-10-02
+
+### Added
+
 - Online Demo **Source → Stream** list row (and `?stream=1`): Connect panel
   for a loopback EVT / WOLKE sidecar. Leaving Stream disconnects. The browser
   fetches the `.npy` directly (no `/stream-npy` proxy). Loopback only; no

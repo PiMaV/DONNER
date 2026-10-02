@@ -75,13 +75,13 @@ jobs:
           overwrite_files: true
           generate_release_notes: true
           body: |
-            **Local Viewer** — full DONNER on your machine (no Python).
+            **Offline** — the same DONNER, for use without internet.
 
             - Linux: `chmod +x DONNER-${{ env.TAG }}-linux-x86_64 && ./DONNER-${{ env.TAG }}-linux-x86_64`
             - Windows: run `DONNER-${{ env.TAG }}-windows-x86_64.exe`
-            - Opens http://127.0.0.1:8765/ — Stream / Connect for EVT or WOLKE sidecars
+            - Opens http://127.0.0.1:8765/
             - **EXIT** in the page (or close the browser) shuts down the host
-            - Online Demo (showcase only): https://donner.mess.engineering/
+            - Online page, with Source → Stream: https://donner.mess.engineering/
 
   build-windows:
     runs-on: windows-latest
